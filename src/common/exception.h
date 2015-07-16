@@ -10,11 +10,11 @@
 
 class Exception : public std::exception {
 public:
-	Exception(const std::string& message) : message_(message), status_(STATUS_OK) {
+	Exception(const std::string& message) : message_(message), status_(LIZARDFS_STATUS_OK) {
 	}
 
 	Exception(const std::string& message, uint8_t status) : message_(message), status_(status) {
-		if (status != STATUS_OK) {
+		if (status != LIZARDFS_STATUS_OK) {
 			message_ += " (" + std::string(mfsstrerr(status)) + ")";
 		}
 	}

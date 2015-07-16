@@ -20,33 +20,33 @@
 
 int mfs_errorconv(uint8_t status) {
 	switch (status) {
-		case STATUS_OK:
+		case LIZARDFS_STATUS_OK:
 			return 0;
-		case ERROR_EPERM:
+		case LIZARDFS_ERROR_EPERM:
 			return EPERM;
-		case ERROR_ENOTDIR:
+		case LIZARDFS_ERROR_ENOTDIR:
 			return ENOTDIR;
-		case ERROR_ENOENT:
+		case LIZARDFS_ERROR_ENOENT:
 			return ENOENT;
-		case ERROR_EACCES:
+		case LIZARDFS_ERROR_EACCES:
 			return EACCES;
-		case ERROR_EEXIST:
+		case LIZARDFS_ERROR_EEXIST:
 			return EEXIST;
-		case ERROR_EINVAL:
+		case LIZARDFS_ERROR_EINVAL:
 			return EINVAL;
-		case ERROR_ENOTEMPTY:
+		case LIZARDFS_ERROR_ENOTEMPTY:
 			return ENOTEMPTY;
-		case ERROR_IO:
+		case LIZARDFS_ERROR_IO:
 			return EIO;
-		case ERROR_EROFS:
+		case LIZARDFS_ERROR_EROFS:
 			return EROFS;
-		case ERROR_QUOTA:
+		case LIZARDFS_ERROR_QUOTA:
 			return EDQUOT;
-		case ERROR_ENOATTR:
+		case LIZARDFS_ERROR_ENOATTR:
 			return ENOATTR;
-		case ERROR_ENOTSUP:
+		case LIZARDFS_ERROR_ENOTSUP:
 			return ENOTSUP;
-		case ERROR_ERANGE:
+		case LIZARDFS_ERROR_ERANGE:
 			return ERANGE;
 		default:
 			return EINVAL;

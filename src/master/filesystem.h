@@ -42,7 +42,7 @@ uint64_t fs_getversion();
 uint64_t fs_checksum(ChecksumMode mode);
 
 /// Starts recalculating metadata checksum in background.
-/// \return STATUS_OK iff dump started successfully, otherwise cause of the failure.
+/// \return LIZARDFS_STATUS_OK iff dump started successfully, otherwise cause of the failure.
 uint8_t fs_start_checksum_recalculation();
 
 /// Load and apply changelogs.
@@ -54,7 +54,7 @@ int fs_loadall();
 /*! \brief Dump current state of file system metadata.
  *
  * \param dumpType - choose between foreground and background dumping.
- * \return STATUS_OK iff dump started/completed successfully, otherwise cause of the failure.
+ * \return LIZARDFS_STATUS_OK iff dump started/completed successfully, otherwise cause of the failure.
  */
 uint8_t fs_storeall(MetadataDumper::DumpType dumpType);
 

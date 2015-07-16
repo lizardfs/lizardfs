@@ -398,7 +398,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	}
 	pthread_mutex_unlock(&glock);
 
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		write_job_end(inodeData_, status, 0);
 		return;
 	}
@@ -408,22 +408,22 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	uint32_t chunkserverDataSize;
 	int writeChunkStatus = fs_writechunk(inodeData_->inode, chunkIndex_,
 			&fileLength_, &chunkId_, &chunkVersion_, &chunkserverData, &chunkserverDataSize);
-	if (writeChunkStatus != STATUS_OK) {
+	if (writeChunkStatus != LIZARDFS_STATUS_OK) {
 		syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
 				" - fs_writechunk returns status: %s",
 				inodeData_->inode, chunkIndex_, mfsstrerr(writeChunkStatus));
-		if (writeChunkStatus != ERROR_LOCKED) {
-			if (writeChunkStatus == ERROR_ENOENT) {
+		if (writeChunkStatus != LIZARDFS_ERROR_LOCKED) {
+			if (writeChunkStatus == LIZARDFS_ERROR_ENOENT) {
 				write_job_end(inodeData_, EBADF, 0);
-			} else if (writeChunkStatus == ERROR_QUOTA) {
+			} else if (writeChunkStatus == LIZARDFS_ERROR_QUOTA) {
 				write_job_end(inodeData_, EDQUOT, 0);
-			} else if (writeChunkStatus == ERROR_NOSPACE) {
+			} else if (writeChunkStatus == LIZARDFS_ERROR_NOSPACE) {
 				write_job_end(inodeData_, ENOSPC, 0);
 			} else {
 				inodeData_->trycnt++;
 				if (inodeData_->trycnt >= maxretries) {
-					if (writeChunkStatus == ERROR_NOCHUNKSERVERS) {
+					if (writeChunkStatus == LIZARDFS_ERROR_NOCHUNKSERVERS) {
 						write_job_end(inodeData_, ENOSPC, 0);
 					} else {
 						write_job_end(inodeData_, EIO, 0);
@@ -495,7 +495,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	// It has to be different than 0, so that we can distinguish status of the initial message
 	// from statuses of the WRITE_DATA messages.
 	uint32_t nextWriteId = 1;
-	status = STATUS_OK;
+	status = LIZARDFS_STATUS_OK;
 	Timer lastMessageReceiveTimer;
 
 	bool otherJobsAreWaiting;
@@ -614,7 +614,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			while (receiveBuffer.hasMessageData()) {
 				int messageProcessingStatus = processReceivedMessage(receiveBuffer);
 				receiveBuffer.removeMessage();
-				if (messageProcessingStatus != STATUS_OK) {
+				if (messageProcessingStatus != LIZARDFS_STATUS_OK) {
 					status = messageProcessingStatus;
 					break;
 				}
@@ -650,16 +650,16 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	int writeEndStatus;
 	for (int retryCount = 0 ; retryCount < 10 ; ++retryCount) {
 		writeEndStatus = fs_writeend(chunkId_, inodeData_->inode, fileLength_);
-		if (writeEndStatus != STATUS_OK) {
+		if (writeEndStatus != LIZARDFS_STATUS_OK) {
 			usleep(100000 + (10000 << retryCount));
 		} else {
 			break;
 		}
 	}
 
-	if (writeEndStatus != STATUS_OK) {
+	if (writeEndStatus != LIZARDFS_STATUS_OK) {
 		write_job_end(inodeData_, ENXIO, 0);
-	} else if (status != STATUS_OK) {
+	} else if (status != LIZARDFS_STATUS_OK) {
 		inodeData_->trycnt++;
 		if (inodeData_->trycnt >= maxretries) {
 			write_job_end(inodeData_, status, 0);
@@ -706,7 +706,7 @@ bool InodeChunkWriter::tryGetNewBlockToWrite() {
 int InodeChunkWriter::processReceivedMessage(const MessageReceiveBuffer& messageBuffer) {
 	PacketHeader header = messageBuffer.getMessageHeader();
 	if (header.type == ANTOAN_NOP && header.length == 0) {
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	} else if (header.type == CSTOCL_WRITE_STATUS && header.length == 13) {
 		return processReceivedStatusMessage(messageBuffer.getMessageData());
 	} else {
@@ -731,10 +731,10 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 		return EIO;
 	}
 
-	if (receivedStatus != STATUS_OK) {
+	if (receivedStatus != LIZARDFS_STATUS_OK) {
 		syslog(LOG_WARNING, "writeworker: write error: %s", mfsstrerr(receivedStatus));
 		// convert MFS status to OS errno
-		if (receivedStatus == ERROR_NOSPACE) {
+		if (receivedStatus == LIZARDFS_ERROR_NOSPACE) {
 			return ENOSPC;
 		} else {
 			return EIO;
@@ -790,7 +790,7 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 		pthread_mutex_unlock(&glock);
 	}
 	requestsWaitingForStatus_--;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 /* main working thread | glock:UNLOCKED */

@@ -426,7 +426,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 	if ((lastlogversion > 0) && (version != (lastlogversion + 1))) {
 		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
-		masterconn_handle_changelog_apply_error(eptr, ERROR_METADATAVERSIONMISMATCH);
+		masterconn_handle_changelog_apply_error(eptr, LIZARDFS_ERROR_METADATAVERSIONMISMATCH);
 		return;
 	}
 
@@ -437,7 +437,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		static char const network[] = "network";
 		uint8_t status;
 		if ((status = restore(network, version, buf.c_str(),
-				RestoreRigor::kDontIgnoreAnyErrors)) != STATUS_OK) {
+				RestoreRigor::kDontIgnoreAnyErrors)) != LIZARDFS_STATUS_OK) {
 			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
 					mfsstrerr(status));
 			masterconn_handle_changelog_apply_error(eptr, status);
@@ -564,10 +564,10 @@ void masterconn_download_next(masterconn *eptr) {
 						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
 								ex.what());
 						uint8_t status = ex.status();
-						if (status == STATUS_OK) {
+						if (status == LIZARDFS_STATUS_OK) {
 							// unknown error - tell the master to apply changelogs and hope that
 							// all will be good
-							status = ERROR_CHANGELOGINCONSISTENT;
+							status = LIZARDFS_ERROR_CHANGELOGINCONSISTENT;
 						}
 						masterconn_handle_changelog_apply_error(eptr, status);
 					}
@@ -703,9 +703,9 @@ void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uin
 	uint8_t status;
 	matoml::changelogApplyError::deserialize(data, length, status);
 	DEBUG_LOG("master.matoml_changelog_apply_error") << "status: " << int(status);
-	if (status == STATUS_OK) {
+	if (status == LIZARDFS_STATUS_OK) {
 		masterconn_force_metadata_download(eptr);
-	} else if (status == ERROR_DELAYED) {
+	} else if (status == LIZARDFS_ERROR_DELAYED) {
 		eptr->state = MasterConnectionState::kLimbo;
 		syslog(LOG_NOTICE, "Master temporarily refused to produce a new metadata image");
 	} else {

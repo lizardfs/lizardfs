@@ -263,7 +263,7 @@ void csserv_retryconnect(csserventry *eptr) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+			put8bit(&ptr,LIZARDFS_ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
@@ -271,7 +271,7 @@ void csserv_retryconnect(csserventry *eptr) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
-		put8bit(&ptr,ERROR_CANTCONNECT);
+		put8bit(&ptr,LIZARDFS_ERROR_CANTCONNECT);
 		eptr->state = WRITEFINISH;
 		return;
 	}
@@ -305,7 +305,7 @@ void csserv_check_nextpacket(csserventry *eptr);
 // common - delayed close
 void csserv_delayed_close(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
-	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==STATUS_OK) {      // this was job_open
+	if (eptr->wjobid>0 && eptr->wjobwriteid==0 && status==LIZARDFS_STATUS_OK) {      // this was job_open
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
@@ -324,7 +324,7 @@ void csserv_read_finished(uint8_t status,void *e) {
 	csserventry *eptr = (csserventry*)e;
 	uint8_t *ptr;
 	eptr->rjobid=0;
-	if (status==STATUS_OK) {
+	if (status==LIZARDFS_STATUS_OK) {
 		eptr->todocnt--;
 		if (eptr->todocnt==0) {
 			csserv_read_continue(eptr);
@@ -364,7 +364,7 @@ void csserv_read_continue(csserventry *eptr) {
 	if (eptr->size==0) {    // everything have been read
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);
+		put8bit(&ptr,LIZARDFS_STATUS_OK);
 		job_close(jpool,NULL,NULL,eptr->chunkid);
 		eptr->chunkisopen = 0;
 		eptr->state = IDLE;     // no error - do not disconnect - go direct to the IDLE state, ready for requests on the same connection
@@ -407,7 +407,7 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->offset = get32bit(&data);
 	eptr->size = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
@@ -416,23 +416,23 @@ void csserv_read_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (eptr->size==0) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,STATUS_OK);        // no bytes to read - just return STATUS_OK
+		put8bit(&ptr,LIZARDFS_STATUS_OK);        // no bytes to read - just return STATUS_OK
 		return;
 	}
 	if (eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGSIZE);
+		put8bit(&ptr,LIZARDFS_ERROR_WRONGSIZE);
 		return;
 	}
 	if (eptr->offset>=MFSCHUNKSIZE || eptr->offset+eptr->size>MFSCHUNKSIZE) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
-		put8bit(&ptr,ERROR_WRONGOFFSET);
+		put8bit(&ptr,LIZARDFS_ERROR_WRONGOFFSET);
 		return;
 	}
 	status = hdd_open(eptr->chunkid);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_READ_STATUS,8+1);
 		put64bit(&ptr,eptr->chunkid);
 		put8bit(&ptr,status);
@@ -454,7 +454,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 	writestatus **wpptr,*wptr;
 //      syslog(LOG_NOTICE,"write job finished (jobid:%" PRIu32 ",chunkid:%" PRIu64 ",writeid:%" PRIu32 ",status:%" PRIu8 ")",eptr->wjobid,eptr->chunkid,eptr->wjobwriteid,status);
 	eptr->wjobid = 0;
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
@@ -469,7 +469,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,eptr->wjobwriteid);
-		put8bit(&ptr,STATUS_OK);
+		put8bit(&ptr,LIZARDFS_STATUS_OK);
 	} else {
 		wpptr = &(eptr->todolist);
 		while ((wptr=*wpptr)) {
@@ -477,7 +477,7 @@ void csserv_write_finished(uint8_t status,void *e) {
 				ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 				put64bit(&ptr,eptr->chunkid);
 				put32bit(&ptr,eptr->wjobwriteid);
-				put8bit(&ptr,STATUS_OK);
+				put8bit(&ptr,LIZARDFS_STATUS_OK);
 				*wpptr = wptr->next;
 				free(wptr);
 			} else {
@@ -506,7 +506,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 	eptr->chunkid = get64bit(&data);
 	eptr->version = get32bit(&data);
 	status = hdd_check_version(eptr->chunkid,eptr->version);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
@@ -523,7 +523,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+			put8bit(&ptr,LIZARDFS_ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
@@ -531,7 +531,7 @@ void csserv_write_init(csserventry *eptr,const uint8_t *data,uint32_t length) {
 			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,eptr->chunkid);
 			put32bit(&ptr,0);
-			put8bit(&ptr,ERROR_CANTCONNECT);
+			put8bit(&ptr,LIZARDFS_ERROR_CANTCONNECT);
 			eptr->state = WRITEFINISH;
 			return;
 		}
@@ -571,7 +571,7 @@ void csserv_write_data(csserventry *eptr,const uint8_t *data,uint32_t length) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,chunkid);
 		put32bit(&ptr,writeid);
-		put8bit(&ptr,ERROR_WRONGCHUNKID);
+		put8bit(&ptr,LIZARDFS_ERROR_WRONGCHUNKID);
 		eptr->state = WRITEFINISH;
 		return;
 	}
@@ -606,11 +606,11 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,0);
-		put8bit(&ptr,ERROR_WRONGCHUNKID);
+		put8bit(&ptr,LIZARDFS_ERROR_WRONGCHUNKID);
 		eptr->state = WRITEFINISH;
 		return;
 	}
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 		put64bit(&ptr,eptr->chunkid);
 		put32bit(&ptr,writeid);
@@ -624,7 +624,7 @@ void csserv_write_status(csserventry *eptr,const uint8_t *data,uint32_t length) 
 			ptr = csserv_create_attached_packet(eptr,CSTOCL_WRITE_STATUS,8+4+1);
 			put64bit(&ptr,chunkid);
 			put32bit(&ptr,writeid);
-			put8bit(&ptr,STATUS_OK);
+			put8bit(&ptr,LIZARDFS_STATUS_OK);
 			*wpptr = wptr->next;
 			free(wptr);
 			return;
@@ -646,9 +646,9 @@ void csserv_fwderror(csserventry *eptr) {
 	put64bit(&ptr,eptr->chunkid);
 	put32bit(&ptr,0);
 	if (eptr->state==CONNECTING) {
-		put8bit(&ptr,ERROR_CANTCONNECT);
+		put8bit(&ptr,LIZARDFS_ERROR_CANTCONNECT);
 	} else {
-		put8bit(&ptr,ERROR_DISCONNECTED);
+		put8bit(&ptr,LIZARDFS_ERROR_DISCONNECTED);
 	}
 	eptr->state = WRITEFINISH;
 }
@@ -673,7 +673,7 @@ void csserv_get_chunk_blocks(csserventry *eptr,const uint8_t *data,uint32_t leng
 	ptr = csserv_create_attached_packet(eptr,CSTOCS_GET_CHUNK_BLOCKS_STATUS,8+4+2+1);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	if (status == STATUS_OK) { // make valgrind happy -- don't send uninitialized bytes
+	if (status == LIZARDFS_STATUS_OK) { // make valgrind happy -- don't send uninitialized bytes
 		put16bit(&ptr,blocks);
 	} else {
 		put16bit(&ptr,0);
@@ -696,14 +696,14 @@ void csserv_chunk_checksum(csserventry *eptr,const uint8_t *data,uint32_t length
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	status = hdd_get_checksum(chunkid,version,&checksum);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+1);
 	} else {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM,8+4+4);
 	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
 		put32bit(&ptr,checksum);
@@ -725,14 +725,14 @@ void csserv_chunk_checksum_tab(csserventry *eptr,const uint8_t *data,uint32_t le
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	status = hdd_get_checksum_tab(chunkid,version,crctab);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+1);
 	} else {
 		ptr = csserv_create_attached_packet(eptr,CSTOAN_CHUNK_CHECKSUM_TAB,8+4+4096);
 	}
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
 		memcpy(ptr,crctab,4096);

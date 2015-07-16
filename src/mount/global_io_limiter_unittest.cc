@@ -117,9 +117,9 @@ TEST(LimiterGroupTests, GroupDeadline) {
 	std::mutex mutex;
 	std::unique_lock<std::mutex> lock(mutex);
 
-	ASSERT_EQ(ERROR_TIMEOUT, group.wait(1, clock.now() - std::chrono::seconds(1), lock));
-	ASSERT_EQ(ERROR_TIMEOUT, group.wait(1, clock.now(), lock));
-	ASSERT_EQ(STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+	ASSERT_EQ(LIZARDFS_ERROR_TIMEOUT, group.wait(1, clock.now() - std::chrono::seconds(1), lock));
+	ASSERT_EQ(LIZARDFS_ERROR_TIMEOUT, group.wait(1, clock.now(), lock));
+	ASSERT_EQ(LIZARDFS_STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 }
 
 // Check if the request is handled without any sleeps when the limit is not reached
@@ -164,7 +164,7 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 					std::unique_lock<std::mutex> lock(mutex);
 					uint8_t status = group.wait(1024 * 1024/*1MB*/,
 							clock.now() + std::chrono::seconds(10), lock);
-					ASSERT_EQ(STATUS_OK, status);
+					ASSERT_EQ(LIZARDFS_STATUS_OK, status);
 					total++;
 					someoneFinished.notify_all();
 				}));
@@ -206,13 +206,13 @@ TEST(LimiterGroupTests, Die) {
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+		ASSERT_EQ(LIZARDFS_STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 	}
 	group.die(); // .. but not after 'die' is called:
 	{
 		std::unique_lock<std::mutex> lock(mutex);
 		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(ERROR_ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+		ASSERT_EQ(LIZARDFS_ERROR_ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
 	}
 }
 
@@ -248,7 +248,7 @@ TEST(LimiterProxyTests, EndTimeAfterManyParallelReads) {
 				}
 				// wait for them to finish:
 				for (auto& status : statuses) {
-					ASSERT_EQ(STATUS_OK, status.get());
+					ASSERT_EQ(LIZARDFS_STATUS_OK, status.get());
 				}
 
 				// Check if they finished after a sane time. The limit is 1KBps, so we expect that
@@ -311,7 +311,7 @@ TEST(LimiterProxyTests, ManyMountsSummaryThroughput) {
 			asyncs.push_back(std::async(std::launch::async, [&proxyLimiter, M, &deadline, &mutex,
 					&someoneCompleted, &completed, &expectedToBeCompleted]() {
 						for (auto i = 0; i < M; ++i) {
-							ASSERT_EQ(STATUS_OK, proxyLimiter.waitForRead(
+							ASSERT_EQ(LIZARDFS_STATUS_OK, proxyLimiter.waitForRead(
 									getpid(), 1024/*1KB*/, deadline));
 							std::unique_lock<std::mutex> lock(mutex);
 							completed++;
@@ -369,7 +369,7 @@ TEST(LimiterProxyTests, NumberOfRequestesSentToMaster) {
 				asyncs.push_back(
 						std::async(std::launch::async, [&lp, &deadline, &cond, &mutex, &completed]()
 						{
-							ASSERT_EQ(STATUS_OK, lp.waitForRead(getpid(), 1024/*1KB*/, deadline));
+							ASSERT_EQ(LIZARDFS_STATUS_OK, lp.waitForRead(getpid(), 1024/*1KB*/, deadline));
 							completed++;
 							std::unique_lock<std::mutex> lock(mutex);
 							cond.notify_all();

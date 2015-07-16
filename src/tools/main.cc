@@ -1232,7 +1232,7 @@ int file_info(const char *fileName) {
 				return -1;
 			}
 
-			uint8_t status = STATUS_OK;
+			uint8_t status = LIZARDFS_STATUS_OK;
 			if (version == matocl::chunkInfo::kStatusPacketVersion) {
 				matocl::chunkInfo::deserialize(buffer, messageId, status);
 			} else if (version != matocl::chunkInfo::kResponsePacketVersion) {
@@ -1241,7 +1241,7 @@ int file_info(const char *fileName) {
 				close_master_conn(1);
 				return -1;
 			}
-			if (status != STATUS_OK) {
+			if (status != LIZARDFS_STATUS_OK) {
 				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
 				close_master_conn(1);
 				return -1;
@@ -1355,7 +1355,7 @@ int append_file(const char *fname,const char *afname) {
 		printf("%s: master query: wrong answer (leng)\n",fname);
 		free(buff);
 		return -1;
-	} else if (*rptr!=STATUS_OK) {
+	} else if (*rptr!=LIZARDFS_STATUS_OK) {
 		printf("%s: %s\n",fname,mfsstrerr(*rptr));
 		free(buff);
 		return -1;
@@ -1973,7 +1973,7 @@ int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
 		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
 		matocl::fuseSetQuota::deserialize(response, messageId, status);
-		if (status != STATUS_OK) {
+		if (status != LIZARDFS_STATUS_OK) {
 			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 	} catch (Exception& e) {

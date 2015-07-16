@@ -1354,7 +1354,7 @@ static inline int chunk_readcrc(chunk *c) {
 		int errmem = errno;
 		lzfs_silent_errlog(LOG_WARNING,"chunk_readcrc: file:%s - read error",c->filename);
 		errno = errmem;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 #else /* USE_PIO */
 	lseek(c->fd,0,SEEK_SET);
@@ -1362,13 +1362,13 @@ static inline int chunk_readcrc(chunk *c) {
 		int errmem = errno;
 		lzfs_silent_errlog(LOG_WARNING,"chunk_readcrc: file:%s - read error",c->filename);
 		errno = errmem;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 #endif /* USE_PIO */
 	if (memcmp(hdr,MFSSIGNATURE "C 1.0",8)!=0) {
 		syslog(LOG_WARNING,"chunk_readcrc: file:%s - wrong header",c->filename);
 		errno = 0;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	ptr = hdr+8;
 	chunkid = get64bit(&ptr);
@@ -1376,7 +1376,7 @@ static inline int chunk_readcrc(chunk *c) {
 	if (c->chunkid!=chunkid || c->version!=version) {
 		syslog(LOG_WARNING,"chunk_readcrc: file:%s - wrong id/version in header (%016" PRIX64 "_%08" PRIX32 ")",c->filename,chunkid,version);
 		errno = 0;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	c->crc = (uint8_t*)malloc(4096);
 	passert(c->crc);
@@ -1392,11 +1392,11 @@ static inline int chunk_readcrc(chunk *c) {
 		free(c->crc);
 		c->crc = NULL;
 		errno = errmem;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_read(4096);
 	errno = 0;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static inline void chunk_freecrc(chunk *c) {
@@ -1419,10 +1419,10 @@ static inline int chunk_writecrc(chunk *c) {
 		int errmem = errno;
 		lzfs_silent_errlog(LOG_WARNING,"chunk_writecrc: file:%s - write error",c->filename);
 		errno = errmem;
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(4096);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 void hdd_test_show_chunks(void) {
@@ -1621,7 +1621,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 				int errmem = errno;
 				lzfs_silent_errlog(LOG_WARNING,"hdd_io_begin: file:%s - open error",c->filename);
 				errno = errmem;
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 		}
 		if (c->crc==NULL) {
@@ -1629,7 +1629,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 				chunk_emptycrc(c);
 			} else {
 				status = chunk_readcrc(c);
-				if (status!=STATUS_OK) {
+				if (status!=LIZARDFS_STATUS_OK) {
 					int errmem = errno;
 					if (add) {
 						close(c->fd);
@@ -1662,7 +1662,7 @@ static int hdd_io_begin(chunk *c,int newflag) {
 	}
 	c->crcrefcount++;
 	errno = 0;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static int hdd_io_end(chunk *c) {
@@ -1673,7 +1673,7 @@ static int hdd_io_end(chunk *c) {
 	if (c->crcchanged) {
 		status = chunk_writecrc(c);
 		c->crcchanged = 0;
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			int errmem = errno;
 			lzfs_silent_errlog(LOG_WARNING,"hdd_io_end: file:%s - write error",c->filename);
 			errno = errmem;
@@ -1692,7 +1692,7 @@ static int hdd_io_end(chunk *c) {
 			int errmem = errno;
 			lzfs_silent_errlog(LOG_WARNING,"hdd_io_end: file:%s - fsync (direct call) error",c->filename);
 			errno = errmem;
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 #endif
 		te = get_usectime();
@@ -1706,7 +1706,7 @@ static int hdd_io_end(chunk *c) {
 				c->fd = -1;
 				lzfs_silent_errlog(LOG_WARNING,"hdd_io_end: file:%s - close error",c->filename);
 				errno = errmem;
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			c->fd = -1;
 		} else {
@@ -1718,7 +1718,7 @@ static int hdd_io_end(chunk *c) {
 #endif
 	}
 	errno = 0;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 /* I/O operations */
@@ -1728,15 +1728,15 @@ int hdd_open(uint64_t chunkid) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 	}
 	hdd_chunk_release(c);
-//      if (status==STATUS_OK) {
+//      if (status==LIZARDFS_STATUS_OK) {
 //              syslog(LOG_NOTICE,"chunk %08" PRIX64 " opened",chunkid);
 //      }
 	return status;
@@ -1747,15 +1747,15 @@ int hdd_close(uint64_t chunkid) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 	}
 	hdd_chunk_release(c);
-//      if (status==STATUS_OK) {
+//      if (status==LIZARDFS_STATUS_OK) {
 //              syslog(LOG_NOTICE,"chunk %08" PRIX64 " closed",chunkid);
 //      }
 	return status;
@@ -1778,23 +1778,23 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 #endif /* PRESERVE_BLOCK */
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	if (blocknum>=MFSBLOCKSINCHUNK) {
 		hdd_chunk_release(c);
-		return ERROR_BNUMTOOBIG;
+		return LIZARDFS_ERROR_BNUMTOOBIG;
 	}
 	if (size>MFSBLOCKSIZE) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGSIZE;
+		return LIZARDFS_ERROR_WRONGSIZE;
 	}
 	if ((offset>=MFSBLOCKSIZE) || (offset+size>MFSBLOCKSIZE)) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGOFFSET;
+		return LIZARDFS_ERROR_WRONGOFFSET;
 	}
 	if (blocknum>=c->blocks) {
 		memset(buffer,0,size);
@@ -1805,7 +1805,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 		}
 		put32bit(&crcbuff,crc);
 		hdd_chunk_release(c);
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	}
 	if (offset==0 && size==MFSBLOCKSIZE) {
 #ifdef PRESERVE_BLOCK
@@ -1826,7 +1826,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		te = get_usectime();
 		hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
@@ -1844,7 +1844,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			syslog(LOG_WARNING,"read_block_from_chunk: file:%s - crc error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_CRC;
+			return LIZARDFS_ERROR_CRC;
 		}
 	} else {
 #ifdef PRESERVE_BLOCK
@@ -1861,7 +1861,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 				lzfs_silent_errlog(LOG_WARNING,"read_block_from_chunk: file:%s - read error",c->filename);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(c);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			te = get_usectime();
 			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
@@ -1910,7 +1910,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 			syslog(LOG_WARNING,"read_block_from_chunk: file:%s - crc error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_CRC;
+			return LIZARDFS_ERROR_CRC;
 		}
 #ifdef PRESERVE_BLOCK
 		memcpy(buffer,c->block+offset,size);
@@ -1920,7 +1920,7 @@ int hdd_read(uint64_t chunkid,uint32_t version,uint16_t blocknum,uint8_t *buffer
 	}
 	put32bit(&crcbuff,crc);
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t *buffer,uint32_t offset,uint32_t size,const uint8_t *crcbuff) {
@@ -1942,28 +1942,28 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 #endif /* PRESERVE_BLOCK */
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	if (blocknum>=MFSBLOCKSINCHUNK) {
 		hdd_chunk_release(c);
-		return ERROR_BNUMTOOBIG;
+		return LIZARDFS_ERROR_BNUMTOOBIG;
 	}
 	if (size>MFSBLOCKSIZE) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGSIZE;
+		return LIZARDFS_ERROR_WRONGSIZE;
 	}
 	if ((offset>=MFSBLOCKSIZE) || (offset+size>MFSBLOCKSIZE)) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGOFFSET;
+		return LIZARDFS_ERROR_WRONGOFFSET;
 	}
 	crc = get32bit(&crcbuff);
 	if (crc!=mycrc32(0,buffer,size)) {
 		hdd_chunk_release(c);
-		return ERROR_CRC;
+		return LIZARDFS_ERROR_CRC;
 	}
 	if (offset==0 && size==MFSBLOCKSIZE) {
 		if (blocknum>=c->blocks) {
@@ -1985,7 +1985,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,MFSBLOCKSIZE,te-ts);
@@ -2012,7 +2012,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 					lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - read error",c->filename);
 					hdd_report_damaged_chunk(chunkid);
 					hdd_chunk_release(c);
-					return ERROR_IO;
+					return LIZARDFS_ERROR_IO;
 				}
 				te = get_usectime();
 				hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
@@ -2033,7 +2033,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - read error",c->filename);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(c);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			te = get_usectime();
 			hdd_stats_dataread(c->owner,MFSBLOCKSIZE,te-ts);
@@ -2063,7 +2063,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				syslog(LOG_WARNING,"write_block_to_chunk: file:%s - crc error",c->filename);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(c);
-				return ERROR_CRC;
+				return LIZARDFS_ERROR_CRC;
 			}
 		} else {
 			if (ftruncate(c->fd,CHUNKHDRSIZE+(((uint32_t)(blocknum+1))<<MFSBLOCKBITS))<0) {
@@ -2071,7 +2071,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 				lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - ftruncate error",c->filename);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(c);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			wcrcptr = (c->crc)+(4*(c->blocks));
 			for (i=c->blocks ; i<blocknum ; i++) {
@@ -2101,7 +2101,7 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			lzfs_silent_errlog(LOG_WARNING,"write_block_to_chunk: file:%s - write error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		te = get_usectime();
 		hdd_stats_datawrite(c->owner,size,te-ts);
@@ -2143,11 +2143,11 @@ int hdd_write(uint64_t chunkid,uint32_t version,uint16_t blocknum,const uint8_t 
 			syslog(LOG_WARNING,"write_block_to_chunk: file:%s - crc error",c->filename);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(c);
-			return ERROR_CRC;
+			return LIZARDFS_ERROR_CRC;
 		}
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 
@@ -2158,29 +2158,29 @@ int hdd_check_version(uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int hdd_get_blocks(uint64_t chunkid,uint32_t version,uint16_t *blocks) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	*blocks = c->blocks;
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
@@ -2188,14 +2188,14 @@ int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
@@ -2203,14 +2203,14 @@ int hdd_get_checksum(uint64_t chunkid,uint32_t version,uint32_t *checksum) {
 	}
 	*checksum = mycrc32(0,c->crc,4096);
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab) {
@@ -2218,14 +2218,14 @@ int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
@@ -2233,14 +2233,14 @@ int hdd_get_checksum_tab(uint64_t chunkid,uint32_t version,uint8_t *checksum_tab
 	}
 	memcpy(checksum_tab,c->crc,4096);
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_report_damaged_chunk(chunkid);
 		hdd_chunk_release(c);
 		return status;
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 
@@ -2264,12 +2264,12 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 	f = hdd_getfolder();
 	if (f==NULL) {
 		zassert(pthread_mutex_unlock(&folderlock));
-		return ERROR_NOSPACE;
+		return LIZARDFS_ERROR_NOSPACE;
 	}
 	c = hdd_chunk_create(f,chunkid,version);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
-		return ERROR_CHUNKEXIST;
+		return LIZARDFS_ERROR_CHUNKEXIST;
 	}
 
 #ifndef PRESERVE_BLOCK
@@ -2282,10 +2282,10 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 #endif /* PRESERVE_BLOCK */
 
 	status = hdd_io_begin(c,1);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	memset(hdrbuffer,0,CHUNKHDRSIZE);
 	memcpy(hdrbuffer,MFSSIGNATURE "C 1.0",8);
@@ -2298,18 +2298,18 @@ static int hdd_int_create(uint64_t chunkid,uint32_t version) {
 		hdd_io_end(c);
 		unlink(c->filename);
 		hdd_chunk_delete(c);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(CHUNKHDRSIZE);
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename);
 		hdd_chunk_delete(c);
 		return status;
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static int hdd_int_test(uint64_t chunkid,uint32_t version) {
@@ -2330,21 +2330,21 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 #endif /* PRESERVE_BLOCK */
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;
 	}
 	lseek(c->fd,CHUNKHDRSIZE,SEEK_SET);
 	ptr = c->crc;
-	status = STATUS_OK; // will be overwritten in the loop below if the test fails
+	status = LIZARDFS_STATUS_OK; // will be overwritten in the loop below if the test fails
 	for (block=0 ; block<c->blocks ; block++) {
 #ifdef PRESERVE_BLOCK
 		retsize = read(c->fd,c->block,MFSBLOCKSIZE);
@@ -2354,7 +2354,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 		if (retsize!=MFSBLOCKSIZE) {
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,"test_chunk: file:%s - data read error",c->filename);
-			status = ERROR_IO;
+			status = LIZARDFS_ERROR_IO;
 			break;
 		}
 		hdd_stats_read(MFSBLOCKSIZE);
@@ -2370,7 +2370,7 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 			errno = 0;      // set anything to errno
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			syslog(LOG_WARNING,"test_chunk: file:%s - crc error",c->filename);
-			status = ERROR_CRC;
+			status = LIZARDFS_ERROR_CRC;
 			break;
 		}
 	}
@@ -2379,20 +2379,20 @@ static int hdd_int_test(uint64_t chunkid,uint32_t version) {
 	// hdd_delayed_ops to do it for us, because it may be disabled using a config file.
 	posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
 #endif /* LIZARDFS_HAVE_POSIX_FADVISE */
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		// test failed -- chunk is damaged
 		hdd_io_end(c);
 		hdd_chunk_release(c);
 		return status;
 	}
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;
 	}
 	hdd_chunk_release(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion) {
@@ -2424,11 +2424,11 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 
 	oc = hdd_chunk_find(chunkid);
 	if (oc==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (oc->version!=version && version>0) {
 		hdd_chunk_release(oc);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	if (copyversion==0) {
 		copyversion = newversion;
@@ -2438,13 +2438,13 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	if (f==NULL) {
 		zassert(pthread_mutex_unlock(&folderlock));
 		hdd_chunk_release(oc);
-		return ERROR_NOSPACE;
+		return LIZARDFS_ERROR_NOSPACE;
 	}
 	c = hdd_chunk_create(f,copychunkid,copyversion);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
-		return ERROR_CHUNKEXIST;
+		return LIZARDFS_ERROR_CHUNKEXIST;
 	}
 
 	if (newversion!=version) {
@@ -2460,13 +2460,13 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 				free(newfilename);
 				hdd_chunk_delete(c);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			free(oc->filename);
 			oc->filename = newfilename;
 		}
 		status = hdd_io_begin(oc,0);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_chunk_release(oc);
@@ -2485,13 +2485,13 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		hdd_stats_write(4);
 		oc->version = newversion;
 	} else {
 		status = hdd_io_begin(oc,0);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_report_damaged_chunk(chunkid);
@@ -2500,7 +2500,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		}
 	}
 	status = hdd_io_begin(c,1);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
@@ -2522,7 +2522,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
 		hdd_chunk_release(oc);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(CHUNKHDRSIZE);
 #ifndef PRESERVE_BLOCK
@@ -2553,7 +2553,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			hdd_io_end(oc);
 			hdd_report_damaged_chunk(chunkid);
 			hdd_chunk_release(oc);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 #ifdef PRESERVE_BLOCK
 		if (oc->blockno!=block) {
@@ -2572,7 +2572,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;        //write error
+			return LIZARDFS_ERROR_IO;        //write error
 		}
 		hdd_stats_write(MFSBLOCKSIZE);
 #ifdef PRESERVE_BLOCK
@@ -2580,7 +2580,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 #endif /* PRESERVE_BLOCK */
 	}
 	status = hdd_io_end(oc);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(oc);  // uses and preserves errno !!!
 		hdd_io_end(c);
 		unlink(c->filename);
@@ -2590,7 +2590,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 		return status;
 	}
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename);
 		hdd_chunk_delete(c);
@@ -2603,7 +2603,7 @@ static int hdd_int_duplicate(uint64_t chunkid,uint32_t version,uint32_t newversi
 	zassert(pthread_mutex_unlock(&folderlock));
 	hdd_chunk_release(c);
 	hdd_chunk_release(oc);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion) {
@@ -2614,11 +2614,11 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	filenameleng = strlen(c->filename);
 	if (c->filename[filenameleng-13]=='_') {        // new file name format
@@ -2631,13 +2631,13 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 			lzfs_silent_errlog(LOG_WARNING,"set_chunk_version: file:%s - rename error",c->filename);
 			free(newfilename);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		free(c->filename);
 		c->filename = newfilename;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		lzfs_silent_errlog(LOG_WARNING,"set_chunk_version: file:%s - open error",c->filename);
 		hdd_chunk_release(c);
@@ -2655,12 +2655,12 @@ static int hdd_int_version(uint64_t chunkid,uint32_t version,uint32_t newversion
 		lzfs_silent_errlog(LOG_WARNING,"set_chunk_version: file:%s - write error",c->filename);
 		hdd_io_end(c);
 		hdd_chunk_release(c);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(4);
 	c->version = newversion;
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 	}
 	hdd_chunk_release(c);
@@ -2685,16 +2685,16 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 #endif /* !PRESERVE_BLOCK */
 	if (length>MFSCHUNKSIZE) {
-		return ERROR_WRONGSIZE;
+		return LIZARDFS_ERROR_WRONGSIZE;
 	}
 	c = hdd_chunk_find(chunkid);
 	// step 1 - change version
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	filenameleng = strlen(c->filename);
 	if (c->filename[filenameleng-13]=='_') {        // new file name format
@@ -2707,13 +2707,13 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 			lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - rename error",c->filename);
 			free(newfilename);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		free(c->filename);
 		c->filename = newfilename;
 	}
 	status = hdd_io_begin(c,0);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
 		return status;  //can't change file version
@@ -2730,7 +2730,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 		lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - write error",c->filename);
 		hdd_io_end(c);
 		hdd_chunk_release(c);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(4);
 	c->version = newversion;
@@ -2742,7 +2742,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 			lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 			hdd_io_end(c);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		ptr = (c->crc)+(4*(c->blocks));
 		for (i=c->blocks ; i<blocks ; i++) {
@@ -2758,7 +2758,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 			lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 			hdd_io_end(c);
 			hdd_chunk_release(c);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		if (blocksize>0) {
 			if (ftruncate(c->fd,CHUNKHDRSIZE+(blocks<<MFSBLOCKBITS))<0) {
@@ -2766,7 +2766,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 				lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - ftruncate error",c->filename);
 				hdd_io_end(c);
 				hdd_chunk_release(c);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 #ifdef PRESERVE_BLOCK
 			if (c->blockno>=blocks) {
@@ -2792,7 +2792,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 				lzfs_silent_errlog(LOG_WARNING,"truncate_chunk: file:%s - read error",c->filename);
 				hdd_io_end(c);
 				hdd_chunk_release(c);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			hdd_stats_read(blocksize);
 #ifdef PRESERVE_BLOCK
@@ -2815,7 +2815,7 @@ static int hdd_int_truncate(uint64_t chunkid,uint32_t version,uint32_t newversio
 	}
 	c->blocks = blocks;
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 	}
 	hdd_chunk_release(c);
@@ -2852,15 +2852,15 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 #endif /* PRESERVE_BLOCK */
 
 	if (length>MFSCHUNKSIZE) {
-		return ERROR_WRONGSIZE;
+		return LIZARDFS_ERROR_WRONGSIZE;
 	}
 	oc = hdd_chunk_find(chunkid);
 	if (oc==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (oc->version!=version && version>0) {
 		hdd_chunk_release(oc);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	if (copyversion==0) {
 		copyversion = newversion;
@@ -2870,13 +2870,13 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	if (f==NULL) {
 		zassert(pthread_mutex_unlock(&folderlock));
 		hdd_chunk_release(oc);
-		return ERROR_NOSPACE;
+		return LIZARDFS_ERROR_NOSPACE;
 	}
 	c = hdd_chunk_create(f,copychunkid,copyversion);
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (c==NULL) {
 		hdd_chunk_release(oc);
-		return ERROR_CHUNKEXIST;
+		return LIZARDFS_ERROR_CHUNKEXIST;
 	}
 
 	if (newversion!=version) {
@@ -2892,13 +2892,13 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				free(newfilename);
 				hdd_chunk_delete(c);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			free(oc->filename);
 			oc->filename = newfilename;
 		}
 		status = hdd_io_begin(oc,0);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_chunk_release(oc);
@@ -2917,13 +2917,13 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		hdd_stats_write(4);
 		oc->version = newversion;
 	} else {
 		status = hdd_io_begin(oc,0);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
 			hdd_report_damaged_chunk(chunkid);
@@ -2932,7 +2932,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		}
 	}
 	status = hdd_io_begin(c,1);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
@@ -2977,7 +2977,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_io_end(oc);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 #ifdef PRESERVE_BLOCK
 			if (oc->blockno!=block) {
@@ -2996,7 +2996,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			hdd_stats_write(MFSBLOCKSIZE);
 #ifdef PRESERVE_BLOCK
@@ -3011,7 +3011,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
 			hdd_chunk_release(oc);
-			return ERROR_IO;        //write error
+			return LIZARDFS_ERROR_IO;        //write error
 		}
 		ptr = hdrbuffer+CHUNKHDRCRC+4*(oc->blocks);
 		for (block=oc->blocks ; block<blocks ; block++) {
@@ -3045,7 +3045,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					hdd_io_end(oc);
 					hdd_report_damaged_chunk(chunkid);
 					hdd_chunk_release(oc);
-					return ERROR_IO;
+					return LIZARDFS_ERROR_IO;
 				}
 #ifdef PRESERVE_BLOCK
 				if (oc->blockno!=block) {
@@ -3064,7 +3064,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
 					hdd_chunk_release(oc);
-					return ERROR_IO;
+					return LIZARDFS_ERROR_IO;
 				}
 				hdd_stats_write(MFSBLOCKSIZE);
 #ifdef PRESERVE_BLOCK
@@ -3097,7 +3097,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					hdd_io_end(oc);
 					hdd_report_damaged_chunk(chunkid);
 					hdd_chunk_release(oc);
-					return ERROR_IO;
+					return LIZARDFS_ERROR_IO;
 				}
 #ifdef PRESERVE_BLOCK
 				if (oc->blockno!=block) {
@@ -3116,7 +3116,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
 					hdd_chunk_release(oc);
-					return ERROR_IO;        //write error
+					return LIZARDFS_ERROR_IO;        //write error
 				}
 				hdd_stats_write(MFSBLOCKSIZE);
 			}
@@ -3145,7 +3145,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_io_end(oc);
 				hdd_report_damaged_chunk(chunkid);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 #ifdef PRESERVE_BLOCK
 			if (oc->blockno!=block) {
@@ -3166,7 +3166,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
 				hdd_chunk_release(oc);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			hdd_stats_write(MFSBLOCKSIZE);
 			ptr = hdrbuffer+CHUNKHDRCRC+4*(blocks-1);
@@ -3192,11 +3192,11 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		hdd_chunk_delete(c);
 		hdd_io_end(oc);
 		hdd_chunk_release(oc);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_stats_write(CHUNKHDRSIZE);
 	status = hdd_io_end(oc);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(oc);  // uses and preserves errno !!!
 		hdd_io_end(c);
 		unlink(c->filename);
@@ -3206,7 +3206,7 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 		return status;
 	}
 	status = hdd_io_end(c);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		unlink(c->filename);
 		hdd_chunk_delete(c);
@@ -3219,27 +3219,27 @@ static int hdd_int_duptrunc(uint64_t chunkid,uint32_t version,uint32_t newversio
 	zassert(pthread_mutex_unlock(&folderlock));
 	hdd_chunk_release(c);
 	hdd_chunk_release(oc);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 static int hdd_int_delete(uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	c = hdd_chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (c->version!=version && version>0) {
 		hdd_chunk_release(c);
-		return ERROR_WRONGVERSION;
+		return LIZARDFS_ERROR_WRONGVERSION;
 	}
 	if (unlink(c->filename)<0) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		lzfs_silent_errlog(LOG_WARNING,"delete_chunk: file:%s - unlink error",c->filename);
 		hdd_chunk_release(c);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	hdd_chunk_delete(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 /* all chunk operations in one call */
@@ -3290,7 +3290,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 				return hdd_int_duptrunc(chunkid,version,newversion,copychunkid,copyversion,length);
 			}
 		} else {
-			return ERROR_EINVAL;
+			return LIZARDFS_ERROR_EINVAL;
 		}
 	} else {
 		if (length==0) {
@@ -3300,7 +3300,7 @@ int hdd_chunkop(uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t c
 		} else if (length==2) {
 			return hdd_int_test(chunkid,version);
 		} else {
-			return ERROR_EINVAL;
+			return LIZARDFS_ERROR_EINVAL;
 		}
 	}
 }
@@ -3363,7 +3363,7 @@ void* hdd_tester_thread(void* arg) {
 			zassert(pthread_mutex_lock(&statslock));
 			stats_test++;
 			zassert(pthread_mutex_unlock(&statslock));
-			if (hdd_int_test(chunkid,version)!=STATUS_OK) {
+			if (hdd_int_test(chunkid,version)!=LIZARDFS_STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid);
 			}
 			free(path);
@@ -3764,7 +3764,7 @@ void hdd_term(void) {
 			if (c->state==CH_AVAIL) {
 				if (c->crcchanged) {
 					syslog(LOG_WARNING,"hdd_term: CRC not flushed - writing now");
-					if (chunk_writecrc(c)!=STATUS_OK) {
+					if (chunk_writecrc(c)!=LIZARDFS_STATUS_OK) {
 						lzfs_silent_errlog(LOG_WARNING,"hdd_term: file:%s - write error",c->filename);
 					}
 				}

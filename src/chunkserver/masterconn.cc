@@ -545,7 +545,7 @@ void masterconn_chunk_checksum(masterconn *eptr,const uint8_t *data,uint32_t len
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
 	status = hdd_get_checksum(chunkid,version,&checksum);
-	if (status!=STATUS_OK) {
+	if (status!=LIZARDFS_STATUS_OK) {
 		masterconn_create_attached_moosefs_packet(
 				eptr, CSTOAN_CHUNK_CHECKSUM, chunkid, version, status);
 	} else {

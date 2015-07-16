@@ -815,7 +815,7 @@ void chunk_emergency_increase_version(chunk *c) {
 		c->version++;
 		chunk_update_checksum(c);
 	} else {
-		matoclserv_chunk_status(c->chunkid,ERROR_CHUNKLOST);
+		matoclserv_chunk_status(c->chunkid,LIZARDFS_ERROR_CHUNKLOST);
 	}
 	fs_incversion(c->chunkid);
 }
@@ -856,7 +856,7 @@ void chunk_handle_disconnected_copies(chunk* c) {
 			if (valid_copies > 0) {
 				chunk_emergency_increase_version(c);
 			} else {
-				matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
+				matoclserv_chunk_status(c->chunkid,LIZARDFS_ERROR_NOTDONE);
 				c->operation=NONE;
 			}
 		}
@@ -944,20 +944,20 @@ void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal) {
 	chunk *c;
 	if (prevgoal==newgoal) {
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	}
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	try {
 		c->changeFileGoal(prevgoal, newgoal);
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "chunk_change_file: %s", ex.what());
-		return ERROR_CHUNKLOST;
+		return LIZARDFS_ERROR_CHUNKLOST;
 	}
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 /// updates chunk's goal after a file with goal `goal' has been removed
@@ -966,10 +966,10 @@ static inline int chunk_delete_file_int(chunk *c,uint8_t goal) {
 		c->removeFileWithGoal(goal);
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "chunk_delete_file_int: %s", ex.what());
-		return ERROR_CHUNKLOST;
+		return LIZARDFS_ERROR_CHUNKLOST;
 	}
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 /// updates chunk's goal after a file with goal `goal' has been added
@@ -978,17 +978,17 @@ static inline int chunk_add_file_int(chunk *c,uint8_t goal) {
 		c->addFileWithGoal(goal);
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "chunk_add_file_int: %s", ex.what());
-		return ERROR_CHUNKLOST;
+		return LIZARDFS_ERROR_CHUNKLOST;
 	}
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int chunk_delete_file(uint64_t chunkid,uint8_t goal) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	return chunk_delete_file_int(c,goal);
 }
@@ -997,7 +997,7 @@ int chunk_add_file(uint64_t chunkid,uint8_t goal) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	return chunk_add_file_int(c,goal);
 }
@@ -1006,11 +1006,11 @@ int chunk_unlock(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	c->lockedto=0;
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 #ifndef METARESTORE
@@ -1037,10 +1037,10 @@ int chunk_get_validcopies(uint64_t chunkid,uint8_t *vcopies) {
 	*vcopies = 0;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	*vcopies = c->allValidCopiesCount();
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
@@ -1048,7 +1048,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 	chunk *c = NULL;
 	if (ochunkid == 0) { // new chunk
 		if (quota_exceeded) {
-			return ERROR_QUOTA;
+			return LIZARDFS_ERROR_QUOTA;
 		}
 		auto servers = matocsserv_getservers_for_new_chunk(goal);
 		if (servers.empty()) {
@@ -1056,9 +1056,9 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
 			if ((uscount > 0) && (main_time() > (starttime+600))) { // if there are chunkservers and it's at least one minute after start then it means that there is no space left
-				return ERROR_NOSPACE;
+				return LIZARDFS_ERROR_NOSPACE;
 			} else {
-				return ERROR_NOCHUNKSERVERS;
+				return LIZARDFS_ERROR_NOCHUNKSERVERS;
 			}
 		}
 		c = chunk_new(gChunksMetadata->nextchunkid++, 1);
@@ -1075,16 +1075,16 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 	} else {
 		chunk *oc = chunk_find(ochunkid);
 		if (oc==NULL) {
-			return ERROR_NOCHUNK;
+			return LIZARDFS_ERROR_NOCHUNK;
 		}
 		if (oc->isLocked()) {
-			return ERROR_LOCKED;
+			return LIZARDFS_ERROR_LOCKED;
 		}
 		if (oc->fileCount() == 1) { // refcount==1
 			*nchunkid = ochunkid;
 			c = oc;
 			if (c->operation!=NONE) {
-				return ERROR_CHUNKBUSY;
+				return LIZARDFS_ERROR_CHUNKBUSY;
 			}
 			if (c->needverincrease) {
 				uint32_t i = 0;
@@ -1104,7 +1104,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 					c->version++;
 					*opflag=1;
 				} else {
-					return ERROR_CHUNKLOST;
+					return LIZARDFS_ERROR_CHUNKLOST;
 				}
 			} else {
 				*opflag=0;
@@ -1112,10 +1112,10 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 		} else {
 			if (oc->fileCount() == 0) { // it's serious structure error
 				syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-				return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+				return LIZARDFS_ERROR_CHUNKLOST; // ERROR_STRUCTURE
 			}
 			if (quota_exceeded) {
-				return ERROR_QUOTA;
+				return LIZARDFS_ERROR_QUOTA;
 			}
 			uint32_t i = 0;
 			for (slist *os=oc->slisthead ;os ; os=os->next) {
@@ -1139,14 +1139,14 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint8_t goal, bool quota_exceeded,
 				*nchunkid = c->chunkid;
 				*opflag=1;
 			} else {
-				return ERROR_CHUNKLOST;
+				return LIZARDFS_ERROR_CHUNKLOST;
 			}
 		}
 	}
 
 	c->lockedto = main_time() + LOCKTIMEOUT;
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, bool quota_exceeded,
@@ -1154,16 +1154,16 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, b
 	chunk *c = NULL;
 	chunk *oc = chunk_find(ochunkid);
 	if (oc==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	if (oc->isLocked()) {
-		return ERROR_LOCKED;
+		return LIZARDFS_ERROR_LOCKED;
 	}
 	if (oc->fileCount() == 1) { // refcount==1
 		*nchunkid = ochunkid;
 		c = oc;
 		if (c->operation!=NONE) {
-			return ERROR_CHUNKBUSY;
+			return LIZARDFS_ERROR_CHUNKBUSY;
 		}
 		uint32_t i = 0;
 		for (slist *s = c->slisthead; s; s = s->next) {
@@ -1181,15 +1181,15 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, b
 			c->operation = TRUNCATE;
 			c->version++;
 		} else {
-			return ERROR_CHUNKLOST;
+			return LIZARDFS_ERROR_CHUNKLOST;
 		}
 	} else {
 		if (oc->fileCount() == 0) { // it's serious structure error
 			syslog(LOG_WARNING,"serious structure inconsistency: (chunkid:%016" PRIX64 ")",ochunkid);
-			return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+			return LIZARDFS_ERROR_CHUNKLOST; // ERROR_STRUCTURE
 		}
 		if (quota_exceeded) {
-			return ERROR_QUOTA;
+			return LIZARDFS_ERROR_QUOTA;
 		}
 		uint32_t i = 0;
 		for (slist *os=oc->slisthead ;os ; os=os->next) {
@@ -1212,13 +1212,13 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t length, uint8_t goal, b
 		if (i>0) {
 			*nchunkid = c->chunkid;
 		} else {
-			return ERROR_CHUNKLOST;
+			return LIZARDFS_ERROR_CHUNKLOST;
 		}
 	}
 
 	c->lockedto=main_time()+LOCKTIMEOUT;
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 #endif // ! METARESTORE
 
@@ -1231,12 +1231,12 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint8_t goal,
 	} else {
 		chunk *oc = chunk_find(oldChunkId);
 		if (oc == NULL) {
-			return ERROR_NOCHUNK;
+			return LIZARDFS_ERROR_NOCHUNK;
 		}
 		if (oc->fileCount() == 0) { // refcount == 0
 			syslog(LOG_WARNING,
 					"serious structure inconsistency: (chunkid:%016" PRIX64 ")", oldChunkId);
-			return ERROR_CHUNKLOST; // ERROR_STRUCTURE
+			return LIZARDFS_ERROR_CHUNKLOST; // ERROR_STRUCTURE
 		} else if (oc->fileCount() == 1) { // refcount == 1
 			c = oc;
 			if (doIncreaseVersion) {
@@ -1251,7 +1251,7 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint8_t goal,
 	c->lockedto = ts + LOCKTIMEOUT;
 	chunk_update_checksum(c);
 	*newChunkId = c->chunkid;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 #ifndef METARESTORE
@@ -1305,33 +1305,33 @@ int chunk_set_version(uint64_t chunkid,uint32_t version) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	c->version = version;
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int chunk_increase_version(uint64_t chunkid) {
 	chunk *c;
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	c->version++;
 	chunk_update_checksum(c);
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
 	if (nextChunkIdToBeSet >= gChunksMetadata->nextchunkid) {
 		gChunksMetadata->nextchunkid = nextChunkIdToBeSet;
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	} else {
 		syslog(LOG_WARNING,"was asked to increase the next chunk id to %" PRIu64 ", but it was"
 				"already set to a bigger value %" PRIu64 ". Ignoring.",
 				nextChunkIdToBeSet, gChunksMetadata->nextchunkid);
-		return ERROR_MISMATCH;
+		return LIZARDFS_ERROR_MISMATCH;
 	}
 }
 
@@ -1399,7 +1399,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	c = chunk_find(chunkid);
 
 	if (c == NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	version = c->version;
 	cnt = 0;
@@ -1426,7 +1426,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 		uint8_t reserved = 0;
 		serversList.emplace_back(loc.address, *loc.label, reserved);
 	}
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *version,uint8_t *count,uint8_t loc[100*6]) {
@@ -1439,7 +1439,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 
 	c = chunk_find(chunkid);
 	if (c==NULL) {
-		return ERROR_NOCHUNK;
+		return LIZARDFS_ERROR_NOCHUNK;
 	}
 	*version = c->version;
 	cnt=0;
@@ -1461,7 +1461,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 		put16bit(&wptr,lstab[i].port);
 	}
 	*count = cnt;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 void chunk_server_has_chunk(matocsserventry *ptr,uint64_t chunkid,uint32_t version) {
@@ -1699,12 +1699,12 @@ void chunk_operation_status(chunk *c,uint8_t status,matocsserventry *ptr) {
 			if (c->interrupted) {
 				chunk_emergency_increase_version(c);
 			} else {
-				matoclserv_chunk_status(c->chunkid,STATUS_OK);
+				matoclserv_chunk_status(c->chunkid,LIZARDFS_STATUS_OK);
 				c->operation=NONE;
 				c->needverincrease = 0;
 			}
 		} else {
-			matoclserv_chunk_status(c->chunkid,ERROR_NOTDONE);
+			matoclserv_chunk_status(c->chunkid,LIZARDFS_ERROR_NOTDONE);
 			c->operation=NONE;
 		}
 	}

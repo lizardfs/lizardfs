@@ -65,8 +65,8 @@ uint64_t main_utime(void);
 
 /*! \brief Try to exit as if term signal was received.
  *
- * \return STATUS_OK if term sequence has been initialized
- *         ERROR_NOTPOSSIBLE if it was already initialized.
+ * \return LIZARDFS_STATUS_OK if term sequence has been initialized
+ *         LIZARDFS_ERROR_NOTPOSSIBLE if it was already initialized.
  */
 uint8_t main_want_to_terminate(void);
 

@@ -166,46 +166,46 @@ void* job_worker(void *th_arg) {
 		zassert(pthread_mutex_unlock(&(jp->jobslock)));
 		switch (op) {
 			case OP_INVAL:
-				status = ERROR_EINVAL;
+				status = LIZARDFS_ERROR_EINVAL;
 				break;
 			case OP_CHUNKOP:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_chunkop(opargs->chunkid,opargs->version,opargs->newversion,opargs->copychunkid,opargs->copyversion,opargs->length);
 				}
 				break;
 			case OP_OPEN:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_open(ocargs->chunkid);
 				}
 				break;
 			case OP_CLOSE:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_close(ocargs->chunkid);
 				}
 				break;
 			case OP_READ:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_read(rdargs->chunkid,rdargs->version,rdargs->blocknum,rdargs->buffer,rdargs->offset,rdargs->size,rdargs->crcbuff);
 				}
 				break;
 			case OP_WRITE:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_write(wrargs->chunkid,wrargs->version,wrargs->blocknum,wrargs->buffer,wrargs->offset,wrargs->size,wrargs->crcbuff);
 				}
 				break;
 			case OP_REPLICATE:
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = replicate(rpargs->chunkid,rpargs->version,rpargs->srccnt,((uint8_t*)(jptr->args))+sizeof(chunk_rp_args));
 				}

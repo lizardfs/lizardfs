@@ -139,7 +139,7 @@ uint8_t merger_loop(void) {
 	while (heapsize) {
 //              lzfs_pretty_syslog(LOG_DEBUG, "current id: %" PRIu64 " / %s",heap[0].nextid,heap[0].ptr);
 		if ((status=restore(heap[0].filename, heap[0].nextid, heap[0].ptr,
-				RestoreRigor::kIgnoreParseErrors)) != STATUS_OK) {
+				RestoreRigor::kIgnoreParseErrors)) != LIZARDFS_STATUS_OK) {
 			while (heapsize) {
 				heapsize--;
 				merger_delete_entry();
