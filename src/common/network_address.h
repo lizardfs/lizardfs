@@ -2,7 +2,6 @@
 
 #include "common/platform.h"
 
-#include <arpa/inet.h>
 #include <functional>
 #include <sstream>
 

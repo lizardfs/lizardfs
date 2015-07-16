@@ -6,6 +6,12 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CRCUTIL_CXX_FLAGS}")
 
 collect_sources(COMMON)
 
+if(MINGW)
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lockfile.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metadata.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/setup.cc")
+endif()
+
 add_library(mfscommon ${COMMON_SOURCES})
 target_link_libraries(mfscommon crcutil)
 if (ZLIB_FOUND)
