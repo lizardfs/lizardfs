@@ -1770,7 +1770,7 @@ void charts_fill_crc(uint8_t *buff,uint32_t leng) {
 			if (memcmp(ptr,"CRC#",4)==0) {
 				put32bit(&ptr,crc);
 			} else {
-				syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
+				lzfs_pretty_syslog(LOG_WARNING,"charts: unexpected data in generated png stream");
 			}
 		}
 	}

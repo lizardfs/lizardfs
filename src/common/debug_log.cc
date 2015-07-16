@@ -1,7 +1,6 @@
 #include "common/platform.h"
 #include "common/debug_log.h"
 
-#include <syslog.h>
 #include <cstdarg>
 #include <cstring>
 
@@ -46,7 +45,7 @@ DebugLog::DebugLog(const Paths& paths) : buffer_(new std::stringstream), streams
 			streams_.push_back(std::move(stream));
 		} else {
 			const char* errMsg = strerr(errno);
-			syslog(LOG_ERR, "failed to open log file: %s, %s", p.c_str(), errMsg);
+			lzfs_pretty_syslog(LOG_ERR, "failed to open log file: %s, %s", p.c_str(), errMsg);
 			fprintf(stderr, "failed to open log file: %s, %s\n", p.c_str(), errMsg);
 		}
 	}

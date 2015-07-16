@@ -12,6 +12,7 @@
 #include <thrift/transport/TBufferTransports.h>
 
 #include "common/crc.h"
+#include "common/slogger.h"
 #include "mount/csdb.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"

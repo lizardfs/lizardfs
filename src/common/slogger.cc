@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <string>
 
@@ -76,12 +75,14 @@ static void lzfs_vsyslog(bool silent, int priority, const char* format, va_list 
 		va_end(ap2);
 		fputc('\n', stderr);
 	}
+#ifndef _WIN32
 	{
 		va_list ap2;
 		va_copy(ap2, ap);
 		vsyslog(priority, format, ap2);
 		va_end(ap2);
 	}
+#endif
 	{
 		std::string tag = "syslog." + syslogLevelToString(priority);
 		va_list ap2;

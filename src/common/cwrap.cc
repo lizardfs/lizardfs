@@ -97,7 +97,7 @@ std::string getCurrentWorkingDirectoryNoThrow() {
 	try {
 		currentPath = fs::getCurrentWorkingDirectory();
 	} catch (const FilesystemException& ex) {
-		syslog(LOG_WARNING, "unable to get current working directory %s", ex.what());
+		lzfs_pretty_syslog(LOG_WARNING, "unable to get current working directory %s", ex.what());
 		currentPath = "???";
 	}
 	return currentPath;

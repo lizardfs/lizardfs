@@ -21,7 +21,6 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
-#include <syslog.h>
 #include <string>
 
 #include "common/slogger.h"
@@ -91,7 +90,7 @@ template <class T>
 T cfg_get_minvalue(const char* name, T defaultValue, T minValue) {
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue < minValue) {
-		syslog(LOG_WARNING, "config value %s was set to %s but minimal value is %s - increasing",
+		lzfs_pretty_syslog(LOG_WARNING, "config value %s was set to %s but minimal value is %s - increasing",
 				name, std::to_string(configValue).c_str(), std::to_string(minValue).c_str());
 		configValue = minValue;
 	}
@@ -102,7 +101,7 @@ template <class T>
 T cfg_get_maxvalue(const char* name, T defaultValue, T maxValue) {
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue > maxValue) {
-		syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
+		lzfs_pretty_syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
 				name, std::to_string(configValue).c_str(), std::to_string(maxValue).c_str());
 		configValue = maxValue;
 	}
@@ -113,11 +112,11 @@ template <class T>
 T cfg_get_minmaxvalue(const char* name, T defaultValue, T minValue, T maxValue) {
 	T configValue = cfg_get(name, defaultValue);
 	if (configValue < minValue) {
-		syslog(LOG_WARNING, "config value %s was set to %s, but minimal value is %s - increasing",
+		lzfs_pretty_syslog(LOG_WARNING, "config value %s was set to %s, but minimal value is %s - increasing",
 				name, std::to_string(configValue).c_str(), std::to_string(minValue).c_str());
 		configValue = minValue;
 	} else if (configValue > maxValue) {
-		syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
+		lzfs_pretty_syslog(LOG_WARNING, "config value %s was set to %s, but maximal value is %s - decreasing",
 				name, std::to_string(configValue).c_str(), std::to_string(maxValue).c_str());
 		configValue = maxValue;
 	}
@@ -128,6 +127,6 @@ template <class T>
 void cfg_warning_on_value_change(const char* name, T expectedValue) {
 	T newValue = cfg_get(name, expectedValue);
 	if (expectedValue != newValue) {
-		syslog(LOG_WARNING, "config value %s has changed, but changing it requires restart", name);
+		lzfs_pretty_syslog(LOG_WARNING, "config value %s has changed, but changing it requires restart", name);
 	}
 }

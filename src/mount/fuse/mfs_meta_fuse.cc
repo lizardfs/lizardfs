@@ -30,12 +30,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <time.h>
 #include <fuse/fuse_lowlevel.h>
 
 #include "common/datapack.h"
 #include "common/MFSCommunication.h"
+#include "common/slogger.h"
 #include "mount/exports.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"
@@ -549,7 +549,7 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 			put32bit(&buff,inode);
 			put8bit(&buff,TYPE_FILE);
 		} else {
-			syslog(LOG_WARNING,"dir data malformed (trash)");
+			lzfs_pretty_syslog(LOG_WARNING,"dir data malformed (trash)");
 			dbuff=eptr;
 		}
 	}
@@ -588,7 +588,7 @@ static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	}
 	b->p = (uint8_t*) malloc(msize+dcsize);
 	if (b->p==NULL) {
-		syslog(LOG_WARNING,"out of memory");
+		lzfs_pretty_syslog(LOG_WARNING,"out of memory");
 		return;
 	}
 	if (msize>0) {
@@ -642,7 +642,7 @@ void mfs_meta_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, st
 			free(dirinfo->p);
 		}
 		dirbuf_meta_fill(dirinfo,ino);
-//              syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
+//              lzfs_pretty_syslog(LOG_WARNING,"inode: %lu , dirinfo->p: %p , dirinfo->size: %lu",(unsigned long)ino,dirinfo->p,(unsigned long)dirinfo->size);
 	}
 	dirinfo->wasread=1;
 

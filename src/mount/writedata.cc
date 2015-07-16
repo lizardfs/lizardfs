@@ -29,7 +29,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <vector>
 
@@ -41,6 +40,7 @@
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "mount/chunkserver_write_chain.h"

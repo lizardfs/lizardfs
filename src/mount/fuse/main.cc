@@ -457,7 +457,7 @@ static void mfs_fsinit (void *userdata, struct fuse_conn_info *conn) {
 	if (piped[1]>=0) {
 		char s = 0;
 		if (write(piped[1],&s,1)!=1) {
-			syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 		}
 		close(piped[1]);
 	}
@@ -582,7 +582,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 #ifdef MFS_USE_MEMLOCK
 	if (mfsopts.memlock) {
 		if (mlockall(MCL_CURRENT|MCL_FUTURE)==0) {
-			syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
+			lzfs_pretty_syslog(LOG_NOTICE,"process memory was successfully locked in RAM");
 		}
 	}
 #endif
@@ -709,7 +709,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	if (err) {
 		if (piped[1]>=0) {
 			if (write(piped[1],&s,1)!=1) {
-				syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_ERR,"pipe write error: %s",strerr(errno));
 			}
 			close(piped[1]);
 		}
