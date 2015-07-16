@@ -43,13 +43,13 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 		fd = tcpsocket();
 		if (fd < 0) {
 			err = errno;
-			syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
 			break;
 		}
 		if (sourceIp_) {
 			if (tcpnumbind(fd, sourceIp_, 0) < 0) {
 				err = errno;
-				syslog(LOG_WARNING, "can't bind to given ip: %s", strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING, "can't bind to given ip: %s", strerr(errno));
 				tcpclose(fd);
 				fd = -1;
 				break;
@@ -73,7 +73,7 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 				"Connection error: " + std::string(strerr(err)), server);
 	}
 	if (tcpnodelay(fd) < 0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 	return fd;
 }

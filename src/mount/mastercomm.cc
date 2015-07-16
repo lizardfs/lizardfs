@@ -30,7 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/poll.h>
-#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <atomic>
@@ -51,6 +50,7 @@
 #include "common/mfserr.h"
 #include "common/packet.h"
 #include "common/sockets.h"
+#include "common/slogger.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
 
@@ -297,7 +297,7 @@ static bool fs_threc_flush(threc *rec) {
 	std::unique_lock<std::mutex> lock(rec->mutex);
 	const int32_t size = rec->outputBuffer.size();
 	if (tcptowrite(fd, rec->outputBuffer.data(), size, 1000) != size) {
-		syslog(LOG_WARNING, "tcp send error: %s", strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING, "tcp send error: %s", strerr(errno));
 		disconnect = true;
 		return false;
 	}
@@ -387,7 +387,7 @@ int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 			if (oninit) {
 				fprintf(stderr,"can't resolve source hostname (%s)\n",bindhostname);
 			} else {
-				syslog(LOG_WARNING,"can't resolve source hostname (%s)",bindhostname);
+				lzfs_pretty_syslog(LOG_WARNING,"can't resolve source hostname (%s)",bindhostname);
 			}
 			return -1;
 		}
@@ -401,7 +401,7 @@ int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostnam
 		if (oninit) {
 			fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
 		} else {
-			syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",masterhostname,masterportname);
+			lzfs_pretty_syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",masterhostname,masterportname);
 		}
 		return -1;
 	}
@@ -452,7 +452,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"can't set TCP_NODELAY\n");
 		} else {
-			syslog(LOG_WARNING,"can't set TCP_NODELAY");
+			lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY");
 		}
 	}
 	if (srcip>0) {
@@ -460,7 +460,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"can't bind socket to given ip (\"%s\")\n",srcstrip);
 			} else {
-				syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
+				lzfs_pretty_syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -472,7 +472,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")\n",masterstrip,masterport);
 		} else {
-			syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
+			lzfs_pretty_syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -490,7 +490,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"error sending data to mfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error sending data to mfsmaster");
+				lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -501,7 +501,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"error receiving data from mfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+				lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -514,7 +514,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"got incorrect answer from mfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+				lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -526,7 +526,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"got incorrect answer from mfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+				lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -537,7 +537,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			if (oninit) {
 				fprintf(stderr,"error receiving data from mfsmaster\n");
 			} else {
-				syslog(LOG_WARNING,"error receiving data from mfsmaster");
+				lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster");
 			}
 			tcpclose(fd);
 			fd=-1;
@@ -585,7 +585,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -596,7 +596,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -609,7 +609,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
-			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -621,7 +621,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
-			syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
+			lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -632,7 +632,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
 		} else {
-			syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -644,7 +644,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (oninit) {
 			fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
 		} else {
-			syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
+			lzfs_pretty_syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -688,7 +688,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	free(regbuff);
 	lastwrite=time(NULL);
 	if (oninit==0) {
-		syslog(LOG_NOTICE,"registered to master with new session (id #%" PRIu32 ")", sessionid);
+		lzfs_pretty_syslog(LOG_NOTICE,"registered to master with new session (id #%" PRIu32 ")", sessionid);
 	}
 	if (cargs->clearpassword && cargs->passworddigest!=NULL) {
 		memset(cargs->passworddigest,0,16);
@@ -814,7 +814,7 @@ void fs_reconnect() {
 	const uint8_t *rptr;
 
 	if (sessionid==0) {
-		syslog(LOG_WARNING,"can't register: session not created");
+		lzfs_pretty_syslog(LOG_WARNING,"can't register: session not created");
 		return;
 	}
 
@@ -823,18 +823,18 @@ void fs_reconnect() {
 		return;
 	}
 	if (tcpnodelay(fd)<0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 	if (srcip>0) {
 		if (tcpnumbind(fd,srcip,0)<0) {
-			syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
+			lzfs_pretty_syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
 			tcpclose(fd);
 			fd=-1;
 			return;
 		}
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
-		syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
+		lzfs_pretty_syslog(LOG_WARNING,"can't connect to master (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -851,7 +851,7 @@ void fs_reconnect() {
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	if (tcptowrite(fd,regbuff,8+64+9,1000)!=8+64+9) {
-		syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -859,7 +859,7 @@ void fs_reconnect() {
 	master_stats_add(MASTER_BYTESSENT,16+64);
 	master_stats_inc(MASTER_PACKETSSENT);
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
-		syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -868,20 +868,20 @@ void fs_reconnect() {
 	rptr = regbuff;
 	i = get32bit(&rptr);
 	if (i!=MATOCL_FUSE_REGISTER) {
-		syslog(LOG_WARNING,"master: register error (bad answer: %" PRIu32 ")",i);
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (bad answer: %" PRIu32 ")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
 	}
 	i = get32bit(&rptr);
 	if (i!=1) {
-		syslog(LOG_WARNING,"master: register error (bad length: %" PRIu32 ")",i);
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (bad length: %" PRIu32 ")",i);
 		tcpclose(fd);
 		fd=-1;
 		return;
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-		syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -891,13 +891,13 @@ void fs_reconnect() {
 	rptr = regbuff;
 	if (rptr[0]!=0) {
 		sessionlost=1;
-		syslog(LOG_WARNING,"master: register status: %s",mfs_strerror(rptr[0]));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register status: %s",mfs_strerror(rptr[0]));
 		tcpclose(fd);
 		fd=-1;
 		return;
 	}
 	lastwrite=time(NULL);
-	syslog(LOG_NOTICE,"registered to master (session id #%" PRIu32 ")", sessionid);
+	lzfs_pretty_syslog(LOG_NOTICE,"registered to master (session id #%" PRIu32 ")", sessionid);
 }
 
 void fs_close_session(void) {
@@ -915,7 +915,7 @@ void fs_close_session(void) {
 	put8bit(&wptr,REGISTER_CLOSESESSION);
 	put32bit(&wptr,sessionid);
 	if (tcptowrite(fd,regbuff,8+64+5,1000)!=8+64+5) {
-		syslog(LOG_WARNING,"master: close session error (write: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: close session error (write: %s)",strerr(errno));
 	}
 }
 
@@ -948,7 +948,7 @@ void* fs_nop_thread(void *arg) {
 			return NULL;
 		}
 		if (gIsKilled) {
-			syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
+			lzfs_pretty_syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
 			exit(LIZARDFS_EXIT_STATUS_GENTLY_KILL);
 		}
 		if (disconnect == false && fd >= 0) {
@@ -970,7 +970,7 @@ void* fs_nop_thread(void *arg) {
 				std::unique_lock<std::mutex> asLock(acquiredFileMutex);
 				inodesleng=8;
 				for (afptr=afhead ; afptr ; afptr=afptr->next) {
-					//syslog(LOG_NOTICE,"reserved inode: %" PRIu32,afptr->inode);
+					//lzfs_pretty_syslog(LOG_NOTICE,"reserved inode: %" PRIu32,afptr->inode);
 					inodesleng+=4;
 				}
 				inodespacket = (uint8_t*) malloc(inodesleng);
@@ -1003,12 +1003,12 @@ bool fs_append_from_master(MessageBuffer& buffer, uint32_t size) {
 	uint8_t *appendPointer = buffer.data() + oldSize;
 	int r = tcptoread(fd, appendPointer, size, RECEIVE_TIMEOUT * 1000);
 	if (r == 0) {
-		syslog(LOG_WARNING,"master: connection lost");
+		lzfs_pretty_syslog(LOG_WARNING,"master: connection lost");
 		setDisconnect(true);
 		return false;
 	}
 	if (r != (int)size) {
-		syslog(LOG_WARNING,"master: tcp recv error: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: tcp recv error: %s",strerr(errno));
 		setDisconnect(true);
 		return false;
 	}
@@ -1020,7 +1020,7 @@ template<class... Args>
 bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) {
 	const uint32_t size = serializedSize(destination...);
 	if (size > remainingBytes) {
-		syslog(LOG_WARNING,"master: packet too short");
+		lzfs_pretty_syslog(LOG_WARNING,"master: packet too short");
 		setDisconnect(true);
 		return false;
 	}
@@ -1031,7 +1031,7 @@ bool fs_deserialize_from_master(uint32_t& remainingBytes, Args&... destination) 
 	try {
 		deserialize(buffer, destination...);
 	} catch (IncorrectDeserializationException& e) {
-		syslog(LOG_WARNING,"master: deserialization error: %s", e.what());
+		lzfs_pretty_syslog(LOG_WARNING,"master: deserialization error: %s", e.what());
 		setDisconnect(true);
 		return false;
 	}
@@ -1121,7 +1121,7 @@ void* fs_receive_thread(void *) {
 
 		if (packetHeader.isLizPacketType()) {
 			if (remainingBytes < serializedSize(packetVersion, messageId)) {
-				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				lzfs_pretty_syslog(LOG_WARNING,"master: packet too short: no msgid");
 				setDisconnect(true);
 				continue;
 			}
@@ -1130,7 +1130,7 @@ void* fs_receive_thread(void *) {
 			}
 		} else {
 			if (remainingBytes < serializedSize(messageId)) {
-				syslog(LOG_WARNING,"master: packet too short: no msgid");
+				lzfs_pretty_syslog(LOG_WARNING,"master: packet too short: no msgid");
 				setDisconnect(true);
 				continue;
 			}
@@ -1151,7 +1151,7 @@ void* fs_receive_thread(void *) {
 		}
 		threc *rec = fs_get_threc_by_id(messageId);
 		if (rec == NULL) {
-			syslog(LOG_WARNING,"master: got unexpected queryid");
+			lzfs_pretty_syslog(LOG_WARNING,"master: got unexpected queryid");
 			setDisconnect(true);
 			continue;
 		}
@@ -1262,7 +1262,7 @@ void fs_term(void) {
 }
 
 static void fs_got_inconsistent(const std::string& type, uint32_t size, const std::string& what) {
-	syslog(LOG_NOTICE,
+	lzfs_pretty_syslog(LOG_NOTICE,
 			"Got inconsistent %s message from master (length:%" PRIu32 "): %s",
 			type.c_str(), size, what.c_str());
 	setDisconnect(true);
@@ -1446,7 +1446,7 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 			uint8_t status;
 			matocl::fuseTruncate::deserialize(message, messageId, status);
 			if (status == LIZARDFS_STATUS_OK) {
-				syslog (LOG_NOTICE,
+				lzfs_pretty_syslog (LOG_NOTICE,
 						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE with version"
 						" %d" PRIu32, matocl::fuseTruncate::kStatusPacketVersion);
 				setDisconnect(true);
@@ -1459,10 +1459,10 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 			clientPerforms = true;
 			matocl::fuseTruncate::deserialize(message, messageId, oldLength, lockId);
 		} else {
-			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE - wrong packet version");
+			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE - wrong packet version");
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
@@ -1493,7 +1493,7 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 			uint8_t status;
 			matocl::fuseTruncateEnd::deserialize(message, messageId, status);
 			if (status == LIZARDFS_STATUS_OK) {
-				syslog (LOG_NOTICE,
+				lzfs_pretty_syslog (LOG_NOTICE,
 						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE_END with version"
 						" %d" PRIu32, matocl::fuseTruncateEnd::kStatusPacketVersion);
 				setDisconnect(true);
@@ -1503,10 +1503,10 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 		} else if (packetVersion == matocl::fuseTruncateEnd::kResponsePacketVersion) {
 			matocl::fuseTruncateEnd::deserialize(message, messageId, attr);
 		} else {
-			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE_END - wrong packet version");
+			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE_END - wrong packet version");
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE_END message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
@@ -1969,7 +1969,7 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 			matocl::fuseReadChunk::deserialize(message, fileLength,
 					chunkId, chunkVersion, serverList);
 		} else {
-			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
+			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
 		}
 	} catch (IncorrectDeserializationException&) {
 		setDisconnect(true);
@@ -2040,7 +2040,7 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 			uint8_t status;
 			matocl::fuseWriteChunk::deserialize(message, status);
 			if (status == LIZARDFS_STATUS_OK) {
-				syslog (LOG_NOTICE,
+				lzfs_pretty_syslog (LOG_NOTICE,
 						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_WRITE_CHUNK with version"
 						" %d" PRIu32, matocl::fuseWriteChunk::kStatusPacketVersion);
 				setDisconnect(true);
@@ -2051,10 +2051,10 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 			matocl::fuseWriteChunk::deserialize(message,
 					fileLength, chunkId, chunkVersion, lockId, chunkservers);
 		} else {
-			syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
+			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
@@ -2079,7 +2079,7 @@ uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64
 		matocl::fuseWriteChunkEnd::deserialize(message, status);
 		return status;
 	} catch (Exception& ex) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK_END message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);

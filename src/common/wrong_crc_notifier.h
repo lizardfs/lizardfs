@@ -20,7 +20,6 @@
 
 #include "common/platform.h"
 
-#include <syslog.h>
 #include <atomic>
 #include <condition_variable>
 #include <list>
@@ -35,6 +34,7 @@
 #include "common/chunk_with_version_and_type.h"
 #include "common/connection_pool.h"
 #include "common/network_address.h"
+#include "common/slogger.h"
 
 class WrongCrcNotifier {
 public:
@@ -47,7 +47,7 @@ public:
 			try {
 				myThread_.join();
 			} catch (std::system_error& e) {
-				syslog(LOG_NOTICE, "Failed to join wrong CRC notifier thread: %s", e.what());
+				lzfs_pretty_syslog(LOG_NOTICE, "Failed to join wrong CRC notifier thread: %s", e.what());
 			}
 		}
 	}

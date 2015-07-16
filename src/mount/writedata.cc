@@ -29,7 +29,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <algorithm>
 #include <condition_variable>
@@ -47,6 +46,7 @@
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
@@ -106,7 +106,7 @@ struct inodedata {
 		newDataInChainPipe[0] = newDataInChainPipe[1] = -1;
 #else
 		if (pipe(newDataInChainPipe) < 0) {
-			syslog(LOG_WARNING, "creating pipe error: %s", strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING, "creating pipe error: %s", strerr(errno));
 			newDataInChainPipe[0] = -1;
 		}
 #endif
@@ -128,7 +128,7 @@ struct inodedata {
 		 */
 		if (workerWaitingForData && dataChain.size() == 1 && isDataChainPipeValid()) {
 			if (write(newDataInChainPipe[1], " ", 1) != 1) {
-				syslog(LOG_ERR, "write pipe error: %s", strerr(errno));
+				lzfs_pretty_syslog(LOG_ERR, "write pipe error: %s", strerr(errno));
 			}
 			workerWaitingForData = false;
 		}
@@ -328,7 +328,7 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 	id->locator.reset();
 	if (status) {
 		errno = status;
-		syslog(LOG_WARNING, "error writing file number %" PRIu32 ": %s", id->inode, strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING, "error writing file number %" PRIu32 ": %s", id->inode, strerr(errno));
 		id->status = status;
 	}
 	status = id->status;
@@ -395,7 +395,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	} else {
 		// No data, no unfinished jobs -- something wrong!
 		// This should never happen, so the status doesn't really matter
-		syslog(LOG_WARNING, "got inode with no data to write!!!");
+		lzfs_pretty_syslog(LOG_WARNING, "got inode with no data to write!!!");
 		haveDataToWrite = false;
 		status = EINVAL;
 	}
@@ -463,7 +463,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			returnJournalToDataChain(writer.releaseJournal(), lock);
 			lock.unlock();
 
-			syslog(LOG_WARNING, "write file error, inode: %" PRIu32 ", index: %" PRIu32 " - %s",
+			lzfs_pretty_syslog(LOG_WARNING, "write file error, inode: %" PRIu32 ", index: %" PRIu32 " - %s",
 					inodeData_->inode, chunkIndex_, errorString.c_str());
 			if (inodeData_->trycnt >= maxretries) {
 				// Convert error to an unrecoverable error
@@ -899,7 +899,7 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 	do {
 		status = fs_truncate(inode, opened, uid, gid, length, writeNeeded, attr, oldLength, lockId);
 		if (status != LIZARDFS_STATUS_OK) {
-			syslog(LOG_INFO, "truncate file %" PRIu32 " to length %" PRIu64 ": %s (try %d/%d)",
+			lzfs_pretty_syslog(LOG_INFO, "truncate file %" PRIu32 " to length %" PRIu64 ": %s (try %d/%d)",
 					inode, length, mfsstrerr(status), int(retries + 1), int(maxretries));
 		}
 		if (retries >= maxretries) {

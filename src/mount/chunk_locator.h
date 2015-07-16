@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "common/chunk_type_with_address.h"
+#include "common/slogger.h"
 
 struct ChunkLocationInfo {
 	typedef std::vector<ChunkTypeWithAddress> ChunkLocations;
@@ -86,7 +87,7 @@ public:
 				unlockChunk();
 			}
 		} catch (Exception& ex) {
-			syslog (LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"unlocking chunk error, inode: %" PRIu32 ", index: %" PRIu32 " - %s",
 					inode_, index_, ex.what());
 		}

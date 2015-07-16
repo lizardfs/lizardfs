@@ -19,15 +19,16 @@
 #include "common/platform.h"
 #include "mount/chunk_writer.h"
 
-#include <poll.h>
 #include <algorithm>
 #include <bitset>
 #include <cstring>
+#include <poll.h>
 
 #include "common/block_xor.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/read_operation_executor.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
@@ -226,7 +227,7 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 				const uint32_t dataFdBufferSize = 1024;
 				uint8_t dataFdBuffer[dataFdBufferSize];
 				if (read(dataChainFd_, dataFdBuffer, dataFdBufferSize) < 0) {
-					syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
+					lzfs_pretty_syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
 				}
 			}
 		} else {

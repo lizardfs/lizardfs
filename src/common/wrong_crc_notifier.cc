@@ -44,7 +44,7 @@ void WrongCrcNotifier::operator()() {
 				fd = chunkConnector_->startUsingConnection(address,
 						Timeout(std::chrono::seconds(1)));
 			} catch (std::exception& e) {
-				syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"
+				lzfs_pretty_syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"
 						" with wrong CRC - connection timed out",
 						address.toString().c_str(),
 						chunkWithVersionAndType.toString().c_str());
@@ -58,7 +58,7 @@ void WrongCrcNotifier::operator()() {
 				chunkConnector_->endUsingConnection(fd, address);
 			} else {
 				tcpclose(fd);
-				syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"
+				lzfs_pretty_syslog(LOG_NOTICE, "Failed to notify CS: %s about chunk: %s"
 						" with wrong CRC - write error",
 						address.toString().c_str(),
 						chunkWithVersionAndType.toString().c_str());

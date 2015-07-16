@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <map>
 #include <memory>
@@ -42,6 +41,7 @@
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
+#include "common/slogger.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
 #include "mount/acl_cache.h"
@@ -2273,7 +2273,7 @@ void release(Context ctx,
 		if (file->wasWritten) {
 			auto separatorPos = file->value.find('=');
 			if (separatorPos == file->value.npos) {
-				syslog(LOG_INFO, "TWEAKS_FILE: Wrong value '%s'", file->value.c_str());
+				lzfs_pretty_syslog(LOG_INFO, "TWEAKS_FILE: Wrong value '%s'", file->value.c_str());
 			} else {
 				std::string name = file->value.substr(0, separatorPos);
 				std::string value = file->value.substr(separatorPos + 1);
@@ -2281,7 +2281,7 @@ void release(Context ctx,
 					value.resize(value.size() - 1);
 				}
 				gTweaks.setValue(name, value);
-				syslog(LOG_INFO, "TWEAKS_FILE: Setting '%s' to '%s'", name.c_str(), value.c_str());
+				lzfs_pretty_syslog(LOG_INFO, "TWEAKS_FILE: Setting '%s' to '%s'", name.c_str(), value.c_str());
 			}
 		}
 		delete file;
@@ -2451,7 +2451,7 @@ std::vector<uint8_t> read(Context ctx,
 			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
-		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		lzfs_pretty_syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
 	PthreadMutexWrapper lock(fileinfo->lock);
@@ -2618,7 +2618,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
-		syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
+		lzfs_pretty_syslog(LOG_WARNING, "I/O limiting error: %s", ex.what());
 		throw RequestException(EIO);
 	}
 	PthreadMutexWrapper lock(fileinfo->lock);
@@ -2685,7 +2685,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 				strerr(EBADF));
 		throw RequestException(EBADF);
 	}
-//      syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
+//      lzfs_pretty_syslog(LOG_NOTICE,"remove_locks inode:%lu owner:%" PRIu64 "",(unsigned long int)ino,(uint64_t)fi->lock_owner);
 	err = 0;
 	PthreadMutexWrapper lock(fileinfo->lock);
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
@@ -2866,7 +2866,7 @@ public:
 			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
 			return e.status();
 		} catch (Exception&) {
-			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			lzfs_pretty_syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
 			return LIZARDFS_ERROR_IO;
 		}
 	}

@@ -25,6 +25,7 @@
 #include "common/cltoma_communication.h"
 #include "common/matocl_communication.h"
 #include "common/token_bucket.h"
+#include "common/slogger.h"
 #include "mount/io_limit_group.h"
 
 using namespace ioLimiting;
@@ -43,7 +44,7 @@ uint64_t MasterLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
 	cltoma::iolimit::serialize(buffer, 0, configVersion_, groupId, size);
 	uint8_t status = fs_raw_sendandreceive(buffer, LIZ_MATOCL_IOLIMIT);
 	if (status != LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE, "Sending IOLIMIT returned status %s", mfsstrerr(status));
+		lzfs_pretty_syslog(LOG_NOTICE, "Sending IOLIMIT returned status %s", mfsstrerr(status));
 		return 0;
 	}
 	uint32_t receivedMsgid, receivedConfigVersion;
@@ -52,13 +53,13 @@ uint64_t MasterLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
 	matocl::iolimit::deserialize(buffer, receivedMsgid, receivedConfigVersion, receivedGroupId,
 			receivedSize);
 	if (receivedConfigVersion != configVersion_) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"Received unexpected IOLIMIT config version %" PRIu32 " instead of %" PRIu32,
 				receivedConfigVersion, configVersion_);
 		return 0;
 	}
 	if (receivedGroupId != groupId) {
-		syslog(LOG_NOTICE, "Received IOLIMIT group %s instead of %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "Received IOLIMIT group %s instead of %s",
 				receivedGroupId.c_str(), groupId.c_str());
 		return 0;
 	}
@@ -75,10 +76,10 @@ bool MasterLimiter::IolimitsConfigHandler::handle(MessageBuffer buffer) {
 				configVersion, delta_us, subsystem, groups);
 		parent_.configVersion_ = configVersion;
 		parent_.reconfigure_(delta_us, subsystem, groups);
-		syslog(LOG_INFO, "Received IO limits configuration update from master");
+		lzfs_pretty_syslog(LOG_INFO, "Received IO limits configuration update from master");
 		return true;
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_ERR, "Malformed MATOCL_IOLIMITS_CONFIG: %s", ex.what());
+		lzfs_pretty_syslog(LOG_ERR, "Malformed MATOCL_IOLIMITS_CONFIG: %s", ex.what());
 		return false;
 	}
 }

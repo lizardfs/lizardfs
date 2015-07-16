@@ -21,7 +21,6 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
-#include <syslog.h>
 #include <numeric>
 #include <stdexcept>
 #include <tuple>

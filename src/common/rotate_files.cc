@@ -19,7 +19,6 @@
 #include "common/platform.h"
 #include "common/rotate_files.h"
 
-#include <syslog.h>
 #include <string>
 
 #include "common/cwrap.h"

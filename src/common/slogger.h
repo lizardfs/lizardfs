@@ -20,6 +20,8 @@
 
 #include "common/platform.h"
 
+#include "common/syslog_defs.h"
+
 /// Returns true iff lzfs_*log functions print messages to stderr.
 bool lzfs_is_printf_enabled();
 

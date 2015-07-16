@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 #include <condition_variable>
@@ -38,6 +37,7 @@
 #include "common/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/read_plan_executor.h"
+#include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
@@ -245,7 +245,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 
 	auto printErrorMessage = [&rrec, &tryCounter] (const Exception& ex) {
 		if (rrec->reader.isChunkLocated()) {
-			syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
 					"(try counter: %" PRIu32 ")",
@@ -256,7 +256,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 					ex.what(),
 					tryCounter);
 		} else {
-			syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"read file error, inode: %" PRIu32
 					", index: %" PRIu32 ", chunk: failed to locate - %s "
 					"(try counter: %" PRIu32 ")",
