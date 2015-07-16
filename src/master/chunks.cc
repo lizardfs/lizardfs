@@ -1414,7 +1414,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 				chunkserverLocation.distance =
 						topology_distance(chunkserverLocation.address.ip, currentIp);
 						// in the future prepare more sophisticated distance function
-				chunkserverLocation.random = rndu32();
+				chunkserverLocation.random = rnd<uint32_t>();
 				chunkLocation.push_back(chunkserverLocation);
 				cnt++;
 			}
@@ -1449,7 +1449,7 @@ int chunk_getversionandlocations(uint64_t chunkid,uint32_t cuip,uint32_t *versio
 			if (cnt < 100 && matocsserv_getlocation(
 					s->ptr, &(lstab[cnt].ip), &(lstab[cnt].port), &dummy) == 0) {
 				lstab[cnt].dist = topology_distance(lstab[cnt].ip,cuip); // in the future prepare more sofisticated distance function
-				lstab[cnt].rnd = rndu32();
+				lstab[cnt].rnd = rnd<uint32_t>();
 				cnt++;
 			}
 		}
@@ -2084,7 +2084,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			// We break the whole loop here, so there is no need to update 'skippedReplications'.
 			break;
 		}
-		matocsserventry *source = servers[rndu32_ranged(availableSources)];
+		matocsserventry *source = servers[rnd_ranged<uint32_t>(availableSources)];
 
 		// Initialize the replication
 		stats_replications++;
@@ -2289,7 +2289,7 @@ void chunk_jobs_main(void) {
 			}
 		}
 		if (l>0) {
-			r = rndu32_ranged(l);
+			r = rnd_ranged<uint32_t>(l);
 			l=0;
 			// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {

@@ -20,12 +20,25 @@
 
 #include "common/platform.h"
 
-#include <inttypes.h>
+#include <cassert>
+#include <random>
+
+namespace detail {
+typedef std::ranlux48 RandomEngine;
+extern RandomEngine kRandomEngine;
+}
 
 int rnd_init(void);
-uint8_t rndu8();
-uint32_t rndu32();
-uint64_t rndu64();
 
-uint64_t rndu64_ranged(uint64_t range);
-uint32_t rndu32_ranged(uint32_t range);
+template<typename T>
+T rnd() {
+	std::uniform_int_distribution<T> distribution;
+	return distribution(detail::kRandomEngine);
+}
+
+template<typename T>
+T rnd_ranged(T range) {
+	assert(range > 0);
+	std::uniform_int_distribution<T> distribution(0, range - 1);
+	return distribution(detail::kRandomEngine);
+}

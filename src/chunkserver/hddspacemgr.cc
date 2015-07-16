@@ -3402,7 +3402,7 @@ void hdd_testshuffle(folder *f) {
 		}
 		if (chunksno>1) {
 			for (i=0 ; i<chunksno-1 ; i++) {
-				j = i+rndu32_ranged(chunksno-i);
+				j = i+rnd_ranged<uint32_t>(chunksno-i);
 				if (j!=i) {
 					c = csorttab[i];
 					csorttab[i] = csorttab[j];
