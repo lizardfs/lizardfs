@@ -1265,7 +1265,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 		if (usedummylockid) {
 			*lockid = 1;
 		} else {
-			*lockid = 2 + rndu32_ranged(0xFFFFFFF0); // some random number greater than 1
+			*lockid = 2 + rnd_ranged<uint32_t>(0xFFFFFFF0); // some random number greater than 1
 		}
 	}
 	c->lockid = *lockid;
@@ -1559,7 +1559,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 				chunkserverLocation.distance =
 						topology_distance(chunkserverLocation.address.ip, currentIp);
 						// in the future prepare more sophisticated distance function
-				chunkserverLocation.random = rndu32();
+				chunkserverLocation.random = rnd<uint32_t>();
 				chunkLocation.push_back(chunkserverLocation);
 				cnt++;
 			}
@@ -1599,7 +1599,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 				chunkserverLocation.distance =
 						topology_distance(chunkserverLocation.address.ip, currentIp);
 						// in the future prepare more sophisticated distance function
-				chunkserverLocation.random = rndu32();
+				chunkserverLocation.random = rnd<uint32_t>();
 				chunkLocation.push_back(chunkserverLocation);
 				cnt++;
 			}
@@ -2086,7 +2086,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, matocss
 	} else if (chunkTypeToRecover.isStandardChunkType() && !standardSources.empty()) {
 		// fall back to legacy replication
 		matocsserv_send_replicatechunk(destinationServer, c->chunkid, c->version,
-				standardSources[rndu32_ranged(standardSources.size())]);
+				standardSources[rnd_ranged<uint32_t>(standardSources.size())]);
 	} else {
 		// no replication possible
 		return false;
@@ -2589,7 +2589,7 @@ void chunk_jobs_main(void) {
 			}
 		}
 		if (l>0) {
-			r = rndu32_ranged(l);
+			r = rnd_ranged<uint32_t>(l);
 			l=0;
 			// do jobs on rest of them
 			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {

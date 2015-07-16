@@ -905,7 +905,7 @@ int masterconn_init(void) {
 	}
 
 	main_eachloopregister(masterconn_check_hdd_reports);
-	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rndu32_ranged(ReconnectionDelay),masterconn_reconnect);
+	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rnd_ranged<uint32_t>(ReconnectionDelay),masterconn_reconnect);
 	main_destructregister(masterconn_term);
 	main_pollregister(masterconn_desc,masterconn_serve);
 	main_reloadregister(masterconn_reload);
