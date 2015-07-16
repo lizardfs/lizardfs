@@ -42,7 +42,7 @@ uint64_t MasterLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
 	MessageBuffer buffer;
 	cltoma::iolimit::serialize(buffer, 0, configVersion_, groupId, size);
 	uint8_t status = fs_raw_sendandreceive(buffer, LIZ_MATOCL_IOLIMIT);
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		syslog(LOG_NOTICE, "Sending IOLIMIT returned status %s", mfsstrerr(status));
 		return 0;
 	}
@@ -108,17 +108,17 @@ uint8_t LimiterProxy::waitForRead(const pid_t pid, const uint64_t size, SteadyTi
 	uint8_t status;
 	do {
 		if (!enabled_) {
-			return STATUS_OK;
+			return LIZARDFS_STATUS_OK;
 		}
 		IoLimitGroupId groupId = getIoLimitGroupIdNoExcept(pid, subsystem_);
 		// Grab a shared_ptr reference on the group descriptor so that reconfigure() can
 		// quickly unreference this group from the groups_ map without waiting for us.
 		std::shared_ptr<Group> group = getGroup(groupId);
 		if (!group) {
-			return ERROR_EPERM;
+			return LIZARDFS_ERROR_EPERM;
 		}
 		status = group->wait(size, deadline, lock);
-	} while (status == ERROR_ENOENT); // loop if the group disappeared due to reconfiguration
+	} while (status == LIZARDFS_ERROR_ENOENT); // loop if the group disappeared due to reconfiguration
 	return status;
 }
 

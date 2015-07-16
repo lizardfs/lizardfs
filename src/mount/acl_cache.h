@@ -38,9 +38,9 @@ typedef LruCache<
 inline AclCacheEntry getAcl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	AclCacheEntry acl(new AccessControlList());
 	uint8_t status = fs_getacl(inode, uid, gid, type, *acl);
-	if (status == STATUS_OK) {
+	if (status == LIZARDFS_STATUS_OK) {
 		return acl;
-	} else if (status == ERROR_ENOATTR) {
+	} else if (status == LIZARDFS_ERROR_ENOATTR) {
 		return AclCacheEntry();
 	} else {
 		throw AclAcquisitionException(status);

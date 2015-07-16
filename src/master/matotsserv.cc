@@ -158,7 +158,7 @@ static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageB
 		lzfs_pretty_syslog(LOG_INFO,
 				"tapeserver  %s(%s) failed to register",
 				name.c_str(), eptr->address.toString().c_str());
-		uint8_t status = ERROR_EPERM;
+		uint8_t status = LIZARDFS_ERROR_EPERM;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(status));
 	} else {
 		lzfs_pretty_syslog(LOG_INFO,
@@ -502,10 +502,10 @@ uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tap
 			tapeserverInfo.server = tapeserver->name;
 			tapeserverInfo.label = tapeserver->label;
 			tapeserverInfo.address = tapeserver->address;
-			return STATUS_OK;
+			return LIZARDFS_STATUS_OK;
 		}
 	}
-	return ERROR_ENOENT;
+	return LIZARDFS_ERROR_ENOENT;
 }
 
 std::vector<TapeserverListEntry> matotsserv_get_tapeservers() {

@@ -178,7 +178,7 @@ TEST(MatoclCommunicationTests, XorChunksHealth) {
 
 TEST(MatoclCommunicationTests, FuseDeleteAcl) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, ERROR_EPERM, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, LIZARDFS_ERROR_EPERM, 0);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::fuseDeleteAcl::serialize(buffer, messageIdIn, statusIn));
@@ -194,7 +194,7 @@ TEST(MatoclCommunicationTests, FuseDeleteAcl) {
 
 TEST(MatoclCommunicationTests, FuseGetAclStatus) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, ERROR_EPERM, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, LIZARDFS_ERROR_EPERM, 0);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::fuseGetAcl::serialize(buffer, messageIdIn, statusIn));
@@ -230,7 +230,7 @@ TEST(MatoclCommunicationTests, FuseGetAclResponse) {
 
 TEST(MatoclCommunicationTests, FuseSetAcl) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, ERROR_EPERM, 0);
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, LIZARDFS_ERROR_EPERM, 0);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::fuseSetAcl::serialize(buffer, messageIdIn, statusIn));

@@ -88,10 +88,10 @@ static void* masterproxy_server(void *args) {
 			}
 
 			buffer.clear();
-			serializeMooseFsPacket(buffer, MATOCL_FUSE_REGISTER, uint8_t(STATUS_OK));
+			serializeMooseFsPacket(buffer, MATOCL_FUSE_REGISTER, uint8_t(LIZARDFS_STATUS_OK));
 
 		} else {
-			if (fs_custom(buffer) != STATUS_OK) {
+			if (fs_custom(buffer) != LIZARDFS_STATUS_OK) {
 				tcpclose(sock);
 				return NULL;
 			}

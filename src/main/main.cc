@@ -335,10 +335,10 @@ uint8_t main_want_to_terminate() {
 	if (gExitingStatus == ExitingStatus::kRunning) {
 		gExitingStatus = ExitingStatus::kWantExit;
 		syslog(LOG_INFO, "Exiting on internal request.");
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	} else {
 		syslog(LOG_ERR, "Unable to exit on internal request.");
-		return ERROR_NOTPOSSIBLE;
+		return LIZARDFS_ERROR_NOTPOSSIBLE;
 	}
 }
 

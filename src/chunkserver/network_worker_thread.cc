@@ -237,7 +237,7 @@ void worker_fwderror(csserventry *eptr) {
 	TRACETHIS();
 	sassert(eptr->messageSerializer != NULL);
 	std::vector<uint8_t> buffer;
-	uint8_t status = (eptr->state == CONNECTING ? ERROR_CANTCONNECT : ERROR_DISCONNECTED);
+	uint8_t status = (eptr->state == CONNECTING ? LIZARDFS_ERROR_CANTCONNECT : LIZARDFS_ERROR_DISCONNECTED);
 	eptr->messageSerializer->serializeCstoclWriteStatus(buffer, eptr->chunkid, 0, status);
 	worker_create_attached_packet(eptr, buffer);
 	eptr->state = WRITEFINISH;
@@ -299,9 +299,9 @@ void worker_check_nextpacket(csserventry *eptr);
 void worker_delayed_close(uint8_t status, void *e) {
 	TRACETHIS();
 	csserventry *eptr = (csserventry*) e;
-	if (eptr->wjobid > 0 && eptr->wjobwriteid == 0 && status == STATUS_OK) { // this was job_open
+	if (eptr->wjobid > 0 && eptr->wjobwriteid == 0 && status == LIZARDFS_STATUS_OK) { // this was job_open
 		eptr->chunkisopen = 1;
-	} else if (eptr->rjobid > 0 && status == STATUS_OK) { //this could be job_open
+	} else if (eptr->rjobid > 0 && status == LIZARDFS_STATUS_OK) { //this could be job_open
 		eptr->chunkisopen = 1;
 	}
 	if (eptr->chunkisopen) {
@@ -319,7 +319,7 @@ void worker_read_finished(uint8_t status, void *e) {
 	TRACETHIS();
 	csserventry *eptr = (csserventry*) e;
 	eptr->rjobid = 0;
-	if (status == STATUS_OK) {
+	if (status == LIZARDFS_STATUS_OK) {
 		eptr->todocnt--;
 		eptr->chunkisopen = 1;
 		if (eptr->todocnt == 0) {
@@ -361,7 +361,7 @@ void worker_read_continue(csserventry *eptr) {
 	}
 	if (eptr->size == 0) { // everything has been read
 		std::vector<uint8_t> buffer;
-		eptr->messageSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, STATUS_OK);
+		eptr->messageSerializer->serializeCstoclReadStatus(buffer, eptr->chunkid, LIZARDFS_STATUS_OK);
 		worker_create_attached_packet(eptr, buffer);
 		sassert(eptr->chunkisopen);
 		job_close(eptr->workerJobPool, NULL, NULL, eptr->chunkid, eptr->chunkType);
@@ -454,13 +454,13 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 	std::vector<uint8_t> instantResponseBuffer;
 	if (eptr->size == 0) {
 		eptr->messageSerializer->serializeCstoclReadStatus(instantResponseBuffer,
-				eptr->chunkid, STATUS_OK);
+				eptr->chunkid, LIZARDFS_STATUS_OK);
 	} else if (eptr->size > MFSCHUNKSIZE) {
 		eptr->messageSerializer->serializeCstoclReadStatus(instantResponseBuffer,
-				eptr->chunkid, ERROR_WRONGSIZE);
+				eptr->chunkid, LIZARDFS_ERROR_WRONGSIZE);
 	} else if (eptr->offset >= MFSCHUNKSIZE || eptr->offset + eptr->size > MFSCHUNKSIZE) {
 		eptr->messageSerializer->serializeCstoclReadStatus(instantResponseBuffer,
-				eptr->chunkid, ERROR_WRONGOFFSET);
+				eptr->chunkid, LIZARDFS_ERROR_WRONGOFFSET);
 	}
 	if (!instantResponseBuffer.empty()) {
 		worker_create_attached_packet(eptr, instantResponseBuffer);
@@ -507,7 +507,7 @@ void worker_write_finished(uint8_t status, void *e) {
 	csserventry *eptr = (csserventry*) e;
 	eptr->wjobid = 0;
 	sassert(eptr->messageSerializer != NULL);
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		std::vector<uint8_t> buffer;
 		eptr->messageSerializer->serializeCstoclWriteStatus(buffer,
 				eptr->chunkid, eptr->wjobwriteid, status);
@@ -530,7 +530,7 @@ void worker_write_finished(uint8_t status, void *e) {
 			sassert(eptr->messageSerializer != NULL);
 			std::vector<uint8_t> buffer;
 			eptr->messageSerializer->serializeCstoclWriteStatus(buffer,
-					eptr->chunkid, eptr->wjobwriteid, STATUS_OK);
+					eptr->chunkid, eptr->wjobwriteid, LIZARDFS_STATUS_OK);
 			worker_create_attached_packet(eptr, buffer);
 			eptr->partiallyCompletedWrites.erase(eptr->wjobwriteid);
 		} else {
@@ -578,7 +578,7 @@ void worker_write_init(csserventry *eptr,
 		if (worker_initconnect(eptr) < 0) {
 			std::vector<uint8_t> buffer;
 			eptr->messageSerializer->serializeCstoclWriteStatus(buffer,
-					eptr->chunkid, 0, ERROR_CANTCONNECT);
+					eptr->chunkid, 0, LIZARDFS_ERROR_CANTCONNECT);
 			worker_create_attached_packet(eptr, buffer);
 			eptr->state = WRITEFINISH;
 			return;
@@ -632,15 +632,15 @@ void worker_write_data(csserventry *eptr,
 		return;
 	}
 
-	uint8_t status = STATUS_OK;
+	uint8_t status = LIZARDFS_STATUS_OK;
 	uint32_t dataSize = data + length - dataToWrite;
 	if (dataSize != size) {
-		status = ERROR_WRONGSIZE;
+		status = LIZARDFS_ERROR_WRONGSIZE;
 	} else if (chunkId != eptr->chunkid) {
-		status = ERROR_WRONGCHUNKID;
+		status = LIZARDFS_ERROR_WRONGCHUNKID;
 	}
 
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		std::vector<uint8_t> buffer;
 		eptr->messageSerializer->serializeCstoclWriteStatus(buffer, chunkId, writeId, status);
 		worker_create_attached_packet(eptr, buffer);
@@ -691,11 +691,11 @@ void worker_write_status(csserventry *eptr,
 	}
 
 	if (eptr->chunkid != chunkId) {
-		status = ERROR_WRONGCHUNKID;
+		status = LIZARDFS_ERROR_WRONGCHUNKID;
 		writeId = 0;
 	}
 
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		std::vector<uint8_t> buffer;
 		eptr->messageSerializer->serializeCstoclWriteStatus(buffer, chunkId, writeId, status);
 		worker_create_attached_packet(eptr, buffer);
@@ -706,7 +706,7 @@ void worker_write_status(csserventry *eptr,
 	if (eptr->partiallyCompletedWrites.count(writeId) > 0) {
 		// found - means it was added by write_finished
 		std::vector<uint8_t> buffer;
-		eptr->messageSerializer->serializeCstoclWriteStatus(buffer, chunkId, writeId, STATUS_OK);
+		eptr->messageSerializer->serializeCstoclWriteStatus(buffer, chunkId, writeId, LIZARDFS_STATUS_OK);
 		worker_create_attached_packet(eptr, buffer);
 		eptr->partiallyCompletedWrites.erase(writeId);
 	} else {

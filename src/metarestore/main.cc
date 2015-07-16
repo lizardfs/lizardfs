@@ -447,7 +447,7 @@ int main(int argc,char **argv) {
 
 	uint8_t status = merger_loop();
 
-	if (status != STATUS_OK && savebest==0) {
+	if (status != LIZARDFS_STATUS_OK && savebest==0) {
 		return 1;
 	}
 

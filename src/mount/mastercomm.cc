@@ -176,11 +176,11 @@ void master_stats_add(uint8_t id,uint64_t s) {
 	}
 }
 
-const char* errtab[]={ERROR_STRINGS};
+const char* errtab[]={LIZARDFS_ERROR_STRINGS};
 
 static inline const char* mfs_strerror(uint8_t status) {
-	if (status>ERROR_MAX) {
-		status=ERROR_MAX;
+	if (status>LIZARDFS_ERROR_MAX) {
+		status=LIZARDFS_ERROR_MAX;
 	}
 	return errtab[status];
 }
@@ -316,7 +316,7 @@ static bool fs_threc_wait(threc *rec, std::unique_lock<std::mutex>& lock) {
 		rec->condition.wait(lock);
 		rec->waiting = 0;
 	}
-	return rec->status == STATUS_OK;
+	return rec->status == LIZARDFS_STATUS_OK;
 }
 
 static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type expected_type) {
@@ -1306,7 +1306,7 @@ uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_ACCESS,13);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
@@ -1314,7 +1314,7 @@ uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask) {
 	put8bit(&wptr,modemask);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_ACCESS,&i);
 	if (!rptr || i!=1) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		ret = rptr[0];
 	}
@@ -1330,7 +1330,7 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_LOOKUP,13+nleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,parent);
 	put8bit(&wptr,nleng);
@@ -1340,17 +1340,17 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_LOOKUP,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=39) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1363,22 +1363,22 @@ uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETATTR,12);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=35) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1395,7 +1395,7 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 		wptr = fs_createpacket(rec,CLTOMA_FUSE_SETATTR,32);
 	}
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
@@ -1411,15 +1411,15 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 	}
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=35) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1430,12 +1430,12 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 	std::vector<uint8_t> message;
 	cltoma::fuseTruncate::serialize(message, rec->packetId, inode, opened, uid, gid, length);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
 	try {
 		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE, message)) {
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 
 		clientPerforms = false;
@@ -1445,12 +1445,12 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 		if (packetVersion == matocl::fuseTruncate::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseTruncate::deserialize(message, messageId, status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				syslog (LOG_NOTICE,
-						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE with version"
+						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE with version"
 						" %d" PRIu32, matocl::fuseTruncate::kStatusPacketVersion);
 				setDisconnect(true);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseTruncate::kFinishedPacketVersion) {
@@ -1466,10 +1466,10 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t length, uint32_t lockId,
@@ -1478,12 +1478,12 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 	std::vector<uint8_t> message;
 	cltoma::fuseTruncateEnd::serialize(message, rec->packetId, inode, uid, gid, length, lockId);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
 	try {
 		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_TRUNCATE_END, message)) {
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 
 		PacketVersion packetVersion;
@@ -1492,12 +1492,12 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 		if (packetVersion == matocl::fuseTruncateEnd::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseTruncateEnd::deserialize(message, messageId, status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				syslog (LOG_NOTICE,
-						"Received STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE_END with version"
+						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_TRUNCATE_END with version"
 						" %d" PRIu32, matocl::fuseTruncateEnd::kStatusPacketVersion);
 				setDisconnect(true);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseTruncateEnd::kResponsePacketVersion) {
@@ -1510,10 +1510,10 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE_END message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 
@@ -1526,25 +1526,25 @@ uint8_t fs_readlink(uint32_t inode,const uint8_t **path) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_READLINK,4);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_READLINK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<4) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		pleng = get32bit(&rptr);
 		if (i!=4+pleng || pleng==0 || rptr[pleng-1]!=0) {
 			setDisconnect(true);
-			ret = ERROR_IO;
+			ret = LIZARDFS_ERROR_IO;
 		} else {
 			*path = rptr;
-			ret = STATUS_OK;
+			ret = LIZARDFS_STATUS_OK;
 		}
 	}
 	return ret;
@@ -1560,7 +1560,7 @@ uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8
 	t32 = strlen((const char *)path)+1;
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SYMLINK,t32+nleng+17);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,parent);
 	put8bit(&wptr,nleng);
@@ -1573,17 +1573,17 @@ uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SYMLINK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=39) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1596,10 +1596,10 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 			MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			type, mode, umask, uid, gid, rdev);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_MKNOD, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		uint32_t messageId;
@@ -1608,24 +1608,24 @@ uint8_t fs_mknod(uint32_t parent, uint8_t nleng, const uint8_t *name, uint8_t ty
 		if (packetVersion == matocl::fuseMkdir::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseMknod::deserialize(message, messageId, status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(),
-						"version 0 and STATUS_OK");
-				return ERROR_IO;
+						"version 0 and LIZARDFS_STATUS_OK");
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseMkdir::kResponsePacketVersion) {
 			matocl::fuseMknod::deserialize(message, messageId, inode, attr);
-			return STATUS_OK;
+			return LIZARDFS_STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(),
 					"unknown version " + std::to_string(packetVersion));
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_FUSE_MKNOD", message.size(), ex.what());
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -1637,10 +1637,10 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 			MooseFsString<uint8_t>(reinterpret_cast<const char*>(name), nleng),
 			mode, umask, uid, gid, copysgid);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_MKDIR, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		uint32_t messageId;
@@ -1649,24 +1649,24 @@ uint8_t fs_mkdir(uint32_t parent, uint8_t nleng, const uint8_t *name,
 		if (packetVersion == matocl::fuseMkdir::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseMkdir::deserialize(message, messageId, status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(),
-						"version 0 and STATUS_OK");
-				return ERROR_IO;
+						"version 0 and LIZARDFS_STATUS_OK");
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseMkdir::kResponsePacketVersion) {
 			matocl::fuseMkdir::deserialize(message, messageId, inode, attr);
-			return STATUS_OK;
+			return LIZARDFS_STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(),
 					"unknown version " + std::to_string(packetVersion));
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_FUSE_MKDIR", message.size(), ex.what());
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -1678,7 +1678,7 @@ uint8_t fs_unlink(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_UNLINK,13+nleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,parent);
 	put8bit(&wptr,nleng);
@@ -1688,12 +1688,12 @@ uint8_t fs_unlink(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_UNLINK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -1706,7 +1706,7 @@ uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_RMDIR,13+nleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,parent);
 	put8bit(&wptr,nleng);
@@ -1716,12 +1716,12 @@ uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_RMDIR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -1735,7 +1735,7 @@ uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_RENAME,18+nleng_src+nleng_dst);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,parent_src);
 	put8bit(&wptr,nleng_src);
@@ -1749,19 +1749,19 @@ uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_RENAME,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 		*inode = 0;
 		memset(attr,0,35);
 	} else if (i!=39) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1775,7 +1775,7 @@ uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const u
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_LINK,17+nleng_dst);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode_src);
 	put32bit(&wptr,parent_dst);
@@ -1786,17 +1786,17 @@ uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const u
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_LINK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=39) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1809,20 +1809,20 @@ uint8_t fs_getdir(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETDIR,12);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
 	put32bit(&wptr,gid);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDIR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		*dbuff = rptr;
 		*dbuffsize = i;
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1836,7 +1836,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETDIR,13);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
@@ -1848,13 +1848,13 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	put8bit(&wptr,flags);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDIR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		*dbuff = rptr;
 		*dbuffsize = i;
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1869,7 +1869,7 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_OPEN,13);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,uid);
@@ -1878,7 +1878,7 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 	fs_inc_acnt(inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_OPEN,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		if (attr) {
 			memset(attr,0,35);
@@ -1888,10 +1888,10 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 		if (attr) {
 			memcpy(attr,rptr,35);
 		}
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	if (ret) {      // release on error
 		fs_dec_acnt(inode);
@@ -1915,19 +1915,19 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 	*csdatasize=0;
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_READ_CHUNK,8);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
 	put32bit(&wptr,inode);
 	put32bit(&wptr,indx);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_READ_CHUNK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<20 || ((i-20)%6)!=0) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t64 = get64bit(&rptr);
 		*length = t64;
@@ -1939,7 +1939,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 			*csdata = rptr;
 			*csdatasize = i-20;
 		}
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -1951,12 +1951,12 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 	std::vector<uint8_t> message;
 	cltoma::fuseReadChunk::serialize(message, rec->packetId, inode, chunkIndex);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
 	try {
 		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_READ_CHUNK, message)) {
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 		PacketVersion packetVersion;
 		deserializePacketVersionNoHeader(message, packetVersion);
@@ -1973,9 +1973,9 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 		}
 	} catch (IncorrectDeserializationException&) {
 		setDisconnect(true);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize) {
@@ -1990,18 +1990,18 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 	*csdatasize=0;
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_WRITE_CHUNK,8);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,indx);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_WRITE_CHUNK,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<20 || ((i-20)%6)!=0) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t64 = get64bit(&rptr);
 		*length = t64;
@@ -2013,7 +2013,7 @@ uint8_t fs_writechunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *ch
 			*csdata = rptr;
 			*csdatasize = i-20;
 		}
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -2026,12 +2026,12 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 	std::vector<uint8_t> message;
 	cltoma::fuseWriteChunk::serialize(message, rec->packetId, inode, chunkIndex, lockId);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
 	try {
 		if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK, message)) {
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 
 		PacketVersion packetVersion;
@@ -2039,12 +2039,12 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 		if (packetVersion == matocl::fuseWriteChunk::kStatusPacketVersion) {
 			uint8_t status;
 			matocl::fuseWriteChunk::deserialize(message, status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				syslog (LOG_NOTICE,
-						"Received STATUS_OK in message LIZ_MATOCL_FUSE_WRITE_CHUNK with version"
+						"Received LIZARDFS_STATUS_OK in message LIZ_MATOCL_FUSE_WRITE_CHUNK with version"
 						" %d" PRIu32, matocl::fuseWriteChunk::kStatusPacketVersion);
 				setDisconnect(true);
-				return ERROR_IO;
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
@@ -2058,10 +2058,10 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64_t length) {
@@ -2069,10 +2069,10 @@ uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64
 	std::vector<uint8_t> message;
 	cltoma::fuseWriteChunkEnd::serialize(message, rec->packetId, chunkId, lockId, inode, length);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_WRITE_CHUNK_END, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		uint8_t status;
@@ -2083,7 +2083,7 @@ uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK_END message from master "
 				"(length:%" PRIu64"), %s", message.size(), ex.what());
 		setDisconnect(true);
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -2095,19 +2095,19 @@ uint8_t fs_writeend(uint64_t chunkid, uint32_t inode, uint64_t length) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_WRITE_CHUNK_END,20);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put64bit(&wptr,chunkid);
 	put32bit(&wptr,inode);
 	put64bit(&wptr,length);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_WRITE_CHUNK_END,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2124,17 +2124,17 @@ uint8_t fs_getreserved(const uint8_t **dbuff,uint32_t *dbuffsize) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETRESERVED,0);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETRESERVED,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		*dbuff = rptr;
 		*dbuffsize = i;
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -2147,17 +2147,17 @@ uint8_t fs_gettrash(const uint8_t **dbuff,uint32_t *dbuffsize) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETTRASH,0);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETTRASH,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		*dbuff = rptr;
 		*dbuffsize = i;
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -2170,20 +2170,20 @@ uint8_t fs_getdetachedattr(uint32_t inode,uint8_t attr[35]) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETDETACHEDATTR,4);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETDETACHEDATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i!=35) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		memcpy(attr,rptr,35);
-		ret = STATUS_OK;
+		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
@@ -2197,25 +2197,25 @@ uint8_t fs_gettrashpath(uint32_t inode,const uint8_t **path) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETTRASHPATH,4);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETTRASHPATH,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<4) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		pleng = get32bit(&rptr);
 		if (i!=4+pleng || pleng==0 || rptr[pleng-1]!=0) {
 			setDisconnect(true);
-			ret = ERROR_IO;
+			ret = LIZARDFS_ERROR_IO;
 		} else {
 			*path = rptr;
-			ret = STATUS_OK;
+			ret = LIZARDFS_STATUS_OK;
 		}
 	}
 	return ret;
@@ -2231,19 +2231,19 @@ uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path) {
 	t32 = strlen((const char *)path)+1;
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETTRASHPATH,t32+8);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put32bit(&wptr,t32);
 	memcpy(wptr,path,t32);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETTRASHPATH,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2256,17 +2256,17 @@ uint8_t fs_undel(uint32_t inode) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_UNDEL,4);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_UNDEL,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2279,17 +2279,17 @@ uint8_t fs_purge(uint32_t inode) {
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_PURGE,4);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_PURGE,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2301,11 +2301,11 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETXATTR,15+nleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put8bit(&wptr,opened);
@@ -2317,20 +2317,20 @@ uint8_t fs_getxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	put8bit(&wptr,mode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETXATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<4) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		*vleng = get32bit(&rptr);
 		*vbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
 		if ((mode==XATTR_GMODE_GET_DATA && i!=(*vleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
-			ret = ERROR_IO;
+			ret = LIZARDFS_ERROR_IO;
 		} else {
-			ret = STATUS_OK;
+			ret = LIZARDFS_STATUS_OK;
 		}
 	}
 	return ret;
@@ -2343,11 +2343,11 @@ uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uin
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETXATTR,15);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put8bit(&wptr,opened);
@@ -2357,20 +2357,20 @@ uint8_t fs_listxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uin
 	put8bit(&wptr,mode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_GETXATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else if (i<4) {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else {
 		*dleng = get32bit(&rptr);
 		*dbuff = (mode==XATTR_GMODE_GET_DATA)?rptr:NULL;
 		if ((mode==XATTR_GMODE_GET_DATA && i!=(*dleng)+4) || (mode==XATTR_GMODE_LENGTH_ONLY && i!=4)) {
 			setDisconnect(true);
-			ret = ERROR_IO;
+			ret = LIZARDFS_ERROR_IO;
 		} else {
-			ret = STATUS_OK;
+			ret = LIZARDFS_STATUS_OK;
 		}
 	}
 	return ret;
@@ -2383,14 +2383,14 @@ uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	}
 	if (mode>=XATTR_SMODE_REMOVE) {
-		return ERROR_EINVAL;
+		return LIZARDFS_ERROR_EINVAL;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETXATTR,19+nleng+vleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put8bit(&wptr,opened);
@@ -2405,12 +2405,12 @@ uint8_t fs_setxattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint
 	put8bit(&wptr,mode);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETXATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2422,11 +2422,11 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	if (masterversion < lizardfsVersion(1, 6, 29)) {
-		return ERROR_ENOTSUP;
+		return LIZARDFS_ERROR_ENOTSUP;
 	}
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_SETXATTR,19+nleng);
 	if (wptr==NULL) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);
 	put8bit(&wptr,opened);
@@ -2439,12 +2439,12 @@ uint8_t fs_removexattr(uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,u
 	put8bit(&wptr,XATTR_SMODE_REMOVE);
 	rptr = fs_sendandreceive(rec,MATOCL_FUSE_SETXATTR,&i);
 	if (rptr==NULL) {
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
 	} else {
 		setDisconnect(true);
-		ret = ERROR_IO;
+		ret = LIZARDFS_ERROR_IO;
 	}
 	return ret;
 }
@@ -2453,10 +2453,10 @@ uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	threc* rec = fs_get_my_threc();
 	auto message = cltoma::fuseDeleteAcl::build(rec->packetId, inode, uid, gid, type);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_DELETE_ACL, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		uint8_t status;
@@ -2465,7 +2465,7 @@ uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 		return status;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_DELETE_ACL", message.size(), ex.what());
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -2473,10 +2473,10 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 	threc* rec = fs_get_my_threc();
 	auto message = cltoma::fuseGetAcl::build(rec->packetId, inode, uid, gid, type);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GET_ACL, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		PacketVersion packetVersion;
@@ -2486,24 +2486,24 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 			uint32_t dummyMessageId;
 			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId,
 					status);
-			if (status == STATUS_OK) {
+			if (status == LIZARDFS_STATUS_OK) {
 				fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
-						"version 0 and STATUS_OK");
-				return ERROR_IO;
+						"version 0 and LIZARDFS_STATUS_OK");
+				return LIZARDFS_ERROR_IO;
 			}
 			return status;
 		} else if (packetVersion == matocl::fuseGetAcl::kResponsePacketVersion) {
 			uint32_t dummyMessageId;
 			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId, acl);
-			return STATUS_OK;
+			return LIZARDFS_STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
 					"unknown version " + std::to_string(packetVersion));
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(), ex.what());
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -2511,10 +2511,10 @@ uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, cons
 	threc* rec = fs_get_my_threc();
 	auto message = cltoma::fuseSetAcl::build(rec->packetId, inode, uid, gid, type, acl);
 	if (!fs_lizcreatepacket(rec, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SET_ACL, message)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	try {
 		uint8_t status;
@@ -2523,7 +2523,7 @@ uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, cons
 		return status;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 }
 
@@ -2550,23 +2550,23 @@ uint8_t fs_custom(MessageBuffer& buffer) {
 	ptr = msgIdPtr(buffer);
 	if (!ptr) {
 		// packet too short
-		return ERROR_EINVAL;
+		return LIZARDFS_ERROR_EINVAL;
 	}
 	const uint32_t origMsgIdBigEndian = *ptr;
 	*ptr = htonl(rec->packetId);
 	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive_any(rec, buffer)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	ptr = msgIdPtr(buffer);
 	if (!ptr) {
 		// reply too short
-		return ERROR_EINVAL;
+		return LIZARDFS_ERROR_EINVAL;
 	}
 	*ptr = origMsgIdBigEndian;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType) {
@@ -2575,27 +2575,27 @@ uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expected
 	ptr = msgIdPtr(buffer);
 	if (!ptr) {
 		// packet too short
-		return ERROR_EINVAL;
+		return LIZARDFS_ERROR_EINVAL;
 	}
 	*ptr = htonl(rec->packetId);
 	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_lizsendandreceive(rec, expectedType, buffer)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_send_custom(MessageBuffer buffer) {
 	threc *rec = fs_get_my_threc();
 	if (!fs_lizcreatepacket(rec, std::move(buffer))) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
 	if (!fs_threc_flush(rec)) {
-		return ERROR_IO;
+		return LIZARDFS_ERROR_IO;
 	}
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 bool fs_register_packet_type_handler(PacketHeader::Type type, PacketHandler *handler) {

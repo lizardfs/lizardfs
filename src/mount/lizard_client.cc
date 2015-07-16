@@ -2438,11 +2438,11 @@ std::vector<uint8_t> read(Context ctx,
 	try {
 		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
 		uint8_t status = gLocalIoLimiter().waitForRead(ctx.pid, size, deadline);
-		if (status == STATUS_OK) {
+		if (status == LIZARDFS_STATUS_OK) {
 			status = gGlobalIoLimiter().waitForRead(ctx.pid, size, deadline);
 		}
-		if (status != STATUS_OK) {
-			err = (status == ERROR_EPERM ? EPERM : EIO);
+		if (status != LIZARDFS_STATUS_OK) {
+			err = (status == LIZARDFS_ERROR_EPERM ? EPERM : EIO);
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 					(unsigned long int)ino,
 					(uint64_t)size,
@@ -2605,11 +2605,11 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	try {
 		const SteadyTimePoint deadline = SteadyClock::now() + std::chrono::seconds(30);
 		uint8_t status = gLocalIoLimiter().waitForWrite(ctx.pid, size, deadline);
-		if (status == STATUS_OK) {
+		if (status == LIZARDFS_STATUS_OK) {
 			status = gGlobalIoLimiter().waitForWrite(ctx.pid, size, deadline);
 		}
-		if (status != STATUS_OK) {
-			err = (status == ERROR_EPERM ? EPERM : EIO);
+		if (status != LIZARDFS_STATUS_OK) {
+			err = (status == LIZARDFS_ERROR_EPERM ? EPERM : EIO);
 			oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 							(unsigned long int)ino,
 							(uint64_t)size,
@@ -2789,7 +2789,7 @@ public:
 		const uint8_t *buff;
 		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
 				mode, &buff, &valueLength);
-		if (mode == XATTR_GMODE_GET_DATA && status == STATUS_OK) {
+		if (mode == XATTR_GMODE_GET_DATA && status == LIZARDFS_STATUS_OK) {
 			value = std::vector<uint8_t>(buff, buff + valueLength);
 		}
 		return status;
@@ -2829,7 +2829,7 @@ public:
 	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, const char *value, size_t size, int) {
 		if (!acl_enabled) {
-			return ERROR_ENOTSUP;
+			return LIZARDFS_ERROR_ENOTSUP;
 		}
 		AccessControlList acl;
 		try {
@@ -2840,7 +2840,7 @@ public:
 			}
 			acl = aclConverter::posixToAclObject(posix);
 		} catch (Exception&) {
-			return ERROR_EINVAL;
+			return LIZARDFS_ERROR_EINVAL;
 		}
 		auto ret = fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
 		eraseAclCache(ino);
@@ -2850,7 +2850,7 @@ public:
 	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		if (!acl_enabled) {
-			return ERROR_ENOTSUP;
+			return LIZARDFS_ERROR_ENOTSUP;
 		}
 
 		try {
@@ -2858,23 +2858,23 @@ public:
 			if (cacheEntry) {
 				value = aclConverter::aclObjectToXattr(*cacheEntry);
 				valueLength = value.size();
-				return STATUS_OK;
+				return LIZARDFS_STATUS_OK;
 			} else {
-				return ERROR_ENOATTR;
+				return LIZARDFS_ERROR_ENOATTR;
 			}
 		} catch (AclAcquisitionException& e) {
-			sassert((e.status() != STATUS_OK) && (e.status() != ERROR_ENOATTR));
+			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
 			return e.status();
 		} catch (Exception&) {
 			syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
-			return ERROR_IO;
+			return LIZARDFS_ERROR_IO;
 		}
 	}
 
 	virtual uint8_t removexattr(const Context& ctx, Inode ino, const char *,
 			uint32_t) {
 		if (!acl_enabled) {
-			return ERROR_ENOTSUP;
+			return LIZARDFS_ERROR_ENOTSUP;
 		}
 		auto ret = fs_deletacl(ino, ctx.uid, ctx.gid, type_);
 		eraseAclCache(ino);
@@ -2890,7 +2890,7 @@ private:
 
 static AclXattrHandler accessAclXattrHandler(AclType::kAccess);
 static AclXattrHandler defaultAclXattrHandler(AclType::kDefault);
-static ErrorXattrHandler enotsupXattrHandler(ERROR_ENOTSUP);
+static ErrorXattrHandler enotsupXattrHandler(LIZARDFS_ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 
 static std::map<std::string, XattrHandler*> xattr_handlers = {

@@ -35,7 +35,7 @@ TEST(CstomaCommunicationTests, OverwriteStatusField) {
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(cstoma::setVersion::serialize(buffer, chunkIdIn, chunkTypeIn, statusIn));
-	statusIn = ERROR_WRONGOFFSET;
+	statusIn = LIZARDFS_ERROR_WRONGOFFSET;
 	cstoma::overwriteStatusField(buffer, statusIn);
 
 	verifyHeader(buffer, LIZ_CSTOMA_SET_VERSION);

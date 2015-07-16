@@ -426,7 +426,7 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 		syslog(LOG_NOTICE,
 				"MLTOMA_REGISTER_SHADOW - rejected old client (v%s) from %s",
 				lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
-		matomlserv_createpacket(eptr, matoml::registerShadow::build(uint8_t(ERROR_REGISTER)));
+		matomlserv_createpacket(eptr, matoml::registerShadow::build(uint8_t(LIZARDFS_ERROR_REGISTER)));
 		return;
 	}
 
@@ -582,7 +582,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 				mfsstrerr(recvStatus));
 		gShadowQueue.addRequest(eptr);
 		fs_storeall(MetadataDumper::kBackgroundDump);
-		if (recvStatus == ERROR_BADMETADATACHECKSUM) {
+		if (recvStatus == LIZARDFS_ERROR_BADMETADATACHECKSUM) {
 			fs_start_checksum_recalculation();
 		}
 	} else {
@@ -592,7 +592,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "
 				"previous request and METADATA_SAVE_REQUEST_MIN_PERIOD=%" PRIu32,
 				mfsstrerr(recvStatus), secondsSinceLastRequest, gMinMetadataSaveRequestPeriod_s);
-		matomlserv_createpacket(eptr, matoml::changelogApplyError::build(ERROR_DELAYED));
+		matomlserv_createpacket(eptr, matoml::changelogApplyError::build(LIZARDFS_ERROR_DELAYED));
 	}
 }
 

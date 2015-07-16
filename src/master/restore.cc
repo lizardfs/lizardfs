@@ -675,9 +675,9 @@ int do_write(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 int restore_line(const char* filename, uint64_t lv, const char* line) {
 	uint32_t ts;
 	int status;
-	const char* errormsgs[] = {ERROR_STRINGS};
+	const char* errormsgs[] = {LIZARDFS_ERROR_STRINGS};
 
-	status = ERROR_MAX;
+	status = LIZARDFS_ERROR_MAX;
 	const char* ptr = line;
 
 	EAT(ptr,filename,lv,':');
@@ -804,13 +804,13 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 			break;
 	}
 
-	if (status == ERROR_MAX) {
+	if (status == LIZARDFS_ERROR_MAX) {
 #ifndef METARESTORE
 		DEBUG_LOG("master.mismatch")
 				<< "File " << filename << ", " << lv << line << " -- unknown entry ";
 #endif
 		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
-	} else if (status != STATUS_OK) {
+	} else if (status != LIZARDFS_STATUS_OK) {
 #ifndef METARESTORE
 		DEBUG_LOG("master.mismatch")
 				<< "File " << filename << ", " << lv << line << " -- " << mfsstrerr(status);
@@ -860,7 +860,7 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 				"merge error - possibly corrupted input file - ignore entry"
 				" (filename: %s, versions: %" PRIu64 ", %" PRIu64 ")",
 				filename, newLogVersion, currentFsVersion);
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	} else if (newLogVersion >= nextFsVersion) {
 		if (newLogVersion == currentFsVersion) {
 			if (verbosity > 1) {
@@ -870,16 +870,16 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 		} else if (newLogVersion > currentFsVersion + 1) {
 			lzfs_pretty_syslog(LOG_ERR, "hole in change files (entries from %s:%" PRIu64 " to %s:%" PRIu64
 					" are missing) - add more files", lastfn, currentFsVersion + 1, filename, newLogVersion - 1);
-			return ERROR_CHANGELOGINCONSISTENT;
+			return LIZARDFS_ERROR_CHANGELOGINCONSISTENT;
 		} else {
 			if (verbosity > 0) {
 				lzfs_pretty_syslog(LOG_NOTICE, "%s: change %s", filename, ptr);
 			}
 			int status = restore_line(filename,newLogVersion,ptr);
 			if (status<0) { // parse error - stop processing if requested
-				return (rigor == RestoreRigor::kIgnoreParseErrors ? 0 : ERROR_PARSE);
+				return (rigor == RestoreRigor::kIgnoreParseErrors ? 0 : LIZARDFS_ERROR_PARSE);
 			}
-			if (status != STATUS_OK) { // other errors - stop processing data
+			if (status != LIZARDFS_STATUS_OK) { // other errors - stop processing data
 				return status;
 			}
 			nextFsVersion = fs_getversion();
@@ -888,13 +888,13 @@ uint8_t restore(const char* filename, uint64_t newLogVersion, const char *ptr, R
 				 * restore_line() should bump nextFsVersion by exactly 1, but it didn't.
 				 */
 				lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ":%" PRIu64 " version mismatch", filename, newLogVersion, nextFsVersion);
-				return ERROR_METADATAVERSIONMISMATCH;
+				return LIZARDFS_ERROR_METADATAVERSIONMISMATCH;
 			}
 		}
 	}
 	currentFsVersion = newLogVersion;
 	lastfn = filename;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 void restore_setverblevel(uint8_t _vlevel) {

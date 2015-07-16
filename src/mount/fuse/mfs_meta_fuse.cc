@@ -561,14 +561,14 @@ static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	msize = dir_metaentries_size(ino);
 	if (ino==META_TRASH_INODE) {
 		status = fs_gettrash(&dbuff,&dsize);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			return;
 		}
 		dcsize = dir_dataentries_size(dbuff,dsize);
 		imask = INODE_TYPE_TRASH;
 	} else if (ino==META_RESERVED_INODE) {
 		status = fs_getreserved(&dbuff,&dsize);
-		if (status!=STATUS_OK) {
+		if (status!=LIZARDFS_STATUS_OK) {
 			return;
 		}
 		dcsize = dir_dataentries_size(dbuff,dsize);

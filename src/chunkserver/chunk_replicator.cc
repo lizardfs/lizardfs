@@ -90,7 +90,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	uint8_t status;
 	cstocs::getChunkBlocksStatus::deserialize(inputBuffer, rxChunkId, rxChunkVersion, rxChunkType,
 			nrOfBlocks, status);
-	auto expected = std::make_tuple(chunkId, chunkVersion, chunkType, uint8_t(STATUS_OK));
+	auto expected = std::make_tuple(chunkId, chunkVersion, chunkType, uint8_t(LIZARDFS_STATUS_OK));
 	auto actual = std::make_tuple(rxChunkId, rxChunkVersion, rxChunkType, status);
 	if (actual != expected) {
 		throw Exception("Received invalid response for chunk get block");
@@ -165,7 +165,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 
 		// Wait for limit to be assigned
 		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, maxWaitTime);
-		if (status != STATUS_OK) {
+		if (status != LIZARDFS_STATUS_OK) {
 			syslog(LOG_WARNING, "Replication bandwidth limiting error: %s", mfsstrerr(status));
 			return;
 		}

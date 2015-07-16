@@ -91,7 +91,7 @@ struct inodedata {
 	inodedata(uint32_t inode)
 			: inode(inode),
 			  maxfleng(0),
-			  status(STATUS_OK),
+			  status(LIZARDFS_STATUS_OK),
 			  flushwaiting(0),
 			  writewaiting(0),
 			  lcnt(0),
@@ -399,7 +399,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		haveDataToWrite = false;
 		status = EINVAL;
 	}
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		write_job_end(inodeData_, status, lock);
 		return;
 	}
@@ -444,16 +444,16 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 				// has to be flushed, because no more data will be added to it
 				canWait = false;
 			}
-			write_job_delayed_end(inodeData_, STATUS_OK, (canWait ? 1 : 0), lock);
+			write_job_delayed_end(inodeData_, LIZARDFS_STATUS_OK, (canWait ? 1 : 0), lock);
 		} catch (Exception& e) {
 			std::string errorString = e.what();
 			Glock lock(gMutex);
-			if (e.status() != ERROR_LOCKED) {
+			if (e.status() != LIZARDFS_ERROR_LOCKED) {
 				inodeData_->trycnt++;
 				errorString += " (try counter: " + std::to_string(inodeData->trycnt) + ")";
 			} else if (inodeData_->trycnt == 0) {
 				// Set to nonzero to inform writers, that this task needs to wait a bit
-				// Don't increase -- ERROR_LOCKED means that chunk is locked by a different client
+				// Don't increase -- LIZARDFS_ERROR_LOCKED means that chunk is locked by a different client
 				// and we have to wait until it is unlocked
 				inodeData_->trycnt = 1;
 			}
@@ -475,11 +475,11 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 	} catch (UnrecoverableWriteException& e) {
 		Glock lock(gMutex);
-		if (e.status() == ERROR_ENOENT) {
+		if (e.status() == LIZARDFS_ERROR_ENOENT) {
 			write_job_end(inodeData_, EBADF, lock);
-		} else if (e.status() == ERROR_QUOTA) {
+		} else if (e.status() == LIZARDFS_ERROR_QUOTA) {
 			write_job_end(inodeData_, EDQUOT, lock);
-		} else if (e.status() == ERROR_NOSPACE || e.status() == ERROR_NOCHUNKSERVERS) {
+		} else if (e.status() == LIZARDFS_ERROR_NOSPACE || e.status() == LIZARDFS_ERROR_NOCHUNKSERVERS) {
 			write_job_end(inodeData_, ENOSPC, lock);
 		} else {
 			write_job_end(inodeData_, EIO, lock);
@@ -555,7 +555,7 @@ void InodeChunkWriter::processDataChain(ChunkWriter& writer) {
 		} else if (wholeOperationTimer.elapsed_s() >= maximumTime) {
 			throw RecoverableWriteException(
 					"Timeout after " + std::to_string(wholeOperationTimer.elapsed_ms()) + " ms",
-					ERROR_TIMEOUT);
+					LIZARDFS_ERROR_TIMEOUT);
 		}
 
 		// Let's sleep a bit shorter if we can't be woken up by the pipe to reduce the latency
@@ -898,27 +898,27 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 	uint32_t retries = 0;
 	do {
 		status = fs_truncate(inode, opened, uid, gid, length, writeNeeded, attr, oldLength, lockId);
-		if (status != STATUS_OK) {
+		if (status != LIZARDFS_STATUS_OK) {
 			syslog(LOG_INFO, "truncate file %" PRIu32 " to length %" PRIu64 ": %s (try %d/%d)",
 					inode, length, mfsstrerr(status), int(retries + 1), int(maxretries));
 		}
 		if (retries >= maxretries) {
 			break;
 		}
-		if (status == ERROR_LOCKED) {
+		if (status == LIZARDFS_ERROR_LOCKED) {
 			sleep(1);
-		} else if (status == ERROR_CHUNKLOST || status == ERROR_NOTDONE) {
+		} else if (status == LIZARDFS_ERROR_CHUNKLOST || status == LIZARDFS_ERROR_NOTDONE) {
 			usleep(retrySleepTime_us);
 			retrySleepTime_us = std::min(2 * retrySleepTime_us, 60 * 1000000);
 			++retries;
 		}
-	} while (status == ERROR_LOCKED || status == ERROR_CHUNKLOST || status == ERROR_NOTDONE);
+	} while (status == LIZARDFS_ERROR_LOCKED || status == LIZARDFS_ERROR_CHUNKLOST || status == LIZARDFS_ERROR_NOTDONE);
 	lock.lock();
 	if (status != 0 || !writeNeeded) {
 		// Something failed or we have nothing to do more (master server managed to do the truncate)
 		write_data_flushwaiting_decrease(id, lock);
 		write_data_lcnt_decrease(id, lock);
-		if (status == STATUS_OK) {
+		if (status == LIZARDFS_STATUS_OK) {
 			return 0;
 		} else {
 			// status is now MFS status, so we cannot return any errno
@@ -967,7 +967,7 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 	write_data_flushwaiting_decrease(id, lock);
 	write_data_lcnt_decrease(id, lock);
 
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		// status is now MFS status, so we cannot return any errno
 		throw UnrecoverableWriteException("fs_truncateend failed", status);
 	}

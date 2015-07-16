@@ -243,12 +243,12 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	if (f==NULL) {
 		if (nopass) {
 			if (rndstate==0 || rndcode==NULL || passcode==NULL) {
-				return ERROR_NOPASSWORD;
+				return LIZARDFS_ERROR_NOPASSWORD;
 			} else {
-				return ERROR_BADPASSWORD;
+				return LIZARDFS_ERROR_BADPASSWORD;
 			}
 		}
-		return ERROR_EACCES;
+		return LIZARDFS_ERROR_EACCES;
 	}
 	*sesflags = f->sesflags;
 	*rootuid = f->rootuid;
@@ -259,7 +259,7 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	*maxgoal = f->maxgoal;
 	*mintrashtime = f->mintrashtime;
 	*maxtrashtime = f->maxtrashtime;
-	return STATUS_OK;
+	return LIZARDFS_STATUS_OK;
 }
 
 void exports_freelist(exports *arec) {

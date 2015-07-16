@@ -56,7 +56,7 @@ std::shared_ptr<const ChunkLocationInfo> ReadChunkLocator::locateChunk(uint32_t 
 #endif
 
 	if (status != 0) {
-		if (status == ERROR_ENOENT) {
+		if (status == LIZARDFS_ERROR_ENOENT) {
 			throw UnrecoverableReadException("Chunk locator: error sent by master server", status);
 		} else {
 			throw RecoverableReadException("Chunk locator: error sent by master server", status);
@@ -98,12 +98,12 @@ void WriteChunkLocator::locateAndLockChunk(uint32_t inode, uint32_t index) {
 
 	uint8_t status = fs_lizwritechunk(inode, index, lockId_, locationInfo_.fileLength,
 			locationInfo_.chunkId, locationInfo_.version, locationInfo_.locations);
-	if (status != STATUS_OK) {
-		if (status == ERROR_IO
-				|| status == ERROR_NOCHUNKSERVERS
-				|| status == ERROR_LOCKED
-				|| status == ERROR_CHUNKBUSY
-				|| status == ERROR_CHUNKLOST) {
+	if (status != LIZARDFS_STATUS_OK) {
+		if (status == LIZARDFS_ERROR_IO
+				|| status == LIZARDFS_ERROR_NOCHUNKSERVERS
+				|| status == LIZARDFS_ERROR_LOCKED
+				|| status == LIZARDFS_ERROR_CHUNKBUSY
+				|| status == LIZARDFS_ERROR_CHUNKLOST) {
 			throw RecoverableWriteException("error sent by master server", status);
 		} else {
 			lockId_ = 0;
@@ -121,13 +121,13 @@ void WriteChunkLocator::unlockChunk() {
 	sassert(lockId_ != 0);
 	uint8_t status = fs_lizwriteend(locationInfo_.chunkId, lockId_,
 			inode_, locationInfo_.fileLength);
-	if (status == ERROR_IO) {
+	if (status == LIZARDFS_ERROR_IO) {
 		// Communication with the master server failed
 		throw RecoverableWriteException("Sending WRITE_END to the master failed", status);
 	}
 	// Master unlocked the chunk and returned some status
 	lockId_ = 0;
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		throw UnrecoverableWriteException("Sending WRITE_END to the master failed", status);
 	}
 }

@@ -185,7 +185,7 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 
-	if (readStatus != STATUS_OK) {
+	if (readStatus != LIZARDFS_STATUS_OK) {
 		std::stringstream ss;
 		ss << "Status '" << mfsstrerr(readStatus) << "' sent by chunkserver";
 		throw ChunkserverConnectionException(ss.str(), server_);

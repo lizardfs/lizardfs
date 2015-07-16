@@ -92,26 +92,26 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
 	(((chunkNewVersion) > 0) \
 	? hdd_chunkop(chunkId, chunkVersion, chunkType, chunkNewVersion, 0, 0, \
 			0xFFFFFFFF) \
-	: ERROR_EINVAL)
+	: LIZARDFS_ERROR_EINVAL)
 
 #define hdd_truncate(chunkId, chunkVersion, chunkNewVersion, length) \
 	(((chunkNewVersion) > 0 && (length) != 0xFFFFFFFF) \
 	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, 0, 0, \
 			length, ChunkType::getStandardChunkType()) \
-	: ERROR_EINVAL)
+	: LIZARDFS_ERROR_EINVAL)
 
 #define hdd_duplicate(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy) \
 	(((chunkNewVersion > 0) && (chunkIdCopy) > 0) \
 	? hdd_chunkop(chunkId, chunkVersion, ChunkType::getStandardChunkType(), chunkNewVersion, \
 			chunkIdCopy, chunkVersionCopy, 0xFFFFFFFF) \
-	: ERROR_EINVAL)
+	: LIZARDFS_ERROR_EINVAL)
 
 #define hdd_duptrunc(chunkId, chunkVersion, chunkNewVersion, chunkIdCopy, chunkVersionCopy, \
 		length) \
 	(((chunkNewVersion > 0) && (chunkIdCopy) > 0 && (length) != 0xFFFFFFFF) \
 	? hdd_chunkop(chunkId, chunkVersion, , ChunkType::getStandardChunkType(), chunkNewVersion, \
 			chunkIdCopy, chunkVersionCopy, length) \
-	: ERROR_EINVAL)
+	: LIZARDFS_ERROR_EINVAL)
 
 /* chunk testing */
 void hdd_test_chunk(ChunkWithVersionAndType chunk);

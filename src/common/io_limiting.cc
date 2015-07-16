@@ -98,14 +98,14 @@ void Group::askMaster(std::unique_lock<std::mutex>& lock) {
 uint8_t Group::wait(uint64_t size, SteadyTimePoint deadline, std::unique_lock<std::mutex>& lock) {
 	PendingRequests::iterator it = enqueue(size);
 	it->cond.wait(lock, [this, it]() {return isFirst(it);});
-	uint8_t status = ERROR_TIMEOUT;
+	uint8_t status = LIZARDFS_ERROR_TIMEOUT;
 	while (clock_.now() < deadline) {
 		if (dead_) {
-			status = ERROR_ENOENT;
+			status = LIZARDFS_ERROR_ENOENT;
 			break;
 		}
 		if (attempt(size)) {
-			status = STATUS_OK;
+			status = LIZARDFS_STATUS_OK;
 			break;
 		}
 		if (!lastRequestSuccessful_) {

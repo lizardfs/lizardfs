@@ -323,7 +323,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			tryCounter++;
 		} catch (UnrecoverableReadException& ex) {
 			printErrorMessage(ex);
-			if (ex.status() == ERROR_ENOENT) {
+			if (ex.status() == LIZARDFS_ERROR_ENOENT) {
 				return EBADF; // stale handle
 			} else {
 				return EIO;

@@ -34,9 +34,9 @@ int mfs_errorconv(uint8_t status);
 
 /// returns mfs error string representation
 static inline const char* mfsstrerr(uint8_t status) {
-	static const char* errtab[]={ERROR_STRINGS};
-	if (status>ERROR_MAX) {
-		status=ERROR_MAX;
+	static const char* errtab[]={LIZARDFS_ERROR_STRINGS};
+	if (status>LIZARDFS_ERROR_MAX) {
+		status=LIZARDFS_ERROR_MAX;
 	}
 	return errtab[status];
 }

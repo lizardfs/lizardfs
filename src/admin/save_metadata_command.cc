@@ -55,7 +55,7 @@ void SaveMetadataCommand::run(const Options& options) const {
 	uint8_t status;
 	matocl::adminSaveMetadata::deserialize(response, status);
 	std::cerr << mfsstrerr(status) << std::endl;
-	if (status != STATUS_OK) {
+	if (status != LIZARDFS_STATUS_OK) {
 		exit(1);
 	}
 }

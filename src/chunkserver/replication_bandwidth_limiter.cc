@@ -47,7 +47,7 @@ void ReplicationBandwidthLimiter::unsetLimit() {
 uint8_t ReplicationBandwidthLimiter::wait(uint64_t requestedSize, const SteadyDuration timeout) {
 	if (!group_) {
 		// No limit set, request is instantly accepted
-		return STATUS_OK;
+		return LIZARDFS_STATUS_OK;
 	}
 	std::unique_lock<std::mutex> lock(mutex_);
 	return group_->wait(requestedSize, SteadyClock::now() + timeout, lock);

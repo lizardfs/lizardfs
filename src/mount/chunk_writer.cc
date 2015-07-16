@@ -533,7 +533,7 @@ void ChunkWriter::processStatus(const WriteExecutor& executor,
 				", got chunk " + std::to_string(status.chunkId),
 				executor.server());
 	}
-	if (status.status != STATUS_OK) {
+	if (status.status != LIZARDFS_STATUS_OK) {
 		throw RecoverableWriteException("Chunk write error", status.status);
 	}
 

@@ -288,7 +288,7 @@ void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
 
 	matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
 	OutputPacket *outputPacket = new OutputPacket;
-	cstoma::createChunk::serialize(outputPacket->packet, chunkId, chunkType, STATUS_OK);
+	cstoma::createChunk::serialize(outputPacket->packet, chunkId, chunkType, LIZARDFS_STATUS_OK);
 	job_create(jpool, masterconn_lizjobfinished, outputPacket, chunkId, chunkType, chunkVersion);
 }
 
@@ -401,7 +401,7 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	sourcesBufferSize = data.size() - (sourcesBuffer - data.data());
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::replicateChunk::serialize(outputPacket->packet,
-			chunkId, chunkType, STATUS_OK, chunkVersion);
+			chunkId, chunkType, LIZARDFS_STATUS_OK, chunkVersion);
 	DEBUG_LOG("cs.matocs.replicate") << chunkId;
 	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
 			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);

@@ -207,13 +207,13 @@ void* job_worker(void *th_arg) {
 		zassert(pthread_mutex_unlock(&(jp->jobslock)));
 		switch (op) {
 			case OP_INVAL:
-				status = ERROR_EINVAL;
+				status = LIZARDFS_ERROR_EINVAL;
 				break;
 			case OP_CHUNKOP:
 			{
 				auto opargs = (chunk_chunkop_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_chunkop(opargs->chunkid, opargs->version, opargs->chunkType,
 							opargs->newversion, opargs->copychunkid, opargs->copyversion,
@@ -225,7 +225,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_open(ocargs->chunkid, ocargs->chunkType);
 				}
@@ -235,7 +235,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto ocargs = (chunk_open_and_close_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_close(ocargs->chunkid, ocargs->chunkType);
 				}
@@ -245,13 +245,13 @@ void* job_worker(void *th_arg) {
 			{
 				auto rdargs = (chunk_read_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 					break;
 				}
 				LOG_AVG_TILL_END_OF_SCOPE0("job_read");
 				if (rdargs->performHddOpen) {
 					status = hdd_open(rdargs->chunkid, rdargs->chunkType);
-					if (status != STATUS_OK) {
+					if (status != LIZARDFS_STATUS_OK) {
 						break;
 					}
 				}
@@ -260,9 +260,9 @@ void* job_worker(void *th_arg) {
 						rdargs->offset, rdargs->size, rdargs->maxBlocksToBeReadBehind,
 						rdargs->blocksToBeReadAhead, rdargs->outputBuffer);
 
-				if (rdargs->performHddOpen && status != STATUS_OK) {
+				if (rdargs->performHddOpen && status != LIZARDFS_STATUS_OK) {
 					int ret = hdd_close(rdargs->chunkid, rdargs->chunkType);
-					if (ret != STATUS_OK) {
+					if (ret != LIZARDFS_STATUS_OK) {
 						lzfs_silent_syslog(LOG_ERR,
 								"read job: cannot close chunk after read error (%s): %s",
 								mfsstrerr(status),
@@ -282,7 +282,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto wrargs = (chunk_write_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_write(wrargs->chunkId, wrargs->chunkVersion, wrargs->chunkType,
 							wrargs->blocknum, wrargs->offset, wrargs->size, wrargs->crc,
@@ -294,7 +294,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto gbargs = (chunk_get_blocks_args*)(jptr->args);
 				if (jstate == JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = hdd_get_blocks(gbargs->chunkId, gbargs->chunkType,
 							gbargs->chunkVersion, gbargs->blocks);
@@ -305,7 +305,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto lrpargs = (chunk_legacy_replication_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					status = legacy_replicate(lrpargs->chunkid, lrpargs->version, lrpargs->srccnt,
 							((uint8_t*)(jptr->args)) + sizeof(chunk_legacy_replication_args));
@@ -316,7 +316,7 @@ void* job_worker(void *th_arg) {
 			{
 				auto rpargs = (chunk_replication_args*)(jptr->args);
 				if (jstate==JSTATE_DISABLED) {
-					status = ERROR_NOTDONE;
+					status = LIZARDFS_ERROR_NOTDONE;
 				} else {
 					try {
 						std::vector<ChunkTypeWithAddress> sources;
@@ -324,7 +324,7 @@ void* job_worker(void *th_arg) {
 						HddspacemgrChunkFileCreator creator(
 								rpargs->chunkId, rpargs->chunkVersion, rpargs->chunkType);
 						gReplicator.replicate(creator, sources);
-						status = STATUS_OK;
+						status = LIZARDFS_STATUS_OK;
 					} catch (Exception& ex) {
 						syslog(LOG_WARNING, "replication error: %s", ex.what());
 						status = ex.status();
