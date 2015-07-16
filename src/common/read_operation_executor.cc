@@ -19,7 +19,13 @@
 #include "common/platform.h"
 #include "common/read_operation_executor.h"
 
-#include <poll.h>
+#ifdef _WIN32
+  #include <ws2tcpip.h>
+  #include <winsock2.h>
+  #define poll WSAPoll
+#else
+  #include <poll.h>
+#endif
 
 #include "common/cltocs_communication.h"
 #include "common/crc.h"

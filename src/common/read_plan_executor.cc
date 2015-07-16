@@ -19,10 +19,17 @@
 #include "common/platform.h"
 #include "common/read_plan_executor.h"
 
-#include <sys/poll.h>
 #include <chrono>
 #include <map>
 #include <set>
+
+#ifdef _WIN32
+  #include <ws2tcpip.h>
+  #include <winsock2.h>
+  #define poll WSAPoll
+#else
+  #include <poll.h>
+#endif
 
 #include "common/block_xor.h"
 #include "common/chunkserver_stats.h"

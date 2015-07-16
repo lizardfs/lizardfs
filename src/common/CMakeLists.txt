@@ -2,6 +2,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 collect_sources(COMMON)
 
+if(MINGW)
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lockfile.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metadata.cc")
+list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/setup.cc")
+endif()
+
 add_library(mfscommon ${COMMON_SOURCES})
 if (HAVE_CRCUTIL)
   # Use crcutil Library
