@@ -660,7 +660,7 @@ void write_data_init(uint32_t cachesize, uint32_t retries, uint32_t workers,
 	pthread_create(&delayed_queue_worker_th, &thattr, delayed_queue_worker, NULL);
 	write_worker_th.resize(workers);
 	for (auto& th : write_worker_th) {
-		pthread_create(&th, &thattr, write_worker, (void*) (unsigned long) (i));
+		pthread_create(&th, &thattr, write_worker, NULL);
 	}
 	pthread_attr_destroy(&thattr);
 
