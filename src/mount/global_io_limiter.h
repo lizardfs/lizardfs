@@ -166,7 +166,12 @@ public:
 		clock_(clock)
 	{
 		using namespace std::placeholders;
-		limiter.registerReconfigure(std::bind(&LimiterProxy::reconfigure, this, _1, _2, _3));
+		limiter.registerReconfigure(std::bind(
+			&LimiterProxy::reconfigure,
+			this,
+			std::placeholders::_1,
+			std::placeholders::_2,
+			std::placeholders::_3));
 	}
 
 	// Try to acquire an assignment of 'size' bytes. This method pauses a callee until a request
