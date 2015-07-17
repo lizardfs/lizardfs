@@ -19,6 +19,7 @@
 #include "common/platform.h"
 #include "mount/symlinkcache.h"
 
+#include <ctime>
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdlib.h>

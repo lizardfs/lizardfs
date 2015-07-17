@@ -250,7 +250,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 	status = fs_readchunk(rrec->inode,rrec->indx,&(rrec->fleng),&(rrec->chunkid),&(rrec->version),&csdata,&csdatasize);
 	if (status!=0) {
-		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,mfsstrerr(status));
+		lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - fs_readchunk returns status: %s",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,mfsstrerr(status));
 		if (status==LIZARDFS_ERROR_ENOENT) {
 			return EBADF;   // stale handle
 		}
@@ -261,7 +261,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 		return 0;
 	}
 	if (csdata==NULL || csdatasize==0) {
-		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
+		lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
 		return ENXIO;
 	}
 	ip = 0;
@@ -280,7 +280,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 		}
 	}
 	if (ip==0 || port==0) { // this always should be false
-		syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
+		lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - there are no valid copies",rrec->inode,rrec->indx,rrec->chunkid,rrec->version);
 		return ENXIO;
 	}
 	rrec->ip = ip;
@@ -291,12 +291,12 @@ static int read_data_refresh_connection(readrec *rrec) {
 	while (cnt<10) {
 		rrec->fd = tcpsocket();
 		if (rrec->fd<0) {
-			syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
 			break;
 		}
 		if (srcip) {
 			if (tcpnumbind(rrec->fd,srcip,0)<0) {
-				syslog(LOG_WARNING,"can't bind to given ip: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING,"can't bind to given ip: %s",strerr(errno));
 				tcpclose(rrec->fd);
 				rrec->fd=-1;
 				break;
@@ -305,7 +305,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 		if (tcpnumtoconnect(rrec->fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
 			cnt++;
 			if (cnt>=10) {
-				syslog(LOG_WARNING,"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",ip,port,strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING,"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",ip,port,strerr(errno));
 			}
 			tcpclose(rrec->fd);
 			rrec->fd=-1;
@@ -318,7 +318,7 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 
 	if (tcpnodelay(rrec->fd)<0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 
 	csdb_readinc(rrec->ip,rrec->port);
@@ -386,7 +386,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			rrec->rbuff = (uint8_t*) malloc(rrec->rbuffsize);
 			if (rrec->rbuff==NULL) {
 				rrec->rbuffsize = 0;
-				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - out of memory",rrec->inode,rrec->indx);
+				lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - out of memory",rrec->inode,rrec->indx);
 				return ENOMEM;  // out of memory
 			}
 		}
@@ -411,7 +411,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				if (err==0) {
 					break;
 				}
-				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - can't connect to proper chunkserver (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,cnt);
+				lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 " - can't connect to proper chunkserver (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,cnt);
 				if (err==EBADF) {       // no such inode - it's unrecoverable error
 					if (eb) {
 						pthread_mutex_lock(&glock);
@@ -457,7 +457,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 		if (rrec->chunkid>0) {
 			// fprintf(stderr,"(%d,%" PRIu64 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%p)\n",rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr);
 			if (cs_readblock(rrec->fd,rrec->chunkid,rrec->version,chunkoffset,chunksize,buffptr)<0) {
-				syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 ", cs: %08" PRIX32 ":%" PRIu16 " - readblock error (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,rrec->ip,rrec->port,cnt);
+				lzfs_pretty_syslog(LOG_WARNING,"file: %" PRIu32 ", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 ", cs: %08" PRIX32 ":%" PRIu16 " - readblock error (try counter: %" PRIu32 ")",rrec->inode,rrec->indx,rrec->chunkid,rrec->version,rrec->ip,rrec->port,cnt);
 				csdb_readdec(rrec->ip,rrec->port);
 				tcpclose(rrec->fd);
 				rrec->fd = -1;

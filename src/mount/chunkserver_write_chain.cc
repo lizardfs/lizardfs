@@ -52,13 +52,13 @@ int ChunkserverWriteChain::createNewChunkserverConnection(const NetworkAddress& 
 	while (fd == -1 && tryCounter < 10) {
 		fd = tcpsocket();
 		if (fd < 0) {
-			syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
 			fd = -1;
 			break;
 		}
 		if (srcip) {
 			if (tcpnumbind(fd, srcip, 0) < 0) {
-				syslog(LOG_WARNING, "can't bind socket to given ip: %s", strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING, "can't bind socket to given ip: %s", strerr(errno));
 				tcpclose(fd);
 				fd = -1;
 				break;
@@ -73,7 +73,7 @@ int ChunkserverWriteChain::createNewChunkserverConnection(const NetworkAddress& 
 		if (tcpnumtoconnect(fd, server.ip, server.port, timeout) < 0) {
 			tryCounter++;
 			if (tryCounter >= 10) {
-				syslog(LOG_WARNING, "can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
+				lzfs_pretty_syslog(LOG_WARNING, "can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
 						server.ip, server.port, strerr(errno));
 			}
 			tcpclose(fd);

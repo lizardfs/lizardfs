@@ -1,11 +1,8 @@
 #pragma once
 #include "common/platform.h"
 
-#include "mount/lizard_client_context.h"
-
 #include <string.h>
 #include <sys/stat.h>
-#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -13,7 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include <common/exception.h>
+#include "common/exception.h"
+#include "mount/lizard_client_context.h"
+#include "mount/stat_defs.h"
 
 namespace LizardClient {
 

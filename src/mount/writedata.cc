@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +30,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
+
+#ifdef _WIN32
+  #include <ws2tcpip.h>
+  #include <winsock2.h>
+  #define poll WSAPoll
+#else
+  #include <poll.h>
+#endif
 
 #include "common/crc.h"
 #include "common/datapack.h"
@@ -197,7 +204,7 @@ inodedata* write_get_inodedata(uint32_t inode) {
 		}
 	}
 
-#ifdef __CYGWIN__
+#ifdef _WIN32
 	// We don't use inodeData->waitingworker and inodeData->pipe on Cygwin because
 	// Cygwin's implementation of mixed socket & pipe polling is very inefficient.
 	pfd[0] = pfd[1] = -1;
@@ -310,7 +317,7 @@ void write_job_end(inodedata *id,int status,uint32_t delay) {
 	pthread_mutex_lock(&glock);
 	if (status) {
 		errno = status;
-		syslog(LOG_WARNING,"error writing file number %" PRIu32 ": %s",id->inode,strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"error writing file number %" PRIu32 ": %s",id->inode,strerr(errno));
 		id->status = status;
 	}
 	status = id->status;
@@ -392,7 +399,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		chunkIndex_ = inodeData_->datachainhead->chindx;
 		status = inodeData_->status;
 	} else {
-		syslog(LOG_WARNING,"writeworker got inode with no data to write !!!");
+		lzfs_pretty_syslog(LOG_WARNING,"writeworker got inode with no data to write !!!");
 		chunkIndex_ = 0;
 		status = EINVAL; // this should never happen, so status is not important - just anything
 	}
@@ -409,7 +416,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	int writeChunkStatus = fs_writechunk(inodeData_->inode, chunkIndex_,
 			&fileLength_, &chunkId_, &chunkVersion_, &chunkserverData, &chunkserverDataSize);
 	if (writeChunkStatus != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING,
+		lzfs_pretty_syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
 				" - fs_writechunk returns status: %s",
 				inodeData_->inode, chunkIndex_, mfsstrerr(writeChunkStatus));
@@ -439,7 +446,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	}
 
 	if (chunkserverData == NULL || chunkserverDataSize == 0) {
-		syslog(LOG_WARNING,
+		lzfs_pretty_syslog(LOG_WARNING,
 				"file: %" PRIu32 ", index: %" PRIu32
 				", chunk: %" PRIu64 ", version: %" PRIu32
 				" - there are no valid copies",
@@ -478,7 +485,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		return;
 	}
 	if (tcpnodelay(fd) < 0) {
-		syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
 	}
 
 	// Prepare initial message
@@ -502,7 +509,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 	do {
 		otherJobsAreWaiting = !queue_isempty(jqueue);
 		if (lastMessageReceiveTimer.elapsed_ms() >= 2000) {
-			syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"file: %" PRIu32 ", index: %" PRIu32
 					", chunk: %" PRIu64 ", version: %" PRIu32
 					" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
@@ -564,7 +571,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		}
 
 		if (poll(pfd, pfd_count, 100) < 0) { /* correct timeout - in msec */
-			syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
 			status = EIO;
 			break;
 		}
@@ -577,7 +584,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			// used just to break poll - so just read all data from pipe to empty it
 			ssize_t ret = read(inodeData_->pipe[0], pipebuff, 1024);
 			if (ret < 0) { // mainly to make happy static code analyzers
-				syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
+				lzfs_pretty_syslog(LOG_NOTICE, "read pipe error: %s", strerr(errno));
 			}
 		}
 
@@ -586,7 +593,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			ssize_t ret = receiveBuffer.readFrom(fd);
 			if (ret == 0 || (ret < 0 && errno != EAGAIN)) {
 				const char* msg = (ret == 0 ? "was reset by peer" : strerr(errno));
-				syslog(LOG_WARNING,
+				lzfs_pretty_syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32
 						" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
@@ -604,7 +611,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 			if (receiveBuffer.isMessageTooBig()) {
 				PacketHeader header = receiveBuffer.getMessageHeader();
-				syslog(LOG_WARNING,
+				lzfs_pretty_syslog(LOG_WARNING,
 						"writeworker: got unrecognized packet from chunkserver (cmd:%" PRIu32
 						",leng:%" PRIu32 ")", header.type, header.length);
 				status = EIO;
@@ -624,7 +631,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		if (sendBuffer.hasDataToSend() && (pfd[0].revents & POLLOUT)) {
 			ssize_t ret = sendBuffer.writeTo(fd);
 			if (ret < 0 && errno != EAGAIN) {
-				syslog(LOG_WARNING,
+				lzfs_pretty_syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32
 						" - writeworker: connection with (%08" PRIX32 ":%" PRIu16
@@ -710,7 +717,7 @@ int InodeChunkWriter::processReceivedMessage(const MessageReceiveBuffer& message
 	} else if (header.type == CSTOCL_WRITE_STATUS && header.length == 13) {
 		return processReceivedStatusMessage(messageBuffer.getMessageData());
 	} else {
-		syslog(LOG_WARNING,
+		lzfs_pretty_syslog(LOG_WARNING,
 				"writeworker: got unrecognized packet from chunkserver (cmd:%" PRIu32
 				",leng:%" PRIu32 ")", header.type, header.length);
 		return EIO;
@@ -724,7 +731,7 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 	uint8_t receivedStatus = get8bit(&rptr);
 
 	if (receivedChunkId != chunkId_) {
-		syslog(LOG_WARNING,
+		lzfs_pretty_syslog(LOG_WARNING,
 				"writeworker: got unexpected packet (expected chunkdid:%" PRIu64
 				",packet chunkid:%" PRIu64 ")",
 				chunkId_, receivedChunkId);
@@ -732,7 +739,7 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 	}
 
 	if (receivedStatus != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING, "writeworker: write error: %s", mfsstrerr(receivedStatus));
+		lzfs_pretty_syslog(LOG_WARNING, "writeworker: write error: %s", mfsstrerr(receivedStatus));
 		// convert MFS status to OS errno
 		if (receivedStatus == LIZARDFS_ERROR_NOSPACE) {
 			return ENOSPC;
@@ -750,7 +757,7 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 			acknowledgedBlock = acknowledgedBlock->next;
 		}
 		if (acknowledgedBlock == NULL) {
-			syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 					"writeworker: got unexpected status (writeid:%" PRIu32 ")",
 					receivedWriteId);
 			pthread_mutex_unlock(&glock);
@@ -758,7 +765,7 @@ int InodeChunkWriter::processReceivedStatusMessage(const uint8_t* statusMessageD
 		}
 		if (acknowledgedBlock == currentBlock_) {
 			if (sendingCurrentBlockData_) {
-				syslog(LOG_WARNING,
+				lzfs_pretty_syslog(LOG_WARNING,
 					"writeworker: got status OK before all data has been sent");
 				pthread_mutex_unlock(&glock);
 				return EIO;
@@ -937,7 +944,7 @@ int write_block(inodedata *id,uint32_t chindx,uint16_t pos,uint32_t from,uint32_
 	if (id->inqueue) {
 		if (id->pipe[1] >= 0 && id->waitingworker) {
 			if (write(id->pipe[1]," ",1)!=1) {
-				syslog(LOG_ERR,"can't write to pipe !!!");
+				lzfs_pretty_syslog(LOG_ERR,"can't write to pipe !!!");
 			}
 			id->waitingworker=0;
 		}
