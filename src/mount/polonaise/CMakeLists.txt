@@ -19,6 +19,11 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH true)
 
 include_directories(${Boost_INCLUDE_DIRS} ${POLONAISE_INCLUDE_DIRS} ${THRIFT_INCLUDE_DIRS})
 add_executable(lizardfs-polonaise-server ${MOUNT_POLONAISE_MAIN} ${MOUNT_POLONAISE_SOURCES})
-target_link_libraries(lizardfs-polonaise-server mfscommon mount ${POLONAISE_LIBRARIES} ${THRIFT_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY})
-install(TARGETS lizardfs-polonaise-server RUNTIME DESTINATION ${BIN_SUBDIR})
+target_link_libraries(lizardfs-polonaise-server mfscommon mount ${POLONAISE_LIBRARIES}
+${THRIFT_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${THRIFT_LIBRARIES}
+${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY})
 
+if(WIN32)
+  target_link_libraries(lizardfs-polonaise-server msvcr110)
+endif()
+install(TARGETS lizardfs-polonaise-server RUNTIME DESTINATION ${BIN_SUBDIR})

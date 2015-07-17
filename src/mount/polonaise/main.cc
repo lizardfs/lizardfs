@@ -20,6 +20,7 @@
 
 #include <fcntl.h>
 #include <signal.h>
+#include <stdio.h>
 #include <iostream>
 #include <boost/make_shared.hpp>
 #include <polonaise/polonaise_constants.h>
@@ -31,6 +32,8 @@
 
 #include "common/crc.h"
 #include "common/slogger.h"
+#include "common/sockets.h"
+#include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
@@ -40,6 +43,8 @@
 #include "mount/writedata.h"
 #include "mount/polonaise/options.h"
 #include "mount/polonaise/setup.h"
+
+#include "mount/stat_defs.h" // !!! This must be the last include. Do not move !!!
 
 using namespace ::polonaise;
 
@@ -301,8 +306,12 @@ static struct stat toStructStat(const FileStat& fstat) throw(Failure) {
 	result.st_gid = fstat.gid;
 	result.st_rdev = fstat.rdev;
 	result.st_size = fstat.size;
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
 	result.st_blksize = fstat.blockSize;
+#endif
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 	result.st_blocks = fstat.blocks;
+#endif
 	result.st_atime = fstat.atime;
 	result.st_mtime = fstat.mtime;
 	result.st_ctime = fstat.ctime;
@@ -363,8 +372,12 @@ static FileStat toFileStat(const struct stat& in) throw(Failure) {
 	reply.gid = in.st_gid;
 	reply.rdev = in.st_rdev;
 	reply.size = in.st_size;
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLKSIZE
 	reply.blockSize = in.st_blksize;
+#endif
+#ifdef LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
 	reply.blocks = in.st_blocks;
+#endif
 	reply.atime = in.st_atime;
 	reply.mtime = in.st_mtime;
 	reply.ctime = in.st_ctime;
@@ -893,6 +906,7 @@ void termhandle(int) {
 	}
 }
 
+#ifndef _WIN32
 bool daemonize() {
 	pid_t pid;
 
@@ -945,6 +959,7 @@ bool daemonize() {
 
 	return true;
 }
+#endif
 
 int main (int argc, char **argv) {
 	bool userwlock = true;
@@ -959,6 +974,7 @@ int main (int argc, char **argv) {
 	auto cacheperinodepercentage = 25;
 	parse_command_line(argc, argv, gSetup);
 
+#ifndef _WIN32
 	struct sigaction sa;
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
@@ -976,8 +992,13 @@ int main (int argc, char **argv) {
 		lzfs_pretty_syslog(LOG_ERR, "Unable to daemonize lizardfs-polonaise-server");
 		return EXIT_FAILURE;
 	}
+#endif
+
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 
 	// Initialize LizardFS client
+	socketinit();
 	strerr_init();
 	mycrc32_init();
 	if (fs_init_master_connection(nullptr,
@@ -1027,6 +1048,7 @@ int main (int argc, char **argv) {
 	masterproxy_term();
 	fs_term();
 	symlink_cache_term();
+	socketrelease();
 
 	return 0;
 }
