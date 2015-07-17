@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <new>
@@ -47,6 +48,7 @@
 #include "mount/acl_cache.h"
 #include "mount/chunk_locator.h"
 #include "mount/dirattrcache.h"
+#include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/io_limit_group.h"
 #include "mount/mastercomm.h"
@@ -57,6 +59,8 @@
 #include "mount/symlinkcache.h"
 #include "mount/tweaks.h"
 #include "mount/writedata.h"
+
+#include "mount/stat_defs.h" // !!! This must be last include. Do not move !!!
 
 namespace LizardClient {
 
@@ -1779,7 +1783,7 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 		dirinfo->size = 0;
 		dirinfo->dcache = NULL;
 		dirinfo->wasread = 0;
-		fi->fh = (unsigned long)dirinfo;
+		fi->fh = reinterpret_cast<uintptr_t>(dirinfo);
 		oplog_printf(ctx, "opendir (%lu): OK",
 				(unsigned long int)ino);
 	}
@@ -1787,7 +1791,7 @@ void opendir(Context ctx, Inode ino, FileInfo* fi) {
 
 std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi) {
 	int status;
-	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+	dirbuf *dirinfo = reinterpret_cast<dirbuf *>(fi->fh);
 	char name[MFS_NAME_MAX+1];
 	const uint8_t *ptr,*eptr;
 	uint8_t nleng;
@@ -1919,7 +1923,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 
 void releasedir(Context ctx, Inode ino, FileInfo* fi) {
 	(void)ino;
-	dirbuf *dirinfo = (dirbuf *)((unsigned long)(fi->fh));
+	dirbuf *dirinfo = reinterpret_cast<dirbuf *>(fi->fh);
 
 	stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
@@ -2085,7 +2089,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 
 	mattr = attr_get_mattr(attr);
 	fileinfo = fs_newfileinfo(fi->flags & O_ACCMODE,inode);
-	fi->fh = (unsigned long)fileinfo;
+	fi->fh = reinterpret_cast<uintptr_t>(fileinfo);
 	if (keep_cache==1) {
 		fi->keep_cache=1;
 	} else if (keep_cache==2) {
@@ -2159,7 +2163,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 		PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 		stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
 		statsinfo->reset = 0;
-		fi->fh = (unsigned long)statsinfo;
+		fi->fh = reinterpret_cast<uintptr_t>(statsinfo);
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
 		oplog_printf(ctx, "open (%lu) (internal node: STATS): OK (1,0)",
@@ -2169,7 +2173,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 
 	if (ino==TWEAKS_FILE_INODE) {
 		MagicFile* file = new MagicFile;
-		fi->fh = (unsigned long)(file);
+		fi->fh = reinterpret_cast<uintptr_t>(file);
 		fi->direct_io = 1;
 		fi->keep_cache = 0;
 		oplog_printf(ctx, "open (%lu) (internal node: TWEAKS_FILE): OK (1,0)",
@@ -2213,7 +2217,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 
 	mattr = attr_get_mattr(attr);
 	fileinfo = fs_newfileinfo(fi->flags & O_ACCMODE,ino);
-	fi->fh = (unsigned long)fileinfo;
+	fi->fh = reinterpret_cast<uintptr_t>(fileinfo);
 	if (keep_cache==1) {
 		fi->keep_cache=1;
 	} else if (keep_cache==2) {
@@ -2236,7 +2240,7 @@ void open(Context ctx, Inode ino, FileInfo* fi) {
 void release(Context ctx,
 			Inode ino,
 			FileInfo* fi) {
-	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 
 	stats_inc(OP_RELEASE);
 	if (debug_mode) {
@@ -2251,7 +2255,7 @@ void release(Context ctx,
 		return;
 	}
 	if (ino==STATS_INODE) {
-		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			if (statsinfo->buff!=NULL) {
@@ -2310,7 +2314,7 @@ std::vector<uint8_t> read(Context ctx,
 			off_t off,
 			FileInfo* fi) {
 	LOG_AVG_TILL_END_OF_SCOPE0("read");
-	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	uint8_t *buff;
 	int err;
 	std::vector<uint8_t> ret;
@@ -2355,7 +2359,7 @@ std::vector<uint8_t> read(Context ctx,
 		return ret;
 	}
 	if (ino==STATS_INODE) {
-		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			if (off>=statsinfo->leng) {
@@ -2536,7 +2540,7 @@ std::vector<uint8_t> read(Context ctx,
 
 BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t off,
 			FileInfo* fi) {
-	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
 
 	stats_inc(OP_WRITE);
@@ -2559,7 +2563,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 		throw RequestException(EACCES);
 	}
 	if (ino==STATS_INODE) {
-		sinfo *statsinfo = (sinfo*)(unsigned long)(fi->fh);
+		sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 		if (statsinfo!=NULL) {
 			PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 			statsinfo->reset=1;
@@ -2665,7 +2669,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 }
 
 void flush(Context ctx, Inode ino, FileInfo* fi) {
-	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
 
 	stats_inc(OP_FLUSH);
@@ -2703,7 +2707,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 }
 
 void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
-	finfo *fileinfo = (finfo*)(unsigned long)(fi->fh);
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
 
 	stats_inc(OP_FSYNC);

@@ -22,7 +22,14 @@
 #include <algorithm>
 #include <bitset>
 #include <cstring>
-#include <poll.h>
+
+#ifdef _WIN32
+  #include <ws2tcpip.h>
+  #include <winsock2.h>
+  #define poll WSAPoll
+#else
+  #include <poll.h>
+#endif
 
 #include "common/block_xor.h"
 #include "common/goal.h"

@@ -19,17 +19,13 @@
 #include "common/platform.h"
 #include "mount/mastercomm.h"
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <grp.h>
 #include <limits.h>
 #include <pthread.h>
-#include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/poll.h>
 #include <time.h>
 #include <unistd.h>
 #include <atomic>
@@ -37,6 +33,18 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
+#ifdef _WIN32
+  #include <ws2tcpip.h>
+  #include <winsock2.h>
+  #define poll WSAPoll
+#else
+  #include <arpa/inet.h>
+  #include <grp.h>
+  #include <poll.h>
+  #include <pwd.h>
+#endif
+
 
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"
@@ -425,9 +433,6 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	uint32_t mintrashtime,maxtrashtime;
 	const char *sesflagposstrtab[]={SESFLAG_POS_STRINGS};
 	const char *sesflagnegstrtab[]={SESFLAG_NEG_STRINGS};
-	struct passwd pwd,*pw;
-	struct group grp,*gr;
-	char pwdgrpbuff[16384];
 
 	if (fs_resolve(oninit,cargs->bindhostname,cargs->masterhostname,cargs->masterportname)<0) {
 		return -1;
@@ -711,6 +716,11 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			fprintf(stderr,"-");
 		}
 		if (!cargs->meta) {
+#ifndef _WIN32
+			struct passwd pwd,*pw;
+			struct group grp,*gr;
+			char pwdgrpbuff[16384];
+
 			fprintf(stderr," ; root mapped to ");
 			getpwuid_r(rootuid,&pwd,pwdgrpbuff,16384,&pw);
 			if (pw) {
@@ -739,6 +749,10 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 					fprintf(stderr,"%" PRIu32,mapallgid);
 				}
 			}
+#else
+			fprintf(stderr, " ; root mapped to %" PRIu32 ":%" PRIu32, rootuid, rootgid);
+			fprintf(stderr, " ; users mapped to %" PRIu32 ":%" PRIu32, mapalluid, mapallgid);
+#endif
 		} else {
 			// meta
 			if (sesflags & SESFLAG_NONROOTMETA) {

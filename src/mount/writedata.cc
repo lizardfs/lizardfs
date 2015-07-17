@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <limits.h>
-#include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,9 +99,10 @@ struct inodedata {
 			  minimumBlocksToWrite(1),
 			  next(nullptr),
 			  workerWaitingForData(false) {
-#ifdef __CYGWIN__
+#ifdef _WIN32
 		// We don't use inodeData->waitingworker and inodeData->pipe on Cygwin because
 		// Cygwin's implementation of mixed socket & pipe polling is very inefficient.
+		// On mingw platform pipes are unavailable.
 		newDataInChainPipe[0] = newDataInChainPipe[1] = -1;
 #else
 		if (pipe(newDataInChainPipe) < 0) {

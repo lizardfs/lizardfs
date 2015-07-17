@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2015 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -17,30 +17,12 @@
  */
 
 #pragma once
+
 #include "common/platform.h"
 
-#include <sys/types.h>
-
 #ifdef _WIN32
-#include <cstdint>
-typedef uint32_t uid_t;
-typedef uint32_t gid_t;
+#define ENODATA    61  /* No data available */
+#define ENOTBLK    15  /* Block device required */
+#define EDQUOT     122 /* Quota exceeded */
+#define ETXTBSY    26  /* Text file busy */
 #endif
-
-namespace LizardClient {
-
-/**
- * Class containing arguments that are passed with every request to the filesystem
- */
-struct Context {
-	Context(uid_t uid, gid_t gid, pid_t pid, mode_t umask)
-			: uid(uid), gid(gid), pid(pid), umask(umask) {
-	}
-
-	uid_t uid;
-	gid_t gid;
-	pid_t pid;
-	mode_t umask;
-};
-
-} // namespace LizardClient

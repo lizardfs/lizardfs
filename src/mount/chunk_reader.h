@@ -20,7 +20,6 @@
 
 #include "common/platform.h"
 
-#include <poll.h>
 #include <atomic>
 #include <cstdint>
 #include <map>
