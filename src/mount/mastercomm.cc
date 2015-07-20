@@ -34,17 +34,11 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef _WIN32
-  #include <ws2tcpip.h>
-  #include <winsock2.h>
-  #define poll WSAPoll
-#else
+#ifndef _WIN32
   #include <arpa/inet.h>
   #include <grp.h>
-  #include <poll.h>
   #include <pwd.h>
 #endif
-
 
 #include "common/cltoma_communication.h"
 #include "common/datapack.h"

@@ -18,13 +18,14 @@
 
 #include "common/platform.h"
 #include "common/message_receive_buffer.h"
+#include "common/sockets.h"
 
 #include <unistd.h>
 #include <cstring>
 
 ssize_t MessageReceiveBuffer::readFrom(int fd) {
 	eassert(bytesReceived_ < buffer_.size());
-	int ret = read(fd, buffer_.data() + bytesReceived_, buffer_.size() - bytesReceived_);
+	int ret = tcprecv(fd, buffer_.data() + bytesReceived_, buffer_.size() - bytesReceived_);
 	if (ret < 0) {
 		return ret;
 	}

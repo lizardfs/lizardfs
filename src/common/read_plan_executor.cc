@@ -23,14 +23,6 @@
 #include <map>
 #include <set>
 
-#ifdef _WIN32
-  #include <ws2tcpip.h>
-  #include <winsock2.h>
-  #define poll WSAPoll
-#else
-  #include <poll.h>
-#endif
-
 #include "common/block_xor.h"
 #include "common/chunkserver_stats.h"
 #include "common/cltocs_communication.h"
@@ -232,7 +224,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 		int pollTimeout = (basicTimeout.expired()
 				? totalTimeout.remaining_ms()
 				: basicTimeout.remaining_ms());
-		int status = poll(pollFds.data(), pollFds.size(), pollTimeout);
+		int status = tcppoll(pollFds, pollTimeout);
 		if (status < 0) {
 			if (errno == EINTR) {
 				continue;

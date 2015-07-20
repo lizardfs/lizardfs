@@ -19,14 +19,6 @@
 #include "common/platform.h"
 #include "common/read_operation_executor.h"
 
-#ifdef _WIN32
-  #include <ws2tcpip.h>
-  #include <winsock2.h>
-  #define poll WSAPoll
-#else
-  #include <poll.h>
-#endif
-
 #include "common/cltocs_communication.h"
 #include "common/crc.h"
 #include "common/cstocl_communication.h"
@@ -91,7 +83,7 @@ void ReadOperationExecutor::continueReading() {
 		|| state_ == kReceivingReadDataMessage
 		|| state_ == kReceivingDataBlock);
 
-	ssize_t readBytes = read(fd_, destination_, bytesLeft_);
+	ssize_t readBytes = tcprecv(fd_, destination_, bytesLeft_);
 	if (readBytes == 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver error: connection reset by peer", server_);
@@ -136,7 +128,7 @@ void ReadOperationExecutor::readAll(const Timeout& timeout) {
 			throw ChunkserverConnectionException("Read from chunkserver: timeout", server_);
 		}
 		pfd.revents = 0;
-		int ret = poll(&pfd, 1, 50);
+		int ret = tcppoll(pfd, 50);
 		if (ret < 0 && errno == EINTR) {
 			continue;
 		} else if (ret < 0) {

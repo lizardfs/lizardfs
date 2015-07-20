@@ -23,14 +23,6 @@
 #include <bitset>
 #include <cstring>
 
-#ifdef _WIN32
-  #include <ws2tcpip.h>
-  #include <winsock2.h>
-  #define poll WSAPoll
-#else
-  #include <poll.h>
-#endif
-
 #include "common/block_xor.h"
 #include "common/goal.h"
 #include "common/massert.h"
@@ -223,7 +215,10 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 		pollFds.back().revents = 0;
 	}
 
-	int status = poll(pollFds.data(), pollFds.size(), msTimeout);
+	// NOTICE: On Linux there can be pipe descriptor in pollFds.
+	// This function can handle it.
+	int status = tcppoll(pollFds, msTimeout);
+
 	if (status < 0) {
 		throw RecoverableWriteException("Poll error: " + std::string(strerr(errno)));
 	}
