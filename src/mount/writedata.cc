@@ -556,21 +556,23 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 			pthread_mutex_unlock(&glock);
 		}
 
-		struct pollfd pfd[2];
-		int pfd_count = 1;
+		std::vector<pollfd> pfd;
 
+		pfd.emplace_back();
 		pfd[0].fd = fd;
 		pfd[0].events = POLLIN | (sendBuffer.hasDataToSend() ? POLLOUT : 0);
 		pfd[0].revents = 0;
 
 		if (inodeData_->pipe[0] >= 0) {
+			pfd.emplace_back();
 			pfd[1].fd = inodeData_->pipe[0];
 			pfd[1].events = POLLIN;
 			pfd[1].revents = 0;
-			pfd_count = 2;
 		}
 
-		if (poll(pfd, pfd_count, 100) < 0) { /* correct timeout - in msec */
+		// NOTICE: On Linux there can be pipe descriptor in pfd.
+		// This function can handle it.
+		if (tcppoll(pfd, inodeData_->pipe[0] >= 0 ? 50 : 10) < 0) {
 			lzfs_pretty_syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
 			status = EIO;
 			break;
@@ -580,7 +582,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		inodeData_->waitingworker = 0;
 		pthread_mutex_unlock(&glock); // make helgrind happy
 
-		if (pfd_count == 2  && pfd[1].revents & POLLIN) {
+		if (pfd.size() == 2  && pfd[1].revents & POLLIN) {
 			// used just to break poll - so just read all data from pipe to empty it
 			ssize_t ret = read(inodeData_->pipe[0], pipebuff, 1024);
 			if (ret < 0) { // mainly to make happy static code analyzers
