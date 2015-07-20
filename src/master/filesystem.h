@@ -33,6 +33,7 @@
 #include "common/tape_key.h"
 #include "common/tape_copy_location_info.h"
 #include "master/checksum.h"
+#include "master/filesystem_node.h"
 #include "master/fs_context.h"
 #include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
@@ -172,8 +173,8 @@ uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid);
 uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalMap<uint32_t>& fgtab,GoalMap<uint32_t>& dgtab);
-uint8_t fs_gettrashtime_prepare(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,void **fptr,void **dptr,uint32_t *fnodes,uint32_t *dnodes);
-void fs_gettrashtime_store(void *fptr,void *dptr,uint8_t *buff);
+uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode, TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);
+void fs_gettrashtime_store(TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes,uint8_t *buff);
 uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t feattrtab[16],uint32_t deattrtab[16]);
 uint8_t fs_listxattr_leng(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,void **xanode,uint32_t *xasize);
 void fs_listxattr_data(void *xanode,uint8_t *xabuff);

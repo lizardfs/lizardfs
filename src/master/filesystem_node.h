@@ -22,6 +22,7 @@
 #include "common/platform.h"
 
 #include <cstdint>
+#include <unordered_map>
 #include <memory>
 
 #include "common/access_control_list.h"
@@ -29,7 +30,6 @@
 #include "common/attributes.h"
 #include "common/extended_acl.h"
 #include "common/goal_map.h"
-#include "master/filesystem_bst.h"
 #include "master/fs_context.h"
 
 #define NODEHASHBITS (22)
@@ -52,6 +52,8 @@ enum class OperationMode { kReadWrite, kReadOnly };
 enum class ExpectedNodeType { kFile, kDirectory, kNotDirectory, kAny };
 
 class fsnode;
+
+typedef std::unordered_map<uint32_t, uint32_t> TrashtimeMap;
 
 typedef struct _sessionidrec {
 	uint32_t sessionid;
@@ -217,8 +219,8 @@ void fsnodes_quota_update_size(fsnode *node, int64_t delta);
 void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &fgtab,
 	GoalMap<uint32_t> &dgtab);
 
-void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode, bstnode **bstrootfiles,
-	bstnode **bstrootdirs);
+void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode,
+	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);
 void fsnodes_geteattr_recursive(fsnode *node, uint8_t gmode, uint32_t feattrtab[16],
 	uint32_t deattrtab[16]);
 void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t goal, uint8_t smode,

@@ -27,7 +27,6 @@
 #include "common/main.h"
 #include "master/changelog.h"
 #include "master/filesystem.h"
-#include "master/filesystem_bst.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_node.h"
@@ -2136,19 +2135,14 @@ uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t
 }
 
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
-				void **fptr, void **dptr, uint32_t *fnodes, uint32_t *dnodes) {
+	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes) {
 	fsnode *p, *rn;
-	bstnode *froot, *droot;
 	(void)sesflags;
-	froot = NULL;
-	droot = NULL;
-	*fptr = NULL;
-	*dptr = NULL;
-	*fnodes = 0;
-	*dnodes = 0;
+
 	if (!GMODE_ISVALID(gmode)) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
+
 	if (rootinode == MFS_ROOT_ID || rootinode == 0) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
@@ -2174,26 +2168,25 @@ uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t i
 			}
 		}
 	}
-	if (p->type != TYPE_DIRECTORY && p->type != TYPE_FILE && p->type != TYPE_TRASH &&
-	    p->type != TYPE_RESERVED) {
-		return LIZARDFS_ERROR_EPERM;
+
+	if (p->type != TYPE_DIRECTORY && p->type != TYPE_FILE && p->type != TYPE_TRASH
+		&& p->type != TYPE_RESERVED) {
+			return LIZARDFS_ERROR_EPERM;
 	}
-	fsnodes_gettrashtime_recursive(p, gmode, &froot, &droot);
-	*fptr = froot;
-	*dptr = droot;
-	*fnodes = fsnodes_bst_nodes(froot);
-	*dnodes = fsnodes_bst_nodes(droot);
+	fsnodes_gettrashtime_recursive(p, gmode, fileTrashtimes, dirTrashtimes);
+
 	return LIZARDFS_STATUS_OK;
 }
 
-void fs_gettrashtime_store(void *fptr, void *dptr, uint8_t *buff) {
-	bstnode *froot, *droot;
-	froot = (bstnode *)fptr;
-	droot = (bstnode *)dptr;
-	fsnodes_bst_storedata(froot, &buff);
-	fsnodes_bst_storedata(droot, &buff);
-	fsnodes_bst_free(froot);
-	fsnodes_bst_free(droot);
+void fs_gettrashtime_store(TrashtimeMap &fileTrashtimes,TrashtimeMap &dirTrashtimes,uint8_t *buff) {
+	for (auto i : fileTrashtimes) {
+		put32bit(&buff, i.first);
+		put32bit(&buff, i.second);
+	}
+	for (auto i : dirTrashtimes) {
+		put32bit(&buff, i.first);
+		put32bit(&buff, i.second);
+	}
 }
 
 uint8_t fs_geteattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,

@@ -804,20 +804,32 @@ int get_trashtime(const char *fname,uint8_t mode) {
 		}
 		printf("%s: %" PRIu32 "\n",fname,trashtime);
 	} else {
+		std::vector<std::pair<uint32_t, uint32_t>> files;
+		std::vector<std::pair<uint32_t, uint32_t>> dirs;
 		fn = get32bit(&rptr);
 		dn = get32bit(&rptr);
-		printf("%s:\n",fname);
-		for (i=0 ; i<fn ; i++) {
+		files.reserve(fn);
+		dirs.reserve(dn);
+		for (i = 0; i < fn; ++i) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" files with trashtime        %10" PRIu32 " :",trashtime);
-			print_number(" ","\n",cnt,1,0,1);
+			files.push_back({trashtime, cnt});
 		}
-		for (i=0 ; i<dn ; i++) {
+		for (i = 0; i < dn; ++i) {
 			trashtime = get32bit(&rptr);
 			cnt = get32bit(&rptr);
-			printf(" directories with trashtime  %10" PRIu32 " :",trashtime);
-			print_number(" ","\n",cnt,1,0,1);
+			dirs.push_back({trashtime, cnt});
+		}
+		std::sort(files.begin(), files.end());
+		std::sort(dirs.begin(), dirs.end());
+		printf("%s:\n",fname);
+		for (const auto &entry : files) {
+			printf(" files with trashtime        %10" PRIu32 " :", entry.first);
+			print_number(" ","\n", entry.second, 1, 0, 1);
+		}
+		for (const auto &entry : dirs) {
+			printf(" directories with trashtime  %10" PRIu32 " :", entry.first);
+			print_number(" ","\n", entry.second, 1, 0, 1);
 		}
 	}
 	free(buff);

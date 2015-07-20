@@ -3121,8 +3121,8 @@ void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t le
 void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t gmode;
-	void *fptr,*dptr;
-	uint32_t fnodes,dnodes;
+	TrashtimeMap fileTrashtimes, dirTrashtimes;
+	uint32_t fileTrashtimesSize, dirTrashtimesSize;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -3134,15 +3134,19 @@ void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	gmode = get8bit(&data);
-	status = fs_gettrashtime_prepare(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,gmode,&fptr,&dptr,&fnodes,&dnodes);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETTRASHTIME,(status!=LIZARDFS_STATUS_OK)?5:12+8*(fnodes+dnodes));
+	status = fs_gettrashtime_prepare(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, gmode, fileTrashtimes, dirTrashtimes);
+	fileTrashtimesSize = fileTrashtimes.size();
+	dirTrashtimesSize = dirTrashtimes.size();
+	ptr = matoclserv_createpacket(eptr,
+				MATOCL_FUSE_GETTRASHTIME,
+				(status != LIZARDFS_STATUS_OK) ? 5 : 12 + 8 * (fileTrashtimesSize + dirTrashtimesSize));
 	put32bit(&ptr,msgid);
 	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
-		put32bit(&ptr,fnodes);
-		put32bit(&ptr,dnodes);
-		fs_gettrashtime_store(fptr,dptr,ptr);
+		put32bit(&ptr, fileTrashtimesSize);
+		put32bit(&ptr, dirTrashtimesSize);
+		fs_gettrashtime_store(fileTrashtimes, dirTrashtimes, ptr);
 	}
 }
 

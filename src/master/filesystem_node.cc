@@ -27,7 +27,6 @@
 #include "common/massert.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
-#include "master/filesystem_bst.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
@@ -1391,18 +1390,17 @@ void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &f
 	}
 }
 
-void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode, bstnode **bstrootfiles,
-					bstnode **bstrootdirs) {
+void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode,
+	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes) {
 	fsedge *e;
 
 	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {
-		fsnodes_bst_add(bstrootfiles, node->trashtime);
+		fileTrashtimes[node->trashtime] += 1;
 	} else if (node->type == TYPE_DIRECTORY) {
-		fsnodes_bst_add(bstrootdirs, node->trashtime);
+		dirTrashtimes[node->trashtime] += 1;
 		if (gmode == GMODE_RECURSIVE) {
 			for (e = node->data.ddata.children; e; e = e->nextchild) {
-				fsnodes_gettrashtime_recursive(e->child, gmode, bstrootfiles,
-				                               bstrootdirs);
+				fsnodes_gettrashtime_recursive(e->child, gmode, fileTrashtimes, dirTrashtimes);
 			}
 		}
 	}
