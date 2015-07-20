@@ -152,7 +152,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 				if (ret != (int32_t)message.size()) {
 					throw ChunkserverConnectionException(
 							"Cannot send PREFETCH request to the chunkserver: "
-									+ std::string(strerr(errno)),
+									+ std::string(strerr(tcpgetlasterror())),
 							server);
 				}
 			} catch (...) {
@@ -226,11 +226,17 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 				: basicTimeout.remaining_ms());
 		int status = tcppoll(pollFds, pollTimeout);
 		if (status < 0) {
+#ifdef _WIN32
+			throw RecoverableReadException(
+					"Poll error: " + std::string(strerr(tcpgetlasterror())));
+#else
 			if (errno == EINTR) {
 				continue;
 			} else {
-				throw RecoverableReadException("Poll error: " + std::string(strerr(errno)));
+				throw RecoverableReadException(
+						"Poll error: " + std::string(strerr(tcpgetlasterror())));
 			}
+#endif
 		} else if (status == 0 && totalTimeout.expired()) {
 			// The time is out, our chunkservers appear to be completely unresponsive.
 			statsProxy.allPendingDefective();

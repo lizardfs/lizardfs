@@ -79,7 +79,7 @@ public:
 		if (ct.isStandardChunkType()) {
 			return chunkLength;
 		}
-		eassert(ct.isXorChunkType());
+		sassert(ct.isXorChunkType());
 
 		uint32_t fullBlocks = chunkLength / (ct.getXorLevel() * MFSBLOCKSIZE);
 		uint32_t baseLen = fullBlocks * MFSBLOCKSIZE;

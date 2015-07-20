@@ -42,14 +42,14 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 	while (!timeout.expired()) {
 		fd = tcpsocket();
 		if (fd < 0) {
-			err = errno;
-			lzfs_pretty_syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(errno));
+			err = tcpgetlasterror();
+			lzfs_pretty_syslog(LOG_WARNING, "can't create tcp socket: %s", strerr(err));
 			break;
 		}
 		if (sourceIp_) {
 			if (tcpnumbind(fd, sourceIp_, 0) < 0) {
-				err = errno;
-				lzfs_pretty_syslog(LOG_WARNING, "can't bind to given ip: %s", strerr(errno));
+				err = tcpgetlasterror();
+				lzfs_pretty_syslog(LOG_WARNING, "can't bind to given ip: %s", strerr(err));
 				tcpclose(fd);
 				fd = -1;
 				break;
@@ -60,7 +60,7 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 				timeout.remaining_ms());
 		connectTimeout = std::max(int64_t(1), connectTimeout); // tcpnumtoconnect doesn't like 0
 		if (tcpnumtoconnect(fd, server.ip, server.port, connectTimeout) < 0) {
-			err = errno;
+			err = tcpgetlasterror();
 			tcpclose(fd);
 			fd = -1;
 		} else {
@@ -73,7 +73,7 @@ int ChunkConnector::startUsingConnection(const NetworkAddress& server,
 				"Connection error: " + std::string(strerr(err)), server);
 	}
 	if (tcpnodelay(fd) < 0) {
-		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING, "can't set TCP_NODELAY: %s", strerr(tcpgetlasterror()));
 	}
 	return fd;
 }

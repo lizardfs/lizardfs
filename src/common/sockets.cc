@@ -76,7 +76,7 @@ static inline int sockaddrnumfill(struct sockaddr_in *sa, uint32_t ip, uint16_t 
 }
 
 static inline int sockaddrfill(struct sockaddr_in *sa, const char *hostname, const char *service,
-		int family, int socktype, int passive) {
+				int family, int socktype, int passive) {
 	struct addrinfo hints, *res, *reshead;
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = family;
@@ -106,7 +106,7 @@ static inline int sockaddrfill(struct sockaddr_in *sa, const char *hostname, con
 }
 
 static inline int sockresolve(const char *hostname, const char *service, uint32_t *ip,
-		uint16_t *port, int family, int socktype, int passive) {
+				uint16_t *port, int family, int socktype, int passive) {
 	struct sockaddr_in sa;
 	if (sockaddrfill(&sa, hostname, service, family, socktype, passive) < 0) {
 		return -1;
@@ -169,7 +169,7 @@ int tcpsetacceptfilter(int sock) {
 	return setsockopt(sock, IPPROTO_TCP, TCP_DEFER_ACCEPT, &v, sizeof(v));
 #else
 	(void)sock;
-	errno = ENOTSUP;
+	tcpsetlasterror(TCPENOTSUP);
 	return -1;
 #endif
 }
@@ -206,7 +206,7 @@ int tcpaccfhttp(int sock) {
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #else
 	(void)sock;
-	errno = EINVAL;
+	tcpsetlasterror(TCPEINVAL);
 	return -1;
 #endif
 }
@@ -220,7 +220,7 @@ int tcpaccfdata(int sock) {
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #else
 	(void)sock;
-	errno = EINVAL;
+	tcpsetlasterror(TCPEINVAL);
 	return -1;
 #endif
 }
@@ -296,7 +296,7 @@ int tcpstrtoconnect(int sock, const char *hostname, const char *service, uint32_
 		if (pfd.revents & POLLOUT) {
 			return tcpgetstatus(sock);
 		}
-		errno = ETIMEDOUT;
+		tcpsetlasterror(TCPETIMEDOUT);
 	}
 	return -1;
 }
@@ -322,7 +322,7 @@ int tcpnumtoconnect(int sock, uint32_t ip, uint16_t port, uint32_t msecto) {
 		if (pfd.revents & POLLOUT) {
 			return tcpgetstatus(sock);
 		}
-		errno = ETIMEDOUT;
+		tcpsetlasterror(TCPETIMEDOUT);
 	}
 	return -1;
 }
@@ -337,7 +337,7 @@ int tcpgetstatus(int sock) {
 #endif
 		rc = tcpgetlasterror();
 	}
-	errno = rc;
+	tcpsetlasterror(rc);
 	return rc;
 }
 
@@ -615,7 +615,7 @@ int32_t tcptoread(int sock, void *buff, uint32_t leng, uint32_t msecto) {
 				rcvd += i;
 			}
 		} else {
-			errno = ETIMEDOUT;
+			tcpsetlasterror(TCPETIMEDOUT);
 			return -1;
 		}
 	}
@@ -641,7 +641,7 @@ int32_t tcptowrite(int sock, const void *buff, uint32_t leng, uint32_t msecto) {
 				sent += i;
 			}
 		} else {
-			errno = ETIMEDOUT;
+			tcpsetlasterror(TCPETIMEDOUT);
 			return -1;
 		}
 	}
@@ -659,7 +659,7 @@ int tcptoaccept(int sock, uint32_t msecto) {
 	if (pfd.revents & POLLIN) {
 		return accept(sock, (struct sockaddr *)NULL, 0);
 	}
-	errno = ETIMEDOUT;
+	tcpsetlasterror(TCPETIMEDOUT);
 	return -1;
 }
 

@@ -19,7 +19,6 @@
 #include "common/platform.h"
 #include "mount/masterproxy.h"
 
-#include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
@@ -148,7 +147,7 @@ int masterproxy_init(void) {
 	}
 	tcpnonblock(lsock);
 	tcpnodelay(lsock);
-	if (tcpsetacceptfilter(lsock)<0 && errno!=ENOTSUP) {
+	if (tcpsetacceptfilter(lsock)<0 && tcpgetlasterror() != TCPENOTSUP) {
 		// lzfs_silent_errlog(LOG_NOTICE,"master proxy: can't set accept filter");
 	}
 	if (tcpstrlisten(lsock,"127.0.0.1",0,100)<0) {

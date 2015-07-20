@@ -71,7 +71,8 @@ void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 			timeout.remaining_ms());
 	if (ret != (int32_t)message.size()) {
 		throw ChunkserverConnectionException(
-				"Cannot send READ request to the chunkserver: " + std::string(strerr(errno)),
+				"Cannot send READ request to the chunkserver: "
+				+ std::string(strerr(tcpgetlasterror())),
 				server_);
 	}
 	setState(kReceivingHeader);
@@ -87,11 +88,11 @@ void ReadOperationExecutor::continueReading() {
 	if (readBytes == 0) {
 		throw ChunkserverConnectionException(
 				"Read from chunkserver error: connection reset by peer", server_);
-	} else if (readBytes < 0 && errno == EAGAIN) {
+	} else if (readBytes < 0 && tcpgetlasterror() == TCPEAGAIN) {
 		return;
 	} else if (readBytes < 0) {
 		throw ChunkserverConnectionException(
-				"Read from chunkserver error: " + std::string(strerr(errno)), server_);
+				"Read from chunkserver error: " + std::string(strerr(tcpgetlasterror())), server_);
 	}
 	destination_ += readBytes;
 	bytesLeft_ -= readBytes;
@@ -129,11 +130,15 @@ void ReadOperationExecutor::readAll(const Timeout& timeout) {
 		}
 		pfd.revents = 0;
 		int ret = tcppoll(pfd, 50);
-		if (ret < 0 && errno == EINTR) {
-			continue;
-		} else if (ret < 0) {
+
+		if (ret < 0) {
+#ifndef _WIN32
+			if (errno == EINTR) {
+				continue;
+			}
+#endif
 			throw ChunkserverConnectionException(
-					"Poll error: " + std::string(strerr(errno)),
+					"Poll error: " + std::string(strerr(tcpgetlasterror())),
 					server_);
 		}
 		if (pfd.revents & POLLIN) {

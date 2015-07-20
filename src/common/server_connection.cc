@@ -42,11 +42,13 @@ void sendRequestGeneric(int fd, const MessageBuffer& request, const Timeout& tim
 		if (status == 0 || timeout.expired()) {
 			throw ConnectionException("Can't write data to socket: timeout");
 		} else if (status < 0) {
-			throw ConnectionException("Can't write data to socket: " + errorString(errno));
+			throw ConnectionException("Can't write data to socket: " +
+			                          errorString(tcpgetlasterror()));
 		}
 		ssize_t bytesWritten = writer.writeTo(fd);
 		if (bytesWritten < 0) {
-			throw ConnectionException("Can't write data to socket: " + errorString(errno));
+			throw ConnectionException("Can't write data to socket: " +
+			                          errorString(tcpgetlasterror()));
 		}
 	}
 }
@@ -65,14 +67,16 @@ MessageBuffer receiveRequestGeneric(
 		if (status == 0 || timeout.expired()) {
 			throw ConnectionException("Can't read data from socket: timeout");
 		} else if (status < 0) {
-			throw ConnectionException("Can't read data from socket: " + errorString(errno));
+			throw ConnectionException(
+					"Can't read data from socket: " + errorString(tcpgetlasterror()));
 		}
 		ssize_t bytesRead = reader.readFrom(fd);
 		if (bytesRead == 0) {
 			throw ConnectionException("Can't read data from socket: connection reset by peer");
 		}
 		if (bytesRead < 0) {
-			throw ConnectionException("Can't read data from socket: " + errorString(errno));
+			throw ConnectionException(
+					"Can't read data from socket: " + errorString(tcpgetlasterror()));
 		}
 		if (reader.isMessageTooBig()) {
 			throw Exception("Receive buffer overflow");
@@ -132,13 +136,15 @@ MessageBuffer ServerConnection::sendAndReceive(
 void ServerConnection::connect(const NetworkAddress& server) {
 	fd_ = tcpsocket();
 	if (fd_ < 0) {
-		throw ConnectionException("Can't create socket: " + std::string(strerr(errno)));
+		throw ConnectionException(
+				"Can't create socket: " + std::string(strerr(tcpgetlasterror())));
 	}
 	tcpnonblock(fd_);
 	if (tcpnumtoconnect(fd_, server.ip, server.port, kTimeout_ms) != 0) {
 		tcpclose(fd_);
 		fd_ = -1;
-		throw ConnectionException("Can't connect to " + server.toString() + ": " + strerr(errno));
+		throw ConnectionException(
+				"Can't connect to " + server.toString() + ": " + strerr(tcpgetlasterror()));
 	}
 }
 

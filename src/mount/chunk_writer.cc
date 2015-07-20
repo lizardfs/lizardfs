@@ -218,9 +218,8 @@ void ChunkWriter::processOperations(uint32_t msTimeout) {
 	// NOTICE: On Linux there can be pipe descriptor in pollFds.
 	// This function can handle it.
 	int status = tcppoll(pollFds, msTimeout);
-
 	if (status < 0) {
-		throw RecoverableWriteException("Poll error: " + std::string(strerr(errno)));
+		throw RecoverableWriteException("Poll error: " + std::string(strerr(tcpgetlasterror())));
 	}
 
 	for (pollfd& pollFd : pollFds) {
