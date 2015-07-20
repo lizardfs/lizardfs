@@ -6,7 +6,7 @@
 #include <cstring>
 
 ssize_t MessageReceiveBuffer::readFrom(int fd) {
-	eassert(bytesReveived_ < buffer_.size());
+	sassert(bytesReveived_ < buffer_.size());
 	int ret = tcprecv(fd, buffer_.data() + bytesReveived_, buffer_.size() - bytesReveived_);
 	if (ret < 0) {
 		return ret;
@@ -16,7 +16,7 @@ ssize_t MessageReceiveBuffer::readFrom(int fd) {
 }
 
 void MessageReceiveBuffer::removeMessage() {
-	eassert(hasMessageData());
+	sassert(hasMessageData());
 	size_t totalMessageSize = PacketHeader::kSize + getMessageHeader().length;
 	if (bytesReveived_ > totalMessageSize) {
 		size_t extraDataSize = bytesReveived_ - totalMessageSize;

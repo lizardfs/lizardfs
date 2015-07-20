@@ -485,7 +485,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		return;
 	}
 	if (tcpnodelay(fd) < 0) {
-		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(tcpgetlasterror()));
 	}
 
 	// Prepare initial message
@@ -573,7 +573,8 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		// NOTICE: On Linux there can be pipe descriptor in pfd.
 		// This function can handle it.
 		if (tcppoll(pfd, inodeData_->pipe[0] >= 0 ? 50 : 10) < 0) {
-			lzfs_pretty_syslog(LOG_WARNING, "writeworker: poll error: %s", strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,
+					"writeworker: poll error: %s", strerr(tcpgetlasterror()));
 			status = EIO;
 			break;
 		}
@@ -593,8 +594,8 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 		if (pfd[0].revents & POLLIN) {
 			lastMessageReceiveTimer.reset();
 			ssize_t ret = receiveBuffer.readFrom(fd);
-			if (ret == 0 || (ret < 0 && errno != EAGAIN)) {
-				const char* msg = (ret == 0 ? "was reset by peer" : strerr(errno));
+			if (ret == 0 || (ret < 0 && tcpgetlasterror() != TCPEAGAIN)) {
+				const char* msg = (ret == 0 ? "was reset by peer" : strerr(tcpgetlasterror()));
 				lzfs_pretty_syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32
@@ -632,7 +633,7 @@ void InodeChunkWriter::processJob(inodedata* inodeData) {
 
 		if (sendBuffer.hasDataToSend() && (pfd[0].revents & POLLOUT)) {
 			ssize_t ret = sendBuffer.writeTo(fd);
-			if (ret < 0 && errno != EAGAIN) {
+			if (ret < 0 && tcpgetlasterror() != TCPEAGAIN) {
 				lzfs_pretty_syslog(LOG_WARNING,
 						"file: %" PRIu32 ", index: %" PRIu32
 						", chunk: %" PRIu64 ", version: %" PRIu32

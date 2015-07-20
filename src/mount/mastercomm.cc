@@ -19,7 +19,6 @@
 #include "common/platform.h"
 #include "mount/mastercomm.h"
 
-#include <errno.h>
 #include <limits.h>
 #include <pthread.h>
 #include <signal.h>
@@ -299,7 +298,7 @@ static bool fs_threc_flush(threc *rec) {
 	std::unique_lock<std::mutex> lock(rec->mutex);
 	const int32_t size = rec->outputBuffer.size();
 	if (tcptowrite(fd, rec->outputBuffer.data(), size, 1000) != size) {
-		lzfs_pretty_syslog(LOG_WARNING, "tcp send error: %s", strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING, "tcp send error: %s", strerr(tcpgetlasterror()));
 		disconnect = true;
 		return false;
 	}
@@ -582,9 +581,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptowrite(fd,regbuff,8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0))) {
 		if (oninit) {
-			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
-			lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(tcpgetlasterror()));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -593,9 +592,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
 		if (oninit) {
-			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
-			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(tcpgetlasterror()));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -629,9 +628,9 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
 		if (oninit) {
-			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(errno));
+			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
-			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(tcpgetlasterror()));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -831,7 +830,7 @@ void fs_reconnect() {
 		return;
 	}
 	if (tcpnodelay(fd)<0) {
-		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(tcpgetlasterror()));
 	}
 	if (srcip>0) {
 		if (tcpnumbind(fd,srcip,0)<0) {
@@ -859,7 +858,7 @@ void fs_reconnect() {
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	if (tcptowrite(fd,regbuff,8+64+9,1000)!=8+64+9) {
-		lzfs_pretty_syslog(LOG_WARNING,"master: register error (write: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (write: %s)",strerr(tcpgetlasterror()));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -867,7 +866,7 @@ void fs_reconnect() {
 	master_stats_add(MASTER_BYTESSENT,16+64);
 	master_stats_inc(MASTER_PACKETSSENT);
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
-		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read header: %s)",strerr(tcpgetlasterror()));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -889,7 +888,7 @@ void fs_reconnect() {
 		return;
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register error (read data: %s)",strerr(tcpgetlasterror()));
 		tcpclose(fd);
 		fd=-1;
 		return;
@@ -923,7 +922,7 @@ void fs_close_session(void) {
 	put8bit(&wptr,REGISTER_CLOSESESSION);
 	put32bit(&wptr,sessionid);
 	if (tcptowrite(fd,regbuff,8+64+5,1000)!=8+64+5) {
-		lzfs_pretty_syslog(LOG_WARNING,"master: close session error (write: %s)",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: close session error (write: %s)",strerr(tcpgetlasterror()));
 	}
 }
 
@@ -1016,7 +1015,7 @@ bool fs_append_from_master(MessageBuffer& buffer, uint32_t size) {
 		return false;
 	}
 	if (r != (int)size) {
-		lzfs_pretty_syslog(LOG_WARNING,"master: tcp recv error: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,"master: tcp recv error: %s",strerr(tcpgetlasterror()));
 		setDisconnect(true);
 		return false;
 	}

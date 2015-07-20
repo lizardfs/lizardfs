@@ -59,7 +59,7 @@ public:
 	}
 
 	PacketHeader getMessageHeader() const {
-		eassert(hasMessageHeader());
+		sassert(hasMessageHeader());
 		PacketHeader header;
 		deserialize(buffer_, header);
 		return header;

@@ -291,12 +291,16 @@ static int read_data_refresh_connection(readrec *rrec) {
 	while (cnt<10) {
 		rrec->fd = tcpsocket();
 		if (rrec->fd<0) {
-			lzfs_pretty_syslog(LOG_WARNING,"can't create tcp socket: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_WARNING,
+					"can't create tcp socket: %s",
+					strerr(tcpgetlasterror()));
 			break;
 		}
 		if (srcip) {
 			if (tcpnumbind(rrec->fd,srcip,0)<0) {
-				lzfs_pretty_syslog(LOG_WARNING,"can't bind to given ip: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING,
+						"can't bind to given ip: %s",
+						strerr(tcpgetlasterror()));
 				tcpclose(rrec->fd);
 				rrec->fd=-1;
 				break;
@@ -305,7 +309,9 @@ static int read_data_refresh_connection(readrec *rrec) {
 		if (tcpnumtoconnect(rrec->fd,ip,port,(cnt%2)?(300*(1<<(cnt>>1))):(200*(1<<(cnt>>1))))<0) {
 			cnt++;
 			if (cnt>=10) {
-				lzfs_pretty_syslog(LOG_WARNING,"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",ip,port,strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING,
+						"can't connect to (%08" PRIX32 ":%" PRIu16 "): %s",
+						ip, port, strerr(tcpgetlasterror()));
 			}
 			tcpclose(rrec->fd);
 			rrec->fd=-1;
@@ -318,7 +324,9 @@ static int read_data_refresh_connection(readrec *rrec) {
 	}
 
 	if (tcpnodelay(rrec->fd)<0) {
-		lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_WARNING,
+				"can't set TCP_NODELAY: %s",
+				strerr(tcpgetlasterror()));
 	}
 
 	csdb_readinc(rrec->ip,rrec->port);

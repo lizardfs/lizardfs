@@ -47,7 +47,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 	put32bit(&wptr,offset);
 	put32bit(&wptr,size);
 	if (tcptowrite(fd,ibuff,28,CSMSECTIMEOUT)!=28) {
-		lzfs_pretty_syslog(LOG_NOTICE,"readblock; tcpwrite error: %s",strerr(errno));
+		lzfs_pretty_syslog(LOG_NOTICE,
+				"readblock; tcpwrite error: %s",
+				strerr(tcpgetlasterror()));
 		return -1;
 	}
 	for (;;) {
@@ -56,7 +58,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 		uint16_t blockno,blockoffset;
 		uint32_t breq,blocksize,blockcrc;
 		if (tcptoread(fd,ibuff,8,CSMSECTIMEOUT)!=8) {
-			lzfs_pretty_syslog(LOG_NOTICE,"readblock; tcpread error: %s",strerr(errno));
+			lzfs_pretty_syslog(LOG_NOTICE,
+					"readblock; tcpread error: %s",
+					strerr(tcpgetlasterror()));
 			return -1;
 		}
 		rptr = ibuff;
@@ -68,7 +72,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,9,CSMSECTIMEOUT)!=9) {
-				lzfs_pretty_syslog(LOG_NOTICE,"readblock; READ_STATUS tcpread error: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_NOTICE,
+						"readblock; READ_STATUS tcpread error: %s",
+						strerr(tcpgetlasterror()));
 				return -1;
 			}
 			rptr = ibuff;
@@ -92,7 +98,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,ibuff,20,CSMSECTIMEOUT)!=20) {
-				lzfs_pretty_syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_NOTICE,
+						"readblock; READ_DATA tcpread error: %s",
+						strerr(tcpgetlasterror()));
 				return -1;
 			}
 			rptr = ibuff;
@@ -130,7 +138,9 @@ int cs_readblock(int fd,uint64_t chunkid,uint32_t version,uint32_t offset,uint32
 				return -1;
 			}
 			if (tcptoread(fd,buff,blocksize,CSMSECTIMEOUT)!=(int32_t)blocksize) {
-				lzfs_pretty_syslog(LOG_NOTICE,"readblock; READ_DATA tcpread error: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_NOTICE,
+						"readblock; READ_DATA tcpread error: %s",
+						strerr(tcpgetlasterror()));
 				return -1;
 			}
 			if (blockcrc!=mycrc32(0,buff,blocksize)) {
