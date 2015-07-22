@@ -41,6 +41,9 @@ struct Setup {
 	bool no_mkdir_copy_sgid;
 	SugidClearMode sugid_clear_mode;
 	bool make_daemon;
+#ifdef _WIN32
+	std::string pipe_name;
+#endif
 };
 
 extern Setup gSetup;
