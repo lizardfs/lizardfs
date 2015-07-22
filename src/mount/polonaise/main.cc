@@ -9,8 +9,9 @@
 #include <polonaise/Polonaise.h>
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/server/TThreadedServer.h>
-#include <thrift/transport/TServerSocket.h>
 #include <thrift/transport/TBufferTransports.h>
+#include <thrift/transport/TPipeServer.h>
+#include <thrift/transport/TServerSocket.h>
 
 #include "common/crc.h"
 #include "common/slogger.h"
@@ -937,11 +938,23 @@ int main (int argc, char **argv) {
 	using namespace ::apache::thrift::server;
 	boost::shared_ptr<PolonaiseHandler> handler(new PolonaiseHandler());
 	boost::shared_ptr<TProcessor> processor(new PolonaiseProcessor(handler));
-	boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(gSetup.bind_port));
 	boost::shared_ptr<TTransportFactory> transportFactory(new BigBufferedTransportFactory());
 	boost::shared_ptr<TProtocolFactory> protocolFactory(new TBinaryProtocolFactory());
-	gServer.reset(
-			new TThreadedServer(processor, serverTransport, transportFactory, protocolFactory));
+	boost::shared_ptr<TServerTransport> serverTransport;
+
+#ifdef _WIN32
+	if (gSetup.bind_port > 0) {
+		serverTransport.reset(new TServerSocket(gSetup.bind_port));
+	} else {
+		static const int kPipeBufferSize = 128 * 1024;
+		serverTransport.reset(new TPipeServer(gSetup.pipe_name, kPipeBufferSize));
+	}
+#else
+	serverTransport.reset(new TServerSocket(gSetup.bind_port));
+#endif
+
+	gServer.reset(new TThreadedServer(processor, serverTransport, transportFactory, protocolFactory));
+
 	if (gTerminated == 0) {
 		gServer->serve();
 	}

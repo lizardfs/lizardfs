@@ -22,6 +22,9 @@ struct Setup {
 	double attr_cache_timeout;
 	bool no_mkdir_copy_sgid;
 	SugidClearMode sugid_clear_mode;
+#ifdef _WIN32
+	std::string pipe_name;
+#endif
 };
 
 extern Setup gSetup;

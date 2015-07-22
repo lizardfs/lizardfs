@@ -68,7 +68,11 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 				po::value<std::string>(&setup.master_port)->default_value("9421"),
 				"master port number")
 			("bind-port,L",
+#ifdef _WIN32
+				po::value<int>(&setup.bind_port)->default_value(0),
+#else
 				po::value<int>(&setup.bind_port)->default_value(9423),
+#endif
 				"listen for incomming connections on given port")
 			("mountpoint,M",
 				po::value<std::string>(&setup.mountpoint)->default_value("/polonaise"),
@@ -109,6 +113,11 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 			("sugid-clear-mode",
 				po::value<SugidClearMode>(&setup.sugid_clear_mode)->default_value(SugidClearMode::kNever),
 				"set sugid clear mode")
+#ifdef _WIN32
+			("pipe-name,N",
+			        po::value<std::string>(&setup.pipe_name)->default_value("polonaise-server-1"),
+			        "name of pipe used for communication with client")
+#endif
 			;
 		po::variables_map vm;
 		po::store(po::parse_command_line(argc, argv, desc), vm);
