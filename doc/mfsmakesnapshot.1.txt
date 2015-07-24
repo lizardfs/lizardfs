@@ -8,14 +8,14 @@ mfsmakesnapshot - make lazy copies
 == SYNOPSIS
 
 [verse]
-*mfsmakesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
+*mfsmakesnapshot* [*-o*] [*-f*] 'SOURCE'... 'DESTINATION'
 
 == DESCRIPTION
 
 *mfsmakesnapshot* makes a "real" snapshot (lazy copy, like in case of *mfsappendchunks*) of some
 object(s) or subtree (similarly to *cp -r* command). It's atomic with respect to each 'SOURCE'
 argument separately. If 'DESTINATION' points to already existing file, error will be reported unless
-*-o* (overwrite) option is given.
+*-f* (force) or it's alias *-o* (overwrite) option is given.
 
 NOTE: if 'SOURCE' is a directory, it's copied as a whole; but if it's followed by trailing slash,
 only directory content is copied.

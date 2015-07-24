@@ -1945,7 +1945,7 @@ void usage(int f) {
 			print_numberformat_options();
 			break;
 		case MFSMAKESNAPSHOT:
-			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-o] src [src ...] dst\n");
+			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-of] src [src ...] dst\n");
 			fprintf(stderr,"-o - allow to overwrite existing objects\n");
 			break;
 		case MFSGETEATTR:
@@ -2228,8 +2228,9 @@ int main(int argc,char **argv) {
 	// parse options
 	switch (f) {
 	case MFSMAKESNAPSHOT:
-		while ((ch=getopt(argc,argv,"o"))!=-1) {
+		while ((ch=getopt(argc,argv,"fo"))!=-1) {
 			switch(ch) {
+			case 'f':
 			case 'o':
 				oflag=1;
 				break;
