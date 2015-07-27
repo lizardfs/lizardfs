@@ -180,3 +180,81 @@ inline bool operator<(const LockRange &range, const LockRange &other) {
 inline bool operator==(const LockRange &range, const LockRange &other) {
 	return range.start == other.start && range.end == other.end && range.owners == other.owners;
 }
+
+class FileLocks {
+public:
+	typedef LockRange::Owner Owner;
+	typedef LockRange Lock;
+	/*! \brief Set of all applied locks */
+	typedef LockRanges Locks;
+	/*! \brief Queue of all pending locks */
+	typedef compact_vector<Lock> LockQueue;
+
+	static FileLocks &instance() {
+		static FileLocks instance_;
+
+		return instance_;
+	}
+
+	/*!
+	 * \brief Tries to place a lock on inode
+	 */
+	bool apply(uint32_t inode, Lock lock, bool nonblocking = false);
+
+	/*!
+	 * \brief Tries to place a read (shared) lock on inode
+	 * \param start - beginning of locked range
+	 * \param end - end of locked range
+	 */
+	bool readLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+			bool nonblocking = false);
+
+	/*!
+	 * \brief Tries to place a write (exclusive) lock on inode
+	 * \param start - beginning of locked range
+	 * \param end - end of locked range
+	 */
+	bool writeLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+			bool nonblocking = false);
+
+	/*!
+	 * \brief Tries to unlock an inode.
+	 * Call to this function should likely be followed by gatherCandidates(),
+	 * because there might be locks in the queue available for insertion
+	 * after this unlock.
+	 * \param start - beginning of unlocked range
+	 * \param end - end of unlocked range
+	 */
+	bool unlock(uint32_t inode, uint64_t start, uint64_t end, Owner owner);
+
+
+	/*!
+	 * Returns a list of locks from pending queue that might be available
+	 * after removing a lock from range [start, end).
+	 * Candidates are not guaranteed to be suitable for insertion,
+	 * it still needs to be checked with a call to fits() function.
+	 * This function effectively removes candidates from queue,
+	 * so they need to be reinserted after checking if they can be applied.
+	 * \param start - beginning of regarded range
+	 * \param end - end of regarded range
+	 */
+	void gatherCandidates(uint32_t inode, uint64_t start, uint64_t end, LockQueue &result);
+
+	void clear();
+
+
+private:
+	FileLocks() : active_locks_(), pending_locks_() {}
+	FileLocks(const FileLocks &other) = delete;
+	FileLocks(FileLocks &&other) = delete;
+	FileLocks &operator=(const FileLocks &) = delete;
+	FileLocks &operator=(FileLocks &&) = delete;
+
+	/*!
+	 * \brief Enqueues a lock
+	 */
+	void enqueue(uint32_t inode, Lock lock);
+
+	std::unordered_map<uint32_t, Locks> active_locks_;
+	std::unordered_map<uint32_t, LockQueue> pending_locks_;
+};

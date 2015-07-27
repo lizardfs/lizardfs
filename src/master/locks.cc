@@ -159,3 +159,57 @@ LockRanges::Data::iterator LockRanges::insert(const Data::iterator &it, LockRang
 	end = ret + dist_end + 1;
 	return ret;
 }
+
+bool FileLocks::readLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+		bool nonblocking) {
+	return apply(inode, Lock{Lock::Type::kShared, start, end, owner}, nonblocking);
+}
+
+bool FileLocks::writeLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+		bool nonblocking) {
+	return apply(inode, Lock{Lock::Type::kExclusive, start, end, owner}, nonblocking);
+}
+
+bool FileLocks::unlock(uint32_t inode, uint64_t start, uint64_t end, Owner owner) {
+	return apply(inode, Lock{Lock::Type::kUnlock, start, end, owner});
+}
+
+bool FileLocks::apply(uint32_t inode, Lock lock, bool nonblocking) {
+	Locks &locks = active_locks_[inode];
+
+	if (locks.fits(lock)) {
+		locks.insert(lock);
+		return true;
+	}
+
+	if (!nonblocking) {
+		enqueue(inode, lock);
+	}
+	return false;
+}
+
+void FileLocks::enqueue(uint32_t inode, Lock lock) {
+	LockQueue &queue = pending_locks_[inode];
+
+	queue.insert(std::lower_bound(queue.begin(), queue.end(), lock), lock);
+}
+
+void FileLocks::gatherCandidates(uint32_t inode, uint64_t start, uint64_t end, LockQueue &result) {
+	LockQueue &queue = pending_locks_[inode];
+
+	auto first = ::std::lower_bound(queue.begin(), queue.end(), start,
+			[](const Lock &lock, uint64_t offset) {return lock.start < offset;});
+	auto last = ::std::upper_bound(queue.begin(), queue.end(), end,
+			[](uint64_t offset, const Lock &lock) {return offset < lock.start;});
+
+	if (first != queue.begin()) {
+		first--;
+	}
+
+	std::move(first, last, std::back_inserter(result));
+	queue.erase(first, last);
+}
+
+void FileLocks::clear() {
+	return active_locks_.clear();
+}
