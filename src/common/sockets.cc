@@ -148,6 +148,14 @@ int tcpgetlasterror() {
 #endif
 }
 
+void tcpsetlasterror(int err) {
+#ifdef _WIN32
+	WSASetLastError(err);
+#else
+	errno = err;
+#endif
+}
+
 int tcpsetacceptfilter(int sock) {
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg afa;
@@ -415,21 +423,36 @@ int tcpclose(int sock) {
 
 int tcppoll(pollfd &pfd, int msecto) {
 	fd_set read_set, write_set, except_set;
-	fd_set *read_set_ptr = NULL, *write_set_ptr = NULL;
+	fd_set *read_set_ptr = NULL, *write_set_ptr = NULL, *except_set_ptr = NULL;
 
 	FD_ZERO(&read_set);
 	FD_ZERO(&write_set);
 	FD_ZERO(&except_set);
 
-	if ((pfd.events & POLLIN) == POLLIN) {
+	if (pfd.events & (POLLRDNORM | POLLIN)) {
 		read_set_ptr = &read_set;
 		FD_SET(pfd.fd, &read_set);
 	}
-	if ((pfd.events & POLLOUT) == POLLOUT) {
+	if (pfd.events & (POLLWRNORM | POLLOUT)) {
 		write_set_ptr = &write_set;
 		FD_SET(pfd.fd, &write_set);
 	}
-	FD_SET(pfd.fd, &except_set);
+	if (pfd.events & (POLLRDBAND | POLLPRI)) {
+		except_set_ptr = &except_set;
+		FD_SET(pfd.fd, &except_set);
+	}
+
+#ifdef _WIN32
+	// Winsock can't handle empty fd_sets
+	if (!read_set_ptr && !write_set_ptr && !except_set_ptr) {
+		if (msecto < 0) {
+			tcpsetlasterror(TCPEINVAL);
+			return -1;
+		}
+		Sleep(msecto);
+		return 0;
+	}
+#endif
 
 	timeval tv;
 	timeval *tv_ptr = NULL;
@@ -439,9 +462,9 @@ int tcppoll(pollfd &pfd, int msecto) {
 		tv.tv_usec = 1000 * (msecto % 1000);
 	}
 
-	int ret = select(pfd.fd + 1, read_set_ptr, write_set_ptr, &except_set, tv_ptr);
+	int ret = select(pfd.fd + 1, read_set_ptr, write_set_ptr, except_set_ptr, tv_ptr);
 
-	if (ret <= 0) {
+	if (ret == -1) {
 		return ret;
 	}
 
@@ -454,7 +477,7 @@ int tcppoll(pollfd &pfd, int msecto) {
 		pfd.revents |= POLLOUT;
 	}
 	if (FD_ISSET(pfd.fd, &except_set)) {
-		pfd.revents |= POLLERR;
+		pfd.revents |= POLLPRI;
 	}
 
 	return ret;
@@ -462,7 +485,7 @@ int tcppoll(pollfd &pfd, int msecto) {
 
 int tcppoll(std::vector<pollfd> &pfd, int msecto) {
 	fd_set read_set, write_set, except_set;
-	fd_set *read_set_ptr = NULL, *write_set_ptr = NULL;
+	fd_set *read_set_ptr = NULL, *write_set_ptr = NULL, *except_set_ptr = NULL;
 	int max_fd = 0;
 
 	FD_ZERO(&read_set);
@@ -470,17 +493,32 @@ int tcppoll(std::vector<pollfd> &pfd, int msecto) {
 	FD_ZERO(&except_set);
 
 	for (const auto &p : pfd) {
-		if ((p.events & POLLIN) == POLLIN) {
+		if (p.events & (POLLRDNORM | POLLIN)) {
 			read_set_ptr = &read_set;
 			FD_SET(p.fd, &read_set);
 		}
-		if ((p.events & POLLOUT) == POLLOUT) {
+		if (p.events & (POLLWRNORM | POLLOUT)) {
 			write_set_ptr = &write_set;
 			FD_SET(p.fd, &write_set);
 		}
-		FD_SET(p.fd, &except_set);
+		if (p.events & (POLLRDBAND | POLLPRI)) {
+			except_set_ptr = &except_set;
+			FD_SET(p.fd, &except_set);
+		}
 		max_fd = std::max(max_fd, (int)p.fd);
 	}
+
+#ifdef _WIN32
+	// Winsock can't handle empty fd_sets
+	if (!read_set_ptr && !write_set_ptr && !except_set_ptr) {
+		if (msecto < 0) {
+			tcpsetlasterror(TCPEINVAL);
+			return -1;
+		}
+		Sleep(msecto);
+		return 0;
+	}
+#endif
 
 	timeval tv;
 	timeval *tv_ptr = NULL;
@@ -489,12 +527,13 @@ int tcppoll(std::vector<pollfd> &pfd, int msecto) {
 		tv.tv_sec = msecto / 1000;
 		tv.tv_usec = 1000 * (msecto % 1000);
 	}
-	int ret = select(max_fd + 1, read_set_ptr, write_set_ptr, &except_set, tv_ptr);
+	int ret = select(max_fd + 1, read_set_ptr, write_set_ptr, except_set_ptr, tv_ptr);
 
 	if (ret == -1) {
 		return -1;
 	}
 
+	ret = 0;
 	for (auto &p : pfd) {
 		p.revents = 0;
 
@@ -505,8 +544,9 @@ int tcppoll(std::vector<pollfd> &pfd, int msecto) {
 			p.revents |= POLLOUT;
 		}
 		if (FD_ISSET(p.fd, &except_set)) {
-			p.revents |= POLLERR;
+			p.revents |= POLLPRI;
 		}
+		ret += p.revents != 0;
 	}
 
 	return ret;
