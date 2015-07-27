@@ -31,9 +31,15 @@
 #ifdef _WIN32
 #define TCPEAGAIN WSAEWOULDBLOCK
 #define TCPEINPROGRESS WSAEWOULDBLOCK
+#define TCPENOTSUP WSAEOPNOTSUPP
+#define TCPEINVAL WSAEINVAL
+#define TCPETIMEDOUT WSAETIMEDOUT
 #else
 #define TCPEAGAIN EAGAIN
 #define TCPEINPROGRESS EINPROGRESS
+#define TCPENOTSUP ENOTSUP
+#define TCPEINVAL EINVAL
+#define TCPETIMEDOUT ETIMEDOUT
 #endif
 
 #include <vector>
@@ -46,6 +52,7 @@ int socketrelease();
 /* ----------------- TCP ----------------- */
 
 int tcpgetlasterror();
+void tcpsetlasterror(int err);
 int tcpsocket(void);
 int tcpresolve(const char *hostname, const char *service, uint32_t *ip, uint16_t *port,
 		int passiveflag);
