@@ -24,6 +24,7 @@
 
 #include "common/goal.h"
 #include "common/single_variant_read_plan.h"
+#include "common/slice_traits.h"
 #include "common/standard_chunk_read_planner.h"
 
 class XorChunkReadPlanner::PlanBuilder {
@@ -171,20 +172,20 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) 
 	availablePartsUniq.erase(
 			std::unique(availablePartsUniq.begin(), availablePartsUniq.end()),
 			availablePartsUniq.end());
-	std::vector<uint32_t> partsForLevelAvailable(goal::kMaxXorLevel + 1, 0);
+	std::vector<uint32_t> partsForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, 0);
 	for (const auto& part : availablePartsUniq) {
 		if (part.isXorChunkType()) {
 			partsForLevelAvailable[part.getXorLevel()]++;
 		}
 	}
 	ChunkType::XorLevel levelToRead = 0;
-	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+	for (ChunkType::XorLevel level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
 		if (partsForLevelAvailable[level] == level) {
 			levelToRead = level;
 			break;
 		}
 	}
-	for (ChunkType::XorLevel level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+	for (ChunkType::XorLevel level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
 		if (partsForLevelAvailable[level] == static_cast<uint32_t>(level + 1)) {
 			levelToRead = level;
 			break;

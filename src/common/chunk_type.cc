@@ -21,16 +21,17 @@
 
 #include "common/goal.h"
 #include "common/massert.h"
+#include "common/slice_traits.h"
 
 bool ChunkType::validChunkTypeID(uint8_t chunkTypeId) {
 	if (chunkTypeId == ChunkType::kStandardChunkTypeId) {
 		return true;
 	}
-	uint8_t xorLevel = chunkTypeId / (goal::kMaxXorLevel + 1);
-	if (xorLevel < goal::kMinXorLevel || xorLevel > goal::kMaxXorLevel) {
+	uint8_t xorLevel = chunkTypeId / (slice_traits::xors::kMaxXorLevel + 1);
+	if (xorLevel < slice_traits::xors::kMinXorLevel || xorLevel > slice_traits::xors::kMaxXorLevel) {
 		return false;
 	}
-	uint8_t xorPart = chunkTypeId % (goal::kMaxXorLevel + 1);
+	uint8_t xorPart = chunkTypeId % (slice_traits::xors::kMaxXorLevel + 1);
 	if (xorPart == ChunkType::kXorParityPart) {
 		return true;
 	}
@@ -46,15 +47,15 @@ ChunkType ChunkType::getStandardChunkType() {
 
 ChunkType ChunkType::getXorChunkType(XorLevel level, XorPart part) {
 	sassert(part <= level);
-	sassert(level >= goal::kMinXorLevel);
-	sassert(level <= goal::kMaxXorLevel);
-	return ChunkType((goal::kMaxXorLevel + 1) * level + part);
+	sassert(level >= slice_traits::xors::kMinXorLevel);
+	sassert(level <= slice_traits::xors::kMaxXorLevel);
+	return ChunkType((slice_traits::xors::kMaxXorLevel + 1) * level + part);
 }
 
 ChunkType ChunkType::getXorParityChunkType(XorLevel level) {
-	sassert(level >= goal::kMinXorLevel);
-	sassert(level <= goal::kMaxXorLevel);
-	return ChunkType((goal::kMaxXorLevel + 1) * level + ChunkType::kXorParityPart);
+	sassert(level >= slice_traits::xors::kMinXorLevel);
+	sassert(level <= slice_traits::xors::kMaxXorLevel);
+	return ChunkType((slice_traits::xors::kMaxXorLevel + 1) * level + ChunkType::kXorParityPart);
 }
 
 bool ChunkType::isStandardChunkType() const {
@@ -76,10 +77,10 @@ uint8_t ChunkType::chunkTypeId() const {
 
 ChunkType::XorLevel ChunkType::getXorLevel() const {
 	sassert(isXorChunkType());
-	return chunkTypeId_ / (goal::kMaxXorLevel + 1);
+	return chunkTypeId_ / (slice_traits::xors::kMaxXorLevel + 1);
 }
 
 ChunkType::XorPart ChunkType::getXorPart() const {
 	sassert(isXorChunkType());
-	return chunkTypeId_ % (goal::kMaxXorLevel + 1);
+	return chunkTypeId_ % (slice_traits::xors::kMaxXorLevel + 1);
 }

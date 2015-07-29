@@ -62,10 +62,10 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		} catch (std::exception&) {
 			throw ParseException(currentPosition + ": malformed goal ID");
 		}
-		if (goalId < goal::kMinOrdinaryGoal || goalId > goal::kMaxOrdinaryGoal) {
+		if (!GoalId::isValid(goalId)) {
 			throw ParseException(currentPosition + ": goal ID out of range");
 		}
-		if (!result[goalId].name().empty()) {
+		if (!result[goalId].getName().empty()) {
 			throw ParseException(currentPosition + ": repeated goal ID " + tokens.front());
 		}
 		tokens.erase(tokens.begin());
@@ -94,7 +94,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 		if (tokens.empty()) {
 			throw ParseException(currentPosition + ": missing labels");
 		}
-		Goal::Labels chunkLabels, tapeLabels;
+		Goal::Slice::Labels chunkLabels, tapeLabels;
 		uint32_t chunkCopies = 0;
 		uint32_t tapeCopies = 0;
 		for (const auto& token : tokens) {
@@ -118,8 +118,8 @@ void GoalConfigLoader::load(std::istream&& stream) {
 			}
 		}
 		// Let's verify number of chunk and tape labels
-		if (chunkCopies > Goal::kMaxExpectedChunkCopies
-				|| tapeCopies > Goal::kMaxExpectedTapeCopies) {
+		if (chunkCopies > Goal::kMaxExpectedCopies
+				|| tapeCopies > Goal::kMaxExpectedCopies) {
 			throw ParseException(currentPosition + ": too many labels");
 		}
 		// Let's also verify name of the goal
@@ -127,7 +127,11 @@ void GoalConfigLoader::load(std::istream&& stream) {
 			throw ParseException(currentPosition + ": invalid name of goal " + goalName);
 		}
 
-		result[goalId] = Goal(goalName, std::move(chunkLabels), std::move(tapeLabels));
+		Goal goal(goalName);
+		Goal::Slice slice(Goal::Slice::Type(Goal::Slice::Type::kStandard));
+		slice[0] = chunkLabels;
+		goal.setSlice(slice);
+		result[goalId] = goal;
 	}
 
 	if (stream.bad()) {
@@ -135,9 +139,13 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	}
 
 	// Fill all other valid goals with default values
-	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
-		if (result[goal].name().empty()) {
-			result[goal] = Goal(std::to_string(goal), {{MediaLabel::kWildcard, goal}}, std::map<MediaLabel, int>{});
+	for (uint8_t goalId = GoalId::kMin; goalId <= GoalId::kMax; ++goalId) {
+		if (result[goalId].getName().empty()) {
+			Goal goal(std::to_string(goalId));
+			Goal::Slice slice(Goal::Slice::Type(Goal::Slice::Type::kStandard));
+			slice[0] = std::map<MediaLabel, int>{ {MediaLabel::kWildcard, goalId} };
+			goal.setSlice(slice);
+			result[goalId] = goal;
 		}
 	}
 	goals_ = std::move(result);

@@ -86,6 +86,7 @@ static uint64_t file_size(fsnode *node, uint32_t nonzero_chunks) {
 	return size;
 }
 
+#ifndef METARESTORE
 // compute the disk space cost of all parts of a xor chunk of given size
 static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
 	const uint32_t stripes = (blocks + level - 1) / level;
@@ -94,31 +95,42 @@ static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
 	size += 4096 * (level + 1);             // headers of data and parity parts
 	return size;
 }
+#endif
 
 // compute the "realsize" statistic for a file node
+// NOTICE: file_size takes into account chunk headers and doesn't takes nonzero_chunks
 static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t file_size) {
-	const uint8_t goal = node->goal;
-	if (goal::isOrdinaryGoal(goal)) {
 #ifdef METARESTORE
-		return file_size;  // Doesn't really matter. Metarestore doesn't need this value
-		                   // anyway.
+	(void)node;
+	(void)nonzero_chunks;
+	(void)file_size;
+	return 0; // Doesn't really matter. Metarestore doesn't need this value
 #else
-		return file_size * gGoalDefinitions[goal].getExpectedCopies();
-#endif
-	}
-	if (goal::isXorGoal(goal)) {
-		const ChunkType::XorLevel level = goal::toXorLevel(goal);
-		const uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
-		uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
-		if (last_chunk_nonempty(node)) {
-			size -= full_chunk_realsize;
-			size += xor_chunk_realsize(last_chunk_blocks(node), level);
+	const Goal& goal = fs_get_goal_definition(node->goal);
+
+	uint64_t full_size = 0;
+	for (const auto &slice : goal) {
+		if (slice_traits::isStandard(slice) || slice_traits::isTape(slice)) {
+			full_size += file_size * slice.getExpectedCopies();
+		} else if (slice_traits::isXor(slice)) {
+			int level = slice_traits::xors::getXorLevel(slice);
+			uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
+			uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
+			if (last_chunk_nonempty(node)) {
+				size -= full_chunk_realsize;
+				size += xor_chunk_realsize(last_chunk_blocks(node), level);
+			}
+			full_size += size;
+		} else {
+			syslog(LOG_ERR,
+			       "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8,
+			       node->id, node->goal);
+			return 0;
 		}
-		return size;
 	}
-	syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id,
-	       node->goal);
-	return 0;
+
+	return full_size;
+#endif
 }
 
 char *fsnodes_escape_name(uint32_t nleng, const uint8_t *name) {
@@ -1370,14 +1382,14 @@ void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &f
 	fsedge *e;
 
 	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {
-		if (!goal::isGoalValid(node->goal)) {
+		if (!GoalId::isValid(node->goal)) {
 			syslog(LOG_WARNING, "file inode %" PRIu32 ": unknown goal !!! - fixing",
 			       node->id);
 			fsnodes_changefilegoal(node, DEFAULT_GOAL);
 		}
 		fgtab[node->goal]++;
 	} else if (node->type == TYPE_DIRECTORY) {
-		if (!goal::isGoalValid(node->goal)) {
+		if (!GoalId::isValid(node->goal)) {
 			syslog(LOG_WARNING,
 			       "directory inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
 			node->goal = DEFAULT_GOAL;
@@ -1429,7 +1441,11 @@ static inline void fsnodes_enqueue_tape_copies(fsnode *node) {
 		return;
 	}
 
-	unsigned tapeGoalSize = fs_get_goal_definition(node->goal).tapeLabels().size();
+	unsigned tapeGoalSize = 0;
+	const Goal &goal(fs_get_goal_definition(node->goal));
+	if (goal.find(Goal::Slice::Type(Goal::Slice::Type::kTape)) != goal.end()) {
+		tapeGoalSize = goal[Goal::Slice::Type(Goal::Slice::Type::kTape)].getExpectedCopies();
+	}
 
 	if (tapeGoalSize == 0) {
 		return;
@@ -1438,12 +1454,12 @@ static inline void fsnodes_enqueue_tape_copies(fsnode *node) {
 	auto it = gMetadata->tapeCopies.find(node->id);
 	unsigned tapeCopyCount = (it == gMetadata->tapeCopies.end() ? 0 : it->second.size());
 
-	/* Create new TapeCopies instance if necessary */
+	// Create new TapeCopies instance if necessary
 	if (tapeGoalSize > tapeCopyCount && it == gMetadata->tapeCopies.end()) {
 		it = gMetadata->tapeCopies.insert({node->id, TapeCopies()}).first;
 	}
 
-	/* Enqueue copies for tapeservers */
+	// Enqueue copies for tapeservers
 	TapeKey tapeKey(node->id, node->mtime, node->data.fdata.length);
 	while (tapeGoalSize > tapeCopyCount) {
 		TapeserverId id = matotsserv_enqueue_node(tapeKey);
@@ -1453,7 +1469,8 @@ static inline void fsnodes_enqueue_tape_copies(fsnode *node) {
 }
 
 bool fsnodes_has_tape_goal(fsnode *node) {
-	return fs_get_goal_definition(node->goal).tapeLabels().size() > 0;
+	const Goal &goal(fs_get_goal_definition(node->goal));
+	return goal.find(Goal::Slice::Type(Goal::Slice::Type::kTape)) != goal.end();
 }
 
 #endif

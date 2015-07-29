@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2015 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -21,47 +21,240 @@
 
 #include <limits>
 
+#include "common/exceptions.h"
+#include "common/linear_assignment_optimizer.h"
 #include "common/massert.h"
 
-namespace goal {
+const int Goal::Slice::Type::kTypeParts[Goal::Slice::Type::kTypeCount] = {
+	1, 1, 3, 4,  5, 6, 7, 8, 9, 10};
 
-ChunkType::XorLevel toXorLevel(uint8_t goal) {
-	sassert(isXorGoal(goal));
-	return ~goal + kMinXorLevel;
-}
+const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::kTypeNames = {
+	"std",
+	"tape",
+	"xor2",
+	"xor3",
+	"xor4",
+	"xor5",
+	"xor6",
+	"xor7",
+	"xor8",
+	"xor9",
+};
 
-bool isGoalValid(uint8_t goal) {
-	return isOrdinaryGoal(goal) || isXorGoal(goal);
-}
-
-bool isOrdinaryGoal(uint8_t goal) {
-	return goal >= kMinOrdinaryGoal && goal <= kMaxOrdinaryGoal;
-}
-
-bool isXorGoal(uint8_t goal) {
-	return goal >= std::numeric_limits<uint8_t>::max() - kMaxXorLevel + kMinXorLevel;
-}
-
-uint8_t xorLevelToGoal(ChunkType::XorLevel xorLevel) {
-	sassert(xorLevel >= kMinXorLevel);
-	sassert(xorLevel <= kMaxXorLevel);
-	return std::numeric_limits<uint8_t>::max() - xorLevel + kMinXorLevel;
-}
-
-const std::vector<uint8_t>& allGoals() {
-	auto f = []() {
-		std::vector<uint8_t> ret;
-		for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; goal++) {
-			ret.push_back(goal);
-		}
-		for (unsigned level = kMinXorLevel; level <= kMaxXorLevel; ++level) {
-			ret.push_back(goal::xorLevelToGoal(level));
-		}
-		return ret;
-	};
-	static std::vector<uint8_t> ret = f();
+int Goal::Slice::getExpectedCopies() const {
+	int ret = 0;
+	for (const auto &labels : data_) {
+		ret += countLabels(labels);
+	}
 	return ret;
 }
 
+/*! \brief Merge in another Slice - they have to be of the same type and size
+ *
+ * This function minimize number of required chunk parts in resultant goal.
+ * It is desirable to minimize number of operations required to replicate chunk to
+ * suitable chunkservers. Since we do not know what is current state of replication
+ * this function actually minimize number of parts in target goal
+ * but number of required operation to achieve the goal may not be optimal.
+ */
+void Goal::Slice::mergeIn(const Slice &other) {
+	assert(type_ == other.type_);
+	assert(size() == other.size());
+
+	std::array<std::array<int, kMaxPartsCount>, kMaxPartsCount> cost;
+	std::array<int, kMaxPartsCount> assignment;
+
+	for (int i = 0; i < size(); i++) {
+		for (int j = 0; j < size(); j++) {
+			auto tmp_union = getLabelsUnion(data_[i], other.data_[j]);
+			cost[i][j] = 10 * Goal::kMaxExpectedCopies - labelsDistance(data_[i], tmp_union);
+		}
+	}
+
+	linear_assignment::auctionOptimization(cost, assignment, size());
+
+	for (int i = 0; i < size(); i++) {
+		auto tmp_union = getLabelsUnion(data_[i], other.data_[assignment[i]]);
+		data_[i] = std::move(tmp_union);
+	}
 }
 
+/*! \brief Slice is valid if size is as expected and there is at least one label for each part. */
+bool Goal::Slice::isValid() const {
+	if (!type_.isValid() || data_.size() != (std::size_t)type_.expectedParts()) {
+		return false;
+	}
+	for (const auto &labels : data_) {
+		if (!std::any_of(labels.begin(), labels.end(),
+				[](const std::pair<MediaLabel, int> &label) {
+					return label.second > 0;
+				})) {
+			return false;
+		}
+	}
+	return true;
+}
+
+Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Labels &second) {
+	Labels merged_labels;
+
+	int first_sum = 0;
+	int second_sum = 0;
+	int merged_sum = 0;
+	auto second_label_it = second.begin();
+	for (const auto &first_label : first) {
+		if (first_label.first == MediaLabel::kWildcard) {
+			first_sum += first_label.second;
+			// because kWildcard is always last we can use break and skip one comparison
+			break;
+		}
+
+		while (second_label_it != second.end() &&
+		       first_label.first > second_label_it->first) {
+			assert(second_label_it->first != MediaLabel::kWildcard);
+			merged_labels.insert(merged_labels.end(), *second_label_it);
+			merged_sum += second_label_it->second;
+			second_sum += second_label_it->second;
+			++second_label_it;
+		}
+		if (second_label_it == second.end() || first_label.first < second_label_it->first) {
+			merged_labels.insert(merged_labels.end(), first_label);
+			first_sum += first_label.second;
+			merged_sum += first_label.second;
+		} else {
+			merged_labels.emplace_hint(
+			        merged_labels.end(), first_label.first,
+			        std::max(first_label.second, second_label_it->second));
+			first_sum += first_label.second;
+			second_sum += second_label_it->second;
+			merged_sum += std::max(first_label.second, second_label_it->second);
+			++second_label_it;
+		}
+	}
+	while (second_label_it != second.end()) {
+		if (second_label_it->first != MediaLabel::kWildcard) {
+			merged_labels.insert(merged_labels.end(), *second_label_it);
+			merged_sum += second_label_it->second;
+		}
+		second_sum += second_label_it->second;
+		++second_label_it;
+	}
+
+	int wildcards = std::max(first_sum, second_sum) - merged_sum;
+	if (wildcards > 0) {
+		merged_labels[MediaLabel::kWildcard] = wildcards;
+	}
+
+	return merged_labels;
+}
+
+/*! \brief First norm of 'vectors' difference */
+int Goal::Slice::labelsDistance(const Labels &first, const Labels &second) {
+	int ret = 0;
+	auto second_label_it = second.begin();
+	for (const auto &first_label : first) {
+		while (second_label_it != second.end() &&
+		       first_label.first > second_label_it->first) {
+			ret += second_label_it->second;
+			++second_label_it;
+		}
+		if (second_label_it == second.end() || first_label.first < second_label_it->first) {
+			ret += first_label.second;
+		} else {
+			ret += std::abs(first_label.second - second_label_it->second);
+			++second_label_it;
+		}
+	}
+	while (second_label_it != second.end()) {
+		ret += second_label_it->second;
+		++second_label_it;
+	}
+
+	return ret;
+}
+
+/*! \brief Current goal becomes union of itself with otherGoal */
+void Goal::mergeIn(const Goal &otherGoal) {
+	for (const auto &element : otherGoal.goal_slices_) {
+		const Slice &other_slice = element.second;
+		assert(other_slice.isValid());
+
+		auto position = goal_slices_.find(other_slice.getType());
+		// Check if there is no element of this type yet
+		if (position == goal_slices_.end()) {
+			// Union of A with empty set is A
+			goal_slices_.emplace(other_slice.getType(), other_slice);
+		} else {
+			Slice &current_element = position->second;
+			// There should be same number of parts
+			assert(current_element.size() == other_slice.size());
+			current_element.mergeIn(other_slice);
+		}
+	}
+}
+
+int Goal::getExpectedCopies() const {
+	int ret = 0;
+	for (const auto &element : goal_slices_) {
+		ret += element.second.getExpectedCopies();
+	}
+	return ret;
+}
+
+std::string to_string(const Goal::Slice &slice) {
+	std::string str;
+
+	str = "$" + to_string(slice.getType()) + " ";
+
+	if (slice.size() > 1) {
+		str += "{";
+	}
+	for (int part = 0; part < slice.size(); ++part) {
+		if (part > 0) {
+			str += " ";
+		}
+
+		int labels_count = Goal::Slice::countLabels(slice[part]);
+
+		if (labels_count != 1) {
+			str += "{";
+		}
+
+		int count = 0;
+		for (const auto &label : slice[part]) {
+			for (int i = 0; i < label.second; i++) {
+				if (count > 0) {
+					str += " ";
+				}
+				str += static_cast<std::string>(label.first);
+				++count;
+			}
+		}
+
+		if (labels_count != 1) {
+			str += "}";
+		}
+	}
+	if (slice.size() > 1) {
+		str += "}";
+	}
+
+	return str;
+}
+
+std::string to_string(const Goal &goal) {
+	std::string str;
+
+	str = goal.getName() + ": ";
+
+	int count = 0;
+	for (const auto &slice : goal) {
+		if (count > 0) {
+			str += " | ";
+		}
+		str += to_string(slice);
+		++count;
+	}
+
+	return str;
+}

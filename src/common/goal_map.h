@@ -26,20 +26,18 @@
 #include "common/exception.h"
 #include "common/goal.h"
 #include "common/serialization_macros.h"
+#include "common/slice_traits.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(GoalMapInvalidGoalException, Exception);
 
 template <class T>
 class GoalMap {
 public:
-	GoalMap() : zero_(), ordinary_(), xor_() {}
+	GoalMap() : zero_(), goals_() {}
 
 	T& operator[](uint8_t goal) {
-		if (goal::isOrdinaryGoal(goal)) {
-			return ordinary_[goal - goal::kMinOrdinaryGoal];
-		}
-		if (goal::isXorGoal(goal)) {
-			return xor_[goal - goal::kMinXorGoal];
+		if (GoalId::isValid(goal)) {
+			return goals_[goal];
 		}
 		if (goal == 0) {
 			return zero_;
@@ -52,8 +50,7 @@ public:
 	}
 
 	friend bool operator==(const GoalMap<T>& eins, const GoalMap<T>& zwei) {
-		return eins.zero_ == zwei.zero_ && eins.ordinary_ == zwei.ordinary_
-				&& eins.xor_ == zwei.xor_;
+		return eins.zero_ == zwei.zero_ && eins.goals_ == zwei.goals_;
 	}
 
 	uint32_t serializedSize() const {
@@ -66,7 +63,7 @@ public:
 		// verify if the map is empty
 		T defaultValue = T();
 		sassert(this->operator[](0) == defaultValue);
-		for (auto goal : goal::allGoals()) {
+		for (auto goal = GoalId::kMin; goal <= GoalId::kMax; ++goal) {
 			sassert(this->operator[](goal) == defaultValue);
 		}
 
@@ -75,7 +72,7 @@ public:
 		::deserialize(source, bytesLeftInBuffer, map);
 		for (auto& goalAndValue : map) {
 			uint8_t goal = goalAndValue.first;
-			if (goal::isGoalValid(goal) || goal == 0) {
+			if (GoalId::isValid(goal) || goal == 0) {
 				this->operator[](goal) = std::move(goalAndValue.second);
 			}
 		}
@@ -86,7 +83,7 @@ private:
 		std::map<uint8_t, T> trueMap;
 		T defaultValue = T();
 
-		for (auto goal : goal::allGoals()) {
+		for (auto goal = GoalId::kMin; goal <= GoalId::kMax; ++goal) {
 			if (this->operator[](goal) != defaultValue) { // Packet size optimization!
 				trueMap[goal] = this->operator[](goal);
 			}
@@ -98,6 +95,5 @@ private:
 	}
 
 	T zero_;
-	std::array<T, goal::kNumberOfOrdinaryGoals> ordinary_;
-	std::array<T, goal::kNumberOfXorGoals> xor_;
+	std::array<T, GoalId::kMax> goals_;
 };

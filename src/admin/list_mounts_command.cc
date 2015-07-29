@@ -96,7 +96,7 @@ void ListMountsCommand::run(const Options& options) const {
 		bool ignoregid = mount.flags & SESFLAG_IGNOREGID;
 		bool allCanChangeQuota = mount.flags & SESFLAG_ALLCANCHANGEQUOTA;
 		bool mapAll = mount.flags & SESFLAG_MAPALL;
-		bool shouldPrintGoal = goal::isOrdinaryGoal(mount.minGoal) && goal::isOrdinaryGoal(mount.maxGoal);
+		bool shouldPrintGoal = GoalId::isValid(mount.minGoal) && GoalId::isValid(mount.maxGoal);
 		bool shouldPrintTrashTime = mount.minTrashTime < mount.maxTrashTime
 				&& (mount.minTrashTime != 0 || mount.maxTrashTime != 0xFFFFFFFF);
 

@@ -66,7 +66,7 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::getState() const {
 	}
 
 	// partsAvailableForLevelBitmask[level][i] <=> part i of level is available (i == 0 -> parity)
-	std::bitset<goal::kMaxXorLevel + 1> partsAvailableForLevelBitmask[goal::kMaxXorLevel + 1];
+	std::bitset<slice_traits::xors::kMaxXorLevel + 1> partsAvailableForLevelBitmask[slice_traits::xors::kMaxXorLevel + 1];
 	uint32_t standardCopies = 0;
 
 	for (auto partWithLabel: availableParts_) {
@@ -89,7 +89,8 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::getState() const {
 		return ChunksAvailabilityState::kEndangered;
 	}
 	sassert(standardCopies == 0);
-	for (uint32_t level = goal::kMinXorLevel; level <= goal::kMaxXorLevel; ++level) {
+	for (uint32_t level = slice_traits::xors::kMinXorLevel;
+			level <= slice_traits::xors::kMaxXorLevel; ++level) {
 		if (partsAvailableForLevelBitmask[level].count() == level) {
 			return ChunksAvailabilityState::kEndangered;
 		}
@@ -100,8 +101,7 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::getState() const {
 
 std::pair<uint32_t, uint32_t> ChunkCopiesCalculator::ordinaryPartsToRecoverAndRemove() const {
 	uint32_t missingCopiesOfLabels = 0;
-	sassert(!goal_->isXor());
-	const Goal::Labels& labels = goal_->chunkLabels();
+	const Goal::Slice::Labels& labels = (*goal_)[Goal::Slice::Type(Goal::Slice::Type::kStandard)][0];
 	for (const auto& labelAndCount : labels) {
 		const auto& label = labelAndCount.first;
 		if (label == MediaLabel::kWildcard) {
@@ -134,15 +134,16 @@ std::pair<uint32_t, uint32_t> ChunkCopiesCalculator::ordinaryPartsToRecoverAndRe
 	return std::make_pair(missingCopies, redundantCopies);
 }
 
-uint32_t ChunkCopiesCalculator::getPartsToRecover(std::vector<ChunkType>* ret) const {
+uint32_t ChunkCopiesCalculator::getPartsToRecover(std::vector<ChunkType>* /*ret*/) const {
 	if (goal_->getExpectedCopies() == 0) {
 		// Nothing to recover if chunks is not needed
 		return 0;
 	}
-
-	uint32_t count = 0;
+	return 0;
+	// FIXME
+	/*uint32_t count = 0;
 	if (goal_->isXor()) {
-		std::bitset<goal::kMaxXorLevel + 1> availableParts;
+		std::bitset<slice_traits::xors::kMaxXorLevel + 1> availableParts;
 		ChunkType::XorLevel level = goal_->xorLevel();
 		for (const auto& partWithLabel : availableParts_) {
 			auto part = partWithLabel.first;
@@ -176,11 +177,13 @@ uint32_t ChunkCopiesCalculator::getPartsToRecover(std::vector<ChunkType>* ret) c
 			ret->assign(toRecover, ChunkType::getStandardChunkType());
 		}
 		return toRecover;
-	}
+	}*/
 }
 
-uint32_t ChunkCopiesCalculator::getPartsToRemove(std::vector<ChunkType>* ret) const {
-	if (goal_->getExpectedCopies() == 0) {
+uint32_t ChunkCopiesCalculator::getPartsToRemove(std::vector<ChunkType>* /*ret*/) const {
+	return 0;
+	// FIXME
+	/*if (goal_->getExpectedCopies() == 0) {
 		// Delete everything!
 		if (ret) {
 			std::transform(availableParts_.begin(), availableParts_.end(),
@@ -249,5 +252,5 @@ uint32_t ChunkCopiesCalculator::getPartsToRemove(std::vector<ChunkType>* ret) co
 		}
 		return toRemove;
 	}
-	return count;
+	return count;*/
 }

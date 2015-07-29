@@ -395,13 +395,15 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						} else if ((goal::isXorGoal(f->goal) && vc == 1) ||
+						}
+						// FIXME
+						/*else if ((goal::isXorGoal(f->goal) && vc == 1) ||
 						           (goal::isOrdinaryGoal(f->goal) &&
 						            vc < gGoalDefinitions[f->goal]
 						                            .getExpectedCopies())) {
 							ugflag = 1;
 							ugchunks++;
-						}
+						}*/
 						chunks++;
 					}
 				}

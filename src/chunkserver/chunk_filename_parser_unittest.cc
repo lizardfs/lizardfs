@@ -42,12 +42,12 @@ TEST(ChunkFilenameParser, ParseXorChunkFilename) {
 }
 
 TEST(ChunkFilenameParser, ParseXorChunkFilenameMaxLevel) {
-	ChunkFilenameParser filenameParser("chunk_xor_10_of_10_0000000000550A00_00000002.liz");
+	ChunkFilenameParser filenameParser("chunk_xor_9_of_9_0000000000550A00_00000002.liz");
 	ASSERT_EQ(ChunkFilenameParser::OK, filenameParser.parse());
 	EXPECT_EQ(ChunkFormat::INTERLEAVED, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000002U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorChunkType(10, 10), filenameParser.chunkType());
+	EXPECT_EQ(ChunkType::getXorChunkType(9, 9), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseXorParityFilename) {
@@ -60,12 +60,12 @@ TEST(ChunkFilenameParser, ParseXorParityFilename) {
 }
 
 TEST(ChunkFilenameParser, ParseXorParityFilenameMaxLevel) {
-	ChunkFilenameParser filenameParser("chunk_xor_parity_of_10_0000000000550A00_00000003.mfs");
+	ChunkFilenameParser filenameParser("chunk_xor_parity_of_9_0000000000550A00_00000003.mfs");
 	ASSERT_EQ(ChunkFilenameParser::OK, filenameParser.parse());
 	EXPECT_EQ(ChunkFormat::MOOSEFS, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000003U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorParityChunkType(10), filenameParser.chunkType());
+	EXPECT_EQ(ChunkType::getXorParityChunkType(9), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseWrongFilenames) {

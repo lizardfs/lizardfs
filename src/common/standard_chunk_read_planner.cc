@@ -22,8 +22,9 @@
 #include <algorithm>
 
 #include "common/goal.h"
-#include "protocol/MFSCommunication.h"
 #include "common/single_variant_read_plan.h"
+#include "common/slice_traits.h"
+#include "protocol/MFSCommunication.h"
 
 namespace {
 
@@ -303,8 +304,8 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 	std::sort(partsToUse.begin(), partsToUse.end());
 	partsToUse.erase(std::unique(partsToUse.begin(), partsToUse.end()), partsToUse.end());
 
-	std::vector<bool> isParityForLevelAvailable(goal::kMaxXorLevel + 1, false);
-	std::vector<int> partsForLevelAvailable(goal::kMaxXorLevel + 1, 0);
+	std::vector<bool> isParityForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, false);
+	std::vector<int> partsForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, 0);
 
 	for (const ChunkType& chunkType : partsToUse) {
 		if (chunkType.isStandardChunkType()) {
@@ -320,14 +321,14 @@ void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availablePa
 		}
 	}
 
-	for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
+	for (int level = slice_traits::xors::kMaxXorLevel; level >= slice_traits::xors::kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level) {
 			return setCurrentBuilderToXor(level, 0);
 		}
 	}
 
 	// 3. If there is a set of xor chunks with one missing and parity available, choose it
-	for (int level = goal::kMaxXorLevel; level >= goal::kMinXorLevel; --level) {
+	for (int level = slice_traits::xors::kMaxXorLevel; level >= slice_traits::xors::kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level - 1 && isParityForLevelAvailable[level]) {
 			// partsToUse contains our level's parts sorted in ascending order
 			// let's find out which one is missing
@@ -374,7 +375,7 @@ std::vector<ChunkType> StandardChunkReadPlanner::partsToUse() const {
 		break;
 		case BUILDER_XOR: {
 			auto builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
-			if (builder->level() < goal::kMinXorLevel || builder->level() > goal::kMaxXorLevel) {
+			if (builder->level() < slice_traits::xors::kMinXorLevel || builder->level() > slice_traits::xors::kMaxXorLevel) {
 				break;
 			}
 

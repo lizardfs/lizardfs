@@ -259,9 +259,6 @@ static void fs_read_goals_from_stream(std::istream&& stream) {
 	GoalConfigLoader loader;
 	loader.load(std::move(stream));
 	gGoalDefinitions = loader.goals();
-	for (unsigned i = goal::kMinXorLevel; i <= goal::kMaxXorLevel; ++i) {
-		gGoalDefinitions[goal::xorLevelToGoal(i)] = Goal::getXorGoal(i);
-	}
 }
 
 static void fs_read_goal_config_file() {

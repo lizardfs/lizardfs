@@ -806,8 +806,8 @@ int matoclserv_load_sessions() {
 				asesdata->mintrashtime = get32bit(&ptr);
 				asesdata->maxtrashtime = get32bit(&ptr);
 			} else { // set defaults (no limits)
-				asesdata->mingoal = goal::kMinOrdinaryGoal;
-				asesdata->maxgoal = goal::kMaxOrdinaryGoal;
+				asesdata->mingoal = GoalId::kMin;
+				asesdata->maxgoal = GoalId::kMax;
 				asesdata->mintrashtime = 0;
 				asesdata->maxtrashtime = UINT32_C(0xFFFFFFFF);
 			}
@@ -901,8 +901,8 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 		asesdata->info = NULL;
 		asesdata->peerip = 0;
 		asesdata->sesflags = 0;
-		asesdata->mingoal = goal::kMinOrdinaryGoal;
-		asesdata->maxgoal = goal::kMaxOrdinaryGoal;
+		asesdata->mingoal = GoalId::kMin;
+		asesdata->maxgoal = GoalId::kMax;
 		asesdata->mintrashtime = 0;
 		asesdata->maxtrashtime = UINT32_C(0xFFFFFFFF);
 		asesdata->rootuid = 0;
@@ -1246,10 +1246,11 @@ void matoclserv_metadataserver_status(matoclserventry* eptr, const uint8_t* data
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
-void matoclserv_list_goals(matoclserventry* eptr) {
+// FIXME
+/*void matoclserv_list_goals(matoclserventry* eptr) {
 	std::vector<SerializedGoal> serializedGoals;
 	const GoalMap<Goal>& goalMap = fs_get_goal_definitions();
-	for (auto i : goal::allGoals()) {
+	for (uint8_t i = GoalId::kMin; i <= GoalId::kMax; ++i) {
 		const Goal& goal = goalMap[i];
 		std::string definition;
 		if (goal.isXor()) {
@@ -1271,7 +1272,7 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 		serializedGoals.emplace_back(i, goal.name(), std::move(definition));
 	}
 	matoclserv_createpacket(eptr, matocl::listGoals::build(serializedGoals));
-}
+}*/
 
 void matoclserv_chunks_health(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	bool regularChunksOnly;
@@ -3235,12 +3236,9 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const u
 		GoalMap<Goal> goalDefinitions = fs_get_goal_definitions();
 		std::vector<FuseGetGoalStats> lizReply;
 		MooseFSVector<std::pair<uint8_t, uint32_t>> mooseFsReplyFiles, mooseFsReplyDirectories;
-		for (uint8_t goal : goal::allGoals()) {
+		for (uint8_t goal = GoalId::kMin; goal <= GoalId::kMax; ++goal) {
 			if (fgtab[goal] || dgtab[goal]) {
-				lizReply.emplace_back(goalDefinitions[goal].name(), fgtab[goal], dgtab[goal]);
-			}
-			if (goal::isXorGoal(goal)) {
-				continue;
+				lizReply.emplace_back(goalDefinitions[goal].getName(), fgtab[goal], dgtab[goal]);
 			}
 			if (fgtab[goal] > 0) {
 				mooseFsReplyFiles.emplace_back(goal, fgtab[goal]);
@@ -3284,8 +3282,8 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 		// find a proper goalId,
 		GoalMap<Goal> goalDefinitions = fs_get_goal_definitions();
 		bool goalFound = false;
-		for (auto goalIdCandidate : goal::allGoals()) {
-			if (goalDefinitions[goalIdCandidate].name() == goalName) {
+		for (uint8_t goalIdCandidate = GoalId::kMin; goalIdCandidate <= GoalId::kMax; ++goalIdCandidate) {
+			if (goalDefinitions[goalIdCandidate].getName() == goalName) {
 				goalId = goalIdCandidate;
 				goalFound = true;
 				break;
@@ -3299,21 +3297,15 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 				"Unknown packet type for matoclserv_fuse_getgoal: " + std::to_string(header.type));
 	}
 
-	uint8_t smodeType = smode & SMODE_TMASK;
-	if (status == LIZARDFS_STATUS_OK && !goal::isGoalValid(goalId)) {
+	if (status == LIZARDFS_STATUS_OK && !GoalId::isValid(goalId)) {
 		status = LIZARDFS_ERROR_EINVAL;
 	}
-	if (status == LIZARDFS_STATUS_OK && goal::isOrdinaryGoal(goalId)) {
+	if (status == LIZARDFS_STATUS_OK) {
 		if (status == LIZARDFS_STATUS_OK && goalId < eptr->sesdata->mingoal) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
 		if (status == LIZARDFS_STATUS_OK && goalId > eptr->sesdata->maxgoal) {
 			status = LIZARDFS_ERROR_EPERM;
-		}
-	} else if (status == LIZARDFS_STATUS_OK) {
-		sassert(goal::isXorGoal(goalId));
-		if (status == LIZARDFS_STATUS_OK && smodeType != SMODE_SET) {
-			status = LIZARDFS_ERROR_EINVAL;
 		}
 	}
 
@@ -4271,9 +4263,10 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_METADATASERVER_STATUS:
 					matoclserv_metadataserver_status(eptr, data, length);
 					break;
-				case LIZ_CLTOMA_LIST_GOALS:
+				//FIXME
+				/*case LIZ_CLTOMA_LIST_GOALS:
 					matoclserv_list_goals(eptr);
-					break;
+					break;*/
 				case LIZ_CLTOMA_CHUNKS_HEALTH:
 					matoclserv_chunks_health(eptr, data, length);
 					break;

@@ -45,6 +45,7 @@
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"
+#include "common/slice_traits.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
@@ -930,7 +931,7 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 	// Let's calculate size of the region to be zeroed
 	uint64_t endOffset = std::min({
 		oldLength,                            // no further than to the end of the file
-		length + goal::kMaxXorLevel * MFSBLOCKSIZE, // no more than the maximal xor stripe
+		length + slice_traits::xors::kMaxXorLevel * MFSBLOCKSIZE, // no more than the maximal xor stripe
 		(length + MFSCHUNKSIZE - 1) / MFSCHUNKSIZE * MFSCHUNKSIZE // no beyond the end of chunk
 	});
 

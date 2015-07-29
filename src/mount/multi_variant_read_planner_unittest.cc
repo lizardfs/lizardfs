@@ -24,6 +24,7 @@
 #include <gtest/gtest.h>
 
 #include "common/goal.h"
+#include "common/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
@@ -231,7 +232,8 @@ static void testPlanner(const ReadPlanner& planner, ChunkType partNotUsedInTheBa
 TEST(MultiVariantReadPlannerTests, BuildPlanForXor) {
 	MultiVariantReadPlanner planner;
 	// We will test each xor level
-	for (uint32_t xorLevel = goal::kMinXorLevel; xorLevel <= goal::kMaxXorLevel; ++xorLevel) {
+	for (uint32_t xorLevel = slice_traits::xors::kMinXorLevel;
+			xorLevel <= slice_traits::xors::kMaxXorLevel; ++xorLevel) {
 		// Prepare a list of all parts for the current level, ie;
 		// parts = { xor_p_of_N, xor_1_of_N, xor_2_of_N, ...., xor_N_of_N }
 		Vector parts{ChunkType::getXorParityChunkType(xorLevel)};

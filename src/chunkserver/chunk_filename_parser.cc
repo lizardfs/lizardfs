@@ -22,6 +22,7 @@
 #include "chunkserver/chunk_format.h"
 #include "common/chunk_type.h"
 #include "common/goal.h"
+#include "common/slice_traits.h"
 #include "common/parser.h"
 
 ChunkFilenameParser::ChunkFilenameParser(const std::string& filename)
@@ -51,7 +52,8 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorLevel_ < goal::kMinXorLevel || xorLevel_ > goal::kMaxXorLevel) {
+		if (xorLevel_ < slice_traits::xors::kMinXorLevel
+				|| xorLevel_ > slice_traits::xors::kMaxXorLevel) {
 			return ERROR_INVALID_FILENAME;
 		}
 		if (consume("_") != Parser::OK) {
@@ -91,7 +93,9 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorLevel_ < goal::kMinXorLevel || xorLevel_ > goal::kMaxXorLevel || xorPart_ > xorLevel_) {
+		if (xorLevel_ < slice_traits::xors::kMinXorLevel
+				|| xorLevel_ > slice_traits::xors::kMaxXorLevel
+				|| xorPart_ > xorLevel_) {
 			return ERROR_INVALID_FILENAME;
 		}
 		if (consume("_") != Parser::OK) {

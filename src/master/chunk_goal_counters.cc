@@ -22,7 +22,7 @@
 #include "common/goal.h"
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
-	if (!goal::isGoalValid(goal)) {
+	if (!GoalId::isValid(goal)) {
 		throw ChunkGoalCounters::InvalidOperation("Trying to add non-existent goal: " + std::to_string(goal));
 	}
 
@@ -77,18 +77,6 @@ uint32_t ChunkGoalCounters::fileCount() const {
 }
 
 uint8_t ChunkGoalCounters::highestIdGoal() const {
-	uint8_t highestOrdinaryGoal = 0;
-	ChunkType::XorLevel safestXorLevel = 0;
-	for (auto counter : counters_) {
-		if (goal::isOrdinaryGoal(counter.goal)) {
-			highestOrdinaryGoal = std::max(highestOrdinaryGoal, counter.goal);
-		} else {
-			assert(goal::isXorGoal(counter.goal));
-			safestXorLevel = std::max(safestXorLevel, goal::toXorLevel(counter.goal));
-		}
-	}
-	if (highestOrdinaryGoal >= 2 || safestXorLevel == 0) {
-		return highestOrdinaryGoal;
-	}
-	return goal::xorLevelToGoal(safestXorLevel);
+	return std::accumulate(counters_.begin(), counters_.end(), (uint8_t)0,
+	                       [](uint8_t a, const GoalCounter &b) { return std::max(a, b.goal); });
 }

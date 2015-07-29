@@ -24,6 +24,7 @@
 #include <gtest/gtest.h>
 
 #include "common/goal.h"
+#include "common/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
@@ -236,7 +237,7 @@ TEST_F(StandardReadPlannerTests, GetPlanForXorLevel3WithoutPart2) {
 }
 
 TEST_F(StandardReadPlannerTests, GetPlanForMaxXorLevel) {
-	ChunkType::XorLevel level = goal::kMaxXorLevel;
+	ChunkType::XorLevel level = slice_traits::xors::kMaxXorLevel;
 	std::vector<ChunkType> parts;
 	for (ChunkType::XorPart part = 1; part <= level; ++part) {
 		parts.push_back(ChunkType::getXorChunkType(level, part));

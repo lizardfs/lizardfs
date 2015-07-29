@@ -1909,7 +1909,7 @@ void usage(int f) {
 			fprintf(stderr, "<operation> is one of:\n");
 			fprintf(stderr," GOAL - set goal to given goal name\n");
 			fprintf(stderr, " xorN - set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
-					goal::kMinXorLevel, goal::kMaxXorLevel);
+					GoalId::kMin, GoalId::kMax);
 			break;
 		case MFSGETTRASHTIME:
 			fprintf(stderr,"get objects trashtime (how many seconds file should be left in trash)\n\nusage: mfsgettrashtime [-nhHr] name [name ...]\n");

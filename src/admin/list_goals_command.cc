@@ -58,13 +58,9 @@ void ListGoalsCommand::run(const Options& options) const {
 	auto response = connection.sendAndReceive(request, LIZ_MATOCL_LIST_GOALS);
 	matocl::listGoals::deserialize(response, serializedGoals);
 
-	auto goalIdToString = [](uint8_t goalId) {
-		return goal::isOrdinaryGoal(goalId) ? std::to_string(goalId) : std::string("-");
-	};
-
 	if (options.isSet(kPorcelainMode)) {
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << goalIdToString(goal.id) << " "
+			std::cout << std::to_string(goal.id) << " "
 					<< goal.name << " "
 					<< escapePorcelainString(goal.definition) << std::endl;
 		}
@@ -97,7 +93,7 @@ void ListGoalsCommand::run(const Options& options) const {
 			<< std::left << "Name" << " | Definition" << std::endl;
 		std::cout << frame << std::endl;
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << std::setw(3) << std::right << goalIdToString(goal.id) << " | "
+			std::cout << std::setw(3) << std::right << std::to_string(goal.id) << " | "
 					<< std::setw(maxNameLength) << std::left << goal.name << " | "
 					<< goal.definition << std::endl;
 		}
@@ -105,7 +101,7 @@ void ListGoalsCommand::run(const Options& options) const {
 	} else {
 		std::cout << "Goal definitions:\nId\tName\tDefinition" << std::endl;
 		for (const SerializedGoal& goal : serializedGoals) {
-			std::cout << goalIdToString(goal.id) << "\t"
+			std::cout << std::to_string(goal.id) << "\t"
 					<< goal.name << "\t"
 					<< goal.definition << std::endl;
 		}

@@ -420,7 +420,7 @@ int exports_parsegoal(char *goalstr,uint8_t *goal) {
 		// not the whole string was used by strtol
 		return -1;
 	}
-	if (value > UINT8_MAX || !goal::isGoalValid(value)) {
+	if (value > UINT8_MAX || !GoalId::isValid(value)) {
 		return -1;
 	}
 	*goal = value;
@@ -849,8 +849,8 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	arec->meta = 0;
 	arec->rootredefined = 0;
 	arec->sesflags = SESFLAG_READONLY;
-	arec->mingoal = goal::kMinOrdinaryGoal;
-	arec->maxgoal = goal::kMaxOrdinaryGoal;
+	arec->mingoal = GoalId::kMin;
+	arec->maxgoal = GoalId::kMax;
 	arec->mintrashtime = 0;
 	arec->maxtrashtime = UINT32_C(0xFFFFFFFF);
 	arec->rootuid = 999;

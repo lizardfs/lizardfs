@@ -246,6 +246,8 @@ public:
 #endif
 
 	// Highest id of the chunk's goal
+	// This function is preserved only for backward compatibility of metadata checksums
+	// and shouldn't be used anywhere else.
 	uint8_t highestIdGoal() const {
 		return goalCounters_.highestIdGoal();
 	}
@@ -281,11 +283,13 @@ public:
 
 #ifndef METARESTORE
 	/// The expected number of chunk's copies.
-	Goal::Labels getLabels() const {
-		Goal::Labels mergedLabels;
+	Goal::Slice::Labels getLabels() const {
+		return Goal::Slice::Labels();
+		// FIXME
+		/*Goal::Labels mergedLabels;
 		size_t maxGoalCount = 0;
 
-		/* Create a GoalMap of all non-wildcard goals assigned to a chunk */
+		// Create a GoalMap of all non-wildcard goals assigned to a chunk
 		for (auto counter : goalCounters_) {
 			const Goal::Labels &labels = fs_get_goal_definition(counter.goal).chunkLabels();
 			size_t goalCount = 0;
@@ -299,17 +303,17 @@ public:
 			maxGoalCount = std::max(maxGoalCount, goalCount);
 		}
 
-		/* Count how many wildcards should be added to goal */
+		// Count how many wildcards should be added to goal
 		for (auto &label : mergedLabels) {
 			maxGoalCount -= label.second;
 		}
 
-		/* If any wildcards should be added, do so */
+		// If any wildcards should be added, do so
 		if (maxGoalCount > 0) {
 			mergedLabels[MediaLabel::kWildcard] = maxGoalCount;
 		}
 
-		return mergedLabels;
+		return mergedLabels;*/
 	}
 
 	uint32_t expectedCopies() const {
@@ -341,15 +345,16 @@ public:
 
 	// Updates statistics of all chunks
 	void updateStats() {
-		int oldAllMissingParts = allMissingParts_;
-		removeFromStats();
+		// FIXME
+		//int oldAllMissingParts = allMissingParts_;
+		//removeFromStats();
 
 		/*
 		 * TODO(sarna): This code is valid as long as it is illegal to
 		 * mix XOR goals with georeplication. It needs to be rewritten
 		 * after this kind of mixing is allowed.
 		 */
-		const Goal &g = goal::isXorGoal(highestIdGoal()) ?
+		/*const Goal &g = goal::isXorGoal(highestIdGoal()) ?
 				fs_get_goal_definition(highestIdGoal()) : Goal(getLabels());
 
 
@@ -376,7 +381,7 @@ public:
 		allRedundantParts_ = std::min(200U, all.countPartsToRemove());
 		regularAvailabilityState_ = regular.getState();
 		regularMissingParts_ = std::min(200U, regular.countPartsToRecover());
-		regularRedundantParts_ = std::min(200U, regular.countPartsToRemove());
+		regularRedundantParts_ = std::min(200U, regular.countPartsToRemove());*/
 
 		/* Enqueue a chunk as endangered only if:
 		 * 1. Endangered chunks prioritization is on (limit > 0)
@@ -384,7 +389,7 @@ public:
 		 * 3. Chunk is endangered.
 		 * 4. It is not already in queue
 		 * By checking conditions below we assert no repetitions in endangered queue. */
-		if (gEndangeredChunksServingLimit > 0
+		/*if (gEndangeredChunksServingLimit > 0
 				&& allMissingParts_ > oldAllMissingParts
 				&& allAvailabilityState_ == ChunksAvailabilityState::kEndangered
 				&& !inEndangeredQueue) {
@@ -392,7 +397,7 @@ public:
 			endangeredChunks.push_back(this);
 		}
 
-		addToStats();
+		addToStats();*/
 	}
 
 	/**
@@ -482,16 +487,6 @@ public:
 		return s;
 	}
 
-	ChunkCopiesCalculator makeRegularCopiesCalculator() const {
-		ChunkCopiesCalculator calculator(&fs_get_goal_definition(highestIdGoal()));
-		for (const slist *s = slisthead; s != nullptr; s = s->next) {
-			if (s->is_valid() && !s->is_todel()) {
-				calculator.addPart(s->chunkType, matocsserv_get_label(s->ptr));
-			}
-		}
-		return calculator;
-	}
-
 private:
 	ChunksAvailabilityState::State allCopiesState() const {
 		return static_cast<ChunksAvailabilityState::State>(allAvailabilityState_);
@@ -509,7 +504,7 @@ private:
 		regularChunksReplicationState.removeChunk(goalInStats_,
 				regularMissingParts_, regularRedundantParts_);
 
-		if (goalInStats_ == 0 || goal::isOrdinaryGoal(goalInStats_)) {
+		if (goalInStats_ == 0) {
 			uint8_t limitedGoal = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
 			uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allStandardCopies_);
 			uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularStandardCopies_);
@@ -528,7 +523,7 @@ private:
 		regularChunksReplicationState.addChunk(goalInStats_,
 				regularMissingParts_, regularRedundantParts_);
 
-		if (goalInStats_ == 0 || goal::isOrdinaryGoal(goalInStats_)) {
+		if (goalInStats_ == 0) {
 			uint8_t limitedGoal = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
 			uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allStandardCopies_);
 			uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularStandardCopies_);
@@ -990,7 +985,7 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidco
 
 uint32_t chunk_get_missing_count(void) {
 	uint32_t res = 0;
-	for (auto goal : goal::allGoals()) {
+	for (uint8_t goal = GoalId::kMin; goal <= GoalId::kMax; ++goal) {
 		res += chunk::allChunksAvailability.lostChunks(goal);
 	}
 	return res;
@@ -1573,7 +1568,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 		}
 	}
 	std::sort(chunkLocation.begin(), chunkLocation.end());
-	for (uint i = 0; i < chunkLocation.size(); ++i) {
+	for (uint32_t i = 0; i < chunkLocation.size(); ++i) {
 		const ChunkLocation& loc = chunkLocation[i];
 		serversList.emplace_back(loc.address, loc.chunkType);
 	}
@@ -1613,7 +1608,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 		}
 	}
 	std::sort(chunkLocation.begin(), chunkLocation.end());
-	for (uint i = 0; i < chunkLocation.size(); ++i) {
+	for (uint32_t i = 0; i < chunkLocation.size(); ++i) {
 		const ChunkLocation& loc = chunkLocation[i];
 		serversList.emplace_back(loc.address, static_cast<std::string>(loc.label), loc.chunkType);
 	}
@@ -2032,7 +2027,8 @@ static bool chunkPresentOnServer(chunk *c, ChunkType chunkType, matocsserventry 
 	return false;
 }
 
-static matocsserventry* getServerForReplication(chunk *c, ChunkType chunkTypeToRecover) {
+// FIXME
+/*static matocsserventry* getServerForReplication(chunk *c, ChunkType chunkTypeToRecover) {
 	// get list of chunkservers which can be written to
 	static matocsserventry* servers[65536];
 	uint16_t totalMatching, returnedMatching;
@@ -2062,7 +2058,7 @@ static matocsserventry* getServerForReplication(chunk *c, ChunkType chunkTypeToR
 		}
 	}
 	return destination;
-}
+}*/
 
 bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, matocsserventry *destinationServer) {
 	// TODO(msulikowski) Prefer VALID over TDVALID copies.
@@ -2117,8 +2113,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	uint32_t invalidParts = 0;
 	uint32_t vc, tdc, ivc, bc, tdb, dc;
 	vc = tdc = ivc = bc = tdb = dc = 0;
-	const Goal::Labels& expectedCopies = c->getLabels();
-	Goal::Labels validCopies;
+	const Goal::Slice::Labels& expectedCopies = c->getLabels();
+	Goal::Slice::Labels validCopies;
 
 	for (slist *s = c->slisthead; s; s = s->next) {
 		if (s->is_busy()) {
@@ -2224,12 +2220,13 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		return;
 	}
 
+	// FIXME
 	// step 7. check if chunk needs any replication
 	// TODO IMPORTANT: This is temporary solution.
 	// Chunk can belong to multiple files with different goals, so this
 	// 'if' statement is insufficient.
 	// This logic have to be dramatically changed as soon as possible.
-	if (goal::isXorGoal(c->highestIdGoal())) {
+	/*if (goal::isXorGoal(c->highestIdGoal())) {
 		if (c->needsReplication()) {
 			std::vector<ChunkType> toRecover = c->makeRegularCopiesCalculator().getPartsToRecover();
 			if (jobsnorepbefore >= main_time()
@@ -2252,16 +2249,16 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			}
 			return;
 		}
-	} else {
+	} else*/ {
 		// First, order labels assigned to the goal of the current chunk in a way that wildcard is
 		// the last one. This would prevent us from making a copy on a random servers (which is
 		// determined by wildcards) before making sure that we have enough copies on servers required
 		// by other labels in the goal.
 		bool triedToReplicate = false;
-		std::vector<std::reference_wrapper<const Goal::Labels::value_type>> labelsAndExpectedCopies(
+		std::vector<std::reference_wrapper<const Goal::Slice::Labels::value_type>> labelsAndExpectedCopies(
 				expectedCopies.begin(), expectedCopies.end());
 		std::partition(labelsAndExpectedCopies.begin(), labelsAndExpectedCopies.end(),
-				[](const Goal::Labels::value_type& labelGoal) {
+				[](const Goal::Slice::Labels::value_type& labelGoal) {
 					return labelGoal.first != MediaLabel::kWildcard;
 				}
 		);
@@ -2358,8 +2355,9 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		}
 	}
 
+	// FIXME
 	// step 8. if chunk has too many copies then delete some of them
-	if (goal::isXorGoal(c->highestIdGoal())) {
+	/*if (goal::isXorGoal(c->highestIdGoal())) {
 		if (c->needsDeletion()) {
 			std::vector<ChunkType> toRemove = c->makeRegularCopiesCalculator().getPartsToRemove();
 			const uint32_t overgoalCopies = toRemove.size();
@@ -2392,7 +2390,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			deleteNotDone_ += (overgoalCopies - copiesRemoved);
 			return;
 		}
-	} else {
+	} else*/ {
 		if (vc > c->expectedCopies() || anyXorPartExists) {
 			typedef std::vector<slist*> Candidates;
 			Candidates candidates;
@@ -2462,8 +2460,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 
 	// step 9. if chunk has one copy on each server and some of them have status TODEL then delete one of it
 	// If chunk has any XOR copies skip it
-	if (goal::isOrdinaryGoal(c->highestIdGoal())
-			&& !anyXorPartExists
+	if (!anyXorPartExists
 			&& vc + tdc >= serverCount
 			&& vc < c->expectedCopies()
 			&& tdc > 0

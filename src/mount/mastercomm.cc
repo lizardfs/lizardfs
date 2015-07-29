@@ -796,7 +796,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			}
 		}
 		if (mingoal>0 && maxgoal>0) {
-			if (mingoal>goal::kMinOrdinaryGoal || maxgoal<goal::kMaxOrdinaryGoal) {
+			if (mingoal > GoalId::kMin || maxgoal < GoalId::kMax) {
 				fprintf(stderr," ; setgoal limited to (%u:%u)",mingoal,maxgoal);
 			}
 			if (mintrashtime>0 || maxtrashtime<UINT32_C(0xFFFFFFFF)) {

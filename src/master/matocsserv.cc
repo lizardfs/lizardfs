@@ -452,13 +452,15 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 			uint8_t goalId) {
 	static GoalMap<ChunkCreationHistory> history;
 	GetServersForNewChunk getter;
-	bool isXorGoal = goal::isXorGoal(goalId);
+	// FIXME
+	//bool isXorGoal = goal::isXorGoal(goalId);
 	// Add servers with weights which are proportional to total space on each server.
 	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
-		if (isXorGoal && eptr->version < kFirstXorVersion) {
+		// FIXME
+		/*if (isXorGoal && eptr->version < kFirstXorVersion) {
 			// can't store XOR chunks on chunkservers that don't support them
 			continue;
-		}
+		}*/
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
 			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
@@ -470,7 +472,8 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 	auto servers = getter.chooseServersForGoal(
 			fs_get_goal_definition(goalId), history[goalId]);
 
-	if (isXorGoal) {
+	// FIXME
+	/*if (isXorGoal) {
 		ChunkType::XorLevel level = goal::toXorLevel(goalId);
 		if (servers.size() < level) {
 			return ret; // do not create any parts if servers are missing
@@ -484,7 +487,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 		if (servers.size() == level) {
 			chunkTypes.pop_back();
 		}
-	} else {
+	} else */{
 		chunkTypes.assign(servers.size(), ChunkType::getStandardChunkType());
 	}
 	for (uint32_t i = 0; i < servers.size(); ++i) {

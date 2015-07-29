@@ -2195,7 +2195,7 @@ uint8_t fs_geteattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
-	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal) ||
+	if (!SMODE_ISVALID(smode) || !GoalId::isValid(goal) ||
 	    (smode & (SMODE_INCREASE | SMODE_DECREASE))) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
