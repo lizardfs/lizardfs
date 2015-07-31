@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

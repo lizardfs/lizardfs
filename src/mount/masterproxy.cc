@@ -27,8 +27,8 @@
 #include <vector>
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
-#include "common/packet.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 #include "common/sockets.h"
 #include "mount/mastercomm.h"
 

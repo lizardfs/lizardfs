@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <iostream>
 
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "common/server_connection.h"
 
 std::string IoLimitsStatusCommand::name() const {

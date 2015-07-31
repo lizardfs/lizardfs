@@ -22,7 +22,7 @@
 
 #include <fuse/fuse_lowlevel.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 #if FUSE_USE_VERSION >= 26
 void mfs_statfs(fuse_req_t req, fuse_ino_t ino);

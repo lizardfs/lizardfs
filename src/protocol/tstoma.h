@@ -20,21 +20,18 @@
 
 #include "common/platform.h"
 
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/serialization_macros.h"
-
-// LIZ_MATOTS_REGISTER_TAPESERVER
-LIZARDFS_DEFINE_PACKET_VERSION(matots, registerTapeserver, kStatusPacketVersion, 0)
-LIZARDFS_DEFINE_PACKET_VERSION(matots, registerTapeserver, kResponsePacketVersion, 1)
+#include "common/tape_key.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matots, registerTapeserver, LIZ_MATOTS_REGISTER_TAPESERVER, kStatusPacketVersion,
-		uint8_t, status)
+		tstoma, registerTapeserver, LIZ_TSTOMA_REGISTER_TAPESERVER, 0,
+		uint32_t, version,
+		std::string, name)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matots, registerTapeserver, LIZ_MATOTS_REGISTER_TAPESERVER, kResponsePacketVersion,
-		uint32_t, version)
-
-LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matots, putFiles, LIZ_MATOTS_PUT_FILES, 0,
+		tstoma, hasFiles, LIZ_TSTOMA_HAS_FILES, 0,
 		std::vector<TapeKey>, tapeContents)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		tstoma, endOfFiles, LIZ_TSTOMA_END_OF_FILES, 0)

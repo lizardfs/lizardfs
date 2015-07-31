@@ -21,8 +21,8 @@
 #include <iostream>
 #include <string>
 
-#include "common/MFSCommunication.h"
-#include "common/packet.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 #include "common/serialization.h"
 #include "common/sockets.h"
 

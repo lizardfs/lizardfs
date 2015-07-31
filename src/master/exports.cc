@@ -38,7 +38,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/md5.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 
 typedef struct _exports {

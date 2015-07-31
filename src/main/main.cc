@@ -49,7 +49,7 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/setup.h"
 #include "common/slogger.h"
 #include "common/time_utils.h"

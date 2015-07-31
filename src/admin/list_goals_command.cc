@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "admin/escape_porcelain_string.h"
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "common/goal.h"
-#include "common/matocl_communication.h"
+#include "protocol/matocl.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
 #include "common/server_connection.h"

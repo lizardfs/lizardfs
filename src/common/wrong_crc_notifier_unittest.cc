@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "common/cltocs_communication.h"
+#include "protocol/cltocs.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/mocks/chunk_connector_mock.h"
 

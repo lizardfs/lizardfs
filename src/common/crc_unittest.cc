@@ -22,7 +22,7 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 TEST(CrcTests, MyCrc32) {
 	std::vector<std::pair<std::string, uint32_t>> data {

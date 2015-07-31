@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/matocs_communication.h"
+#include "protocol/matocs.h"
 
 #include <gtest/gtest.h>
 

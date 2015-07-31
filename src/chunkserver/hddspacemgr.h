@@ -27,7 +27,7 @@
 #include "chunkserver/output_buffers.h"
 #include "common/chunk_type.h"
 #include "common/chunk_with_version_and_type.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test);

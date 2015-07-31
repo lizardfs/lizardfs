@@ -24,7 +24,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-#include "common/packet.h"
+#include "protocol/packet.h"
 
 inline void removeHeaderInPlace(std::vector<uint8_t>& packet) {
 	sassert(packet.size() >= PacketHeader::kSize);

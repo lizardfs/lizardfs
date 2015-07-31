@@ -23,7 +23,7 @@
 #include <unistd.h>
 
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/read_planner.h"
 #include "common/time_utils.h"
 

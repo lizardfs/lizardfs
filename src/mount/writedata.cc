@@ -35,13 +35,13 @@
 #include <vector>
 
 #include "common/chunk_connector.h"
-#include "common/cltocs_communication.h"
+#include "protocol/cltocs.h"
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"

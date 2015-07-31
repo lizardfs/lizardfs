@@ -23,7 +23,7 @@
 
 #include "common/crc.h"
 #include "common/md5.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/sockets.h"
 #include "common/wrong_crc_notifier.h"

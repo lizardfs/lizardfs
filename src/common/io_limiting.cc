@@ -24,7 +24,7 @@
 
 #include "common/io_limits_config_loader.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 using namespace ioLimiting;
 

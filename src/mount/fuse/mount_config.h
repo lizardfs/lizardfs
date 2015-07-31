@@ -27,7 +27,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 #if defined(LIZARDFS_HAVE_MLOCKALL) && defined(RLIMIT_MEMLOCK)
 #  include <sys/mman.h>

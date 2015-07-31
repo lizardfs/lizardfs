@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
 

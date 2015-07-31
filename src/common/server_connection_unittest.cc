@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "unittests/mocks/module_mock.h"
 
 namespace {

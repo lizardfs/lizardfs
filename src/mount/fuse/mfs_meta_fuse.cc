@@ -28,7 +28,7 @@
 #include <fuse/fuse_lowlevel.h>
 
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 #include "mount/exports.h"
 #include "mount/mastercomm.h"

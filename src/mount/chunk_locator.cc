@@ -21,7 +21,7 @@
 
 #include <unistd.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"

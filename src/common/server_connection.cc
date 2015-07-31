@@ -22,10 +22,10 @@
 #include "common/cwrap.h"
 #include "common/exceptions.h"
 #include "common/message_receive_buffer.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 

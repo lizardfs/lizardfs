@@ -28,9 +28,9 @@
 #endif
 
 #include "common/exceptions.h"
-#include "common/matocl_communication.h"
+#include "protocol/matocl.h"
 #include "common/md5.h"
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 
 namespace {
 

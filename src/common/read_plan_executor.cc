@@ -25,7 +25,7 @@
 
 #include "common/block_xor.h"
 #include "common/chunkserver_stats.h"
-#include "common/cltocs_communication.h"
+#include "protocol/cltocs.h"
 #include "common/exceptions.h"
 #include "common/lambda_guard.h"
 #include "common/massert.h"

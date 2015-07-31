@@ -22,7 +22,7 @@
 
 #include "common/chunk_type.h"
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/serialization_macros.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

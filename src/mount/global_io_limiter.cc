@@ -22,8 +22,8 @@
 #include <unistd.h>
 #include <algorithm>
 
-#include "common/cltoma_communication.h"
-#include "common/matocl_communication.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 #include "common/token_bucket.h"
 #include "common/slogger.h"
 #include "mount/io_limit_group.h"

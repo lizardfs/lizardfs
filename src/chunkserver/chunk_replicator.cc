@@ -27,9 +27,9 @@
 
 #include "chunkserver/g_limiters.h"
 #include "common/crc.h"
-#include "common/cstocs_communication.h"
+#include "protocol/cstocs.h"
 #include "common/exception.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/read_plan_executor.h"
 #include "common/sockets.h"
 #include "common/standard_chunk_read_planner.h"

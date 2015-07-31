@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/cstoma_communication.h"
+#include "protocol/cstoma.h"
 
 #include <gtest/gtest.h>
 

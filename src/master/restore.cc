@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 #include "master/filesystem.h"
 

@@ -24,9 +24,9 @@
 
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/moosefs_string.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"
 

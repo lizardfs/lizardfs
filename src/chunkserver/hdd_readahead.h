@@ -23,7 +23,7 @@
 #include <atomic>
 #include <cstdint>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 class HDDReadAhead {
 public:

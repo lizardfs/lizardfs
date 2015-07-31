@@ -26,7 +26,7 @@
 #include <string.h>
 #include <limits>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "mount/stats.h"
 
 #define HASH_FUNCTIONS 4

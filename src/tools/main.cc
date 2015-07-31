@@ -37,12 +37,12 @@
 #include <vector>
 
 #include "common/chunk_with_address_and_label.h"
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/human_readable_format.h"
-#include "common/matocl_communication.h"
-#include "common/MFSCommunication.h"
+#include "protocol/matocl.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"

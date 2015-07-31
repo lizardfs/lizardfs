@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/sockets.h"
 #include "unittests/mocks/chunk_connector_mock.h"
 

@@ -21,7 +21,7 @@
 
 #include <cstdint>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "master/personality.h"
 
 /**

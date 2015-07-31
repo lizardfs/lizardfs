@@ -27,7 +27,7 @@
 #include "common/chunk_type_with_address.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "master/checksum.h"
 
 struct matocsserventry;

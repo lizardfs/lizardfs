@@ -22,7 +22,7 @@
 #include <algorithm>
 
 #include "common/goal.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/single_variant_read_plan.h"
 
 namespace {

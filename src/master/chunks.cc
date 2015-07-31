@@ -40,7 +40,7 @@
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "master/checksum.h"
 #include "master/chunk_copies_calculator.h"
 #include "master/chunk_goal_counters.h"

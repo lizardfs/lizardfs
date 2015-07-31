@@ -265,6 +265,7 @@ link_directories( ${LINK_DIRECTORIES} ${PC_FUSE_LIBRARY_DIRS} )
 add_subdirectory(external)
 add_subdirectory(src/admin)
 add_subdirectory(src/common)
+add_subdirectory(src/protocol)
 add_subdirectory(src/mount)
 add_subdirectory(src/mount/polonaise)
 

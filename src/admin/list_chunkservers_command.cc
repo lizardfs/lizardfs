@@ -22,10 +22,10 @@
 #include <iostream>
 #include <vector>
 
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "common/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/matocl_communication.h"
+#include "protocol/matocl.h"
 #include "common/server_connection.h"
 
 std::string ListChunkserversCommand::name() const {

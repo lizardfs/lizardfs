@@ -39,7 +39,7 @@
 #include "common/acl_type.h"
 #include "common/datapack.h"
 #include "common/lru_cache.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/slogger.h"

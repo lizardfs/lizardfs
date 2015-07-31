@@ -22,9 +22,9 @@
 #include <cstring>
 #include <iostream>
 
-#include "common/cltocs_communication.h"
+#include "protocol/cltocs.h"
 #include "common/crc.h"
-#include "common/cstocl_communication.h"
+#include "protocol/cstocl.h"
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
 

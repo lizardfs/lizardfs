@@ -27,7 +27,7 @@
 #include <thread>
 
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 
 class ServerConnection {
 public:

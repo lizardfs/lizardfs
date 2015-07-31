@@ -22,7 +22,7 @@
 
 #include <inttypes.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 /// returns errno string representation
 const char* strerr(int error);

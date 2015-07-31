@@ -25,7 +25,7 @@
 #include "common/chunk_type.h"
 #include "common/chunk_with_version.h"
 #include "common/chunk_with_version_and_type.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/serialization_macros.h"
 
 namespace cstoma {

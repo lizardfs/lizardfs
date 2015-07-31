@@ -27,7 +27,7 @@
 #include "common/acl_type.h"
 #include "common/attributes.h"
 #include "common/chunk_type_with_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);

@@ -25,7 +25,7 @@
 #include <string.h>
 #include <syslog.h>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 #include "master/restore.h"
 

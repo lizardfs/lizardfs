@@ -21,26 +21,25 @@
 #include "common/platform.h"
 
 #include "protocol/packet.h"
-#include "common/massert.h"
+#include "common/serialization_macros.h"
 
-/// A struct used in servers for writing data to clients.
-struct OutputPacket {
-	OutputPacket(const PacketHeader& header) : bytesSent(0) {
-		packet.reserve(PacketHeader::kSize + header.length);
-		serialize(packet, header);
-		packet.resize(PacketHeader::kSize + header.length);
-	}
+// LIZ_MATOML_REGISTER_SHADOW
 
-	OutputPacket(MessageBuffer message) : packet(std::move(message)), bytesSent(0) {}
+LIZARDFS_DEFINE_PACKET_VERSION(matoml, registerShadow, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matoml, registerShadow, kResponsePacketVersion, 1)
 
-	OutputPacket() : bytesSent(0) {}
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matoml, registerShadow, LIZ_MATOML_REGISTER_SHADOW, kStatusPacketVersion,
+		uint8_t, status)
 
-	// Make it non-copyable (but movable) to avoid errors
-	OutputPacket(OutputPacket&&) = default;
-	OutputPacket(const OutputPacket&) = delete;
-	OutputPacket& operator=(OutputPacket&&) = default;
-	OutputPacket& operator=(const OutputPacket&) = delete;
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matoml, registerShadow, LIZ_MATOML_REGISTER_SHADOW, kResponsePacketVersion,
+		uint32_t, version,
+		uint64_t, metadataVersion)
 
-	MessageBuffer packet;
-	uint32_t bytesSent;
-};
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matoml, changelogApplyError, LIZ_MATOML_CHANGELOG_APPLY_ERROR, 0,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matoml, endSession, LIZ_MATOML_END_SESSION, 0)

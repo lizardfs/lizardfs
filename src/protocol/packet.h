@@ -24,7 +24,7 @@
 #include <memory>
 #include <string>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/serialization.h"
 
 // Legacy MooseFS packet format:

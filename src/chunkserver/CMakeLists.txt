@@ -3,7 +3,7 @@ add_definitions(-DAPPNAME=mfschunkserver)
 
 collect_sources(CHUNKSERVER)
 add_library(chunkserver ${CHUNKSERVER_SOURCES})
-target_link_libraries(chunkserver mfscommon ${ADDITIONAL_LIBS})
+target_link_libraries(chunkserver lzfsprotocol mfscommon ${ADDITIONAL_LIBS})
 add_tests(chunkserver ${CHUNKSERVER_TESTS})
 
 add_executable(mfschunkserver ${MAIN_SRC})

@@ -27,9 +27,9 @@
 #include "common/chunk_type.h"
 #include "common/chunkserver_stats.h"
 #include "common/connection_pool.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/read_planner.h"
 #include "common/time_utils.h"
 

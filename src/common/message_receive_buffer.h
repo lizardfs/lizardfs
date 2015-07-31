@@ -25,7 +25,7 @@
 
 #include "common/datapack.h"
 #include "common/massert.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 
 /*
  * A class which can be used to read LizardFS commands from a socket

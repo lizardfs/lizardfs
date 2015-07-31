@@ -22,8 +22,8 @@
 #include <iomanip>
 #include <iostream>
 
-#include "common/cltoma_communication.h"
-#include "common/matocl_communication.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 
 std::string MetadataserverStatusCommand::name() const {
 	return "metadataserver-status";

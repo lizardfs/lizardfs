@@ -31,7 +31,7 @@
 #include "chunkserver/output_buffers.h"
 #include "common/chunk_type.h"
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "devtools/request_log.h"
 
 //entry.mode

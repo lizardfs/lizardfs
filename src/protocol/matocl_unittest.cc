@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/matocl_communication.h"
+#include "protocol/matocl.h"
 
 #include <gtest/gtest.h>
 

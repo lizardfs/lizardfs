@@ -24,7 +24,7 @@
 #include <gtest/gtest.h>
 
 #include "common/goal.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
 #include "unittests/plan_tester.h"

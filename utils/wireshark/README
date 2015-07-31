@@ -26,7 +26,7 @@ On Debian/Ubuntu system you should use dpkg-statoverride command, i.e.:
 # Copy contents of this directory to the wireshark source directory
       tar -C "$LIZARDFS_SRCDIR"/utils/wireshark -c . | tar -C "$WIRESHARK_SRCDIR" -vx
 # Run the generate.sh script (provide path to the MFSCommunication file as an argument)
-      "$WIRESHARK_SRCDIR"/plugins/lizardfs/generate.sh "$LIZARDFS_SRCDIR"/src/common/MFSCommunication.h
+      "$WIRESHARK_SRCDIR"/plugins/lizardfs/generate.sh "$LIZARDFS_SRCDIR"/src/protocol/MFSCommunication.h
 # Edit the main CMakeLists.txt file in the wireshark source tree to add the new plugin
       vim "$WIRESHARK_SRCDIR"/CMakeLists.txt
 --- a/CMakeLists.txt

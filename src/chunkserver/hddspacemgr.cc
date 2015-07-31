@@ -57,7 +57,7 @@
 #include "common/list.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/random.h"
 #include "common/serialization.h"

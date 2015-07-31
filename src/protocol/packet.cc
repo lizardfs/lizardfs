@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 
 #include "common/sockets.h"
 

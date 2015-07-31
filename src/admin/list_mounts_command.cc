@@ -29,7 +29,7 @@
 #include "common/lizardfs_version.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/serialization.h"
 #include "common/serialization_macros.h"
 #include "common/server_connection.h"

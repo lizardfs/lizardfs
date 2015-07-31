@@ -34,7 +34,7 @@
 
 #include "common/connection_pool.h"
 #include "common/datapack.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/read_plan_executor.h"
 #include "common/slogger.h"

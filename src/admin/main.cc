@@ -38,7 +38,7 @@
 #include "admin/save_metadata_command.h"
 #include "admin/stop_master_without_saving_metadata.h"
 #include "common/human_readable_format.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 
 int main(int argc, const char** argv) {

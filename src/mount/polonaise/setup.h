@@ -21,7 +21,7 @@
 
 #include <string>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 struct Setup {
 	std::string master_host;

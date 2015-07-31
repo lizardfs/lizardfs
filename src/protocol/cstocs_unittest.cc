@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/cstocs_communication.h"
+#include "protocol/cstocs.h"
 
 #include <gtest/gtest.h>
 

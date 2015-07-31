@@ -23,7 +23,7 @@
 #include <exception>
 #include <string>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 
 class Exception : public std::exception {

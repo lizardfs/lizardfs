@@ -21,8 +21,8 @@
 #include "common/platform.h"
 
 #include "common/chunk_type.h"
-#include "common/MFSCommunication.h"
-#include "common/packet.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 namespace cstocs {
 

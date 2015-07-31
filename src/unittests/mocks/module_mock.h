@@ -31,7 +31,7 @@
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
 #include "common/network_address.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/time_utils.h"
 
 class ModuleMock {

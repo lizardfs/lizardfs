@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <cstring>
 
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 const char ChunkSignature::kMfsSignatureId[] = MFSSIGNATURE "C 1.0";
 const char ChunkSignature::kLizSignatureId[] = "LIZC 1.0";

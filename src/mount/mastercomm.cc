@@ -40,17 +40,17 @@
   #include <pwd.h>
 #endif
 
-#include "common/cltoma_communication.h"
+#include "protocol/cltoma.h"
 #include "common/datapack.h"
 #include "common/exception.h"
 #include "common/exit_status.h"
 #include "common/goal.h"
 #include "common/lizardfs_version.h"
-#include "common/matocl_communication.h"
+#include "protocol/matocl.h"
 #include "common/md5.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
-#include "common/packet.h"
+#include "protocol/packet.h"
 #include "common/sockets.h"
 #include "common/slogger.h"
 #include "mount/exports.h"

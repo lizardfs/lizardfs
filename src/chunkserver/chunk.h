@@ -27,7 +27,7 @@
 #include "chunkserver/chunk_format.h"
 #include "common/chunk_type.h"
 #include "common/disk_info.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 
 #define STATSHISTORY (24*60)
 #define LASTERRSIZE 30

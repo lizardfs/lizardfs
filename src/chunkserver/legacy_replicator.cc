@@ -36,7 +36,7 @@
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/massert.h"
-#include "common/MFSCommunication.h"
+#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/slogger.h"
 #include "common/sockets.h"

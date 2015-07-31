@@ -21,8 +21,8 @@
 
 #include <iostream>
 
-#include "common/cltoma_communication.h"
-#include "common/matocl_communication.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 #include "common/server_connection.h"
 
 std::vector<uint8_t> ChunksHealthCommand::goals;

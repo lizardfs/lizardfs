@@ -19,7 +19,7 @@
 #include "common/platform.h"
 #include "common/wrong_crc_notifier.h"
 
-#include "common/cltocs_communication.h"
+#include "protocol/cltocs.h"
 #include "common/sockets.h"
 
 void WrongCrcNotifier::operator()() {

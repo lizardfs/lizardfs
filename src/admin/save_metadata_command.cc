@@ -22,8 +22,8 @@
 #include <iostream>
 
 #include "admin/registered_admin_connection.h"
-#include "common/cltoma_communication.h"
-#include "common/matocl_communication.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 
 std::string SaveMetadataCommand::name() const {
 	return "save-metadata";
