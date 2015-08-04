@@ -42,7 +42,7 @@
 class StandardReadPlannerTests : public testing::Test {
 public:
 	StandardReadPlannerTests() {
-		auto partsUsedInTests = std::vector<ChunkType>{
+		auto partsUsedInTests = std::vector<ChunkPartType>{
 				standard,
 				xor_p_of_2, xor_1_of_2, xor_2_of_2,
 				xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3,
@@ -50,7 +50,7 @@ public:
 		};
 	}
 
-	void verifyPlanner(const std::vector<ChunkType>& availableParts) {
+	void verifyPlanner(const std::vector<ChunkPartType>& availableParts) {
 		StandardChunkReadPlanner planner;
 		planner.prepare(availableParts);
 		VERIFY_PLAN_FOR(planner, 0, 1); // blocks: 0
@@ -85,124 +85,124 @@ public:
 };
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard1) {
-	std::vector<ChunkType> chunks{standard, standard, standard};
-	std::vector<ChunkType> expected{standard};
+	std::vector<ChunkPartType> chunks{standard, standard, standard};
+	std::vector<ChunkPartType> expected{standard};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard2) {
-	std::vector<ChunkType> chunks{standard, xor_1_of_2};
-	std::vector<ChunkType> expected{standard};
+	std::vector<ChunkPartType> chunks{standard, xor_1_of_2};
+	std::vector<ChunkPartType> expected{standard};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard3) {
-	std::vector<ChunkType> chunks{standard, xor_p_of_3};
-	std::vector<ChunkType> expected{standard};
+	std::vector<ChunkPartType> chunks{standard, xor_p_of_3};
+	std::vector<ChunkPartType> expected{standard};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseStandard4) {
-	std::vector<ChunkType> chunks{standard, xor_1_of_2, xor_p_of_2};
-	std::vector<ChunkType> expected{standard};
+	std::vector<ChunkPartType> chunks{standard, xor_1_of_2, xor_p_of_2};
+	std::vector<ChunkPartType> expected{standard};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor1) {
-	std::vector<ChunkType> chunks{xor_p_of_2, xor_1_of_2, xor_2_of_2};
-	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> chunks{xor_p_of_2, xor_1_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor2) {
-	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2};
-	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> chunks{xor_1_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseXor3) {
-	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3};
-	std::vector<ChunkType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
+	std::vector<ChunkPartType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_3_of_3};
+	std::vector<ChunkPartType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseXorParity1) {
-	std::vector<ChunkType> chunks{xor_p_of_2, xor_2_of_2};
-	std::vector<ChunkType> expected{xor_p_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> chunks{xor_p_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> expected{xor_p_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseXorParity2) {
-	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_1_of_2, xor_p_of_2};
-	std::vector<ChunkType> expected{xor_p_of_2, xor_1_of_2};
+	std::vector<ChunkPartType> chunks{xor_p_of_3, xor_1_of_3, xor_1_of_2, xor_p_of_2};
+	std::vector<ChunkPartType> expected{xor_p_of_2, xor_1_of_2};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXor1) {
-	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_3_of_3};
-	std::vector<ChunkType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
+	std::vector<ChunkPartType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_3_of_3};
+	std::vector<ChunkPartType> expected{xor_1_of_3, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXor2) {
-	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_p_of_3};
-	std::vector<ChunkType> expected{xor_1_of_2, xor_2_of_2};
+	std::vector<ChunkPartType> chunks{xor_1_of_2, xor_2_of_2, xor_1_of_3, xor_2_of_3, xor_p_of_3};
+	std::vector<ChunkPartType> expected{xor_1_of_2, xor_2_of_2};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseHighestXorParity1) {
-	std::vector<ChunkType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_1_of_2, xor_p_of_2};
-	std::vector<ChunkType> expected{xor_p_of_3, xor_1_of_3, xor_2_of_3};
+	std::vector<ChunkPartType> chunks{xor_p_of_3, xor_1_of_3, xor_2_of_3, xor_1_of_2, xor_p_of_2};
+	std::vector<ChunkPartType> expected{xor_p_of_3, xor_1_of_3, xor_2_of_3};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_EQ(expected, planner.partsToUse());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible1) {
-	std::vector<ChunkType> chunks { };
+	std::vector<ChunkPartType> chunks { };
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible2) {
-	std::vector<ChunkType> chunks{xor_1_of_2, xor_2_of_3, xor_3_of_3};
+	std::vector<ChunkPartType> chunks{xor_1_of_2, xor_2_of_3, xor_3_of_3};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible3) {
-	std::vector<ChunkType> chunks{xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
+	std::vector<ChunkPartType> chunks{xor_1_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
 }
 
 TEST_F(StandardReadPlannerTests, ChoosePartsToUseImpossible4) {
-	std::vector<ChunkType> chunks{xor_p_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
+	std::vector<ChunkPartType> chunks{xor_p_of_6, xor_2_of_6, xor_3_of_6, xor_5_of_6, xor_6_of_6};
 	StandardChunkReadPlanner planner;
 	planner.prepare(chunks);
 	EXPECT_FALSE(planner.isReadingPossible());
@@ -237,10 +237,10 @@ TEST_F(StandardReadPlannerTests, GetPlanForXorLevel3WithoutPart2) {
 }
 
 TEST_F(StandardReadPlannerTests, GetPlanForMaxXorLevel) {
-	ChunkType::XorLevel level = slice_traits::xors::kMaxXorLevel;
-	std::vector<ChunkType> parts;
-	for (ChunkType::XorPart part = 1; part <= level; ++part) {
-		parts.push_back(ChunkType::getXorChunkType(level, part));
+	int level = slice_traits::xors::kMaxXorLevel;
+	std::vector<ChunkPartType> parts;
+	for (int part = 1; part <= level; ++part) {
+		parts.push_back(slice_traits::xors::ChunkPartType(level, part));
 	}
 	verifyPlanner(parts);
 }

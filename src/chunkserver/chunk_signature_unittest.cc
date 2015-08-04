@@ -25,7 +25,8 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
+#include "common/slice_traits.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/operators.h"
 #include "unittests/TemporaryDirectory.h"
@@ -34,7 +35,7 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 	const size_t signatureOffset = 5;
 	const uint64_t chunkId = 0x0102030405060708;
 	const uint32_t version = 0x04030201;
-	const uint8_t chunkTypeId = ChunkType::getXorChunkType(3, 1).chunkTypeId();
+	const uint8_t chunkTypeId = slice_traits::xors::ChunkPartType(3, 1).getId();
 
 	// For the data listed above the contents should look like this:
 	std::vector<uint8_t> chunkFileContents = {
@@ -63,7 +64,7 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 	ASSERT_TRUE(chunkSignature.hasValidSignatureId());
 	ASSERT_EQ(chunkId, chunkSignature.chunkId());
 	ASSERT_EQ(version, chunkSignature.chunkVersion());
-	ASSERT_EQ(chunkTypeId, chunkSignature.chunkType().chunkTypeId());
+	ASSERT_EQ(chunkTypeId, chunkSignature.chunkType().getId());
 }
 
 // This test verifies if signature has proper size, because existing chunks
@@ -84,7 +85,7 @@ TEST(ChunkSignatureTests, Serialize) {
 			'L', 'I', 'Z', 'C', ' ', '1', '.', '0', // signature = LIZC 1.0
 			1, 2, 3, 4, 5, 6, 7, 8,                 // id        = 0x0102030405060708
 			4, 3, 2, 1,                             // version   = 0x04030201
-			xor_1_of_3.chunkTypeId(),               // type ID
+			xor_1_of_3.getId(),                     // type ID
 	};
 	ASSERT_EQ(expectedData, data);
 }

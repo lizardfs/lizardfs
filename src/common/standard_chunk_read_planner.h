@@ -24,8 +24,8 @@
 
 class StandardChunkReadPlanner : public ReadPlanner {
 public:
-	virtual void prepare(const std::vector<ChunkType>& availableParts) override;
-	virtual std::vector<ChunkType> partsToUse() const override;
+	virtual void prepare(const std::vector<ChunkPartType>& availableParts) override;
+	virtual std::vector<ChunkPartType> partsToUse() const override;
 	virtual bool isReadingPossible() const override;
 	virtual std::unique_ptr<ReadPlan> buildPlanFor(
 			uint32_t firstBlock, uint32_t blockCount) const override;
@@ -56,5 +56,5 @@ private:
 	PlanBuilder* currentBuilder_;
 
 	void setCurrentBuilderToStandard();
-	void setCurrentBuilderToXor(ChunkType::XorLevel level, ChunkType::XorPart missingPart);
+	void setCurrentBuilderToXor(int level, int missingPart);
 };

@@ -72,7 +72,7 @@ public:
 	virtual void serializeCstoclReadStatus(std::vector<uint8_t>& buffer,
 			uint64_t chunkId, uint8_t status) = 0;
 	virtual void serializeCltocsWriteInit(std::vector<uint8_t>& buffer,
-			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 			const std::vector<NetworkAddress>& chain) = 0;
 	virtual void serializeCstoclWriteStatus(std::vector<uint8_t>& buffer,
 			uint64_t chunkId, uint32_t writeId, uint8_t status) = 0;
@@ -99,9 +99,9 @@ public:
 	}
 
 	void serializeCltocsWriteInit(std::vector<uint8_t>& buffer,
-			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 			const std::vector<NetworkAddress>& chain) {
-		sassert(chunkType == ChunkType::getStandardChunkType());
+		sassert(chunkType == slice_traits::standard::ChunkPartType());
 		serializeMooseFsPacket(buffer, CLTOCS_WRITE, chunkId, chunkVersion,
 				MooseFSVector<NetworkAddress>(chain));
 	}
@@ -130,7 +130,7 @@ public:
 	}
 
 	void serializeCltocsWriteInit(std::vector<uint8_t>& buffer,
-			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 			const std::vector<NetworkAddress>& chain) {
 		cltocs::writeInit::serialize(buffer, chunkId, chunkVersion, chunkType, chain);
 	}
@@ -441,7 +441,7 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 					eptr->version,
 					eptr->offset,
 					eptr->size);
-			eptr->chunkType = ChunkType::getStandardChunkType();
+			eptr->chunkType = slice_traits::standard::ChunkPartType();
 			eptr->messageSerializer = MooseFsMessageSerializer::getSingleton();
 		}
 	} catch (IncorrectDeserializationException&) {
@@ -557,7 +557,7 @@ void worker_write_init(csserventry *eptr,
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
 				eptr->chunkid, eptr->version, mooseFSChain);
 			chain = std::move(mooseFSChain);
-			eptr->chunkType = ChunkType::getStandardChunkType();
+			eptr->chunkType = slice_traits::standard::ChunkPartType();
 			eptr->messageSerializer = MooseFsMessageSerializer::getSingleton();
 		}
 	} catch (IncorrectDeserializationException& ex) {
@@ -624,7 +624,7 @@ void worker_write_data(csserventry *eptr,
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
 				chunkId, writeId, blocknum, offset16, size, crc, dataToWrite);
 			offset = offset16;
-			sassert(eptr->chunkType == ChunkType::getStandardChunkType());
+			sassert(eptr->chunkType == slice_traits::standard::ChunkPartType());
 		}
 	} catch (IncorrectDeserializationException&) {
 		syslog(LOG_NOTICE, "Received malformed WRITE_DATA message (length: %" PRIu32 ")", length);
@@ -682,7 +682,7 @@ void worker_write_status(csserventry *eptr,
 				return;
 			}
 			deserializeAllMooseFsPacketDataNoHeader(data, length, chunkId, writeId, status);
-			sassert(eptr->chunkType == ChunkType::getStandardChunkType());
+			sassert(eptr->chunkType == slice_traits::standard::ChunkPartType());
 		}
 	} catch (IncorrectDeserializationException&) {
 		syslog(LOG_NOTICE, "Received malformed WRITE_STATUS message (length: %" PRIu32 ")", length);
@@ -792,7 +792,7 @@ void worker_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_
 void worker_get_chunk_blocks(csserventry *eptr, const uint8_t *data,
 		uint32_t length) {
 	deserializeAllMooseFsPacketDataNoHeader(data, length, eptr->chunkid, eptr->version);
-	eptr->chunkType = ChunkType::getStandardChunkType();
+	eptr->chunkType = slice_traits::standard::ChunkPartType();
 	eptr->getBlocksJobId = job_get_blocks(eptr->workerJobPool,
 			worker_get_chunk_blocks_finished, eptr, eptr->chunkid, eptr->version,
 			eptr->chunkType, &(eptr->getBlocksJobResult));

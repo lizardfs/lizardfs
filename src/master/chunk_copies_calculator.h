@@ -20,20 +20,20 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunks_availability_state.h"
 #include "common/goal.h"
 #include "common/media_label.h"
 
 class ChunkCopiesCalculator {
 public:
-	typedef std::pair<ChunkType, MediaLabel> Part;
+	typedef std::pair<ChunkPartType, MediaLabel> Part;
 
 	ChunkCopiesCalculator(const Goal* goal);
-	void addPart(ChunkType chunkType, const MediaLabel& label);
+	void addPart(ChunkPartType chunkType, const MediaLabel& label);
 
-	std::vector<ChunkType> getPartsToRecover() const;
-	std::vector<ChunkType> getPartsToRemove() const;
+	std::vector<ChunkPartType> getPartsToRecover() const;
+	std::vector<ChunkPartType> getPartsToRemove() const;
 	uint32_t countPartsToRecover() const;
 	uint32_t countPartsToRemove() const;
 	bool isRecoveryPossible() const;
@@ -54,11 +54,11 @@ private:
 	 * Returns then number of copies to recover.
 	 * If ret != nullptr, fills it with all such copies;
 	 */
-	uint32_t getPartsToRecover(std::vector<ChunkType>* ret) const;
+	uint32_t getPartsToRecover(std::vector<ChunkPartType>* ret) const;
 
 	/*
 	 * Returns then number of copies to remove.
 	 * If ret != nullptr, fills it with all such copies;
 	 */
-	uint32_t getPartsToRemove(std::vector<ChunkType>* ret) const;
+	uint32_t getPartsToRemove(std::vector<ChunkPartType>* ret) const;
 };

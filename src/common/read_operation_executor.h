@@ -33,7 +33,7 @@ public:
 			const ReadPlan::ReadOperation& readOperation,
 			uint64_t chunkId,
 			uint32_t chunkVersion,
-			const ChunkType& chunkType,
+			const ChunkPartType& chunkType,
 			const NetworkAddress& server,
 			int fd,
 			uint8_t* buffer);
@@ -69,7 +69,7 @@ public:
 	/**
 	 * A getter.
 	 */
-	ChunkType chunkType() const {
+	ChunkPartType chunkType() const {
 		return chunkType_;
 	}
 
@@ -105,7 +105,7 @@ private:
 	/* Information about the chunk, that will be used to execute the red operation */
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
-	const ChunkType chunkType_;
+	const ChunkPartType chunkType_;
 
 	/*Information about the server, that will be used to execute the read operation */
 	const NetworkAddress server_;

@@ -23,7 +23,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/serialization_macros.h"
 
 class ChunkSignature {
@@ -38,7 +38,7 @@ public:
 	ChunkSignature();
 
 	// Constructs a initialized signature that can be serialized
-	ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+	ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
 
 	// Initialize this object having a descriptor to file where signature is written at given offset
 	bool readFromDescriptor(int fd, off_t offset);
@@ -59,7 +59,7 @@ public:
 	}
 
 	// Returns chunk type ID stored in this signature
-	ChunkType chunkType() const {
+	ChunkPartType chunkType() const {
 		return chunkType_;
 	}
 
@@ -76,6 +76,6 @@ public:
 private:
 	uint64_t chunkId_;
 	uint32_t chunkVersion_;
-	ChunkType chunkType_;
+	ChunkPartType chunkType_;
 	bool hasValidSignatureId_;
 };

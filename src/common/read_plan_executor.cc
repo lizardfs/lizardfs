@@ -83,7 +83,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	std::set<int> descriptorsForBasicReadOperations;
 
 	// A set of chunk types from which we don't read data because of a networking problem
-	std::set<ChunkType> networkingFailures;
+	std::set<ChunkPartType> networkingFailures;
 	NetworkAddress lastConnectionFailure;  // last server to which we weren't able to connect
 
 	const int kInvalidDescriptor = -1;
@@ -96,7 +96,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	});
 
 	// A function which starts a new operation. Returns a file descriptor of the created socket.
-	auto startReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& op) -> int {
+	auto startReadOperation = [&](ChunkPartType chunkType, const ReadPlan::ReadOperation& op) -> int {
 		if (networkingFailures.count(chunkType) != 0) {
 			// Don't even try to start any additional operations from a chunkserver that
 			// already failed before, because we won't be able to use the downloaded data.
@@ -132,7 +132,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	};
 
 	// A function which starts a new prefetch operation. Does not return a status.
-	auto startPrefetchOperation = [&](ChunkType chunkType, const ReadPlan::PrefetchOperation& op)
+	auto startPrefetchOperation = [&](ChunkPartType chunkType, const ReadPlan::PrefetchOperation& op)
 			-> void {
 		sassert(locations.count(chunkType) == 1);
 		const NetworkAddress& server = locations.at(chunkType);
@@ -246,7 +246,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 		}
 
 		// Process poll's output -- read from chunkservers
-		std::set<ChunkType> unfinishedOperations = networkingFailures;
+		std::set<ChunkPartType> unfinishedOperations = networkingFailures;
 		for (pollfd& pollFd : pollFds) {
 			int fd = pollFd.fd;
 			ReadOperationExecutor& executor = executors.at(fd);

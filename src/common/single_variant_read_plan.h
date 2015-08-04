@@ -46,7 +46,7 @@ public:
 			: postProcessOperations_(std::move(operations)) {
 	}
 
-	bool isReadingFinished(const std::set<ChunkType>&) const override {
+	bool isReadingFinished(const std::set<ChunkPartType>&) const override {
 		return false;
 	}
 
@@ -56,7 +56,7 @@ public:
 	}
 
 	std::vector<ReadPlan::PostProcessOperation> getPostProcessOperationsForExtendedPlan(
-			const std::set<ChunkType>& unfinished) const override {
+			const std::set<ChunkPartType>& unfinished) const override {
 		sassert(isReadingFinished(unfinished));
 		return {};
 	}

@@ -144,7 +144,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		}
 
 		// Update combinedStripeSize_
-		uint32_t stripeSize = location.chunkType.getStripeSize();
+		uint32_t stripeSize = slice_traits::getStripeSize(location.chunkType);
 		if (combinedStripeSize_ == 0) {
 			combinedStripeSize_ = stripeSize;
 		} else {
@@ -368,20 +368,20 @@ void ChunkWriter::startOperation(Operation operation) {
 		if (blockIndex >= MFSBLOCKSINCHUNK) {
 			break;
 		}
-		ChunkType newBlockChunkType = ChunkType::getStandardChunkType();
+		ChunkPartType newBlockChunkType = slice_traits::standard::ChunkPartType();
 		WriteCacheBlock newBlock = readBlock(blockIndex, newBlockChunkType);
-		if (newBlockChunkType.isXorChunkType() && newBlockChunkType.isXorParity()) {
+		if (slice_traits::xors::isXorParity(newBlockChunkType)) {
 			// Recover data if a parity was read
-			uint32_t stripeSize = newBlockChunkType.getStripeSize();
+			uint32_t stripeSize = slice_traits::getStripeSize(newBlockChunkType);
 			uint32_t firstBlockInStripe = (blockIndex / stripeSize) * stripeSize;
 			for (uint32_t i = firstBlockInStripe; i < firstBlockInStripe + stripeSize; ++i) {
 				if (i == newBlock.blockIndex || i >= MFSBLOCKSINCHUNK) {
 					continue;
 				}
 				// Unxor data
-				ChunkType chunkTypeToXor = ChunkType::getStandardChunkType();
+				ChunkPartType chunkTypeToXor = slice_traits::standard::ChunkPartType();
 				WriteCacheBlock blockToXor = readBlock(i, chunkTypeToXor);
-				if (chunkTypeToXor.isXorChunkType() && chunkTypeToXor.isXorParity()) {
+				if (slice_traits::xors::isXorParity(chunkTypeToXor)) {
 					throw RecoverableWriteException("Can't recover missing data from parity part");
 				}
 				blockXor(newBlock.data(), blockToXor.data(), newBlock.size());
@@ -401,18 +401,18 @@ void ChunkWriter::startOperation(Operation operation) {
 	OperationId operationId = allocateId();
 	for (auto& fdAndExecutor : executors_) {
 		WriteExecutor& executor = *fdAndExecutor.second;
-		ChunkType chunkType = executor.chunkType();
-		uint32_t stripeSize = chunkType.getStripeSize();
+		ChunkPartType chunkType = executor.chunkType();
+		uint32_t stripeSize = slice_traits::getStripeSize(chunkType);
 		sassert(combinedStripeSize_ % stripeSize == 0);
 		std::vector<WriteCacheBlock*> blocksToWrite;
 
-		if (chunkType.isStandardChunkType()) {
+		if (slice_traits::isStandard(chunkType)) {
 			for (const JournalPosition& position : operation.journalPositions) {
 				if (position->type != WriteCacheBlock::kReadBlock) {
 					blocksToWrite.push_back(&(*position));
 				}
 			}
-		} else if (chunkType.isXorChunkType() && chunkType.isXorParity()) {
+		} else if (slice_traits::xors::isXorParity(chunkType)) {
 			LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::calculateParity");
 			uint32_t substripeCount = combinedStripeSize_ / stripeSize;
 			std::vector<WriteCacheBlock*> parityBlocks;
@@ -441,7 +441,7 @@ void ChunkWriter::startOperation(Operation operation) {
 		} else {
 			for (const JournalPosition& position : operation.journalPositions) {
 				if (position->type != WriteCacheBlock::kReadBlock &&
-						(position->blockIndex % stripeSize) + 1 == chunkType.getXorPart()) {
+						(position->blockIndex % stripeSize) + 1 == (unsigned)slice_traits::xors::getXorPart(chunkType)) {
 					blocksToWrite.push_back(&(*position));
 				}
 			}
@@ -459,33 +459,33 @@ void ChunkWriter::startOperation(Operation operation) {
 	pendingOperations_[operationId] = std::move(operation);
 }
 
-WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromChunkType) {
+WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkPartType& readFromChunkType) {
 	Timeout timeout{std::chrono::seconds(1)};
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::readBlock");
 
 	// Find a server from which we will be able to read the block
 	NetworkAddress sourceServer;
-	ChunkType sourceChunkType = ChunkType::getStandardChunkType();
+	ChunkPartType sourceChunkType = slice_traits::standard::ChunkPartType();
 	for (const auto& fdAndExecutor : executors_) {
 		const auto& executor = *fdAndExecutor.second;
-		ChunkType chunkType = executor.chunkType();
-		if (chunkType.isStandardChunkType()) {
+		ChunkPartType chunkType = executor.chunkType();
+		if (slice_traits::isStandard(chunkType)) {
 			sourceServer = executor.server();
 			sourceChunkType = chunkType;
 			break;
 		} else {
-			sassert(chunkType.isXorChunkType());
-			if (chunkType.isXorParity()) {
+			sassert(slice_traits::isXor(chunkType));
+			if (slice_traits::xors::isXorParity(chunkType)) {
 				if (sourceServer == NetworkAddress() ||
-						(sourceChunkType.isXorChunkType() && sourceChunkType.isXorParity()
-						&& chunkType.getXorLevel() < sourceChunkType.getXorLevel())) {
+						(slice_traits::xors::isXorParity(sourceChunkType)
+						&& slice_traits::xors::getXorLevel(chunkType) < slice_traits::xors::getXorLevel(sourceChunkType))) {
 					// Find a parity with the smallest XOR level
 					sourceServer = executor.server();
 					sourceChunkType = chunkType;
 				} else {
 					continue;
 				}
-			} else if (blockIndex % chunkType.getXorLevel() + 1 == chunkType.getXorPart()) {
+			} else if (blockIndex % slice_traits::xors::getXorLevel(chunkType) + 1 == (unsigned)slice_traits::xors::getXorPart(chunkType)) {
 				sourceServer = executor.server();
 				sourceChunkType = chunkType;
 				break;
@@ -498,8 +498,8 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkType& readFromC
 
 	// Prepare the read operation
 	uint32_t stripe = blockIndex;
-	if (sourceChunkType.isXorChunkType()) {
-		stripe /= sourceChunkType.getXorLevel();
+	if (slice_traits::isXor(sourceChunkType)) {
+		stripe /= slice_traits::xors::getXorLevel(sourceChunkType);
 	}
 	ReadPlan::ReadOperation readOperation;
 	readOperation.requestOffset = stripe * MFSBLOCKSIZE;

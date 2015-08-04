@@ -22,7 +22,7 @@
 
 #include <iostream>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunk_with_version.h"
 #include "common/chunk_with_version_and_type.h"
 #include "protocol/packet.h"
@@ -73,42 +73,42 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, setVersion, LIZ_CSTOMA_SET_VERSION, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, deleteChunk, LIZ_CSTOMA_DELETE_CHUNK, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, createChunk, LIZ_CSTOMA_CREATE_CHUNK, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, truncate, LIZ_CSTOMA_TRUNCATE, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, duplicateChunk, LIZ_CSTOMA_DUPLICATE_CHUNK, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, duptruncChunk, LIZ_CSTOMA_DUPTRUNC_CHUNK, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, replicateChunk, LIZ_CSTOMA_REPLICATE_CHUNK, 0,
 		uint64_t,  chunkId,
-		ChunkType, chunkType,
+		ChunkPartType, chunkType,
 		uint8_t,   status, // status has to be third field to make overwriteStatusField work!!!
 		uint32_t,  chunkVersion)

@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <cstring>
 
+#include "common/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 
 const char ChunkSignature::kMfsSignatureId[] = MFSSIGNATURE "C 1.0";
@@ -30,11 +31,11 @@ const char ChunkSignature::kLizSignatureId[] = "LIZC 1.0";
 ChunkSignature::ChunkSignature()
 		: chunkId_(0),
 		  chunkVersion_(0),
-		  chunkType_(ChunkType::getStandardChunkType()),
+		  chunkType_(),
 		  hasValidSignatureId_(false) {
 }
 
-ChunkSignature::ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+ChunkSignature::ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
 		: chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
 		  chunkType_(chunkType),
@@ -52,7 +53,7 @@ bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
 	const uint8_t* ptr = buffer + kSignatureIdSize;
 	chunkId_ = get64bit(&ptr);
 	chunkVersion_ = get32bit(&ptr);
-	chunkType_ = ChunkType::getStandardChunkType();
+	chunkType_ = slice_traits::standard::ChunkPartType();
 
 	// Check if signature is equal to kMfsSignatureId or kLizSignatureId
 	if (memcmp(buffer, kMfsSignatureId, kSignatureIdSize) == 0) {

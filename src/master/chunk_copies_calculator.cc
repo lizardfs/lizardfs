@@ -27,18 +27,18 @@
 
 ChunkCopiesCalculator::ChunkCopiesCalculator(const Goal* goal): goal_(goal) {}
 
-void ChunkCopiesCalculator::addPart(ChunkType chunkType, const MediaLabel& label) {
+void ChunkCopiesCalculator::addPart(ChunkPartType chunkType, const MediaLabel& label) {
 	availableParts_.emplace_back(chunkType, label);
 }
 
-std::vector<ChunkType> ChunkCopiesCalculator::getPartsToRecover() const {
-	std::vector<ChunkType> ret;
+std::vector<ChunkPartType> ChunkCopiesCalculator::getPartsToRecover() const {
+	std::vector<ChunkPartType> ret;
 	getPartsToRecover(&ret);
 	return ret;
 }
 
-std::vector<ChunkType> ChunkCopiesCalculator::getPartsToRemove() const {
-	std::vector<ChunkType> ret;
+std::vector<ChunkPartType> ChunkCopiesCalculator::getPartsToRemove() const {
+	std::vector<ChunkPartType> ret;
 	getPartsToRemove(&ret);
 	return ret;
 }

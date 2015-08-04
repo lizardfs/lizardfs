@@ -25,7 +25,7 @@
 #include <string>
 
 #include "chunkserver/chunk_format.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/disk_info.h"
 #include "protocol/MFSCommunication.h"
 
@@ -94,7 +94,7 @@ class Chunk {
 public:
 	static const uint32_t kNumberOfSubfolders = 256;
 
-	Chunk(uint64_t chunkId, ChunkType type, ChunkState state, ChunkFormat format);
+	Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat format);
 	virtual ~Chunk() {};
 	const std::string& filename() const { return filename_; };
 	virtual off_t getBlockOffset(uint16_t blockNumber) const = 0;
@@ -105,7 +105,7 @@ public:
 	int renameChunkFile(const std::string& newFilename);
 	virtual void setBlockCountFromFizeSize(off_t fileSize) = 0;
 	void setFilename(const std::string& filename) { filename_ = filename; }
-	ChunkType type() const { return type_; }
+	ChunkPartType type() const { return type_; }
 	ChunkFormat chunkFormat() const { return chunkFormat_; };
 	static uint32_t getSubfolderNumber(uint64_t chunkId);
 	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber);
@@ -128,7 +128,7 @@ public:
 	Chunk *next;
 
 protected:
-	ChunkType type_;
+	ChunkPartType type_;
 	std::string filename_;
 
 private:
@@ -145,7 +145,7 @@ public:
 			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
 	static const size_t kDiskBlockSize = 4096; // 4kB
 
-	MooseFSChunk(uint64_t chunkId, ChunkType type, ChunkState state);
+	MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state);
 	off_t getBlockOffset(uint16_t blockNumber) const override;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
 	bool isFileSizeValid(off_t fileSize) const override;
@@ -168,7 +168,7 @@ public:
 
 class InterleavedChunk : public Chunk {
 public:
-	InterleavedChunk(uint64_t chunkId, ChunkType type, ChunkState state);
+	InterleavedChunk(uint64_t chunkId, ChunkPartType type, ChunkState state);
 	off_t getBlockOffset(uint16_t blockNumber) const override;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
 	bool isFileSizeValid(off_t fileSize) const override;

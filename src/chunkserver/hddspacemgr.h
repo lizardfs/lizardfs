@@ -25,7 +25,7 @@
 
 #include "chunkserver/chunk_file_creator.h"
 #include "chunkserver/output_buffers.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunk_with_version_and_type.h"
 #include "protocol/MFSCommunication.h"
 
@@ -52,19 +52,19 @@ int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
 
 /* I/O operations */
-int hdd_open(uint64_t chunkid, ChunkType chunkType);
-int hdd_close(uint64_t chunkid, ChunkType chunkType);
-int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlock,
+int hdd_open(uint64_t chunkid, ChunkPartType chunkType);
+int hdd_close(uint64_t chunkid, ChunkPartType chunkType);
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firstBlock,
 		uint16_t nrOfBlocks);
-int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
 		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer);
-int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
-int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks);
+int hdd_get_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t version, uint16_t *blocks);
 
 /* chunk operations */
 
@@ -76,7 +76,7 @@ int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint
 // chunkNewVersion==0 && length==0                              -> delete
 // chunkNewVersion==0 && length==1                              -> create
 // chunkNewVersion==0 && length==2                              -> test
-int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkType chunkType,
+int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion,  ChunkPartType chunkType,
 		uint32_t chunkNewVersion, uint64_t chunkIdCopy, uint32_t chunkVersionCopy, uint32_t length);
 
 #define hdd_delete(chunkId, chunkVersion, chunkType) \
@@ -122,7 +122,7 @@ int hdd_init(void);
 
 class HddspacemgrChunkFileCreator : public ChunkFileCreator {
 public:
-	HddspacemgrChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+	HddspacemgrChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
 	~HddspacemgrChunkFileCreator();
 	virtual void create();
 	virtual void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);

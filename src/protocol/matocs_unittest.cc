@@ -29,7 +29,7 @@
 TEST(MatocsCommunicationTests, SetVersion) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 87,  0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, newVersion, 53,  0);
 
 	std::vector<uint8_t> buffer;
@@ -51,7 +51,7 @@ TEST(MatocsCommunicationTests, SetVersion) {
 TEST(MatocsCommunicationTests, DeleteChunk) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 87,  0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocs::deleteChunk::serialize(buffer,
@@ -70,7 +70,7 @@ TEST(MatocsCommunicationTests, DeleteChunk) {
 TEST(MatocsCommunicationTests, Replicate) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 87,  0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(ChunkTypeWithAddress, serverList) = {
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), standard),
 		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), xor_p_of_6),

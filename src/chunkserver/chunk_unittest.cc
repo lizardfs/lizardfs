@@ -17,6 +17,7 @@
  */
 
 #include "common/platform.h"
+#include "common/slice_traits.h"
 #include "chunkserver/chunk.h"
 
 #include <gtest/gtest.h>
@@ -24,13 +25,13 @@
 class ChunkTests : public testing::Test {
 public:
 	ChunkTests()
-			: standardChunk(1, ChunkType::getStandardChunkType(), CH_AVAIL),
-			  chunk_1_of_2(1, ChunkType::getXorChunkType(2, 1), CH_AVAIL),
-			  chunk_2_of_2(1, ChunkType::getXorChunkType(2, 2), CH_AVAIL),
-			  chunk_p_of_2(1, ChunkType::getXorParityChunkType(2), CH_AVAIL),
-			  chunk_1_of_3(1, ChunkType::getXorChunkType(3, 1), CH_AVAIL),
-			  chunk_3_of_3(1, ChunkType::getXorChunkType(3, 3), CH_AVAIL),
-			  chunk_p_of_3(1, ChunkType::getXorParityChunkType(3), CH_AVAIL) {
+			: standardChunk(1, slice_traits::standard::ChunkPartType(), CH_AVAIL),
+			  chunk_1_of_2(1, slice_traits::xors::ChunkPartType(2, 1), CH_AVAIL),
+			  chunk_2_of_2(1, slice_traits::xors::ChunkPartType(2, 2), CH_AVAIL),
+			  chunk_p_of_2(1, slice_traits::xors::ChunkPartType(2, slice_traits::xors::kXorParityPart), CH_AVAIL),
+			  chunk_1_of_3(1, slice_traits::xors::ChunkPartType(3, 1), CH_AVAIL),
+			  chunk_3_of_3(1, slice_traits::xors::ChunkPartType(3, 3), CH_AVAIL),
+			  chunk_p_of_3(1, slice_traits::xors::ChunkPartType(3, slice_traits::xors::kXorParityPart), CH_AVAIL) {
 	}
 
 protected:

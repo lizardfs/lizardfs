@@ -395,15 +395,21 @@ void fs_periodic_test_files() {
 							}
 							valid = 0;
 							mchunks++;
-						}
-						// FIXME
-						/*else if ((goal::isXorGoal(f->goal) && vc == 1) ||
+						} else {
+							// FIXME: chunk_get_validcopies is no longer
+							// sufficient to test chunk status
+							// Now chunk has many types of ChunkPart
+							// and each one have different validity
+							// requirements
+							/*
+							if ((goal::isXorGoal(f->goal) && vc == 1) ||
 						           (goal::isOrdinaryGoal(f->goal) &&
 						            vc < gGoalDefinitions[f->goal]
 						                            .getExpectedCopies())) {
 							ugflag = 1;
 							ugchunks++;
-						}*/
+							*/
+						}
 						chunks++;
 					}
 				}

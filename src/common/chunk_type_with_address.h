@@ -20,19 +20,20 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/network_address.h"
 #include "common/serialization.h"
+#include "common/slice_traits.h"
 
 struct ChunkTypeWithAddress {
 	NetworkAddress address;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 
 	ChunkTypeWithAddress() :
-		chunkType(ChunkType::getStandardChunkType()) {
+		chunkType() {
 	}
 
-	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkType& chunkType)
+	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkPartType& chunkType)
 		: address(address), chunkType(chunkType) {
 	}
 

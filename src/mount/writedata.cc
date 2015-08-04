@@ -35,13 +35,12 @@
 #include <vector>
 
 #include "common/chunk_connector.h"
-#include "protocol/cltocs.h"
+
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
-#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/multi_buffer_writer.h"
 #include "common/pcqueue.h"
@@ -57,6 +56,8 @@
 #include "mount/readdata.h"
 #include "mount/tweaks.h"
 #include "mount/write_cache_block.h"
+#include "protocol/cltocs.h"
+#include "protocol/MFSCommunication.h"
 
 #ifndef EDQUOT
 #define EDQUOT ENOSPC

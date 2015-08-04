@@ -29,8 +29,9 @@
 
 #include "chunkserver/network_stats.h"
 #include "chunkserver/output_buffers.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/network_address.h"
+#include "common/slice_traits.h"
 #include "protocol/packet.h"
 #include "devtools/request_log.h"
 
@@ -113,7 +114,7 @@ struct csserventry {
 	uint8_t chunkisopen;
 	uint64_t chunkid; // R+W
 	uint32_t version; // R+W
-	ChunkType chunkType; // R
+	ChunkPartType chunkType; // R
 	uint32_t offset; // R
 	uint32_t size; // R
 	MessageSerializer* messageSerializer; // R+W
@@ -149,7 +150,7 @@ struct csserventry {
 			  chunkisopen(0),
 			  chunkid(0),
 			  version(0),
-			  chunkType(ChunkType::getStandardChunkType()),
+			  chunkType(slice_traits::standard::ChunkPartType()),
 			  offset(0),
 			  size(0),
 			  messageSerializer(nullptr),

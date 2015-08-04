@@ -32,7 +32,7 @@ const uint32_t kReceiveBufferSize = 1024;
 
 WriteExecutor::WriteExecutor(ChunkserverStats& chunkserverStats,
 		const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
 		: chunkserverStats_(chunkserverStats),
 		  isRunning_(false),
 		  chunkId_(chunkId),

@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "common/chunk_connector.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunk_with_version_and_type.h"
 #include "common/connection_pool.h"
 #include "common/network_address.h"
@@ -69,7 +69,7 @@ public:
 	void operator()();
 
 	void reportBadCrc(NetworkAddress server, uint64_t chunkId, uint32_t chunkVersion,
-			ChunkType chunkType);
+			ChunkPartType chunkType);
 private:
 	typedef std::pair<NetworkAddress, ChunkWithVersionAndType> InconsistentChunk;
 

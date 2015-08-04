@@ -23,10 +23,10 @@
 #include <ostream>
 #include <gtest/gtest.h>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/read_planner.h"
 
-inline std::ostream& operator<<(std::ostream& out, const ChunkType& chunkType) {
+inline std::ostream& operator<<(std::ostream& out, const ChunkPartType& chunkType) {
 	out << chunkType.toString();
 	return out;
 }
@@ -58,11 +58,11 @@ inline void PrintTo(const ReadPlan& plan, std::ostream* out) {
 	for (const auto& op : plan.getPostProcessOperationsForBasicPlan()) {
 		*out << "\n    " << ::testing::PrintToString(op);
 	}
-	std::set<ChunkType> usedParts;
+	std::set<ChunkPartType> usedParts;
 	for (const auto& partAndOperation : plan.getAllReadOperations()) {
 		usedParts.insert(partAndOperation.first);
 	}
-	for (ChunkType part : usedParts) {
+	for (ChunkPartType part : usedParts) {
 		if (plan.isReadingFinished({part})) {
 			*out << "\n  postprocessing for {" << part << "} unfinished:";
 			for (const auto& op : plan.getPostProcessOperationsForExtendedPlan({part})) {

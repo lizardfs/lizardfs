@@ -52,11 +52,11 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 		return;
 	}
 	chunkTypeLocations_.clear();
-	std::vector<ChunkType> availableChunkTypes;
-	std::map<ChunkType, float> bestScores;
+	std::vector<ChunkPartType> availableChunkTypes;
+	std::map<ChunkPartType, float> bestScores;
 
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
-		const ChunkType& type = chunkTypeWithAddress.chunkType;
+		const ChunkPartType& type = chunkTypeWithAddress.chunkType;
 		const NetworkAddress& address = chunkTypeWithAddress.address;
 
 		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {

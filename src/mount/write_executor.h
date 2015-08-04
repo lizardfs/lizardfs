@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunkserver_stats.h"
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
@@ -54,7 +54,7 @@ public:
 	 */
 	WriteExecutor(ChunkserverStats& chunkserverStats,
 			const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
-			uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType);
+			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
 	WriteExecutor(const WriteExecutor&) = delete;
 	~WriteExecutor();
 	WriteExecutor& operator=(const WriteExecutor&) = delete;
@@ -79,7 +79,7 @@ public:
 		return chainHead_;
 	}
 
-	ChunkType chunkType() const {
+	ChunkPartType chunkType() const {
 		return chunkType_;
 	}
 
@@ -100,7 +100,7 @@ private:
 	bool isRunning_;
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
-	const ChunkType chunkType_;
+	const ChunkPartType chunkType_;
 	std::vector<NetworkAddress> chain_;
 	const NetworkAddress chainHead_;
 	const int chainHeadFd_;

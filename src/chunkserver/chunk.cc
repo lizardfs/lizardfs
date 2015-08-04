@@ -25,8 +25,9 @@
 #include <sstream>
 
 #include "common/massert.h"
+#include "common/slice_traits.h"
 
-Chunk::Chunk(uint64_t chunkId, ChunkType type, ChunkState state, ChunkFormat format)
+Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat format)
 	: chunkid(chunkId),
 	  owner(NULL),
 	  version(0),
@@ -51,13 +52,13 @@ std::string Chunk::generateFilenameForVersion(uint32_t version) const {
 	std::stringstream ss;
 	char buffer[30];
 	ss << owner->path << Chunk::getSubfolderNameGivenChunkId(chunkid) << "/chunk_";
-	if (type_.isXorChunkType()) {
-		if (type_.isXorParity()) {
+	if (slice_traits::isXor(type_)) {
+		if (slice_traits::xors::isXorParity(type_)) {
 			ss << "xor_parity_of_";
 		} else {
-			ss << "xor_" << (unsigned)type_.getXorPart() << "_of_";
+			ss << "xor_" << (unsigned)slice_traits::xors::getXorPart(type_) << "_of_";
 		}
-		ss << (unsigned)type_.getXorLevel() << "_";
+		ss << (unsigned)slice_traits::xors::getXorLevel(type_) << "_";
 	}
 	sprintf(buffer, "%016" PRIX64 "_%08" PRIX32 ".mfs", chunkid, version);
 	if (chunkFormat() == ChunkFormat::INTERLEAVED) {
@@ -68,11 +69,11 @@ std::string Chunk::generateFilenameForVersion(uint32_t version) const {
 }
 
 uint32_t Chunk::maxBlocksInFile() const {
-	sassert(type_.isStandardChunkType() || type_.isXorChunkType());
-	if (type_.isStandardChunkType()) {
+	sassert(slice_traits::isStandard(type_) || slice_traits::isXor(type_));
+	if (slice_traits::isStandard(type_)) {
 		return MFSBLOCKSINCHUNK;
 	} else {
-		uint32_t xorLevel = type_.getXorLevel();
+		uint32_t xorLevel = slice_traits::xors::getXorLevel(type_);
 		return (MFSBLOCKSINCHUNK + xorLevel - 1) / xorLevel;
 	}
 }
@@ -106,7 +107,7 @@ std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId) {
 	return Chunk::getSubfolderNameGivenNumber(Chunk::getSubfolderNumber(chunkId));
 }
 
-MooseFSChunk::MooseFSChunk(uint64_t chunkId, ChunkType type, ChunkState state) :
+MooseFSChunk::MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
 		Chunk(chunkId, type, state, ChunkFormat::MOOSEFS),
 		crc(nullptr),
 		crcsteps(0) {
@@ -149,8 +150,8 @@ void MooseFSChunk::readaheadHeader() const {
 }
 
 size_t MooseFSChunk::getHeaderSize() const {
-	sassert(type_.isStandardChunkType() || type_.isXorChunkType());
-	if (type_.isStandardChunkType()) {
+	sassert(slice_traits::isStandard(type_) || slice_traits::isXor(type_));
+	if (slice_traits::isStandard(type_)) {
 		return kMaxSignatureBlockSize + serializedSize(uint32_t()) * maxBlocksInFile();
 	} else {
 		uint32_t requiredHeaderSize = kMaxSignatureBlockSize + serializedSize(uint32_t()) * maxBlocksInFile();
@@ -198,7 +199,7 @@ void MooseFSChunk::clearCrc() {
 	}
 }
 
-InterleavedChunk::InterleavedChunk(uint64_t chunkId, ChunkType type, ChunkState state) :
+InterleavedChunk::InterleavedChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
 		Chunk(chunkId, type, state, ChunkFormat::INTERLEAVED) {
 }
 

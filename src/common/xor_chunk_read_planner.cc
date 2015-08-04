@@ -29,25 +29,25 @@
 
 class XorChunkReadPlanner::PlanBuilder {
 public:
-	explicit PlanBuilder(ChunkType readChunkType) : chunkType_(readChunkType) {
-		sassert(chunkType_.isXorChunkType());
+	explicit PlanBuilder(ChunkPartType readChunkType) : chunkType_(readChunkType) {
+		sassert(slice_traits::isXor(chunkType_));
 	}
 	virtual ~PlanBuilder() {}
 	virtual std::unique_ptr<ReadPlan> build(uint32_t firstBlock, uint32_t blockCount) const = 0;
 
 protected:
-	const ChunkType chunkType_;
+	const ChunkPartType chunkType_;
 };
 
 class XorChunkReadPlanner::CopyPartPlanBuilder : public XorChunkReadPlanner::PlanBuilder {
 public:
-	explicit CopyPartPlanBuilder(ChunkType readChunkType) : PlanBuilder(readChunkType) {}
+	explicit CopyPartPlanBuilder(ChunkPartType readChunkType) : PlanBuilder(readChunkType) {}
 	virtual std::unique_ptr<ReadPlan> build(uint32_t firstBlock, uint32_t blockCount) const;
 };
 
 class XorChunkReadPlanner::XorPlanBuilder : public XorChunkReadPlanner::PlanBuilder {
 public:
-	explicit XorPlanBuilder(ChunkType readChunkType, const std::vector<ChunkType>& availableParts)
+	explicit XorPlanBuilder(ChunkPartType readChunkType, const std::vector<ChunkPartType>& availableParts)
 			: PlanBuilder(readChunkType),
 			  availableParts_(availableParts) {
 		standardPlanner_.prepare(availableParts);
@@ -56,7 +56,7 @@ public:
 	virtual std::unique_ptr<ReadPlan> build(uint32_t firstBlock, uint32_t blockCount) const;
 
 private:
-	const std::vector<ChunkType> availableParts_;
+	const std::vector<ChunkPartType> availableParts_;
 	StandardChunkReadPlanner standardPlanner_;
 
 	// Modifies the plan using the given block permutation (offsetMapping)
@@ -96,19 +96,19 @@ void XorChunkReadPlanner::XorPlanBuilder::swapBlocks(SingleVariantReadPlan& plan
 
 std::unique_ptr<ReadPlan> XorChunkReadPlanner::XorPlanBuilder::build(
 		uint32_t firstBlock, uint32_t blockCount) const {
-	uint32_t level = chunkType_.getXorLevel();
+	uint32_t level = slice_traits::xors::getXorLevel(chunkType_);
 
 	// We will start with a plan for standard chunk
 	uint32_t firstBlockInChunk;
 	uint32_t blockCountInChunk;
-	if (chunkType_.isXorParity()) {
+	if (slice_traits::xors::isXorParity(chunkType_)) {
 		firstBlockInChunk = firstBlock * level;
 		blockCountInChunk = blockCount * level;
 		if (firstBlockInChunk + blockCountInChunk > MFSBLOCKSINCHUNK) {
 			blockCountInChunk = MFSBLOCKSINCHUNK - firstBlockInChunk;
 		}
 	} else {
-		uint32_t part = chunkType_.getXorPart();
+		int part = slice_traits::xors::getXorPart(chunkType_);
 		firstBlockInChunk = firstBlock * level + part - 1;
 		blockCountInChunk = 1 + (blockCount - 1) * level;
 	}
@@ -116,7 +116,7 @@ std::unique_ptr<ReadPlan> XorChunkReadPlanner::XorPlanBuilder::build(
 
 	// Calculate the parity if we recover a parity part by adding some xor operations
 	// to the list of post-process operations from the original plan
-	if (chunkType_.isXorParity()) {
+	if (slice_traits::xors::isXorParity(chunkType_)) {
 		for (uint32_t i = 0; i < blockCount; ++i) {
 			ReadPlan::PostProcessOperation operation;
 			operation.destinationOffset = operation.sourceOffset = i * level * MFSBLOCKSIZE;
@@ -148,45 +148,45 @@ std::unique_ptr<ReadPlan> XorChunkReadPlanner::XorPlanBuilder::build(
 	return std::unique_ptr<ReadPlan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
-XorChunkReadPlanner::XorChunkReadPlanner(ChunkType readChunkType) : chunkType_(readChunkType) {
-	sassert(chunkType_.isXorChunkType());
+XorChunkReadPlanner::XorChunkReadPlanner(ChunkPartType readChunkType) : chunkType_(readChunkType) {
+	sassert(slice_traits::isXor(chunkType_));
 }
 
 XorChunkReadPlanner::~XorChunkReadPlanner() {}
 
-void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) {
+void XorChunkReadPlanner::prepare(const std::vector<ChunkPartType>& availableParts) {
 	if (std::count(availableParts.begin(), availableParts.end(), chunkType_) > 0) {
 		planBuilder_.reset(new CopyPartPlanBuilder(chunkType_));
 		partsToUse_ = {chunkType_};
 		return;
 	} else if (std::count(availableParts.begin(), availableParts.end(),
-			ChunkType::getStandardChunkType()) > 0) {
-		partsToUse_ = {ChunkType::getStandardChunkType()};
+			slice_traits::standard::ChunkPartType()) > 0) {
+		partsToUse_ = {slice_traits::standard::ChunkPartType()};
 		planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_));
 		return;
 	}
 
 	partsToUse_.clear();
-	std::vector<ChunkType> availablePartsUniq = availableParts;
+	std::vector<ChunkPartType> availablePartsUniq = availableParts;
 	std::sort(availablePartsUniq.begin(), availablePartsUniq.end());
 	availablePartsUniq.erase(
 			std::unique(availablePartsUniq.begin(), availablePartsUniq.end()),
 			availablePartsUniq.end());
-	std::vector<uint32_t> partsForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, 0);
+	std::vector<int> partsForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, 0);
 	for (const auto& part : availablePartsUniq) {
-		if (part.isXorChunkType()) {
-			partsForLevelAvailable[part.getXorLevel()]++;
+		if (slice_traits::isXor(part)) {
+			partsForLevelAvailable[slice_traits::xors::getXorLevel(part)]++;
 		}
 	}
-	ChunkType::XorLevel levelToRead = 0;
-	for (ChunkType::XorLevel level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
+	int levelToRead = 0;
+	for (int level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
 		if (partsForLevelAvailable[level] == level) {
 			levelToRead = level;
 			break;
 		}
 	}
-	for (ChunkType::XorLevel level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
-		if (partsForLevelAvailable[level] == static_cast<uint32_t>(level + 1)) {
+	for (int level = slice_traits::xors::kMinXorLevel; level <= slice_traits::xors::kMaxXorLevel; ++level) {
+		if (partsForLevelAvailable[level] == (level + 1)) {
 			levelToRead = level;
 			break;
 		}
@@ -197,8 +197,8 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) 
 
 	bool needParity = partsForLevelAvailable[levelToRead] == levelToRead;
 	for (const auto& part : availablePartsUniq) {
-		if (part.isXorChunkType() && part.getXorLevel() == levelToRead) {
-			if (part.isXorParity() && !needParity) {
+		if (slice_traits::isXor(part) && slice_traits::xors::getXorLevel(part) == levelToRead) {
+			if (slice_traits::xors::isXorParity(part) && !needParity) {
 				continue;
 			}
 			partsToUse_.push_back(part);
@@ -207,7 +207,7 @@ void XorChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) 
 	planBuilder_.reset(new XorPlanBuilder(chunkType_, partsToUse_));
 }
 
-std::vector<ChunkType> XorChunkReadPlanner::partsToUse() const {
+std::vector<ChunkPartType> XorChunkReadPlanner::partsToUse() const {
 	return partsToUse_;
 }
 

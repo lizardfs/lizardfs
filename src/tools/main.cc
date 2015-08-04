@@ -1192,13 +1192,13 @@ int ip_port_cmp(const void*a,const void*b) {
 	return memcmp(a,b,6);
 }
 
-std::string chunkTypeToString(ChunkType type) {
-	if (type.isXorChunkType()) {
+std::string chunkTypeToString(ChunkPartType type) {
+	if (slice_traits::isXor(type)) {
 		std::stringstream ss;
-		if (type.isXorParity()) {
-			ss << " parity " << (int)type.getXorLevel();
+		if (slice_traits::xors::isXorParity(type)) {
+			ss << " parity " << slice_traits::xors::getXorLevel(type);
 		} else {
-			ss << " part " << (int)type.getXorPart() << "/" << (int)type.getXorLevel();
+			ss << " part " << slice_traits::xors::getXorPart(type) << "/" << slice_traits::xors::getXorLevel(type);
 		}
 		return ss.str();
 	}

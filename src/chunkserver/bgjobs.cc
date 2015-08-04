@@ -33,7 +33,7 @@
 #include "chunkserver/chunk_replicator.h"
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/legacy_replicator.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunk_type_with_address.h"
 #include "common/datapack.h"
 #include "common/massert.h"
@@ -69,20 +69,20 @@ struct chunk_chunkop_args {
 	uint64_t chunkid,copychunkid;
 	uint32_t version,newversion,copyversion;
 	uint32_t length;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 };
 
 // for OP_OPEN and OP_CLOSE
 struct chunk_open_and_close_args {
 	uint64_t chunkid;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 };
 
 // for OP_READ
 struct chunk_read_args {
 	uint64_t chunkid;
 	uint32_t version;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint32_t offset,size;
 	uint8_t *crcbuff;
 	uint32_t maxBlocksToBeReadBehind;
@@ -95,7 +95,7 @@ struct chunk_read_args {
 struct chunk_prefetch_args {
 	uint64_t chunkid;
 	uint32_t version;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint32_t firstBlock;
 	uint32_t nrOfBlocks;
 };
@@ -104,7 +104,7 @@ struct chunk_prefetch_args {
  struct chunk_write_args {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint16_t blocknum;
 	uint32_t offset, size;
 	uint32_t crc;
@@ -114,7 +114,7 @@ struct chunk_prefetch_args {
 struct chunk_get_blocks_args {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint16_t* blocks;
 };
 
@@ -127,7 +127,7 @@ struct chunk_legacy_replication_args {
 struct chunk_replication_args {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint32_t sourcesBufferSize;
 	uint8_t* sourcesBuffer;
 };
@@ -517,7 +517,7 @@ uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void
 }
 
 uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t newversion,
+		uint64_t chunkid, uint32_t version, ChunkPartType chunkType, uint32_t newversion,
 		uint64_t copychunkid, uint32_t copyversion, uint32_t length) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
@@ -535,7 +535,7 @@ uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra),
 }
 
 uint32_t job_open(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
-		uint64_t chunkid, ChunkType chunkType) {
+		uint64_t chunkid, ChunkPartType chunkType) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_open_and_close_args *args;
@@ -547,7 +547,7 @@ uint32_t job_open(void *jpool, void (*callback)(uint8_t status,void *extra), voi
 }
 
 uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
-		uint64_t chunkid, ChunkType chunkType) {
+		uint64_t chunkid, ChunkPartType chunkType) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_open_and_close_args *args;
@@ -559,7 +559,7 @@ uint32_t job_close(void *jpool, void (*callback)(uint8_t status,void *extra), vo
 }
 
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, uint32_t version, ChunkType chunkType, uint32_t offset, uint32_t size,
+		uint64_t chunkid, uint32_t version, ChunkPartType chunkType, uint32_t offset, uint32_t size,
 		uint32_t maxBlocksToBeReadBehind, uint32_t blocksToBeReadAhead,
 		OutputBuffer* outputBuffer, bool performHddOpen) {
 	TRACETHIS();
@@ -579,7 +579,7 @@ uint32_t job_read(void *jpool, void (*callback)(uint8_t status, void *extra), vo
 	return job_new(jp,OP_READ,args,callback,extra);
 }
 
-uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkType chunkType,
+uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint32_t firstBlockToBePrefetched, uint32_t nrOfBlocksToBePrefetched) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
@@ -596,7 +596,7 @@ uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkType
 
 
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
@@ -615,7 +615,7 @@ uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), v
 }
 
 uint32_t job_get_blocks(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t version, ChunkType chunkType, uint16_t* blocks) {
+		uint64_t chunkId, uint32_t version, ChunkPartType chunkType, uint16_t* blocks) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;
 	chunk_get_blocks_args *args;
@@ -629,7 +629,7 @@ uint32_t job_get_blocks(void *jpool, void (*callback)(uint8_t status, void *extr
 }
 
 uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer) {
 	TRACETHIS();
 	jobpool* jp = (jobpool*)jpool;

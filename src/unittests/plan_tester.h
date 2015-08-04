@@ -31,7 +31,7 @@ namespace unittests {
 class Block {
 public:
 	Block() : isInitialized_(false) {}
-	Block(ChunkType chunkType, uint32_t blocknum);
+	Block(ChunkPartType chunkType, uint32_t blocknum);
 	bool isInitialized() const { return isInitialized_; }
 	void xorWith(const Block& block);
 	bool operator==(const Block& block) const;
@@ -58,9 +58,9 @@ public:
 	 */
 	static std::vector<Block> executePlan(
 			const ReadPlan& plan,
-			const std::vector<ChunkType>& availableParts,
+			const std::vector<ChunkPartType>& availableParts,
 			uint32_t blockCount,
-			const std::set<ChunkType>& failingParts = std::set<ChunkType>());
+			const std::set<ChunkPartType>& failingParts = std::set<ChunkPartType>());
 
 	/**
 	 * Returns list of blocks from a given part.
@@ -69,7 +69,7 @@ public:
 	 * blocks of \p chunkType.
 	 */
 	static std::vector<Block> expectedAnswer(
-			ChunkType chunkType,
+			ChunkPartType chunkType,
 			uint32_t firstBlock,
 			uint32_t blockCount);
 };

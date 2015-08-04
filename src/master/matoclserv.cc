@@ -1006,7 +1006,7 @@ static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allC
 		std::vector<NetworkAddress>& standardCopies) {
 	sassert(standardCopies.empty());
 	for (auto& chunkCopy : allCopies) {
-		if (chunkCopy.chunkType.isStandardChunkType()) {
+		if (slice_traits::isStandard(chunkCopy.chunkType)) {
 			standardCopies.push_back(chunkCopy.address);
 		}
 	}
@@ -1023,7 +1023,7 @@ uint8_t matoclserv_fuse_write_chunk_respond(matoclserventry *eptr,
 	// don't allow old clients to modify standard copy of a xor chunk
 	if (status == LIZARDFS_STATUS_OK && !serializer->isLizardFsPacketSerializer()) {
 		for (const ChunkTypeWithAddress& chunkCopy : allChunkCopies) {
-			if (!chunkCopy.chunkType.isStandardChunkType()) {
+			if (!slice_traits::isStandard(chunkCopy.chunkType)) {
 				status = LIZARDFS_ERROR_NOCHUNK;
 				break;
 			}

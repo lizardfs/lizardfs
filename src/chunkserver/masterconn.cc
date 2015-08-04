@@ -283,7 +283,7 @@ void masterconn_unwantedjobfinished(uint8_t status,void *packet) {
 
 void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
 	uint64_t chunkId;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	uint32_t chunkVersion;
 
 	matocs::createChunk::deserialize(data, chunkId, chunkType, chunkVersion);
@@ -295,7 +295,7 @@ void masterconn_create(masterconn */*eptr*/, const std::vector<uint8_t> &data) {
 void masterconn_delete(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
 	uint32_t chunkVersion;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 
 	matocs::deleteChunk::deserialize(data, chunkId, chunkType, chunkVersion);
 	OutputPacket* outputPacket = new OutputPacket;
@@ -307,7 +307,7 @@ void masterconn_setversion(masterconn */*eptr*/, const std::vector<uint8_t>& dat
 	uint64_t chunkId;
 	uint32_t chunkVersion;
 	uint32_t newVersion;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 
 	matocs::setVersion::deserialize(data, chunkId, chunkType, chunkVersion, newVersion);
 	OutputPacket* outputPacket = new OutputPacket;
@@ -319,7 +319,7 @@ void masterconn_setversion(masterconn */*eptr*/, const std::vector<uint8_t>& dat
 void masterconn_duplicate(masterconn* /*eptr*/,const std::vector<uint8_t>& data) {
 	uint64_t newChunkId, oldChunkId;
 	uint32_t newChunkVersion, oldChunkVersion;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 
 	matocs::duplicateChunk::deserialize(data, newChunkId, newChunkVersion, chunkType,
 			oldChunkId, oldChunkVersion);
@@ -331,7 +331,7 @@ void masterconn_duplicate(masterconn* /*eptr*/,const std::vector<uint8_t>& data)
 
 void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	uint32_t version;
 	uint32_t chunkLength;
 	uint32_t newVersion;
@@ -346,7 +346,7 @@ void masterconn_truncate(masterconn */*eptr*/, const std::vector<uint8_t>& data)
 void masterconn_duptrunc(masterconn* /*eptr*/, const std::vector<uint8_t>& data) {
 	uint64_t chunkId, copyChunkId;
 	uint32_t chunkVersion, copyChunkVersion;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	uint32_t newLength;
 
 	matocs::duptruncChunk::deserialize(data, copyChunkId, copyChunkVersion,
@@ -386,12 +386,12 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	put32bit(&ptr,copyversion);
 	put32bit(&ptr,leng);
 	job_chunkop(jpool, masterconn_chunkopfinished, packet, chunkid, version,
-			ChunkType::getStandardChunkType(), newversion, copychunkid, copyversion, leng);
+			slice_traits::standard::ChunkPartType(), newversion, copychunkid, copyversion, leng);
 }
 
 void masterconn_replicate(const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	uint32_t chunkVersion;
 	uint32_t sourcesBufferSize;
 	const uint8_t* sourcesBuffer;

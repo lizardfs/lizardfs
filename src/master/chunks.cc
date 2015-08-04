@@ -40,6 +40,7 @@
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
+#include "common/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 #include "master/checksum.h"
 #include "master/chunk_copies_calculator.h"
@@ -90,7 +91,7 @@ enum {INVALID,DEL,BUSY,VALID,TDBUSY,TDVALID};
 struct slist {
 	matocsserventry *ptr;
 	uint32_t version;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint8_t valid;
 //      uint8_t sectionid; - idea - Split machines into sctions. Try to place each copy of particular chunk in different section.
 //      uint16_t machineid; - idea - If there are many different processes on the same physical computer then place there only one copy of chunk.
@@ -98,7 +99,7 @@ struct slist {
 	slist()
 			: ptr(nullptr),
 			  version(0),
-			  chunkType(ChunkType::getStandardChunkType()),
+			  chunkType(),
 			  valid(INVALID),
 			  next(nullptr) {
 	}
@@ -470,7 +471,7 @@ public:
 		updateStats();
 	}
 
-	slist* addCopyNoStatsUpdate(matocsserventry *ptr, uint8_t valid, uint32_t version, ChunkType type) {
+	slist* addCopyNoStatsUpdate(matocsserventry *ptr, uint8_t valid, uint32_t version, ChunkPartType type) {
 		slist *s = slist_malloc();
 		s->ptr = ptr;
 		s->valid = valid;
@@ -481,7 +482,7 @@ public:
 		return s;
 	}
 
-	slist *addCopy(matocsserventry *ptr, uint8_t valid, uint32_t version, ChunkType type) {
+	slist *addCopy(matocsserventry *ptr, uint8_t valid, uint32_t version, ChunkPartType type) {
 		slist *s = addCopyNoStatsUpdate(ptr, valid, version, type);
 		updateStats();
 		return s;
@@ -1519,7 +1520,7 @@ struct ChunkLocation {
 			distance(0), random(0) {
 	}
 	NetworkAddress address;
-	ChunkType chunkType;
+	ChunkPartType chunkType;
 	uint32_t distance;
 	uint32_t random;
 	MediaLabel label;

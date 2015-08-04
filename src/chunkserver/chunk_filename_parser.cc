@@ -20,14 +20,14 @@
 #include "chunkserver/chunk_filename_parser.h"
 
 #include "chunkserver/chunk_format.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/goal.h"
-#include "common/slice_traits.h"
 #include "common/parser.h"
+#include "common/slice_traits.h"
 
 ChunkFilenameParser::ChunkFilenameParser(const std::string& filename)
 	: Parser(filename),
-	  chunkType_(ChunkType::getStandardChunkType()),
+	  chunkType_(),
 	  chunkVersion_(0),
 	  chunkId_(0),
 	  xorPart_(0),
@@ -48,7 +48,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 			if (getLastConsumedCharacterCount() > 2) {
 				return ERROR_INVALID_FILENAME;
 			}
-			xorLevel_ = getDecValue<ChunkType::XorLevel>();
+			xorLevel_ = getDecValue<int>();
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
@@ -59,7 +59,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		if (consume("_") != Parser::OK) {
 			return ERROR_INVALID_FILENAME;
 		}
-		chunkType_ = ChunkType::getXorParityChunkType(xorLevel_);
+		chunkType_ = slice_traits::xors::ChunkPartType(xorLevel_, slice_traits::xors::kXorParityPart);
 		return ChunkFilenameParser::OK;
 	}
 
@@ -72,7 +72,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 			if (getLastConsumedCharacterCount() > 2) {
 				return ERROR_INVALID_FILENAME;
 			}
-			xorPart_ = getDecValue<ChunkType::XorPart>();
+			xorPart_ = getDecValue<int>();
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
@@ -89,7 +89,7 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 			if (getLastConsumedCharacterCount() > 2) {
 				return ERROR_INVALID_FILENAME;
 			}
-			xorLevel_ = getDecValue<ChunkType::XorLevel>();
+			xorLevel_ = getDecValue<int>();
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
@@ -101,11 +101,11 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 		if (consume("_") != Parser::OK) {
 			return ERROR_INVALID_FILENAME;
 		}
-		chunkType_ = ChunkType::getXorChunkType(xorLevel_, xorPart_);
+		chunkType_ = slice_traits::xors::ChunkPartType(xorLevel_, xorPart_);
 		return ChunkFilenameParser::OK;
 	}
 
-	chunkType_ = ChunkType::getStandardChunkType();
+	chunkType_ = slice_traits::standard::ChunkPartType();
 	return ChunkFilenameParser::OK;
 }
 
@@ -162,7 +162,7 @@ ChunkFormat ChunkFilenameParser::chunkFormat() const {
 	return chunkFormat_;
 }
 
-ChunkType ChunkFilenameParser::chunkType() const {
+ChunkPartType ChunkFilenameParser::chunkType() const {
 	return chunkType_;
 }
 
@@ -174,10 +174,10 @@ uint64_t ChunkFilenameParser::chunkId() const {
 	return chunkId_;
 }
 
-ChunkType::XorPart ChunkFilenameParser::xorPart() const {
+int ChunkFilenameParser::xorPart() const {
 	return xorPart_;
 }
 
-ChunkType::XorLevel ChunkFilenameParser::xorLevel() const {
+int ChunkFilenameParser::xorLevel() const {
 	return xorLevel_;
 }

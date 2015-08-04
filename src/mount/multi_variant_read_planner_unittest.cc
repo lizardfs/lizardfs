@@ -30,8 +30,8 @@
 #include "unittests/operators.h"
 #include "unittests/plan_tester.h"
 
-typedef std::set<ChunkType> Set;
-typedef std::vector<ChunkType> Vector;
+typedef std::set<ChunkPartType> Set;
+typedef std::vector<ChunkPartType> Vector;
 
 // For the given planner, returns a set of parts which would be used in the basic variant of a plan
 static Set getPartsToUseInBasicPlan(const ReadPlanner& planner) {
@@ -44,8 +44,8 @@ static Set getPartsToUseInBasicPlan(const ReadPlanner& planner) {
 }
 
 // For the given set of parts, returns a set of parts which would be used in the basic variant
-static Set getPartsToUseInBasicPlan(std::vector<ChunkType> availableParts,
-		std::map<ChunkType, float> scores = std::map<ChunkType, float>()) {
+static Set getPartsToUseInBasicPlan(std::vector<ChunkPartType> availableParts,
+		std::map<ChunkPartType, float> scores = std::map<ChunkPartType, float>()) {
 	MultiVariantReadPlanner planner;
 	planner.setScores(std::move(scores));
 	planner.prepare(availableParts);
@@ -167,7 +167,7 @@ TEST(MultiVariantReadPlannerTests, BuildPlanForMissingXorPart2) {
 
 // Tests the given planner.
 // It will also verify if 'partNotUsedInTheBasicVariant' is not being read in the basic variant.
-static void testPlanner(const ReadPlanner& planner, ChunkType partNotUsedInTheBasicVariant) {
+static void testPlanner(const ReadPlanner& planner, ChunkPartType partNotUsedInTheBasicVariant) {
 	auto parts = planner.partsToUse();
 	SCOPED_TRACE("Testing planner which uses " + ::testing::PrintToString(parts));
 	SCOPED_TRACE("Unused (in the basic variant) part is "
@@ -219,7 +219,7 @@ static void testPlanner(const ReadPlanner& planner, ChunkType partNotUsedInTheBa
 		ASSERT_EQ(expectedResult, actualResult);
 
 		// For each part test also the extended variant in which this part fails
-		for (ChunkType failingPart : parts) {
+		for (ChunkPartType failingPart : parts) {
 			SCOPED_TRACE("Testing variant where fails " + ::testing::PrintToString(failingPart));
 			ASSERT_TRUE(plan->isReadingFinished({failingPart}));
 			ASSERT_NO_THROW(actualResult =
@@ -236,14 +236,14 @@ TEST(MultiVariantReadPlannerTests, BuildPlanForXor) {
 			xorLevel <= slice_traits::xors::kMaxXorLevel; ++xorLevel) {
 		// Prepare a list of all parts for the current level, ie;
 		// parts = { xor_p_of_N, xor_1_of_N, xor_2_of_N, ...., xor_N_of_N }
-		Vector parts{ChunkType::getXorParityChunkType(xorLevel)};
+		Vector parts{slice_traits::xors::ChunkPartType(xorLevel, slice_traits::xors::kXorParityPart)};
 		for (uint32_t xorPart = 1; xorPart <= xorLevel; ++xorPart) {
-			parts.push_back(ChunkType::getXorChunkType(xorLevel, xorPart));
+			parts.push_back(slice_traits::xors::ChunkPartType(xorLevel, xorPart));
 		}
 
 		// Prepare scores for parts, 1.0 for each part
-		std::map<ChunkType, float> scores;
-		for (ChunkType part : parts) {
+		std::map<ChunkPartType, float> scores;
+		for (ChunkPartType part : parts) {
 			scores[part] = 1.0;
 		}
 

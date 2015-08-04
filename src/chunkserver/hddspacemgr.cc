@@ -57,10 +57,10 @@
 #include "common/list.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/random.h"
 #include "common/serialization.h"
+#include "common/slice_traits.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
@@ -68,6 +68,7 @@
 #include "common/wrong_crc_notifier.h"
 #include "devtools/TracePrinter.h"
 #include "devtools/request_log.h"
+#include "protocol/MFSCommunication.h"
 
 /* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */
 #define DELAYEDSTEP 2
@@ -273,7 +274,7 @@ void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit) {
 	zassert(pthread_mutex_unlock(&dclock));
 }
 
-void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkType type) {
+void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkPartType type) {
 	TRACETHIS();
 	zassert(pthread_mutex_lock(&dclock));
 	if (gNewChunks.empty() || gNewChunks.back().size() >= NEWCHUNKSBLOCKSIZE) {
@@ -656,7 +657,7 @@ static void hdd_chunk_delete(Chunk *c);
 
 static Chunk* hdd_chunk_get(
 		uint64_t chunkid,
-		ChunkType chunkType,
+		ChunkPartType chunkType,
 		uint8_t cflag,
 		ChunkFormat format) {
 	TRACETHIS2(chunkid, (unsigned)cflag);
@@ -795,7 +796,7 @@ static void hdd_chunk_delete(Chunk *c) {
 static Chunk* hdd_chunk_create(
 		folder *f,
 		uint64_t chunkid,
-		ChunkType chunkType,
+		ChunkPartType chunkType,
 		uint32_t version,
 		ChunkFormat chunkFormat) {
 	TRACETHIS();
@@ -824,7 +825,7 @@ static Chunk* hdd_chunk_create(
 	return c;
 }
 
-static inline Chunk* hdd_chunk_find(uint64_t chunkId, ChunkType chunkType) {
+static inline Chunk* hdd_chunk_find(uint64_t chunkId, ChunkPartType chunkType) {
 	LOG_AVG_TILL_END_OF_SCOPE0("chunk_find");
 	return hdd_chunk_get(chunkId, chunkType, CH_NEW_NONE, ChunkFormat::IMPROPER);
 }
@@ -1255,14 +1256,14 @@ static inline int hdd_int_chunk_readcrc(MooseFSChunk *c) {
 	}
 	if (c->chunkid != chunkSignature.chunkId()
 			|| c->version != chunkSignature.chunkVersion()
-			|| c->type().chunkTypeId() != chunkSignature.chunkType().chunkTypeId()) {
+			|| c->type().getId() != chunkSignature.chunkType().getId()) {
 		syslog(LOG_WARNING,
 				"chunk_readcrc: file:%s - wrong id/version/type in header "
 				"(%016" PRIX64 "_%08" PRIX32 ", typeId %" PRIu8 ")",
 				c->filename().c_str(),
 				chunkSignature.chunkId(),
 				chunkSignature.chunkVersion(),
-				chunkSignature.chunkType().chunkTypeId());
+				chunkSignature.chunkType().getId());
 		errno = 0;
 		return LIZARDFS_ERROR_IO;
 	}
@@ -1534,7 +1535,7 @@ static int hdd_io_end(Chunk *c) {
 
 /* I/O operations */
 
-int hdd_open(uint64_t chunkid, ChunkType chunkType) {
+int hdd_open(uint64_t chunkid, ChunkPartType chunkType) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_open");
 	TRACETHIS1(chunkid);
 	int status;
@@ -1556,7 +1557,7 @@ int hdd_open(uint64_t chunkid, ChunkType chunkType) {
 	return status;
 }
 
-int hdd_close(uint64_t chunkid, ChunkType chunkType) {
+int hdd_close(uint64_t chunkid, ChunkPartType chunkType) {
 	TRACETHIS1(chunkid);
 	int status;
 	Chunk *c;
@@ -1681,7 +1682,7 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
  * Unlike other hdd_... functions this one reports errors to syslog. That's due to the fact that
  * nobody else looks at these errors and we don't want to lose information about them.
  */
-int hdd_prefetch_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t firstBlock,
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firstBlock,
 		uint16_t nrOfBlocks) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_prefetch_blocks");
 
@@ -1733,7 +1734,7 @@ static void hdd_prefetch(Chunk& chunk, uint16_t firstBlock, uint32_t numberOfBlo
 	}
 }
 
-int hdd_read(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
 		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_read");
@@ -1902,7 +1903,7 @@ bool hdd_int_write_block_and_crc(
 			c, buffer, 0, MFSBLOCKSIZE, crcBuff, blockNum, errorMsg);
 }
 
-int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
+int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_write");
 	TRACETHIS3(chunkid, offset, size);
@@ -2046,7 +2047,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkType chunkType,
 int hdd_check_version(uint64_t chunkid, uint32_t version) {
 	TRACETHIS2(chunkid, version);
 	Chunk *c;
-	c = hdd_chunk_find(chunkid, ChunkType::getStandardChunkType());
+	c = hdd_chunk_find(chunkid, slice_traits::standard::ChunkPartType());
 	if (c==NULL) {
 		return LIZARDFS_ERROR_NOCHUNK;
 	}
@@ -2059,7 +2060,7 @@ int hdd_check_version(uint64_t chunkid, uint32_t version) {
 	return LIZARDFS_STATUS_OK;
 }
 
-int hdd_get_blocks(uint64_t chunkid, ChunkType chunkType, uint32_t version, uint16_t *blocks) {
+int hdd_get_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t version, uint16_t *blocks) {
 	TRACETHIS1(chunkid);
 	Chunk *c;
 	c = hdd_chunk_find(chunkid, chunkType);
@@ -2092,7 +2093,7 @@ static int hdd_chunk_overwrite_version(Chunk* c, uint32_t newVersion) {
 	return LIZARDFS_STATUS_OK;
 }
 
-static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
+static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
 	TRACETHIS2(chunkid, version);
 	folder *f;
 	Chunk *c;
@@ -2145,7 +2146,7 @@ static int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 	return LIZARDFS_STATUS_OK;
 }
 
-static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
+static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
 	TRACETHIS2(chunkid, version);
 	uint16_t block;
 		int status;
@@ -2207,7 +2208,7 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkType chunkType)
 }
 
 static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t chunkNewVersion,
-		ChunkType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion) {
+		ChunkPartType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion) {
 	TRACETHIS();
 	folder *f;
 	uint16_t block;
@@ -2367,7 +2368,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 }
 
 static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversion,
-		ChunkType chunkType) {
+		ChunkPartType chunkType) {
 	TRACETHIS();
 	int status;
 	Chunk *c;
@@ -2411,7 +2412,7 @@ static int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversi
 	return status;
 }
 
-static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldVersion,
+static int hdd_int_truncate(uint64_t chunkId, ChunkPartType chunkType, uint32_t oldVersion,
 		uint32_t newVersion, uint32_t length) {
 	TRACETHIS4(chunkId, oldVersion, newVersion, length);
 	int status;
@@ -2557,7 +2558,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkType chunkType, uint32_t oldV
 }
 
 static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t chunkNewVersion,
-		ChunkType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion,
+		ChunkPartType chunkType, uint64_t copyChunkId, uint32_t copyChunkVersion,
 		uint32_t copyChunkLength) {
 	TRACETHIS();
 	folder *f;
@@ -2850,7 +2851,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 }
 
 
-static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkType chunkType) {
+static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
 	TRACETHIS();
 	Chunk *c;
 	c = hdd_chunk_find(chunkid, chunkType);
@@ -2885,7 +2886,7 @@ static int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkType chunkTyp
 // newversion==0 && length==0                             -> delete
 // newversion==0 && length==1                             -> create
 // newversion==0 && length==2                             -> check chunk contents
-int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint32_t chunkNewVersion, uint64_t copyChunkId, uint32_t copyChunkVersion,
 		uint32_t length) {
 	TRACETHIS();
@@ -2983,7 +2984,7 @@ void* hdd_tester_thread(void* arg) {
 	Chunk *c;
 	uint64_t chunkid;
 	uint32_t version;
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	uint32_t freq;
 	uint32_t cnt;
 	uint64_t st,en;
@@ -3110,7 +3111,7 @@ static inline void hdd_add_chunk(folder *f,
 		uint64_t chunkId,
 		ChunkFormat chunkFormat,
 		uint32_t version,
-		ChunkType chunkType,
+		ChunkPartType chunkType,
 		uint8_t todel) {
 	TRACETHIS();
 	folder *prevf;
@@ -4009,7 +4010,7 @@ int hdd_init(void) {
 }
 
 HddspacemgrChunkFileCreator::HddspacemgrChunkFileCreator(
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
 		: ChunkFileCreator(chunkId, chunkVersion, chunkType),
 		  isCreated_(false),
 		  isOpen_(false),

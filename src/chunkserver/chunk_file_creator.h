@@ -22,11 +22,11 @@
 
 #include <cstdint>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 
 class ChunkFileCreator {
 public:
-	ChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType)
+	ChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
 			: chunkId_(chunkId),
 			  chunkVersion_(chunkVersion),
 			  chunkType_(chunkType) {
@@ -37,10 +37,10 @@ public:
 	virtual void commit() = 0;
 	uint64_t chunkId() const { return chunkId_; }
 	uint32_t chunkVersion() const { return chunkVersion_; }
-	ChunkType chunkType() const { return chunkType_; }
+	ChunkPartType chunkType() const { return chunkType_; }
 
 private:
 	uint64_t chunkId_;
 	uint32_t chunkVersion_;
-	ChunkType chunkType_;
+	ChunkPartType chunkType_;
 };

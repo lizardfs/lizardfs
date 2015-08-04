@@ -24,11 +24,11 @@
 
 class XorChunkReadPlanner : public ReadPlanner {
 public:
-	XorChunkReadPlanner(ChunkType readChunkType);
+	XorChunkReadPlanner(ChunkPartType readChunkType);
 	~XorChunkReadPlanner();
 
-	virtual void prepare(const std::vector<ChunkType>& availableParts) override;
-	virtual std::vector<ChunkType> partsToUse() const override;
+	virtual void prepare(const std::vector<ChunkPartType>& availableParts) override;
+	virtual std::vector<ChunkPartType> partsToUse() const override;
 	virtual bool isReadingPossible() const override;
 	virtual std::unique_ptr<ReadPlan> buildPlanFor(
 			uint32_t firstBlock, uint32_t blockCount) const override;
@@ -38,7 +38,7 @@ private:
 	class CopyPartPlanBuilder;
 	class XorPlanBuilder;
 
-	ChunkType chunkType_;
-	std::vector<ChunkType> partsToUse_;
+	ChunkPartType chunkType_;
+	std::vector<ChunkPartType> partsToUse_;
 	std::unique_ptr<PlanBuilder> planBuilder_;
 };

@@ -37,7 +37,7 @@ void job_pool_delete(void *jpool);
 
 uint32_t job_inval(void *jpool,void (*callback)(uint8_t status,void *extra),void *extra);
 uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType, uint32_t newChunkVersion,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType, uint32_t newChunkVersion,
 		uint64_t copyChunkId, uint32_t copyChunkVersion, uint32_t length);
 
 #define job_delete(jobPool, callback, extra, chunkId, chunkVersion, chunkType) \
@@ -77,22 +77,22 @@ uint32_t job_chunkop(void *jpool, void (*callback)(uint8_t status, void *extra),
 	: job_inval(jobPool, callback, extra))
 
 uint32_t job_open(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, ChunkType chunkType);
+		uint64_t chunkid, ChunkPartType chunkType);
 uint32_t job_close(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkid, ChunkType chunkType);
+		uint64_t chunkid, ChunkPartType chunkType);
 uint32_t job_read(void *jpool, void (*callback)(uint8_t status,void *extra), void *extra,
-		uint64_t chunkid, uint32_t chunkVersion, ChunkType chunkType,
+		uint64_t chunkid, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
 		uint32_t blocksToBeReadAhead, OutputBuffer *outputBuffer, bool performHddOpen);
-uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkType chunkType,
+uint32_t job_prefetch(void *jpool, uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint32_t firstBlockToBePrefetched, uint32_t nrOfBlocksToBePrefetched) ;
 uint32_t job_write(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t *buffer);
 uint32_t job_get_blocks(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t version, ChunkType chunkType, uint16_t* blocks);
+		uint64_t chunkId, uint32_t version, ChunkPartType chunkType, uint16_t* blocks);
 uint32_t job_replicate(void *jpool, void (*callback)(uint8_t status, void *extra), void *extra,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkType chunkType,
+		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint32_t sourcesBufferSize, const uint8_t* sourcesBuffer);
 
 /* srcs: srccnt * (chunkid:64 chunkVersion:32 ip:32 port:16) */

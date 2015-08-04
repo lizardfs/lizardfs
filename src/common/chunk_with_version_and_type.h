@@ -25,17 +25,18 @@
 #include <sstream>
 #include <tuple>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/serialization.h"
+#include "common/slice_traits.h"
 
 struct ChunkWithVersionAndType {
 	uint64_t id;
 	uint32_t version;
-	ChunkType type;
+	ChunkPartType type;
 
-	ChunkWithVersionAndType() : id(0), version(0), type(ChunkType::getStandardChunkType()) {}
+	ChunkWithVersionAndType() : id(0), version(0), type(slice_traits::standard::ChunkPartType()) {}
 
-	ChunkWithVersionAndType(uint64_t id, uint32_t version, ChunkType type)
+	ChunkWithVersionAndType(uint64_t id, uint32_t version, ChunkPartType type)
 			: id(id),
 			  version(version),
 			  type(type) {

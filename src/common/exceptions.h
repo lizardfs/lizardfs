@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/exception.h"
 #include "common/mfserr.h"
 #include "common/network_address.h"
@@ -37,18 +37,18 @@ LIZARDFS_CREATE_EXCEPTION_CLASS(NoValidCopiesReadException, RecoverableReadExcep
 class ChunkCrcException : public RecoverableReadException {
 public:
 	ChunkCrcException(const std::string& message, const NetworkAddress& server,
-			const ChunkType& chunkType)
+			const ChunkPartType& chunkType)
 			: RecoverableReadException(message + " (server " + server.toString() + ")"),
 			  server_(server), chunkType_(chunkType) {
 	}
 
 	~ChunkCrcException() throw() {}
 	const NetworkAddress& server() const throw() { return server_; }
-	const ChunkType& chunkType() const throw() { return chunkType_; }
+	const ChunkPartType& chunkType() const throw() { return chunkType_; }
 
 private:
 	NetworkAddress server_;
-	ChunkType chunkType_;
+	ChunkPartType chunkType_;
 };
 
 class ParseException : public Exception {

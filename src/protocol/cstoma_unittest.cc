@@ -30,7 +30,7 @@
 
 TEST(CstomaCommunicationTests, OverwriteStatusField) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 0, 2);
 
 	std::vector<uint8_t> buffer;
@@ -115,7 +115,7 @@ TEST(CstomaCommunicationTests, RegisterSpace) {
 
 TEST(CstomaCommunicationTests, SetVersion) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 2, 0);
 
 	std::vector<uint8_t> buffer;
@@ -132,7 +132,7 @@ TEST(CstomaCommunicationTests, SetVersion) {
 
 TEST(CstomaCommunicationTests, DeleteChunk) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 2, 0);
 
 	std::vector<uint8_t> buffer;
@@ -149,7 +149,7 @@ TEST(CstomaCommunicationTests, DeleteChunk) {
 
 TEST(CstomaCommunicationTests, Replicate) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId, 0xFFFFFFFFFFFFFFFF, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(ChunkType, chunkType, xor_p_of_3, standard);
+	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, status, 2, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x87654321, 0);
 

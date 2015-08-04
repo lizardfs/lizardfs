@@ -38,23 +38,23 @@
 
 class XorChunkReadPlannerTests: public testing::Test {
 protected:
-	void checkChoice(ChunkType plannerChunkType,
-			const std::vector<ChunkType>& availableParts, const std::vector<ChunkType>& expected) {
+	void checkChoice(ChunkPartType plannerChunkType,
+			const std::vector<ChunkPartType>& availableParts, const std::vector<ChunkPartType>& expected) {
 		XorChunkReadPlanner planner(plannerChunkType);
 		planner.prepare(availableParts);
 		EXPECT_EQ(expected, planner.partsToUse());
 	}
 
-	void checkImpossibleness(ChunkType plannerChunkType, const std::vector<ChunkType>& availableParts) {
+	void checkImpossibleness(ChunkPartType plannerChunkType, const std::vector<ChunkPartType>& availableParts) {
 		XorChunkReadPlanner planner(plannerChunkType);
 		planner.prepare(availableParts);
 		EXPECT_FALSE(planner.isReadingPossible());
 	}
 
-	void verifyPlanner(ChunkType plannerChunkType, const std::vector<ChunkType>& availableParts) {
+	void verifyPlanner(ChunkPartType plannerChunkType, const std::vector<ChunkPartType>& availableParts) {
 		SCOPED_TRACE("Testing recovery of " + ::testing::PrintToString(plannerChunkType));
 		SCOPED_TRACE("Testing reading from " + ::testing::PrintToString(availableParts));
-		uint32_t blocksInPart = plannerChunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
+		uint32_t blocksInPart = slice_traits::getNumberOfBlocks(plannerChunkType, MFSBLOCKSINCHUNK);
 
 		XorChunkReadPlanner planner(plannerChunkType);
 		planner.prepare(availableParts);
@@ -162,18 +162,18 @@ TEST_F(XorChunkReadPlannerTests, ChoosePartsToUseImpossible3) {
 }
 
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartWithoutParity) {
-	std::vector<ChunkType> plannedChunkTypes = {
+	std::vector<ChunkPartType> plannedChunkTypes = {
 			xor_1_of_2, xor_2_of_2,
 			xor_1_of_3, xor_2_of_3, xor_3_of_3,
-			ChunkType::getXorChunkType(slice_traits::xors::kMaxXorLevel, 1),
-			ChunkType::getXorChunkType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kMaxXorLevel),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, 1),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kMaxXorLevel),
 	};
-	std::vector<std::vector<ChunkType>> availablePartsSets = {
+	std::vector<std::vector<ChunkPartType>> availablePartsSets = {
 			{standard},
 			{xor_1_of_2, xor_2_of_2},
 			{xor_1_of_3, xor_2_of_3, xor_3_of_3},
 	};
-	for (ChunkType plannedChunkType : plannedChunkTypes) {
+	for (ChunkPartType plannedChunkType : plannedChunkTypes) {
 		for (const auto& availableParts : availablePartsSets) {
 			EXPECT_NO_THROW(verifyPlanner(plannedChunkType, availableParts));
 		}
@@ -181,18 +181,18 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartWithoutParity) {
 }
 
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartFromParity) {
-	std::vector<ChunkType> plannedChunkTypes = {
+	std::vector<ChunkPartType> plannedChunkTypes = {
 			xor_1_of_2, xor_2_of_2,
 			xor_1_of_3, xor_2_of_3, xor_3_of_3,
-			ChunkType::getXorChunkType(slice_traits::xors::kMaxXorLevel, 1),
-			ChunkType::getXorChunkType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kMaxXorLevel),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, 1),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kMaxXorLevel),
 	};
-	std::vector<std::vector<ChunkType>> availablePartsSets = {
+	std::vector<std::vector<ChunkPartType>> availablePartsSets = {
 			{xor_1_of_2, xor_p_of_2},
 			{xor_2_of_2, xor_p_of_2},
 			{xor_1_of_3, xor_p_of_3, xor_3_of_3},
 	};
-	for (ChunkType plannedChunkType : plannedChunkTypes) {
+	for (ChunkPartType plannedChunkType : plannedChunkTypes) {
 		for (const auto& availableParts : availablePartsSets) {
 			EXPECT_NO_THROW(verifyPlanner(plannedChunkType, availableParts));
 		}
@@ -200,16 +200,16 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverPartFromParity) {
 }
 
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityWithoutParity) {
-	std::vector<ChunkType> plannedChunkTypes = {
+	std::vector<ChunkPartType> plannedChunkTypes = {
 			xor_p_of_2, xor_p_of_3, xor_p_of_6,
-			ChunkType::getXorParityChunkType(slice_traits::xors::kMaxXorLevel),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kXorParityPart),
 	};
-	std::vector<std::vector<ChunkType>> availablePartsSets = {
+	std::vector<std::vector<ChunkPartType>> availablePartsSets = {
 			{standard},
 			{xor_1_of_2, xor_2_of_2},
 			{xor_1_of_3, xor_2_of_3, xor_3_of_3},
 	};
-	for (ChunkType plannedChunkType : plannedChunkTypes) {
+	for (ChunkPartType plannedChunkType : plannedChunkTypes) {
 		for (const auto& availableParts : availablePartsSets) {
 			EXPECT_NO_THROW(verifyPlanner(plannedChunkType, availableParts));
 		}
@@ -217,16 +217,16 @@ TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityWithoutParity) {
 }
 
 TEST_F(XorChunkReadPlannerTests, GetPlanRecoverParityFromParity) {
-	std::vector<ChunkType> plannedChunkTypes = {
+	std::vector<ChunkPartType> plannedChunkTypes = {
 			xor_p_of_2, xor_p_of_3, xor_p_of_6,
-			ChunkType::getXorParityChunkType(slice_traits::xors::kMaxXorLevel),
+			slice_traits::xors::ChunkPartType(slice_traits::xors::kMaxXorLevel, slice_traits::xors::kXorParityPart),
 	};
-	std::vector<std::vector<ChunkType>> availablePartsSets = {
+	std::vector<std::vector<ChunkPartType>> availablePartsSets = {
 			{xor_1_of_2, xor_p_of_2},
 			{xor_2_of_2, xor_p_of_2},
 			{xor_1_of_3, xor_p_of_3, xor_3_of_3},
 	};
-	for (ChunkType plannedChunkType : plannedChunkTypes) {
+	for (ChunkPartType plannedChunkType : plannedChunkTypes) {
 		for (const auto& availableParts : availablePartsSets) {
 			EXPECT_NO_THROW(verifyPlanner(plannedChunkType, availableParts));
 		}

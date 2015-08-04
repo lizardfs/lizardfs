@@ -20,9 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type.h"
-#include "protocol/packet.h"
 #include "common/serialization_macros.h"
+#include "protocol/packet.h"
 
 namespace cstocl {
 

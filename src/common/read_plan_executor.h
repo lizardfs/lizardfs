@@ -24,7 +24,7 @@
 #include <map>
 
 #include "common/chunk_connector.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/chunkserver_stats.h"
 #include "common/connection_pool.h"
 #include "protocol/MFSCommunication.h"
@@ -35,7 +35,7 @@
 
 class ReadPlanExecutor {
 public:
-	typedef std::map<ChunkType, NetworkAddress> ChunkTypeLocations;
+	typedef std::map<ChunkPartType, NetworkAddress> ChunkTypeLocations;
 
 	/// Timeouts for ReadPlanExecutor::executePlan.
 	struct Timeouts {
@@ -76,7 +76,7 @@ public:
 	 * \return set of parts from which reading data was abandoned
 	 *         during the last successful call to executePlan
 	 */
-	const std::set<ChunkType>& partsOmitted() const {
+	const std::set<ChunkPartType>& partsOmitted() const {
 		return partsOmitted_;
 	}
 
@@ -94,7 +94,7 @@ private:
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
 	std::unique_ptr<const ReadPlan> plan_;
-	std::set<ChunkType> partsOmitted_;
+	std::set<ChunkPartType> partsOmitted_;
 
 	/**
 	 * Executes read operations from plan_.

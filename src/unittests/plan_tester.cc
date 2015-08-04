@@ -23,29 +23,30 @@
 #include <boost/format.hpp>
 
 #include "common/massert.h"
+#include "common/slice_traits.h"
 #include "unittests/operators.h"
 
 namespace unittests {
 
-Block::Block(ChunkType chunkType, uint32_t blocknum) : isInitialized_(true) {
-	if (chunkType.isStandardChunkType()) {
+Block::Block(ChunkPartType chunkType, uint32_t blocknum) : isInitialized_(true) {
+	if (slice_traits::isStandard(chunkType)) {
 		sassert(blocknum < MFSBLOCKSINCHUNK);
 		toggle(blocknum);
 	} else {
-		uint32_t level = chunkType.getXorLevel();
-		if (chunkType.isXorParity()) {
-			uint32_t blocksInParityPart = chunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
+		int level = slice_traits::xors::getXorLevel(chunkType);
+		if (slice_traits::xors::isXorParity(chunkType)) {
+			uint32_t blocksInParityPart = slice_traits::getNumberOfBlocks(chunkType, MFSBLOCKSINCHUNK);
 			sassert(blocknum < blocksInParityPart);
-			for (uint32_t i = 0; i < level; ++i) {
+			for (int i = 0; i < level; ++i) {
 				if (blocknum * level + i < MFSBLOCKSINCHUNK) {
 					toggle(blocknum * level + i);
 				}
 			}
 		} else {
-			uint32_t blocksInPart = chunkType.getNumberOfBlocks(MFSBLOCKSINCHUNK);
+			uint32_t blocksInPart = slice_traits::getNumberOfBlocks(chunkType, MFSBLOCKSINCHUNK);
 			massert(blocknum < blocksInPart, boost::str(boost::format(
 					"Requested block %1% from %2%") % blocknum % chunkType).c_str());
-			toggle(blocknum * level + chunkType.getXorPart() - 1);
+			toggle(blocknum * level + slice_traits::xors::getXorPart(chunkType) - 1);
 		}
 	}
 }
@@ -94,15 +95,15 @@ std::ostream& operator<<(std::ostream& out, const Block& block) {
 
 std::vector<Block> PlanTester::executePlan(
 		const ReadPlan& plan,
-		const std::vector<ChunkType>& availableParts,
+		const std::vector<ChunkPartType>& availableParts,
 		uint32_t blockCount,
-		const std::set<ChunkType>& failingParts) {
+		const std::set<ChunkPartType>& failingParts) {
 	sassert(plan.requiredBufferSize % MFSBLOCKSIZE == 0);
 	std::vector<Block> blocks(plan.requiredBufferSize / MFSBLOCKSIZE);
 	sassert(blocks.size() >= blockCount);
 
 	// This helper function applies the 'operation' on 'chunkType' to the 'blocks' vector
-	auto doReadOperation = [&](ChunkType chunkType, const ReadPlan::ReadOperation& operation) {
+	auto doReadOperation = [&](ChunkPartType chunkType, const ReadPlan::ReadOperation& operation) {
 		sassert(std::count(availableParts.begin(), availableParts.end(), chunkType) > 0);
 		sassert(operation.readDataOffsets.size() * MFSBLOCKSIZE == operation.requestSize);
 		sassert(operation.requestOffset % MFSBLOCKSIZE == 0);
@@ -116,7 +117,7 @@ std::vector<Block> PlanTester::executePlan(
 
 	// Perform read operations
 	bool additionalReadOperationsExecuted = false;
-	std::set<ChunkType> unfinishedOperations;
+	std::set<ChunkPartType> unfinishedOperations;
 	for (const auto& chunkTypeAndOperation : plan.basicReadOperations) {
 		if (failingParts.count(chunkTypeAndOperation.first) == 0) {
 			doReadOperation(chunkTypeAndOperation.first, chunkTypeAndOperation.second);
@@ -163,7 +164,7 @@ std::vector<Block> PlanTester::executePlan(
 	return blocks;
 }
 
-std::vector<Block> PlanTester::expectedAnswer(ChunkType chunkType,
+std::vector<Block> PlanTester::expectedAnswer(ChunkPartType chunkType,
 		uint32_t firstBlock, uint32_t blockCount) {
 	std::vector<Block> blocks;
 	for (uint32_t i = 0; i < blockCount; ++i) {

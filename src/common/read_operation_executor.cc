@@ -36,7 +36,7 @@ ReadOperationExecutor::ReadOperationExecutor(
 		const ReadPlan::ReadOperation& readOperation,
 		uint64_t chunkId,
 		uint32_t chunkVersion,
-		const ChunkType& chunkType,
+		const ChunkPartType& chunkType,
 		const NetworkAddress& server,
 		int fd,
 		uint8_t* buffer)

@@ -3,6 +3,10 @@ add_definitions(-DAPPNAME=mfsmaster)
 
 collect_sources(MASTER)
 
+list(REMOVE_ITEM MASTER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/chunk_copies_calculator.cc")
+list(REMOVE_ITEM MASTER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/chunks.cc")
+list(REMOVE_ITEM MASTER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/get_servers_for_new_chunk.cc")
+
 add_library(master ${MASTER_SOURCES})
 target_link_libraries(master mfscommon ${ADDITIONAL_LIBS})
 if(JUDY_LIBRARY)

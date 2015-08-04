@@ -23,7 +23,7 @@
 #include <string>
 
 #include "chunkserver/chunk_format.h"
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 #include "common/parser.h"
 
 class ChunkFilenameParser : public Parser {
@@ -36,11 +36,11 @@ public:
 	ChunkFilenameParser(const std::string& filename);
 	Status parse();
 	ChunkFormat chunkFormat() const;
-	ChunkType chunkType() const;
+	ChunkPartType chunkType() const;
 	uint32_t chunkVersion() const;
 	uint64_t chunkId() const;
-	ChunkType::XorPart xorPart() const;
-	ChunkType::XorLevel xorLevel() const;
+	int xorPart() const;
+	int xorLevel() const;
 
 private:
 	static const size_t kChunkVersionStringSize = 8;
@@ -48,11 +48,11 @@ private:
 
 	ChunkFormat chunkFormat_;
 	std::string chunkName_;
-	ChunkType chunkType_;
+	ChunkPartType chunkType_;
 	uint32_t chunkVersion_;
 	uint64_t chunkId_;
-	ChunkType::XorPart xorPart_;
-	ChunkType::XorLevel xorLevel_;
+	int xorPart_;
+	int xorLevel_;
 
 	Status parseChunkType();
 };

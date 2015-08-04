@@ -30,23 +30,23 @@ namespace {
 
 class IsNotXorLevel {
 public:
-	IsNotXorLevel(ChunkType::XorLevel level, bool acceptParity = true)
+	IsNotXorLevel(int level, bool acceptParity = true)
 			: level_(level),
 			  acceptParity_(acceptParity) {
 	}
 
-	bool operator()(ChunkType chunkType) {
-		if (!chunkType.isXorChunkType() || chunkType.getXorLevel() != level_) {
+	bool operator()(ChunkPartType part_type) {
+		if (!slice_traits::isXor(part_type) || slice_traits::xors::getXorLevel(part_type) != level_) {
 			return true;
 		}
-		if (!acceptParity_ && chunkType.isXorParity()) {
+		if (!acceptParity_ && slice_traits::xors::isXorParity(part_type)) {
 			return true;
 		}
 		return false;
 	}
 
 private:
-	ChunkType::XorLevel level_;
+	int  level_;
 	bool acceptParity_;
 };
 
@@ -68,7 +68,7 @@ std::unique_ptr<ReadPlan> StandardChunkReadPlanner::StandardPlanBuilder::buildPl
 	}
 
 	std::unique_ptr<ReadPlan> plan(new SingleVariantReadPlan);
-	ChunkType chunkType = ChunkType::getStandardChunkType();
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
 	plan->basicReadOperations[chunkType] = readOp;
 	plan->requiredBufferSize = readOp.requestSize;
 	return plan;
@@ -76,30 +76,30 @@ std::unique_ptr<ReadPlan> StandardChunkReadPlanner::StandardPlanBuilder::buildPl
 
 class StandardChunkReadPlanner::XorPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
-	XorPlanBuilder(ChunkType::XorLevel level, ChunkType::XorPart missingPart)
+	XorPlanBuilder(int level, int missingPart)
 		: PlanBuilder(BUILDER_XOR),
 			level_(level),
 			missingPart_(missingPart) {
 	}
 
-	void reset(ChunkType::XorLevel level, ChunkType::XorPart missingPart) {
+	void reset(int level, int missingPart) {
 		level_ = level;
 		missingPart_ = missingPart;
 	}
 
 	std::unique_ptr<ReadPlan> buildPlan(uint32_t firstBlock, uint32_t blockCount) const;
 
-	ChunkType::XorLevel level() {
+	int level() {
 		return level_;
 	}
 
-	ChunkType::XorPart missingPart() {
+	int missingPart() {
 		return missingPart_;
 	}
 
 private:
-	ChunkType::XorLevel level_;
-	ChunkType::XorPart missingPart_;
+	int level_;
+	int missingPart_;
 
 	static const uint32_t lastBlockInChunk = MFSBLOCKSINCHUNK - 1;
 
@@ -109,40 +109,40 @@ private:
 	}
 
 	// which part/stripe does this block belong to?
-	inline uint32_t partOf(uint32_t block) const {
+	inline int partOf(uint32_t block) const {
 		return block % level_ + 1;
 	}
-	inline uint32_t stripeOf(uint32_t block) const {
+	inline int stripeOf(uint32_t block) const {
 		return block / level_;
 	}
 
 	// first/last stripe containing any requested block
-	inline uint32_t firstStripe(uint32_t firstBlock) const {
+	inline int firstStripe(uint32_t firstBlock) const {
 		return stripeOf(firstBlock);
 	}
-	inline uint32_t lastStripe(uint32_t lastBlock) const {
+	inline int lastStripe(uint32_t lastBlock) const {
 		return stripeOf(lastBlock);
 	}
-	inline uint32_t stripeCount(uint32_t firstBlock, uint32_t lastBlock) const {
+	inline int stripeCount(uint32_t firstBlock, uint32_t lastBlock) const {
 		return lastStripe(lastBlock) - firstStripe(firstBlock) + 1;
 	}
-	inline bool isManyStripes(uint32_t firstBlock, uint32_t lastBlock) const {
+	inline int isManyStripes(uint32_t firstBlock, uint32_t lastBlock) const {
 		return stripeCount(firstBlock, lastBlock) > 1;
 	}
 
 	// what's the last part in this stripe? (last stripe in chunk may be shorter than others)
-	inline uint32_t lastPartInStripe(uint32_t stripe) const {
+	inline int lastPartInStripe(int stripe) const {
 	       return (stripe < stripeOf(lastBlockInChunk)) ?
 				level_ : partOf(lastBlockInChunk);
 	}
 
 	// do we need block from the first/last stripe and this part?
-	inline bool isFirstStripeRequestedFor(uint32_t part,
+	inline bool isFirstStripeRequestedFor(int part,
 			uint32_t firstBlock, uint32_t lastBlock) const {
 		return (part >= partOf(firstBlock)) &&
 			(isManyStripes(firstBlock, lastBlock) || part <= partOf(lastBlock));
 	}
-	inline bool isLastStripeRequestedFor(uint32_t part,
+	inline bool isLastStripeRequestedFor(int part,
 			uint32_t firstBlock, uint32_t lastBlock) const {
 		return (part <= partOf(lastBlock)) &&
 			(isManyStripes(firstBlock, lastBlock) || part >= partOf(firstBlock));
@@ -157,10 +157,10 @@ private:
 	}
 
 	// how many parts precede/succeede this part
-	inline uint32_t precedingPartsCount(uint32_t part) const {
+	inline int precedingPartsCount(int part) const {
 		return part - 1;
 	}
-	inline uint32_t succeedingPartsCount(uint32_t part) const {
+	inline int succeedingPartsCount(int part) const {
 		return level_ - part;
 	}
 
@@ -172,7 +172,7 @@ private:
 
 	// where should this block end up in the buffer?
 	// buffer layout: [requested] [lastStripeExtra] [firstStripeExtra]
-	inline uint32_t destinationOffset(uint32_t stripe, uint32_t part,
+	inline uint32_t destinationOffset(int stripe, int part,
 			uint32_t firstBlock, uint32_t lastBlock) const {
 		if (stripe == firstStripe(firstBlock) && part < partOf(firstBlock)) {
 			return lastBlock - firstBlock + 1
@@ -184,10 +184,9 @@ private:
 	}
 
 	// which ChunkType should be fetched to satisfy read of this part?
-	inline ChunkType correspondingChunkType(uint32_t part) const {
-		return (part == missingPart_) ?
-				ChunkType::getXorParityChunkType(level_) :
-				ChunkType::getXorChunkType(level_, part);
+	inline ChunkPartType correspondingChunkType(int part) const {
+		return (part == missingPart_) ? slice_traits::xors::ChunkPartType(level_, slice_traits::xors::kXorParityPart) :
+		                                slice_traits::xors::ChunkPartType(level_, part);
 	}
 
 	// build single ReadOperation for one XOR part
@@ -205,7 +204,7 @@ private:
 					destinationOffset(stripe, part, firstBlock, lastBlock)));
 		}
 		// add this ReadOperation to the plan
-		ChunkType partType = correspondingChunkType(part);
+		ChunkPartType partType = correspondingChunkType(part);
 		plan.basicReadOperations[partType] = readOp;
 	}
 
@@ -213,7 +212,7 @@ private:
 	inline void buildReadOperations(ReadPlan& plan,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
-		for (uint32_t part = 1; part <= level_; part++) {
+		for (int part = 1; part <= level_; part++) {
 			// do we really need first/last block from this part?
 			const bool firstBlockNeeded =
 				isFirstStripeRequestedFor(part, firstBlock, lastBlock)
@@ -259,7 +258,7 @@ private:
 		ReadPlan::PostProcessOperation op;
 		op.destinationOffset = op.sourceOffset =
 				toBytes(destinationOffset(stripe, missingPart_, firstBlock, lastBlock));
-		for (uint32_t part = 1; part <= lastPartInStripe(stripe); ++part) {
+		for (int part = 1; part <= lastPartInStripe(stripe); ++part) {
 			if (part != missingPart_) {
 				op.blocksToXorOffsets.push_back(toBytes(
 					destinationOffset(stripe, part, firstBlock, lastBlock)));
@@ -272,7 +271,7 @@ private:
 	inline void buildXorOperations(SingleVariantReadPlan& plan,
 			uint32_t firstBlock, uint32_t blockCount) const {
 		uint32_t lastBlock = firstBlock + blockCount - 1;
-		for (uint32_t stripe = firstStripe(firstBlock); stripe <= lastStripe(lastBlock); ++stripe) {
+		for (int stripe = firstStripe(firstBlock); stripe <= lastStripe(lastBlock); ++stripe) {
 			if ((stripe == firstStripe(firstBlock) &&
 					!firstStripeRecovery(firstBlock, lastBlock)) ||
 					(stripe == lastStripe(lastBlock) &&
@@ -295,56 +294,60 @@ std::unique_ptr<ReadPlan> StandardChunkReadPlanner::XorPlanBuilder::buildPlan(
 	return std::unique_ptr<ReadPlan>(new SingleVariantReadPlan(std::move(plan)));
 }
 
-void StandardChunkReadPlanner::prepare(const std::vector<ChunkType>& availableParts) {
+void StandardChunkReadPlanner::prepare(const std::vector<ChunkPartType> &availableParts) {
 	currentBuilder_ = nullptr;
 	planBuilders_[BUILDER_STANDARD].reset(new StandardPlanBuilder);
 	planBuilders_[BUILDER_XOR].reset(new XorPlanBuilder(0, 0));
 
-	std::vector<ChunkType> partsToUse = availableParts;
+	std::vector<ChunkPartType> partsToUse = availableParts;
 	std::sort(partsToUse.begin(), partsToUse.end());
 	partsToUse.erase(std::unique(partsToUse.begin(), partsToUse.end()), partsToUse.end());
 
 	std::vector<bool> isParityForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, false);
 	std::vector<int> partsForLevelAvailable(slice_traits::xors::kMaxXorLevel + 1, 0);
 
-	for (const ChunkType& chunkType : partsToUse) {
-		if (chunkType.isStandardChunkType()) {
-			// standard chunk replica available
-			return setCurrentBuilderToStandard();
-		} else {
-			sassert(chunkType.isXorChunkType());
-			if (chunkType.isXorParity()) {
-				isParityForLevelAvailable[chunkType.getXorLevel()] = true;
+	for (const ChunkPartType &chunkType : partsToUse) {
+		if (slice_traits::isXor(chunkType)) {
+			if (slice_traits::xors::isXorParity(chunkType)) {
+				isParityForLevelAvailable[slice_traits::xors::getXorLevel(
+				        chunkType)] = true;
 			} else {
-				++partsForLevelAvailable[chunkType.getXorLevel()];
+				++partsForLevelAvailable[slice_traits::xors::getXorLevel(
+				        chunkType)];
 			}
+		} else {
+			assert(slice_traits::isStandard(chunkType));
+			return setCurrentBuilderToStandard();
 		}
 	}
 
-	for (int level = slice_traits::xors::kMaxXorLevel; level >= slice_traits::xors::kMinXorLevel; --level) {
+	for (int level = slice_traits::xors::kMaxXorLevel;
+	     level >= slice_traits::xors::kMinXorLevel; --level) {
 		if (partsForLevelAvailable[level] == level) {
 			return setCurrentBuilderToXor(level, 0);
 		}
 	}
 
 	// 3. If there is a set of xor chunks with one missing and parity available, choose it
-	for (int level = slice_traits::xors::kMaxXorLevel; level >= slice_traits::xors::kMinXorLevel; --level) {
-		if (partsForLevelAvailable[level] == level - 1 && isParityForLevelAvailable[level]) {
+	for (int level = slice_traits::xors::kMaxXorLevel;
+	     level >= slice_traits::xors::kMinXorLevel; --level) {
+		if (partsForLevelAvailable[level] == level - 1 &&
+		    isParityForLevelAvailable[level]) {
 			// partsToUse contains our level's parts sorted in ascending order
 			// let's find out which one is missing
-			ChunkType::XorPart lastPartSeen = 0;
-			ChunkType::XorPart missingPart = level;
-			for (ChunkType type : partsToUse) {
-				if (type.isXorChunkType() && !type.isXorParity() &&
-						type.getXorLevel() == level) {
-					ChunkType::XorPart part = type.getXorPart();
+			int lastPartSeen = 0;
+			int missingPart = level;
+			for (ChunkPartType type : partsToUse) {
+				if (slice_traits::isXor(type) &&
+				    !slice_traits::xors::isXorParity(type) &&
+				    slice_traits::xors::getXorLevel(type) == level) {
+					int part = slice_traits::xors::getXorPart(type);
 					if (part > lastPartSeen + 1) {
 						missingPart = lastPartSeen + 1;
 						break;
 					} else {
 						lastPartSeen = part;
 					}
-
 				}
 			}
 			return setCurrentBuilderToXor(level, missingPart);
@@ -363,15 +366,15 @@ bool StandardChunkReadPlanner::isReadingPossible() const {
 	return (bool)currentBuilder_;
 }
 
-std::vector<ChunkType> StandardChunkReadPlanner::partsToUse() const {
-	std::vector<ChunkType> parts;
+std::vector<ChunkPartType> StandardChunkReadPlanner::partsToUse() const {
+	std::vector<ChunkPartType> parts;
 	if (currentBuilder_ == nullptr) {
 		return parts;
 	}
 
 	switch (currentBuilder_->type()) {
 		case BUILDER_STANDARD:
-			parts.push_back(ChunkType::getStandardChunkType());
+			parts.push_back(slice_traits::standard::ChunkPartType());
 		break;
 		case BUILDER_XOR: {
 			auto builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
@@ -379,15 +382,15 @@ std::vector<ChunkType> StandardChunkReadPlanner::partsToUse() const {
 				break;
 			}
 
-			ChunkType::XorLevel level = builder->level();
-			ChunkType::XorPart missingPart = builder->missingPart();
+			int level = builder->level();
+			int missingPart = builder->missingPart();
 			if (missingPart != 0) {
-				parts.push_back(ChunkType::getXorParityChunkType(level));
+				parts.push_back(slice_traits::xors::ChunkPartType(level, slice_traits::xors::kXorParityPart));
 			}
 
-			for (ChunkType::XorPart part = 1; part <= level; ++part) {
+			for (int part = 1; part <= level; ++part) {
 				if (part != missingPart) {
-					parts.push_back(ChunkType::getXorChunkType(level, part));
+					parts.push_back(slice_traits::xors::ChunkPartType(level, part));
 				}
 			}
 		}
@@ -403,8 +406,7 @@ void StandardChunkReadPlanner::setCurrentBuilderToStandard() {
 	currentBuilder_ = planBuilders_.at(BUILDER_STANDARD).get();
 }
 
-void StandardChunkReadPlanner::setCurrentBuilderToXor(
-		ChunkType::XorLevel level, ChunkType::XorPart missingPart) {
+void StandardChunkReadPlanner::setCurrentBuilderToXor(int level, int missingPart) {
 	XorPlanBuilder* builder = static_cast<XorPlanBuilder*>(planBuilders_.at(BUILDER_XOR).get());
 	builder->reset(level, missingPart);
 	currentBuilder_ = builder;

@@ -68,7 +68,7 @@ void WrongCrcNotifier::operator()() {
 }
 
 void WrongCrcNotifier::reportBadCrc(NetworkAddress server, uint64_t chunkId, uint32_t chunkVersion,
-		ChunkType chunkType) {
+		ChunkPartType chunkType) {
 	sassert(chunkConnector_);
 	std::unique_lock<std::mutex> lock(mutex_);
 	InconsistentChunk inconsistentChunk = std::make_pair(

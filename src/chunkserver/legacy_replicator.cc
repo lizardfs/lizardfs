@@ -337,10 +337,10 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 static void rep_cleanup(replication *r) {
 	int i;
 	if (r->opened) {
-		hdd_close(r->chunkid, ChunkType::getStandardChunkType());
+		hdd_close(r->chunkid, slice_traits::standard::ChunkPartType());
 	}
 	if (r->created) {
-		hdd_delete(r->chunkid, 0, ChunkType::getStandardChunkType());
+		hdd_delete(r->chunkid, 0, slice_traits::standard::ChunkPartType());
 	}
 	for (i=0 ; i<r->srccnt ; i++) {
 		if (r->repsources[i].sock>=0) {
@@ -397,7 +397,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		r.xorbuff = NULL;
 	}
 // create chunk
-	status = hdd_create(chunkid, 0, ChunkType::getStandardChunkType());
+	status = hdd_create(chunkid, 0, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
@@ -446,7 +446,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		return LIZARDFS_ERROR_CANTCONNECT;
 	}
 // open chunk
-	status = hdd_open(chunkid, ChunkType::getStandardChunkType());
+	status = hdd_open(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
@@ -649,7 +649,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 			for (i=0 ; i<srccnt ; i++) {
 				if (r.repsources[i].mode!=IDLE) {
 					rptr = r.repsources[i].packet;
-					status = hdd_write(chunkid, 0, ChunkType::getStandardChunkType(),
+					status = hdd_write(chunkid, 0, slice_traits::standard::ChunkPartType(),
 							b, 0, MFSBLOCKSIZE, crc, rptr + 20);
 					if (status!=LIZARDFS_STATUS_OK) {
 						syslog(LOG_WARNING,"replicator: write status: %s",mfsstrerr(status));
@@ -704,14 +704,14 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		}
 	}
 // close chunk and change version
-	status = hdd_close(chunkid, ChunkType::getStandardChunkType());
+	status = hdd_close(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",mfsstrerr(status));
 		rep_cleanup(&r);
 		return status;
 	}
 	r.opened = 0;
-	status = hdd_version(chunkid, 0, ChunkType::getStandardChunkType(), version);
+	status = hdd_version(chunkid, 0, slice_traits::standard::ChunkPartType(), version);
 	if (status!=LIZARDFS_STATUS_OK) {
 		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",mfsstrerr(status));
 		rep_cleanup(&r);

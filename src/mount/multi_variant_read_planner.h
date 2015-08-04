@@ -30,8 +30,8 @@
 class MultiVariantReadPlanner : public ReadPlanner {
 public:
 	// Derived methods
-	void prepare(const std::vector<ChunkType>& availableParts) override;
-	std::vector<ChunkType> partsToUse() const override;
+	void prepare(const std::vector<ChunkPartType>& availableParts) override;
+	std::vector<ChunkPartType> partsToUse() const override;
 	bool isReadingPossible() const override;
 	std::unique_ptr<ReadPlan> buildPlanFor(
 			uint32_t firstBlock, uint32_t blockCount) const override;
@@ -40,17 +40,17 @@ public:
 	 * Set scores of chunk types.
 	 * The scores will be used to choose which variant should be the basic one.
 	 */
-	void setScores(std::map<ChunkType, float> scores);
+	void setScores(std::map<ChunkPartType, float> scores);
 
 	/// Modifies the planner to avoid using the given part in basic operations in the future.
-	void startAvoidingPart(ChunkType part);
+	void startAvoidingPart(ChunkPartType part);
 
 private:
 	/// Parts used in plans (for both basic and additional read operations)
-	std::set<ChunkType> partsToUse_;
+	std::set<ChunkPartType> partsToUse_;
 
 	/// Scores which will be used in planning.
-	std::map<ChunkType, float> scores_;
+	std::map<ChunkPartType, float> scores_;
 
 	/// Planner which will be used to generate plans.
 	StandardChunkReadPlanner standardPlanner_;

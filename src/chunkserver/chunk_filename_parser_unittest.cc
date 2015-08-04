@@ -17,6 +17,7 @@
  */
 
 #include "common/platform.h"
+#include "common/slice_traits.h"
 #include "chunkserver/chunk_filename_parser.h"
 
 #include <gtest/gtest.h>
@@ -29,7 +30,7 @@ TEST(ChunkFilenameParser, ParseStandardChunkFilename) {
 	EXPECT_EQ(ChunkFormat::INTERLEAVED, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000001U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getStandardChunkType(), filenameParser.chunkType());
+	EXPECT_EQ(slice_traits::standard::ChunkPartType(), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseXorChunkFilename) {
@@ -38,7 +39,7 @@ TEST(ChunkFilenameParser, ParseXorChunkFilename) {
 	EXPECT_EQ(ChunkFormat::MOOSEFS, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000002U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorChunkType(3, 1), filenameParser.chunkType());
+	EXPECT_EQ(slice_traits::xors::ChunkPartType(3, 1), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseXorChunkFilenameMaxLevel) {
@@ -47,7 +48,7 @@ TEST(ChunkFilenameParser, ParseXorChunkFilenameMaxLevel) {
 	EXPECT_EQ(ChunkFormat::INTERLEAVED, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000002U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorChunkType(9, 9), filenameParser.chunkType());
+	EXPECT_EQ(slice_traits::xors::ChunkPartType(9, 9), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseXorParityFilename) {
@@ -56,7 +57,7 @@ TEST(ChunkFilenameParser, ParseXorParityFilename) {
 	EXPECT_EQ(ChunkFormat::INTERLEAVED, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000003U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorParityChunkType(3), filenameParser.chunkType());
+	EXPECT_EQ(slice_traits::xors::ChunkPartType(3, slice_traits::xors::kXorParityPart), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseXorParityFilenameMaxLevel) {
@@ -65,7 +66,7 @@ TEST(ChunkFilenameParser, ParseXorParityFilenameMaxLevel) {
 	EXPECT_EQ(ChunkFormat::MOOSEFS, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000003U, filenameParser.chunkVersion());
-	EXPECT_EQ(ChunkType::getXorParityChunkType(9), filenameParser.chunkType());
+	EXPECT_EQ(slice_traits::xors::ChunkPartType(9, slice_traits::xors::kXorParityPart), filenameParser.chunkType());
 }
 
 TEST(ChunkFilenameParser, ParseWrongFilenames) {

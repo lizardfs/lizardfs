@@ -21,6 +21,7 @@
 
 #include "common/platform.h"
 
+#include <map>
 #include <unordered_map>
 
 #include "common/tape_copies.h"

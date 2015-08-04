@@ -26,7 +26,7 @@
 #include <vector>
 #include <set>
 
-#include "common/chunk_type.h"
+#include "common/chunk_part_type.h"
 
 /**
  * Base Plan class.
@@ -98,7 +98,7 @@ public:
 	 * all done, reading is always finished and this function shouldn't be used.
 	 * \param unfinished    set of chunk types from which reading isn't yet finished.
 	 */
-	virtual bool isReadingFinished(const std::set<ChunkType>& unfinished) const = 0;
+	virtual bool isReadingFinished(const std::set<ChunkPartType>& unfinished) const = 0;
 
 	/**
 	 * Get list of post-process operations.
@@ -113,14 +113,14 @@ public:
 	 * \param unfinished    set of chunk types from which reading wasn't finished
 	 */
 	virtual std::vector<PostProcessOperation> getPostProcessOperationsForExtendedPlan(
-			const std::set<ChunkType>& unfinished) const = 0;
+			const std::set<ChunkPartType>& unfinished) const = 0;
 
 	/**
 	 * All read operations.
 	 * \return sum of \p basicReadOperations and \p additionalReadOperations
 	 */
-	std::vector<std::pair<ChunkType, ReadOperation>> getAllReadOperations() const {
-		std::vector<std::pair<ChunkType, ReadOperation>> ret(
+	std::vector<std::pair<ChunkPartType, ReadOperation>> getAllReadOperations() const {
+		std::vector<std::pair<ChunkPartType, ReadOperation>> ret(
 				basicReadOperations.begin(), basicReadOperations.end());
 		std::copy(additionalReadOperations.begin(), additionalReadOperations.end(),
 				std::back_inserter(ret));
@@ -136,27 +136,27 @@ public:
 	 * List of read operations.
 	 * These operations should be performed to fulfill the read request
 	 */
-	std::map<ChunkType, ReadOperation> basicReadOperations;
+	std::map<ChunkPartType, ReadOperation> basicReadOperations;
 
 	/**
 	 * List of read operations that are expected to be executed soon, thus it might be worth
 	 * to run them in advance
 	 */
-	std::map<ChunkType, PrefetchOperation> prefetchOperations;
+	std::map<ChunkPartType, PrefetchOperation> prefetchOperations;
 
 	/**
 	 * Additional list of read operations.
 	 * These redundant operations can be started additionally to \p basicReadOperations
 	 * in order to make the read more reliable.
 	 */
-	std::map<ChunkType, ReadOperation> additionalReadOperations;
+	std::map<ChunkPartType, ReadOperation> additionalReadOperations;
 };
 
 class ReadPlanner {
 public:
 	virtual ~ReadPlanner() {}
-	virtual void prepare(const std::vector<ChunkType>& availableParts) = 0;
-	virtual std::vector<ChunkType> partsToUse() const = 0;
+	virtual void prepare(const std::vector<ChunkPartType>& availableParts) = 0;
+	virtual std::vector<ChunkPartType> partsToUse() const = 0;
 	virtual bool isReadingPossible() const = 0;
 	virtual std::unique_ptr<ReadPlan> buildPlanFor(uint32_t firstBlock,
 			uint32_t blockCount) const = 0;

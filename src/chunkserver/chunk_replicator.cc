@@ -48,16 +48,16 @@ uint32_t ChunkReplicator::getStats() {
 	return ret;
 }
 
-std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkType chunkType,
+std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkPartType chunkType,
 		const std::vector<ChunkTypeWithAddress>& sources) {
 	std::unique_ptr<ReadPlanner> planner;
-	if (chunkType.isXorChunkType()) {
+	if (slice_traits::isXor(chunkType)) {
 		planner.reset(new XorChunkReadPlanner(chunkType));
 	} else {
 		planner.reset(new StandardChunkReadPlanner);
 	}
 
-	std::vector<ChunkType> availableParts;
+	std::vector<ChunkPartType> availableParts;
 	for (const auto& source : sources) {
 		availableParts.push_back(source.chunkType);
 	}
@@ -66,7 +66,7 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkType chunkType,
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
-		ChunkType chunkType, NetworkAddress server) throw (Exception) {
+		ChunkPartType chunkType, NetworkAddress server) throw (Exception) {
 	int fd = connector.startUsingConnection(server, Timeout{std::chrono::seconds(1)});
 	sassert(fd >= 0);
 
@@ -85,7 +85,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 
 	uint64_t rxChunkId;
 	uint32_t rxChunkVersion;
-	ChunkType rxChunkType = ChunkType::getStandardChunkType();
+	ChunkPartType rxChunkType = slice_traits::standard::ChunkPartType();
 	uint16_t nrOfBlocks;
 	uint8_t status;
 	cstocs::getChunkBlocksStatus::deserialize(inputBuffer, rxChunkId, rxChunkVersion, rxChunkType,
@@ -97,25 +97,25 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	}
 
 	// Success!
-	if (chunkType.isStandardChunkType()) {
+	if (slice_traits::isStandard(chunkType)) {
 		return nrOfBlocks;
-	} else if (chunkType.isXorChunkType()
-			&& (chunkType.isXorParity() || chunkType.getXorPart() == 1)) {
-		return std::min(MFSBLOCKSINCHUNK, nrOfBlocks * chunkType.getXorLevel());
+	} else if (slice_traits::isXor(chunkType)
+			&& (slice_traits::xors::isXorParity(chunkType) || slice_traits::xors::getXorPart(chunkType) == 1)) {
+		return std::min(MFSBLOCKSINCHUNK, nrOfBlocks * slice_traits::xors::getXorLevel(chunkType));
 	} else {
-		sassert(chunkType.isXorChunkType() && !chunkType.isXorParity());
-		return std::min(MFSBLOCKSINCHUNK, (nrOfBlocks + 1) * chunkType.getXorLevel());
+		sassert(slice_traits::isXor(chunkType) && !slice_traits::xors::isXorParity(chunkType));
+		return std::min(MFSBLOCKSINCHUNK, (nrOfBlocks + 1) * slice_traits::xors::getXorLevel(chunkType));
 	}
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 		const std::vector<ChunkTypeWithAddress>& sources) {
 	auto isStandardChunkType = [](const ChunkTypeWithAddress& ctwa) {
-		return ctwa.chunkType.isStandardChunkType();
+		return slice_traits::isStandard(ctwa.chunkType);
 	};
 	auto isParityOrXorFirstPart = [](const ChunkTypeWithAddress& ctwa) {
-		return ctwa.chunkType.isXorChunkType() &&
-				(ctwa.chunkType.isXorParity() || ctwa.chunkType.getXorPart() == 1);
+		return slice_traits::isXor(ctwa.chunkType) &&
+				(slice_traits::xors::isXorParity(ctwa.chunkType) || slice_traits::xors::getXorPart(ctwa.chunkType) == 1);
 	};
 	auto standardOnes =
 			std::find_if(sources.begin(), sources.end(), isStandardChunkType);
@@ -150,9 +150,9 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 	// Get number of blocks to replicate
 	uint32_t blocks = getChunkBlocks(fileCreator.chunkId(), fileCreator.chunkVersion(), sources);
 	uint32_t batchSize = 50;
-	if (fileCreator.chunkType().isXorChunkType()) {
-		ChunkType::XorLevel level = fileCreator.chunkType().getXorLevel();
-		blocks = fileCreator.chunkType().getNumberOfBlocks(blocks);
+	if (slice_traits::isXor(fileCreator.chunkType())) {
+		int level = slice_traits::xors::getXorLevel(fileCreator.chunkType());
+		blocks = slice_traits::getNumberOfBlocks(fileCreator.chunkType(), blocks);
 		// Round batchSize to work better with available xor level:
 		batchSize = level * ((batchSize + level - 1) / level);
 	}
