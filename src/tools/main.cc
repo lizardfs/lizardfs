@@ -1907,10 +1907,8 @@ void usage(int f) {
 			print_numberformat_options();
 			print_recursive_option();
 			fprintf(stderr, "<operation> is one of:\n");
-			fprintf(stderr," GOAL+ - increase goal to given goal name\n");
-			fprintf(stderr," GOAL- - decrease goal to given goal name\n");
-			fprintf(stderr," GOAL - just set goal to given goal name\n");
-			fprintf(stderr, " xorN - just set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
+			fprintf(stderr," GOAL - set goal to given goal name\n");
+			fprintf(stderr, " xorN - set goal to xor with level N, N = %" PRIu8 "..%" PRIu8 "\n",
 					goal::kMinXorLevel, goal::kMaxXorLevel);
 			break;
 		case MFSGETTRASHTIME:
@@ -2269,12 +2267,9 @@ int main(int argc,char **argv) {
 		}
 		if (f==MFSSETGOAL) {
 			goal = argv[0];
-			if (!goal.empty() && goal.back() == '-') {
-				smode = SMODE_DECREASE;
-				goal.erase(goal.size() - 1);
-			} else if (!goal.empty() && goal.back() == '+') {
-				smode = SMODE_INCREASE;
-				goal.erase(goal.size() - 1);
+			if (!goal.empty() && (goal.back() == '-' || goal.back() == '+')) {
+				fprintf(stderr,"setgoal doesn't support +/- modifiers anymore\n");
+				usage(f);
 			}
 			argc--;
 			argv++;

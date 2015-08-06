@@ -24,23 +24,23 @@ assert_success mfssetgoal 3 directory/file{2..3}
 expect_equals $'directory/file2: 3\ndirectory/file3: 3' "$(mfsgetgoal directory/file{2..3})"
 
 # ... and test mfssetgoal -r with different operations
-assert_success mfssetgoal -r 3+ directory
+assert_success mfssetgoal -r 3 directory
 expect_equals "directory/file2: 3" "$(mfsgetgoal directory/file2)"
 expect_equals "directory/file3: 3" "$(mfsgetgoal directory/file3)"
-expect_equals "directory/file5: 5" "$(mfsgetgoal directory/file5)"
-expect_equals "directory/fileX: X" "$(mfsgetgoal directory/fileX)"
-expect_equals "directory/filexor2: xor2" "$(mfsgetgoal directory/filexor2)"
-expect_equals "directory/filexor5: xor5" "$(mfsgetgoal directory/filexor5)"
-expect_equals "directory/filexor7: xor7" "$(mfsgetgoal directory/filexor7)"
+expect_equals "directory/file5: 3" "$(mfsgetgoal directory/file5)"
+expect_equals "directory/fileX: 3" "$(mfsgetgoal directory/fileX)"
+expect_equals "directory/filexor2: 3" "$(mfsgetgoal directory/filexor2)"
+expect_equals "directory/filexor5: 3" "$(mfsgetgoal directory/filexor5)"
+expect_equals "directory/filexor7: 3" "$(mfsgetgoal directory/filexor7)"
 
-assert_success mfssetgoal -r 4- directory
-expect_equals "directory/file2: 3" "$(mfsgetgoal directory/file2)"
-expect_equals "directory/file3: 3" "$(mfsgetgoal directory/file3)"
+assert_success mfssetgoal -r 4 directory
+expect_equals "directory/file2: 4" "$(mfsgetgoal directory/file2)"
+expect_equals "directory/file3: 4" "$(mfsgetgoal directory/file3)"
 expect_equals "directory/file5: 4" "$(mfsgetgoal directory/file5)"
 expect_equals "directory/fileX: 4" "$(mfsgetgoal directory/fileX)"
-expect_equals "directory/filexor2: xor2" "$(mfsgetgoal directory/filexor2)"
-expect_equals "directory/filexor5: xor5" "$(mfsgetgoal directory/filexor5)"
-expect_equals "directory/filexor7: xor7" "$(mfsgetgoal directory/filexor7)"
+expect_equals "directory/filexor2: 4" "$(mfsgetgoal directory/filexor2)"
+expect_equals "directory/filexor5: 4" "$(mfsgetgoal directory/filexor5)"
+expect_equals "directory/filexor7: 4" "$(mfsgetgoal directory/filexor7)"
 
 assert_success mfssetgoal -r 3 directory
 expect_equals "directory/file2: 3" "$(mfsgetgoal directory/file2)"
@@ -51,7 +51,7 @@ expect_equals "directory/filexor2: 3" "$(mfsgetgoal directory/filexor2)"
 expect_equals "directory/filexor5: 3" "$(mfsgetgoal directory/filexor5)"
 expect_equals "directory/filexor7: 3" "$(mfsgetgoal directory/filexor7)"
 
-assert_success mfssetgoal -r bettergoal+ directory
+assert_success mfssetgoal -r bettergoal directory
 expect_equals "directory/file2: bettergoal" "$(mfsgetgoal directory/file2)"
 expect_equals "directory/file3: bettergoal" "$(mfsgetgoal directory/file3)"
 expect_equals "directory/file5: bettergoal" "$(mfsgetgoal directory/file5)"

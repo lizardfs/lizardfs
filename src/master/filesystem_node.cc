@@ -1467,21 +1467,7 @@ void fsnodes_setgoal_recursive(fsnode *node, uint32_t ts, uint32_t uid, uint8_t 
 		if ((node->mode & (EATTR_NOOWNER << 12)) == 0 && uid != 0 && node->uid != uid) {
 			(*nsinodes)++;
 		} else {
-			bool set = false;
-			switch (smode & SMODE_TMASK) {
-			case SMODE_SET:
-				set = (node->goal != goal);
-				break;
-			case SMODE_INCREASE:
-				sassert(goal::isOrdinaryGoal(goal));
-				set = (goal::isOrdinaryGoal(node->goal) && node->goal < goal);
-				break;
-			case SMODE_DECREASE:
-				sassert(goal::isOrdinaryGoal(goal));
-				set = (goal::isOrdinaryGoal(node->goal) && node->goal > goal);
-				break;
-			}
-			if (set) {
+			if ((smode & SMODE_TMASK) == SMODE_SET && node->goal != goal) {
 				if (node->type != TYPE_DIRECTORY) {
 					fsnodes_changefilegoal(node, goal);
 					(*sinodes)++;

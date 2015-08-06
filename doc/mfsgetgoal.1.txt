@@ -14,10 +14,10 @@ mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
 *mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] GOAL_NAME[*+*|*-*] 'OBJECT'...
+*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
 
 [verse]
-*mfsrsetgoal* [*-n*|*-h*|*-H*] GOAL_NAME[*+*|*-*] 'OBJECT'...
+*mfsrsetgoal* [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
 
 == DESCRIPTION
 
@@ -38,13 +38,6 @@ directory or deleted ('trash') file.
 *-r*::
 This option enables recursive mode, which works as usual for every given file, but for every given
 directory additionally prints current value of all contained objects (files and directories).
-
-'GOAL_NAME'[*+*|*-*]::
-*mfssetgoal* changes current 'goal' of given object(s). If new value is specified in 'GOAL_NAME'*+*
-form, 'goal' is changed to 'GOAL_NAME' for objects whose goals have lower 'goal id' than 'GOAL_NAME'
-and is unchanged for the rest.
-Similarly, if new value is specified as 'GOAL_NAME'*-*, 'goal' is changed to 'GOAL_NAME' for objects
-with higher goal id and unchanged for the rest.
 
 *-n*, *-h*, *-H*::
 These options are described in mfstools(1).

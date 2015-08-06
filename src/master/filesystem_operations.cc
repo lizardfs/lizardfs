@@ -2196,7 +2196,7 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
 	if (!SMODE_ISVALID(smode) || !goal::isGoalValid(goal) ||
-	    (smode & (SMODE_INCREASE | SMODE_DECREASE) && goal::isXorGoal(goal))) {
+	    (smode & (SMODE_INCREASE | SMODE_DECREASE))) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);

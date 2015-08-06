@@ -3304,10 +3304,10 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 		status = LIZARDFS_ERROR_EINVAL;
 	}
 	if (status == LIZARDFS_STATUS_OK && goal::isOrdinaryGoal(goalId)) {
-		if (status == LIZARDFS_STATUS_OK && smodeType != SMODE_INCREASE && goalId < eptr->sesdata->mingoal) {
+		if (status == LIZARDFS_STATUS_OK && goalId < eptr->sesdata->mingoal) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
-		if (status == LIZARDFS_STATUS_OK && smodeType != SMODE_DECREASE && goalId > eptr->sesdata->maxgoal) {
+		if (status == LIZARDFS_STATUS_OK && goalId > eptr->sesdata->maxgoal) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
 	} else if (status == LIZARDFS_STATUS_OK) {
