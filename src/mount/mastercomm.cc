@@ -320,6 +320,15 @@ static bool fs_threc_wait(threc *rec, std::unique_lock<std::mutex>& lock) {
 	return rec->status == LIZARDFS_STATUS_OK;
 }
 
+static inline uint32_t sleep_time(uint32_t tryNo) {
+	if (tryNo < 30) {
+		return 1 + (tryNo) / 3;
+	} else {
+		return 10;
+	}
+}
+
+// TODO(jotek): not every request should be retransmitted if recv failed (e.g. snapshot)
 static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type expected_type) {
 	try {
 		for (uint32_t cnt = 0 ; cnt < maxretries ; cnt++) {
@@ -334,7 +343,7 @@ static bool fs_threc_send_receive(threc *rec, bool filter, PacketHeader::Type ex
 					}
 				}
 			}
-			sleep(1+((cnt<30)?(cnt/3):10));
+			sleep(sleep_time(cnt));
 			continue;
 		}
 	} catch (LostSessionException&) {
@@ -365,6 +374,38 @@ bool fs_lizsendandreceive(threc *rec, uint32_t expectedCommand, MessageBuffer& m
 		rec->received = false;  // we steal ownership of the received buffer
 		messageData = std::move(rec->inputBuffer);
 		return true;
+	}
+	return false;
+}
+
+bool fs_lizsend(threc *rec) {
+	try {
+		for (uint32_t cnt = 0; cnt < maxretries; cnt++) {
+			if (fs_threc_flush(rec)) {
+				return true;
+			}
+			sleep(sleep_time(cnt));
+		}
+	} catch (LostSessionException&) {
+	}
+	return false;
+}
+
+bool fs_lizreceive(threc *rec, uint32_t expectedCommand, MessageBuffer& messageData) {
+	try {
+		std::unique_lock<std::mutex> lock(rec->mutex);
+		if (fs_threc_wait(rec, lock)) {
+			if (rec->receivedType == expectedCommand) {
+				std::unique_lock<std::mutex> lock(rec->mutex);
+				rec->received = false;  // we steal ownership of the received buffer
+				messageData = std::move(rec->inputBuffer);
+				return true;
+			} else {
+				lock.unlock();
+				setDisconnect(true);
+			}
+		}
+	} catch (LostSessionException&) {
 	}
 	return false;
 }
