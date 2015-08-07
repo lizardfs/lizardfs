@@ -1023,7 +1023,7 @@ int main (int argc, char **argv) {
 			chunkserverbasicreadto,
 			chunkservertotalreadto,
 			prefetchFullXorStripes);
-	write_data_init(gSetup.write_buffer_size * 1024 * 1024, gSetup.io_retries, writeworkers,
+	write_data_init(gSetup.write_buffer_size, gSetup.io_retries, writeworkers,
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
 			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
