@@ -27,4 +27,8 @@ endif()
 if(SOCKET_FOUND)
   target_link_libraries(mfscommon ${SOCKET_LIBRARIES})
 endif()
+if(MINGW)
+  target_link_libraries(mfscommon ${MINGW_MSVCRT})
+endif()
+
 add_tests(mfscommon ${COMMON_TESTS})

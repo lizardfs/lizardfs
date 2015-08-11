@@ -57,6 +57,7 @@ if(MINGW)
   add_definitions(-DWINVER=0x0602)
   add_definitions(-D_WIN32_WINNT=0x0602)
   add_definitions(-DFD_SETSIZE=1024)
+  set(MINGW_MSVCRT "msvcr110")
 endif()
 
 # XXX(lamvak): what about OS X?
