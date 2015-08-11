@@ -72,6 +72,9 @@ struct mfsopts_ {
 #ifdef MFS_USE_MEMLOCK
 	int memlock;
 #endif
+#if FUSE_VERSION >= 26
+	int filelocks;
+#endif
 	int nostdmountoptions;
 	int meta;
 	int debug;
@@ -117,6 +120,9 @@ struct mfsopts_ {
 			nice(-19),
 #ifdef MFS_USE_MEMLOCK
 			memlock(0),
+#endif
+#if FUSE_VERSION >= 26
+			filelocks(1),
 #endif
 			nostdmountoptions(0),
 			meta(0),

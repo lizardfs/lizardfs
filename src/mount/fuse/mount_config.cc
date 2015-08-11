@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <fuse/fuse.h>
 
 #define MFS_OPT(t, p, v) { t, offsetof(struct mfsopts_, p), v }
 
@@ -76,6 +77,10 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
+
+#if FUSE_VERSION >= 26
+	MFS_OPT("enablefilelocks=%u", filelocks, 1),
+#endif
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
@@ -170,6 +175,9 @@ void usage(const char *progname) {
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"
+#if FUSE_VERSION >= 26
+"    -o enablefilelocks=0|1      enables/disables global file locking (enabled by default)\n"
+#endif
 "\n");
 	fprintf(stderr,
 "CMODE can be set to:\n"

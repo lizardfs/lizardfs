@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <fstream>
+#include <fuse/fuse.h>
 
 #include "common/crc.h"
 #include "common/md5.h"
@@ -92,11 +93,15 @@ static void init_fuse_lowlevel_ops() {
 	mfs_oper.listxattr = mfs_listxattr;
 	mfs_oper.removexattr = mfs_removexattr;
 #if FUSE_VERSION >= 26
-	mfs_oper.getlk = lzfs_getlk;
-	mfs_oper.setlk = lzfs_setlk;
+	if (gMountOptions.filelocks) {
+		mfs_oper.getlk = lzfs_getlk;
+		mfs_oper.setlk = lzfs_setlk;
+	}
 #endif
 #if FUSE_VERSION >= 29
-	mfs_oper.flock = lzfs_flock;
+	if (gMountOptions.filelocks) {
+		mfs_oper.flock = lzfs_flock;
+	}
 #endif
 }
 
@@ -563,8 +568,6 @@ int main(int argc, char *argv[]) try {
 	strerr_init();
 	mycrc32_init();
 
-	init_fuse_lowlevel_ops();
-
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 
 	if (fuse_opt_parse(&args, &defaultargs, gMfsOptsStage1, mfs_opt_proc_stage1)<0) {
@@ -582,6 +585,8 @@ int main(int argc, char *argv[]) try {
 	if (fuse_opt_parse(&args, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {
 		exit(1);
 	}
+
+	init_fuse_lowlevel_ops();
 
 	if (gMountOptions.cachemode!=NULL && gMountOptions.cachefiles) {
 		fprintf(stderr,"mfscachemode and mfscachefiles options are exclusive - use only mfscachemode\nsee: %s -h for help\n",argv[0]);
