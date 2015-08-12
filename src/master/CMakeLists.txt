@@ -3,7 +3,6 @@ add_definitions(-DAPPNAME=mfsmaster)
 
 collect_sources(MASTER)
 
-list(REMOVE_ITEM MASTER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/chunks.cc")
 
 add_library(master ${MASTER_SOURCES})
 target_link_libraries(master mfscommon ${ADDITIONAL_LIBS})

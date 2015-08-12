@@ -496,12 +496,12 @@ std::vector<std::pair<matocsserventry*, ChunkPartType>> matocsserv_getservers_fo
 	*/
 }
 
-uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
-		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching) {
-	uint32_t serverCount = 0;
-	*totalMatching = 0;
-	*returnedMatching = 0;
-	for (matocsserventry* eptr = matocsservhead; eptr && serverCount < 65535; eptr = eptr->next) {
+void matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		std::vector<matocsserventry*>& servers, int& totalMatching, int& returnedMatching) {
+	totalMatching = 0;
+	returnedMatching = 0;
+	servers.clear();
+	for (matocsserventry* eptr = matocsservhead; eptr; eptr = eptr->next) {
 		if (eptr->mode == KILL
 				|| eptr->totalspace == 0
 				|| eptr->usedspace > eptr->totalspace
@@ -511,25 +511,23 @@ uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replic
 		}
 		bool matchesRequestedLabel = false;
 		if (label != MediaLabel::kWildcard && eptr->label == label) {
-			++(*totalMatching);
+			++totalMatching;
 			matchesRequestedLabel = true;
 		}
 		if (eptr->wrepcounter < replicationWriteLimit) {
-			servers[serverCount] = eptr;
-			serverCount++;
+			servers.push_back(eptr);
 			if (matchesRequestedLabel) {
-				++(*returnedMatching);
+				++returnedMatching;
 			}
 		}
 	}
-	std::random_shuffle(servers, servers + serverCount);
-	if (*returnedMatching > 0) {
+	std::random_shuffle(servers.begin(), servers.end());
+	if (returnedMatching > 0) {
 		// Move servers matching the requested label to the front of the servers array
-		std::partition(servers, servers + serverCount, [&label](matocsserventry* cs) {
+		std::partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
 			return cs->label == label;
 		});
 	}
-	return serverCount;
 }
 
 const MediaLabel& matocsserv_get_label(matocsserventry* e) {

@@ -63,8 +63,8 @@ struct ServerWithUsage {
  * \param returnedMatching[out] - number of returned chunkservers that matched the requested label.
  * \return Number of valid entries in \p servers.
  */
-uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
-		matocsserventry* servers[65535], uint16_t* totalMatching, uint16_t* returnedMatching);
+void matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
+		std::vector<matocsserventry*>& servers, int& totalMatching, int& returnedMatching);
 
 /*! \brief Get chunkserver's label. */
 const MediaLabel& matocsserv_get_label(matocsserventry* e);

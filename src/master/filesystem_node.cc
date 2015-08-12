@@ -927,7 +927,7 @@ void fsnodes_checkfile(fsnode *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	for (uint32_t index = 0; index < p->data.fdata.chunks; index++) {
 		chunkid = p->data.fdata.chunktab[index];
 		if (chunkid > 0) {
-			chunk_get_validcopies(chunkid, &count);
+			chunk_get_fullcopies(chunkid, &count);
 			if (count > CHUNK_MATRIX_SIZE - 1) {
 				count = CHUNK_MATRIX_SIZE - 1;
 			}

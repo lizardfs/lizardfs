@@ -332,7 +332,7 @@ void fs_periodic_test_files() {
 				for (j = 0; j < f->data.fdata.chunks; j++) {
 					chunkid = f->data.fdata.chunktab[j];
 					if (chunkid > 0) {
-						if (chunk_get_validcopies(chunkid, &vc) !=
+						if (chunk_get_fullcopies(chunkid, &vc) !=
 						    LIZARDFS_STATUS_OK) {
 							if (errors < ERRORS_LOG_MAX) {
 								syslog(LOG_ERR,
