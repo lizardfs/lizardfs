@@ -162,7 +162,7 @@ std::vector<ChunkserverListEntry> matocsserv_cservlist() {
 						kDisconnectedChunkserverVersion,
 						csptr->ip, csptr->port,
 						0, 0, 0, 0, 0, 0, 0,
-						kMediaLabelWildcard);
+						MediaLabelManager::kWildcard);
 			}
 		}
 	}
@@ -439,7 +439,7 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 				&& eptr->totalspace > 0
 				&& eptr->usedspace <= eptr->totalspace) {
 			double usage = double(eptr->usedspace) / double(eptr->totalspace);
-			result.emplace_back(eptr, usage, &eptr->label);
+			result.emplace_back(eptr, usage, eptr->label);
 		}
 	}
 	std::sort(result.begin(), result.end(), [](const ServerWithUsage& a, const ServerWithUsage& b) {
@@ -462,7 +462,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
 				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
 			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
-			getter.addServer(eptr, &eptr->label, weight);
+			getter.addServer(eptr, eptr->label, weight);
 		}
 	}
 	std::vector<std::pair<matocsserventry*, ChunkType>> ret;
@@ -507,7 +507,7 @@ uint16_t matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replic
 			continue;
 		}
 		bool matchesRequestedLabel = false;
-		if (label != kMediaLabelWildcard && eptr->label == label) {
+		if (label != MediaLabel::kWildcard && eptr->label == label) {
 			++(*totalMatching);
 			matchesRequestedLabel = true;
 		}
@@ -565,11 +565,11 @@ const char* matocsserv_getstrip(matocsserventry *eptr) {
 }
 
 int matocsserv_getlocation(matocsserventry *eptr,uint32_t *servip,uint16_t *servport,
-		MediaLabel** label) {
+		MediaLabel* label) {
 	if (eptr->mode!=KILL) {
 		*servip = eptr->servip;
 		*servport = eptr->servport;
-		*label = &(eptr->label);
+		*label = eptr->label;
 		return 0;
 	}
 	return -1;
@@ -1284,18 +1284,18 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 		throw (IncorrectDeserializationException) {
 	std::string label;
 	cstoma::registerLabel::deserialize(data, label);
-	if (!isMediaLabelValid(label)) {
+	if (!MediaLabelManager::isLabelValid(label)) {
 		syslog(LOG_NOTICE,"LIZ_CSTOMA_REGISTER_LABEL - wrong label '%s' of chunkserver "
 				"(ip: %s, port %" PRIu16 ")", label.c_str(), eptr->servstrip, eptr->servport);
 		eptr->mode = KILL;
 		return;
 	}
-	if (label != eptr->label) {
+	if (label != static_cast<std::string>(eptr->label)) {
 		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
 				"changed its label from '%s' to '%s'",
-				eptr->servstrip, eptr->servport, eptr->label.c_str(), label.c_str());
-		chunk_server_label_changed(eptr->label, label);
-		eptr->label = std::move(label);
+				eptr->servstrip, eptr->servport, static_cast<std::string>(eptr->label).c_str(), label.c_str());
+		chunk_server_label_changed(eptr->label, MediaLabel(label));
+		eptr->label = MediaLabel(label);
 	}
 }
 
@@ -1584,7 +1584,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 			eptr->servip = 0;
 			eptr->servport = 0;
 			eptr->timeout = 60000;
-			eptr->label = kMediaLabelWildcard;
+			eptr->label = MediaLabel::kWildcard;
 			eptr->usedspace = 0;
 			eptr->totalspace = 0;
 			eptr->chunkscount = 0;

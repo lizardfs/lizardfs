@@ -64,7 +64,7 @@ struct ChunkCreationHistory {
 class GetServersForNewChunk {
 public:
 	struct WeightedServer {
-		WeightedServer(matocsserventry* server, const MediaLabel* label, int64_t weight)
+		WeightedServer(matocsserventry* server, const MediaLabel label, int64_t weight)
 				: server(server),
 				  label(label),
 				  weight(weight),
@@ -72,7 +72,7 @@ public:
 		}
 
 		matocsserventry* server;
-		const MediaLabel* label;
+		MediaLabel label;
 		int64_t weight;
 
 		// Used internally by chooseServersForGoal algorithm
@@ -85,7 +85,7 @@ public:
 	}
 
 	/// Adds information about a server.
-	void addServer(matocsserventry* server, const MediaLabel* label, int64_t weight) {
+	void addServer(matocsserventry* server, const MediaLabel& label, int64_t weight) {
 		servers_.emplace_back(server, label, weight);
 	}
 

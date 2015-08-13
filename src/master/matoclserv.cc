@@ -1253,7 +1253,7 @@ void matoclserv_list_goals(matoclserventry* eptr) {
 				} else {
 					ss << ',';
 				}
-				ss << labelCount.second << "*" << labelCount.first;
+				ss << labelCount.second << "*" << static_cast<std::string>(labelCount.first);
 			}
 			definition = ss.str();
 		}

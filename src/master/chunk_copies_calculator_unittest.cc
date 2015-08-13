@@ -36,35 +36,35 @@ static const Goal& getDefaultGoal(uint8_t goalId) {
 
 // Some custom goals for these tests
 static Goal us_us("us_us", {
-		{"us", 2},
+		{MediaLabel("us"), 2},
 });
 static Goal eu_eu("eu_eu", {
-		{"eu", 2},
+		{MediaLabel("eu"), 2},
 });
 static Goal us_eu("us_eu", {
-		{"us", 1},
-		{"eu", 1},
+		{MediaLabel("us"), 1},
+		{MediaLabel("eu"), 1},
 });
 static Goal us_eu_any("us_eu_any", {
-		{"us", 1},
-		{"eu", 1},
-		{"_", 1},
+		{MediaLabel("us"), 1},
+		{MediaLabel("eu"), 1},
+		{MediaLabel("_"), 1},
 });
 static Goal us_us_any("us_us_any", {
-		{"us", 2},
-		{"_", 1},
+		{MediaLabel("us"), 2},
+		{MediaLabel("_"), 1},
 });
 static Goal us_any_any("us_any_any", {
-		{"us", 1},
-		{"_", 2},
+		{MediaLabel("us"), 1},
+		{MediaLabel("_"), 2},
 });
 static Goal us_eu_any_any("us_eu_any_any", {
-		{"us", 1},
-		{"eu", 1},
-		{"_", 2},
+		{MediaLabel("us"), 1},
+		{MediaLabel("eu"), 1},
+		{MediaLabel("_"), 2},
 });
 static Goal any_any("any_any", {
-		{"_", 2},
+		{MediaLabel("_"), 2},
 });
 
 static void checkPartsToRecoverWithLabels(
@@ -75,7 +75,7 @@ static void checkPartsToRecoverWithLabels(
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
 	ChunkCopiesCalculator calculator(&goal);
 	for (const auto& part : available) {
-		calculator.addPart(part.first, &part.second);
+		calculator.addPart(part.first, part.second);
 	}
 	std::vector<ChunkType> actualPartsToRecover = calculator.getPartsToRecover();
 	std::sort(expectedPartsToRecover.begin(), expectedPartsToRecover.end());
@@ -90,7 +90,7 @@ static void checkPartsToRecover(
 		std::vector<ChunkType> expectedPartsToRemove) {
 	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
 	for (const auto& part : available) {
-		availablePartsWithLabel.emplace_back(part, kMediaLabelWildcard);
+		availablePartsWithLabel.emplace_back(part, MediaLabel::kWildcard);
 	}
 	checkPartsToRecoverWithLabels(availablePartsWithLabel,
 			getDefaultGoal(goalId),
@@ -100,7 +100,7 @@ static void checkPartsToRecover(
 static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 2) {
 	ChunkCopiesCalculator calculator(&getDefaultGoal(goal));
 	for (const auto& part : parts) {
-		calculator.addPart(part, &kMediaLabelWildcard);
+		calculator.addPart(part, MediaLabel::kWildcard);
 	}
 	return calculator;
 }
@@ -113,7 +113,7 @@ static void checkPartsToRemoveWithLabels(
 	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
 	ChunkCopiesCalculator calculator(&goal);
 	for (const auto& part : available) {
-		calculator.addPart(part.first, &part.second);
+		calculator.addPart(part.first, part.second);
 	}
 	std::vector<ChunkType> actualPartsToRemove = calculator.getPartsToRemove();
 	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());
@@ -128,7 +128,7 @@ static void checkPartsToRemove(
 		std::vector<ChunkType> expectedPartsToRemove) {
 	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
 	for (const auto& part : available) {
-		availablePartsWithLabel.emplace_back(part, kMediaLabelWildcard);
+		availablePartsWithLabel.emplace_back(part, MediaLabel::kWildcard);
 	}
 	checkPartsToRemoveWithLabels(availablePartsWithLabel,
 			getDefaultGoal(goalId),
@@ -191,78 +191,144 @@ TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
 
 TEST(ChunkCopiesCalculatorTests, GetPartsToRecoverWithcustomGoals) {
 #define check checkPartsToRecoverWithLabels
-	check({{standard, "us"}}, us_us, {standard});
-	check({{standard, "us"}}, us_eu, {standard});
-	check({{standard, "us"}}, eu_eu, {standard, standard});
-	check({{standard, "us"}}, us_eu_any, {standard, standard});
-	check({{standard, "eu"}}, us_eu_any, {standard, standard});
-	check({{standard, "cn"}}, us_eu_any, {standard, standard});
-	check({{standard, "us"}}, any_any, {standard});
+	check({{standard, MediaLabel("us")}}, us_us, {standard});
+	check({{standard, MediaLabel("us")}}, us_eu, {standard});
+	check({{standard, MediaLabel("us")}}, eu_eu, {standard, standard});
+	check({{standard, MediaLabel("us")}}, us_eu_any, {standard, standard});
+	check({{standard, MediaLabel("eu")}}, us_eu_any, {standard, standard});
+	check({{standard, MediaLabel("cn")}}, us_eu_any, {standard, standard});
+	check({{standard, MediaLabel("us")}}, any_any, {standard});
 
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_us, {standard});
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_eu, {standard});
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, eu_eu, {standard, standard});
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
-	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
-	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any, {standard, standard});
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, any_any, {standard});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_us,
+	      {standard});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_eu,
+	      {standard});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
+	      {standard, standard});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
+	      {standard, standard});
+	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
+	      {standard, standard});
+	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
+	      {standard, standard});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, any_any,
+	      {standard});
 
-	check({{standard, "us"}, {standard, "us"}}, us_us, {});
-	check({{standard, "us"}, {standard, "us"}}, any_any, {});
-	check({{standard, "us"}, {standard, "us"}}, us_eu, {standard});
-	check({{standard, "us"}, {standard, "us"}}, eu_eu, {standard, standard});
-	check({{standard, "us"}, {standard, "us"}}, us_eu_any, {standard});
-	check({{standard, "us"}, {standard, "us"}}, us_eu_any_any, {standard, standard});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_us, {});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, any_any,
+	      {});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_eu,
+	      {standard});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, eu_eu,
+	      {standard, standard});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_eu_any,
+	      {standard});
+	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}},
+	      us_eu_any_any, {standard, standard});
 
-	check({{standard, "cn"}}, us_eu_any_any, {standard, standard, standard});
-	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard, standard});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard, standard});
+	check({{standard, MediaLabel("cn")}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {standard, standard});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {standard, standard});
 
-	check({{standard, "cn"}}, us_eu_any_any, {standard, standard, standard});
-	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any_any, {standard, standard, standard});
-	check({{standard, "cn"}, {xor_1_of_2, "us"}, {xor_2_of_2, "us"}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, MediaLabel("cn")}}, us_eu_any_any, {standard, standard, standard});
+	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}},
+	      us_eu_any_any, {standard, standard, standard});
+	check({{standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("us")},
+	       {xor_2_of_2, MediaLabel("us")}},
+	      us_eu_any_any, {standard, standard, standard});
 #undef check
 }
 
 TEST(ChunkCopiesCalculatorTests, GetPartsToRemoveWithcustomGoals) {
 #define check checkPartsToRemoveWithLabels
-	check({{standard, "eu"}}, us_us, {standard});
-	check({{standard, "eu"}}, us_eu, {});
-	check({{standard, "eu"}}, eu_eu, {});
-	check({{standard, "us"}}, eu_eu, {standard});
+	check({{standard, MediaLabel("eu")}}, us_us, {standard});
+	check({{standard, MediaLabel("eu")}}, us_eu, {});
+	check({{standard, MediaLabel("eu")}}, eu_eu, {});
+	check({{standard, MediaLabel("us")}}, eu_eu, {standard});
 
-	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_us, {standard, xor_1_of_2});
-	check({{standard, "eu"}, {xor_1_of_2, "cn"}}, us_us, {standard, xor_1_of_2});
-	check({{standard, "eu"}, {xor_1_of_2, "us"}}, us_eu, {xor_1_of_2});
-	check({{standard, "eu"}, {xor_1_of_2, "us"}}, eu_eu, {xor_1_of_2});
-	check({{standard, "us"}, {xor_1_of_2, "us"}}, eu_eu, {standard, xor_1_of_2});
-	check({{standard, "cn"}, {xor_1_of_2, "us"}}, us_eu_any, {xor_1_of_2});
+	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_us,
+	      {standard, xor_1_of_2});
+	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("cn")}}, us_us,
+	      {standard, xor_1_of_2});
+	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_eu,
+	      {xor_1_of_2});
+	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
+	      {xor_1_of_2});
+	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
+	      {standard, xor_1_of_2});
+	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
+	      {xor_1_of_2});
 
-	check({{standard, "cn"}}, us_eu_any, {});
-	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any, {standard});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any, {standard, standard});
-	check({{xor_1_of_2, "us"}, {xor_2_of_2, "eu"}, {xor_p_of_2, "cn"}},
-			us_eu_any, {xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	check({{standard, MediaLabel("cn")}}, us_eu_any, {});
+	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}}, us_eu_any,
+	      {standard});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")}},
+	      us_eu_any, {standard, standard});
+	check({{xor_1_of_2, MediaLabel("us")},
+	       {xor_2_of_2, MediaLabel("eu")},
+	       {xor_p_of_2, MediaLabel("cn")}},
+	      us_eu_any, {xor_1_of_2, xor_2_of_2, xor_p_of_2});
 
-	check({{standard, "eu"}, {standard, "us"}}, us_eu, {});
-	check({{standard, "eu"}, {standard, "cn"}}, us_eu, {standard});
-	check({{standard, "eu"}, {standard, "cn"}}, us_eu_any, {});
-	check({{standard, "eu"}, {standard, "cn"}}, us_eu_any_any, {});
-	check({{standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "us"}}, us_eu_any_any, {});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}}, us_eu_any_any, {standard});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}, {standard, "cn"}},
-			us_eu_any_any, {standard, standard});
+	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("us")}}, us_eu, {});
+	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}}, us_eu,
+	      {standard});
+	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}}, us_eu_any,
+	      {});
+	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {});
+	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("us")}},
+	      us_eu_any_any, {});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {standard});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")}},
+	      us_eu_any_any, {standard, standard});
 
-	check({{standard, "eu"}, {standard, "us"}, {xor_1_of_2, "eu"}}, us_eu, {xor_1_of_2});
-	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu, {standard, xor_1_of_2});
-	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any, {xor_1_of_2});
-	check({{standard, "eu"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any_any, {xor_1_of_2});
-	check({{standard, "cn"}, {standard, "cn"}, {xor_1_of_2, "eu"}}, us_eu_any_any, {xor_1_of_2});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "us"}, {xor_1_of_2, "eu"}},
-			us_eu_any_any, {xor_1_of_2});
-	check({{standard, "cn"}, {standard, "cn"}, {standard, "cn"}, {xor_1_of_2, "eu"}},
-			us_eu_any_any, {standard, xor_1_of_2});
+	check({{standard, MediaLabel("eu")},
+	       {standard, MediaLabel("us")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu, {xor_1_of_2});
+	check({{standard, MediaLabel("eu")},
+	       {standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu, {standard, xor_1_of_2});
+	check({{standard, MediaLabel("eu")},
+	       {standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu_any, {xor_1_of_2});
+	check({{standard, MediaLabel("eu")},
+	       {standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu_any_any, {xor_1_of_2});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu_any_any, {xor_1_of_2});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("us")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu_any_any, {xor_1_of_2});
+	check({{standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {standard, MediaLabel("cn")},
+	       {xor_1_of_2, MediaLabel("eu")}},
+	      us_eu_any_any, {standard, xor_1_of_2});
 
 #undef check
 }

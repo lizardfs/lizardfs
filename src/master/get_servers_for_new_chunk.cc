@@ -34,7 +34,7 @@ std::vector<matocsserventry*> GetServersForNewChunk::chooseServersForGoal(
 		for (uint32_t i = 0; i < servers_.size(); ++i) {
 			if (servers_[i].server != history.servers[i].server
 					|| servers_[i].weight != history.servers[i].weight
-					|| *(servers_[i].label) != history.servers[i].label
+					|| servers_[i].label != history.servers[i].label
 					|| history.servers[i].chunksCreatedSoFar > kMaxChunkCount) {
 				history.servers.clear();
 				break;
@@ -46,7 +46,7 @@ std::vector<matocsserventry*> GetServersForNewChunk::chooseServersForGoal(
 		history.goal = goal;
 		history.servers.clear();
 		for (const auto& server : servers_) {
-			history.servers.emplace_back(server.server, *(server.label), server.weight);
+			history.servers.emplace_back(server.server, server.label, server.weight);
 		}
 	}
 
@@ -71,13 +71,13 @@ std::vector<matocsserventry*> GetServersForNewChunk::chooseServersForGoal(
 	for (const auto& labelAndCount : goal.chunkLabels()) {
 		const MediaLabel& label = labelAndCount.first;
 		uint32_t copiesToBeCreated = labelAndCount.second;
-		if (label == kMediaLabelWildcard) {
+		if (label == MediaLabel::kWildcard) {
 			continue;
 		}
 		for (const auto& server : servers_) {
 			if (copiesToBeCreated == 0) {
 				break;
-			} else if (*(server.label) == label) {
+			} else if (server.label == label) {
 				result.push_back(server.server);
 				copiesToBeCreated--;
 			}

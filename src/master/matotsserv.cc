@@ -63,7 +63,7 @@ struct matotsserventry {
 			  pdescpos(-1),
 			  inputPacket(kMaxPacketSize),
 			  name("(unregistered)"),
-			  label(kMediaLabelWildcard),
+			  label(MediaLabel::kWildcard),
 			  id(0),
 			  address(address),
 			  version(0),
@@ -170,8 +170,7 @@ static void matotsserv_register_tapeserver(matotsserventry* eptr, const MessageB
 					eptr->id, eptr->name.c_str());
 			matotsserv_kill(eptr);
 		}
-		// TODO(msulikowski) registration of labels
-		eptr->label = kMediaLabelWildcard;
+		eptr->label = MediaLabel::kWildcard;
 		uint32_t myVersion = LIZARDFS_VERSHEX;
 		matotsserv_createpacket(eptr, matots::registerTapeserver::build(myVersion));
 	}
@@ -500,7 +499,7 @@ uint8_t matotsserv_get_tapeserver_info(TapeserverId id, TapeserverListEntry& tap
 		if (tapeserver->id == id) {
 			tapeserverInfo.version = tapeserver->version;
 			tapeserverInfo.server = tapeserver->name;
-			tapeserverInfo.label = tapeserver->label;
+			tapeserverInfo.label = static_cast<std::string>(tapeserver->label);
 			tapeserverInfo.address = tapeserver->address;
 			return LIZARDFS_STATUS_OK;
 		}
@@ -512,8 +511,9 @@ std::vector<TapeserverListEntry> matotsserv_get_tapeservers() {
 	std::vector<TapeserverListEntry> tapeservers;
 	for (auto& tapeserver : gTapeservers) {
 		if (tapeserver->isRegistered()) {
-			tapeservers.emplace_back(tapeserver->version, tapeserver->name, tapeserver->label,
-		        tapeserver->address);
+			tapeservers.emplace_back(tapeserver->version, tapeserver->name,
+					static_cast<std::string>(tapeserver->label),
+					tapeserver->address);
 		}
 	}
 	return tapeservers;

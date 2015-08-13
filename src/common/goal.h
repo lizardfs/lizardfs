@@ -106,7 +106,7 @@ public:
 			return Goal::getXorGoal(goal::toXorLevel(goalId));
 		} else {
 			sassert(goalId == 0 || goal::isOrdinaryGoal(goalId));
-			return Goal(std::to_string(goalId), {{kMediaLabelWildcard, goalId}});
+			return Goal(std::to_string(goalId), {{MediaLabel::kWildcard, goalId}});
 		}
 	}
 
@@ -127,7 +127,7 @@ public:
 	/// Verifies names of goals.
 	static bool isNameValid(const std::string& goalName) {
 		// Let's use exactly the same algorithm as for media labels
-		return isMediaLabelValid(goalName);
+		return MediaLabelManager::isLabelValid(goalName);
 	}
 
 	/// Get labels regarding chunkservers of this goal object.

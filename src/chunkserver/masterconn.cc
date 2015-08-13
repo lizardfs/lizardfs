@@ -820,8 +820,8 @@ static uint32_t get_cfg_timeout() {
 /// Read the label from configuration file and return true if it's changed to a valid one
 bool masterconn_load_label() {
 	std::string oldLabel = gLabel;
-	gLabel = cfg_getstring("LABEL", kMediaLabelWildcard);
-	if (!isMediaLabelValid(gLabel)) {
+	gLabel = cfg_getstring("LABEL", MediaLabelManager::kWildcard);
+	if (!MediaLabelManager::isLabelValid(gLabel)) {
 		lzfs_pretty_syslog(LOG_WARNING,"invalid label '%s'", gLabel.c_str());
 		return false;
 	}

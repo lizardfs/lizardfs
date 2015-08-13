@@ -26,7 +26,7 @@
 
 ChunkCopiesCalculator::ChunkCopiesCalculator(const Goal* goal): goal_(goal) {}
 
-void ChunkCopiesCalculator::addPart(ChunkType chunkType, const MediaLabel* label) {
+void ChunkCopiesCalculator::addPart(ChunkType chunkType, const MediaLabel& label) {
 	availableParts_.emplace_back(chunkType, label);
 }
 
@@ -104,12 +104,12 @@ std::pair<uint32_t, uint32_t> ChunkCopiesCalculator::ordinaryPartsToRecoverAndRe
 	const Goal::Labels& labels = goal_->chunkLabels();
 	for (const auto& labelAndCount : labels) {
 		const auto& label = labelAndCount.first;
-		if (label == kMediaLabelWildcard) {
+		if (label == MediaLabel::kWildcard) {
 			continue;
 		}
 		uint32_t copiesOfLabel = 0;
 		for (const auto& partWithLabel : availableParts_) {
-			if (partWithLabel.first.isStandardChunkType() && *partWithLabel.second == label) {
+			if (partWithLabel.first.isStandardChunkType() && partWithLabel.second == label) {
 				copiesOfLabel++;
 			}
 		}

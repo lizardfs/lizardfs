@@ -27,10 +27,10 @@
 
 class ChunkCopiesCalculator {
 public:
-	typedef std::pair<ChunkType, const MediaLabel*> Part;
+	typedef std::pair<ChunkType, MediaLabel> Part;
 
 	ChunkCopiesCalculator(const Goal* goal);
-	void addPart(ChunkType chunkType, const MediaLabel* label);
+	void addPart(ChunkType chunkType, const MediaLabel& label);
 
 	std::vector<ChunkType> getPartsToRecover() const;
 	std::vector<ChunkType> getPartsToRemove() const;

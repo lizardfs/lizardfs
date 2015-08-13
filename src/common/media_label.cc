@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2015 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -19,18 +19,65 @@
 #include "common/platform.h"
 #include "common/media_label.h"
 
-const MediaLabel kMediaLabelWildcard = "_";
+#include <stdexcept>
 
-bool isMediaLabelValid(const MediaLabel& mediaLabel) {
+const int MediaLabelManager::kWildcardHandleValue;
+constexpr const char* MediaLabelManager::kWildcard;
+
+const MediaLabel MediaLabel::kWildcard(MediaLabelManager::kWildcardHandleValue);
+
+MediaLabelManager::MediaLabelManager() : next_handle_(1) {
+	label_data_.emplace(kWildcard, kWildcardHandleValue);
+	handle_data_.emplace(kWildcardHandleValue, kWildcard);
+}
+
+/*! Internal function returning handle to media label string.
+ *
+ * \param label string representing media label
+ * \return handle to media label
+ */
+MediaLabelManager::HandleValue MediaLabelManager::iGetHandle(const std::string &label) {
+	auto ilabel = label_data_.find(label);
+
+	if (ilabel == label_data_.end()) {
+		if (next_handle_ == kWildcardHandleValue) {
+			throw std::runtime_error("MediaLabelManager::No more space for new label");
+		}
+		ilabel = label_data_.emplace(label, next_handle_).first;
+		try {
+			handle_data_.emplace(next_handle_, label);
+		} catch (...) {
+			label_data_.erase(label);
+			throw;
+		}
+		next_handle_++;
+	}
+
+	return ilabel->second;
+}
+
+/*! Internal function returning label string from handle
+ *
+ * \param handle handle to label media string
+ * \return media label string
+ */
+std::string MediaLabelManager::iGetLabel(const HandleValue &handle) const {
+	auto ihandle = handle_data_.find(handle);
+
+	if (ihandle == handle_data_.end()) {
+		throw std::runtime_error("MediaLabelManager::invalid handle");
+	}
+
+	return ihandle->second;
+}
+
+bool MediaLabelManager::isLabelValid(const std::string &label) {
 	const uint32_t maxLength = 32;
-	if (mediaLabel.empty() || mediaLabel.size() > maxLength) {
+	if (label.empty() || label.size() > maxLength) {
 		return false;
 	}
-	for (char c : mediaLabel) {
-		if (!(c == '_'
-				|| (c >= 'a' && c <= 'z')
-				|| (c >= 'A' && c <= 'Z')
-				|| (c >= '0' && c <= '9'))) {
+	for (char c : label) {
+		if (!(c == '_' || std::isalnum(c))) {
 			return false;
 		}
 	}

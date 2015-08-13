@@ -25,7 +25,7 @@
 #include "common/media_label.h"
 
 // Helper macros to test the loader
-#define LABELS(...) (std::vector<MediaLabel>({__VA_ARGS__}))
+#define LABELS(...) (std::vector<std::string>({__VA_ARGS__}))
 #define EXPECT_GOAL(loader, expected_id, expected_name, expected_labels, expected_tape_labels) \
 	EXPECT_EQ(expected_name, loader.goals()[expected_id].name()); \
 	EXPECT_EQ(ExpectedLabels(expected_labels), loader.goals()[expected_id].chunkLabels()); \
@@ -33,10 +33,10 @@
 	EXPECT_EQ(expected_labels.size(), loader.goals()[expected_id].getExpectedCopies());
 
 
-Goal::Labels ExpectedLabels(const std::vector<MediaLabel>& tokens) {
+Goal::Labels ExpectedLabels(const std::vector<std::string>& tokens) {
 	Goal::Labels labels;
 	for (const auto& token : tokens) {
-		++labels[token];
+		++labels[MediaLabel(token)];
 	}
 	return labels;
 }
@@ -44,17 +44,17 @@ Goal::Labels ExpectedLabels(const std::vector<MediaLabel>& tokens) {
 TEST(GoalConfigLoaderTests, Defaults) {
 	GoalConfigLoader loader;
 	ASSERT_NO_THROW(loader.load(std::istringstream("")));
-	std::vector<MediaLabel> labels;
+	std::vector<std::string> labels;
 	for (int goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		SCOPED_TRACE("Testing default value for goal " + ::testing::PrintToString(goal));
-		labels.push_back(kMediaLabelWildcard); // add one label
+		labels.push_back(MediaLabelManager::kWildcard); // add one label
 		EXPECT_GOAL(loader, goal, std::to_string(goal), labels, {});
 	}
 }
 
 TEST(GoalConfigLoaderTests, CorrectFile) {
 	// A macro to make the test shorter
-	#define ANY kMediaLabelWildcard
+	#define ANY MediaLabelManager::kWildcard
 
 	std::string config(
 			"# a comment \n"

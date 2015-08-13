@@ -291,7 +291,7 @@ public:
 			size_t goalCount = 0;
 			for (auto &label : labels) {
 				goalCount += label.second;
-				if (label.first != kMediaLabelWildcard) {
+				if (label.first != MediaLabel::kWildcard) {
 					auto &entry = mergedLabels[label.first];
 					entry = std::max(entry, label.second);
 				}
@@ -306,7 +306,7 @@ public:
 
 		/* If any wildcards should be added, do so */
 		if (maxGoalCount > 0) {
-			mergedLabels[kMediaLabelWildcard] = maxGoalCount;
+			mergedLabels[MediaLabel::kWildcard] = maxGoalCount;
 		}
 
 		return mergedLabels;
@@ -359,12 +359,12 @@ public:
 			if (!s->is_valid()) {
 				continue;
 			}
-			all.addPart(s->chunkType, &matocsserv_get_label(s->ptr));
+			all.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 			if (s->chunkType.isStandardChunkType()) {
 				allStandardCopies_++;
 			}
 			if (!s->is_todel()) {
-				regular.addPart(s->chunkType, &matocsserv_get_label(s->ptr));
+				regular.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 				if (s->chunkType.isStandardChunkType()) {
 					regularStandardCopies_++;
 				}
@@ -486,7 +486,7 @@ public:
 		ChunkCopiesCalculator calculator(&fs_get_goal_definition(highestIdGoal()));
 		for (const slist *s = slisthead; s != nullptr; s = s->next) {
 			if (s->is_valid() && !s->is_todel()) {
-				calculator.addPart(s->chunkType, &matocsserv_get_label(s->ptr));
+				calculator.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 			}
 		}
 		return calculator;
@@ -663,7 +663,7 @@ static ReplicationDelayInfo replicationDelayInfoForAll;
  * Information about recently disconnected and connected servers
  * necessary for replication to servers with specified label.
  */
-static std::unordered_map<MediaLabel, ReplicationDelayInfo> replicationDelayInfoForLabel;
+static std::unordered_map<MediaLabel, ReplicationDelayInfo, MediaLabel::hash> replicationDelayInfoForLabel;
 
 struct job_info {
 	uint32_t del_invalid;
@@ -1527,7 +1527,7 @@ struct ChunkLocation {
 	ChunkType chunkType;
 	uint32_t distance;
 	uint32_t random;
-	MediaLabel* label;
+	MediaLabel label;
 	bool operator<(const ChunkLocation& other) const {
 		if (distance < other.distance) {
 			return true;
@@ -1615,7 +1615,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	std::sort(chunkLocation.begin(), chunkLocation.end());
 	for (uint i = 0; i < chunkLocation.size(); ++i) {
 		const ChunkLocation& loc = chunkLocation[i];
-		serversList.emplace_back(loc.address, *loc.label, loc.chunkType);
+		serversList.emplace_back(loc.address, static_cast<std::string>(loc.label), loc.chunkType);
 	}
 	return LIZARDFS_STATUS_OK;
 }
@@ -1725,7 +1725,7 @@ void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label) {
 		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
 	}
 	replicationDelayInfoForAll.serverDisconnected();
-	if (label != kMediaLabelWildcard) {
+	if (label != MediaLabel::kWildcard) {
 		replicationDelayInfoForLabel[label].serverDisconnected();
 	}
 	main_make_next_poll_nonblocking();
@@ -1744,7 +1744,7 @@ void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabe
 	 * and it was added to replicationDelayInfoForAll earlier
 	 * in chunk_server_unlabelled_connected call.
 	 */
-	if (previousLabel == kMediaLabelWildcard) {
+	if (previousLabel == MediaLabel::kWildcard) {
 		replicationDelayInfoForLabel[newLabel].serverConnected();
 	}
 }
@@ -2018,7 +2018,7 @@ void ChunkWorker::doEverySecondTasks() {
 	sortedServers_ = matocsserv_getservers_sorted();
 	labeledSortedServers_.clear();
 	for (const ServerWithUsage& sw : sortedServers_) {
-		labeledSortedServers_[*(sw.label)].push_back(sw);
+		labeledSortedServers_[sw.label].push_back(sw);
 	}
 }
 
@@ -2037,7 +2037,7 @@ static matocsserventry* getServerForReplication(chunk *c, ChunkType chunkTypeToR
 	static matocsserventry* servers[65536];
 	uint16_t totalMatching, returnedMatching;
 	auto serverCount = matocsserv_getservers_lessrepl(
-			kMediaLabelWildcard, MaxWriteRepl, servers, &totalMatching, &returnedMatching);
+			MediaLabel::kWildcard, MaxWriteRepl, servers, &totalMatching, &returnedMatching);
 	uint32_t minServerVersion = 0;
 	if (!chunkTypeToRecover.isStandardChunkType()) {
 		minServerVersion = kFirstXorVersion;
@@ -2076,7 +2076,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkType chunkTypeToRecover, matocss
 		if (s->is_valid() && !s->is_busy()) {
 			if (matocsserv_get_version(s->ptr) >= kFirstXorVersion) {
 				newServerSources.push_back(s->ptr);
-				newSourcesCalculator.addPart(s->chunkType, &matocsserv_get_label(s->ptr));
+				newSourcesCalculator.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 				availableParts.push_back(s->chunkType);
 			}
 			if (s->chunkType.isStandardChunkType()) {
@@ -2262,7 +2262,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 				expectedCopies.begin(), expectedCopies.end());
 		std::partition(labelsAndExpectedCopies.begin(), labelsAndExpectedCopies.end(),
 				[](const Goal::Labels::value_type& labelGoal) {
-					return labelGoal.first != kMediaLabelWildcard;
+					return labelGoal.first != MediaLabel::kWildcard;
 				}
 		);
 
@@ -2282,7 +2282,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			// For the wildcard label we will create copies on any servers until we have exactly
 			// 'c->expectedCopies()' valid copies.
 			int missingCopiesForLabel;
-			if (label == kMediaLabelWildcard) {
+			if (label == MediaLabel::kWildcard) {
 				missingCopiesForLabel = c->expectedCopies() - (vc + skippedReplications);
 			} else {
 				missingCopiesForLabel = expectedCopiesForLabel - validCopies[label];
@@ -2297,7 +2297,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			if (jobsnorepbefore >= main_time()) {
 				break;
 			}
-			if (label == kMediaLabelWildcard) {
+			if (label == MediaLabel::kWildcard) {
 				if (!replicationDelayInfoForAll.replicationAllowed(missingCopiesForLabel)) {
 					continue;
 				}
@@ -2312,7 +2312,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			uint16_t returnedMatching = 0;
 			uint32_t destinationCount = matocsserv_getservers_lessrepl(label, MaxWriteRepl,
 					servers, &totalMatching, &returnedMatching);
-			if (label != kMediaLabelWildcard && totalMatching > returnedMatching) {
+			if (label != MediaLabel::kWildcard && totalMatching > returnedMatching) {
 				// There is a server which matches the current label, but it has exceeded the
 				// replication limit. In this case we won't try to use servers with non-matching
 				// labels as our destination -- we will wait for that server to be ready.
@@ -2423,7 +2423,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 					 * and this chunk does not have overgoal on this label
 					 * then skip processing this chunkserver.
 					 */
-					if (csLabel != kMediaLabelWildcard
+					if (csLabel != MediaLabel::kWildcard
 							&& expectedCopies.count(csLabel)
 							&& validCopies[csLabel] <= expectedCopies.at(csLabel)) {
 						continue;
@@ -2514,7 +2514,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 			// requires our copy to exist on a server labeled 'currentCopyLabel'.
 			bool labelOnlyRebalance = !RebalancingBetweenLabels
 					|| (s->chunkType.isStandardChunkType()
-						&& currentCopyLabel != kMediaLabelWildcard
+						&& currentCopyLabel != MediaLabel::kWildcard
 						&& expectedCopies.count(currentCopyLabel)
 						&& validCopies[currentCopyLabel] <= expectedCopies.at(currentCopyLabel));
 			const ServersWithUsage& sortedServers = labelOnlyRebalance

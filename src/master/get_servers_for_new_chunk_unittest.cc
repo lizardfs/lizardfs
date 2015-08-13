@@ -39,7 +39,7 @@ protected:
 			}
 			// We will use the address of the entry in our map as a matocsserventry* pointer.
 			const matocsserventry* serverPtr = reinterpret_cast<const matocsserventry*>(&(*it));
-			getter.addServer(const_cast<matocsserventry*>(serverPtr), &it->second, 1);
+			getter.addServer(const_cast<matocsserventry*>(serverPtr), it->second, 1);
 		}
 		return getter;
 	}
@@ -61,9 +61,21 @@ protected:
 
 // Initial values for the map: three labels, file server for each
 const std::map<std::string, MediaLabel> GetServersForNewChunkTests::allServers{
-	{"A1", "A"}, {"A2", "A"}, {"A3", "A"}, {"A4", "A"}, {"A5", "A"},
-	{"B1", "B"}, {"B2", "B"}, {"B3", "B"}, {"B4", "B"}, {"B5", "B"},
-	{"C1", "C"}, {"C2", "C"}, {"C3", "C"}, {"C4", "C"}, {"C5", "C"},
+	{"A1", MediaLabel("A")},
+	{"A2", MediaLabel("A")},
+	{"A3", MediaLabel("A")},
+	{"A4", MediaLabel("A")},
+	{"A5", MediaLabel("A")},
+	{"B1", MediaLabel("B")},
+	{"B2", MediaLabel("B")},
+	{"B3", MediaLabel("B")},
+	{"B4", MediaLabel("B")},
+	{"B5", MediaLabel("B")},
+	{"C1", MediaLabel("C")},
+	{"C2", MediaLabel("C")},
+	{"C3", MediaLabel("C")},
+	{"C4", MediaLabel("C")},
+	{"C5", MediaLabel("C")},
 };
 
 constexpr int kTestAccuracy = 100;
@@ -72,14 +84,14 @@ TEST_F(GetServersForNewChunkTests, ChooseServers0) {
 	// servers: _ _ _
 	//    goal: _ _ _ _
 	ChunkCreationHistory history;
-	Goal goal("goal", {{kMediaLabelWildcard, 4}});
+	Goal goal("goal", {{MediaLabel::kWildcard, 4}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "A3"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_GE(labelCounts["A"], 3);
+		ASSERT_GE(labelCounts[MediaLabel("A")], 3);
 	}
 }
 
@@ -87,14 +99,14 @@ TEST_F(GetServersForNewChunkTests, ChooseServers1) {
 	// servers: A A B B C
 	//    goal: A _
 	ChunkCreationHistory history;
-	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 1}});
+	Goal goal("goal", {{MediaLabel("A"), 1}, {MediaLabel::kWildcard, 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_GE(labelCounts["A"], 1);
+		ASSERT_GE(labelCounts[MediaLabel("A")], 1);
 	}
 }
 
@@ -102,14 +114,14 @@ TEST_F(GetServersForNewChunkTests, ChooseServers2) {
 	// servers: A A B B C
 	//    goal: A _ _
 	ChunkCreationHistory history;
-	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 2}});
+	Goal goal("goal", {{MediaLabel("A"), 1}, {MediaLabel::kWildcard, 2}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_GE(labelCounts["A"], 1);
+		ASSERT_GE(labelCounts[MediaLabel("A")], 1);
 	}
 }
 
@@ -117,15 +129,15 @@ TEST_F(GetServersForNewChunkTests, ChooseServers3) {
 	// servers: A A B B C
 	//    goal: A C
 	ChunkCreationHistory history;
-	Goal goal("goal", {{"A", 1}, {"C", 1}});
+	Goal goal("goal", {{MediaLabel("A"), 1}, {MediaLabel("C"), 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_EQ(labelCounts["A"], 1);
-		ASSERT_EQ(labelCounts["C"], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("A")], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("C")], 1);
 	}
 }
 
@@ -133,16 +145,16 @@ TEST_F(GetServersForNewChunkTests, ChooseServers4) {
 	// servers: A B B B C
 	//    goal: A _ C
 	ChunkCreationHistory history;
-	Goal goal("goal", {{"A", 1}, {kMediaLabelWildcard, 1}, {"C", 1}});
+	Goal goal("goal", {{MediaLabel("A"), 1}, {MediaLabel::kWildcard, 1}, {MediaLabel("C"), 1}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_EQ(labelCounts["A"], 1);
-		ASSERT_EQ(labelCounts["B"], 1);
-		ASSERT_EQ(labelCounts["C"], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("A")], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("B")], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("C")], 1);
 	}
 }
 
@@ -150,20 +162,20 @@ TEST_F(GetServersForNewChunkTests, ChooseServers5) {
 	// servers: A B B B C
 	//    goal: A A A
 	ChunkCreationHistory history;
-	Goal goal("goal", {{"A", 3}});
+	Goal goal("goal", {{MediaLabel("A"), 3}});
 	for (int i = 0; i < kTestAccuracy; ++i) {
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
 		auto result = getter.chooseServersForGoal(goal, history);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
-		ASSERT_EQ(labelCounts["A"], 1);
+		ASSERT_EQ(labelCounts[MediaLabel("A")], 1);
 	}
 }
 
 TEST_F(GetServersForNewChunkTests, ChunkDistribution) {
 	auto testScenario = [](double maxUsageDifference, std::string goalString,
-			std::vector<std::pair<MediaLabel, int>> servers) {
+			std::vector<std::pair<std::string, int>> servers) {
 		ChunkCreationHistory history;
 		SCOPED_TRACE(std::string("Testing scenario:\n") +
 				"   Goal: " + goalString + "\n" +
@@ -182,7 +194,7 @@ TEST_F(GetServersForNewChunkTests, ChunkDistribution) {
 			GetServersForNewChunk algorithm;
 			for (int server = 0; server < int(servers.size()); ++server) {
 				algorithm.addServer(reinterpret_cast<matocsserventry*>(server + 1),
-						&servers[server].first, servers[server].second);
+						MediaLabel(servers[server].first), servers[server].second);
 			}
 			auto result = algorithm.chooseServersForGoal(goal, history);
 			for (matocsserventry* ptr : result) {

@@ -1321,7 +1321,7 @@ enum class SugidClearMode {
 //0x01E3
 #define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
 /// version==0 msgid:32 status:8
-/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:MediaLabel chunktype:8])
+/// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:STDSTRING chunktype:8])
 
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache

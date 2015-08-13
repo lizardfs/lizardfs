@@ -21,36 +21,57 @@
 
 #include <gtest/gtest.h>
 
-TEST(MediaLabelTests, IsMediaLabelValid) {
-	EXPECT_TRUE(isMediaLabelValid(kMediaLabelWildcard));
-	EXPECT_TRUE(isMediaLabelValid("QWERTYUIOPASDFGHJKLZXCVBNM"));
-	EXPECT_TRUE(isMediaLabelValid("qwertyuiopasdfghjklzxcvbnm_"));
-	EXPECT_TRUE(isMediaLabelValid("0987654321"));
-	EXPECT_TRUE(isMediaLabelValid("l"));
-	EXPECT_TRUE(isMediaLabelValid("L"));
-	EXPECT_TRUE(isMediaLabelValid("0"));
-	EXPECT_TRUE(isMediaLabelValid("_"));
-	EXPECT_TRUE(isMediaLabelValid("lL_0"));
-	EXPECT_TRUE(isMediaLabelValid("8834874543"));
-	EXPECT_TRUE(isMediaLabelValid("llkcnlqwxne"));
-	EXPECT_TRUE(isMediaLabelValid("ll_kcnl_qwx_ne"));
-	EXPECT_TRUE(isMediaLabelValid("123456789012345678901234567890AB")); // max size
+TEST(MediaLabelManagerTests, IsLabelValid) {
+	EXPECT_TRUE(MediaLabelManager::isLabelValid(MediaLabelManager::kWildcard));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("QWERTYUIOPASDFGHJKLZXCVBNM"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("qwertyuiopasdfghjklzxcvbnm_"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("0987654321"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("l"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("L"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("0"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("_"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("lL_0"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("8834874543"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("llkcnlqwxne"));
+	EXPECT_TRUE(MediaLabelManager::isLabelValid("ll_kcnl_qwx_ne"));
+	EXPECT_TRUE(
+	        MediaLabelManager::isLabelValid("123456789012345678901234567890AB"));  // max size
 
-	EXPECT_FALSE(isMediaLabelValid("123456789012345678901234567890ABC")); // too long
-	EXPECT_FALSE(isMediaLabelValid(""));
-	EXPECT_FALSE(isMediaLabelValid(" "));
-	EXPECT_FALSE(isMediaLabelValid("hdd ssd"));
-	EXPECT_FALSE(isMediaLabelValid("s/dasdasdas"));
-	EXPECT_FALSE(isMediaLabelValid("sdas_fasfasgdasgsa-"));
-	EXPECT_FALSE(isMediaLabelValid("hdd "));
-	EXPECT_FALSE(isMediaLabelValid(" hdd"));
-	EXPECT_FALSE(isMediaLabelValid("+"));
-	EXPECT_FALSE(isMediaLabelValid("-"));
-	EXPECT_FALSE(isMediaLabelValid("]"));
-	EXPECT_FALSE(isMediaLabelValid("["));
-	EXPECT_FALSE(isMediaLabelValid("."));
-	EXPECT_FALSE(isMediaLabelValid(";"));
-	EXPECT_FALSE(isMediaLabelValid(","));
-	EXPECT_FALSE(isMediaLabelValid("@"));
-	EXPECT_FALSE(isMediaLabelValid("'"));
+	EXPECT_FALSE(
+	        MediaLabelManager::isLabelValid("123456789012345678901234567890ABC"));  // too long
+	EXPECT_FALSE(MediaLabelManager::isLabelValid(""));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid(" "));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("hdd ssd"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("s/dasdasdas"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("sdas_fasfasgdasgsa-"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("hdd "));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid(" hdd"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("+"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("-"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("]"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("["));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("."));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid(";"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid(","));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("@"));
+	EXPECT_FALSE(MediaLabelManager::isLabelValid("'"));
+}
+
+TEST(MediaLabelManagerTests, HandleTests) {
+	MediaLabel wildcard(MediaLabel::kWildcard);
+	MediaLabel handle1("value1");
+	MediaLabel handle2("value2");
+	MediaLabel handle3("value3");
+
+	EXPECT_EQ(MediaLabel::kWildcard, MediaLabel(MediaLabelManager::kWildcardHandleValue));
+
+	EXPECT_EQ(wildcard, MediaLabel(MediaLabelManager::kWildcard));
+	EXPECT_EQ(handle1, MediaLabel("value1"));
+	EXPECT_EQ(handle2, MediaLabel("value2"));
+	EXPECT_EQ(handle3, MediaLabel("value3"));
+
+	EXPECT_EQ((std::string)wildcard, MediaLabelManager::kWildcard);
+	EXPECT_EQ((std::string)handle1, "value1");
+	EXPECT_EQ((std::string)handle2, "value2");
+	EXPECT_EQ((std::string)handle3, "value3");
 }

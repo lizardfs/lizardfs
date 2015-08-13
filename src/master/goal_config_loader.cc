@@ -103,16 +103,16 @@ void GoalConfigLoader::load(std::istream&& stream) {
 			} else {
 				if (token.back() == '@') { // tapeserver label
 					std::string label = token.substr(0, token.size() - 1);
-					if (!isMediaLabelValid(label)) {
+					if (!MediaLabelManager::isLabelValid(label)) {
 						throw ParseException(currentPosition + ": invalid label " + token);
 					}
-					++tapeLabels[label];
+					++tapeLabels[MediaLabel(label)];
 					++tapeCopies;
 				} else { // chunkserver label
-					if (!isMediaLabelValid(token)) {
+					if (!MediaLabelManager::isLabelValid(token)) {
 						throw ParseException(currentPosition + ": invalid label " + token);
 					}
-					++chunkLabels[token];
+					++chunkLabels[MediaLabel(token)];
 					++chunkCopies;
 				}
 			}
@@ -137,7 +137,7 @@ void GoalConfigLoader::load(std::istream&& stream) {
 	// Fill all other valid goals with default values
 	for (uint8_t goal = goal::kMinOrdinaryGoal; goal <= goal::kMaxOrdinaryGoal; ++goal) {
 		if (result[goal].name().empty()) {
-			result[goal] = Goal(std::to_string(goal), {{kMediaLabelWildcard, goal}}, std::map<MediaLabel, int>{});
+			result[goal] = Goal(std::to_string(goal), {{MediaLabel::kWildcard, goal}}, std::map<MediaLabel, int>{});
 		}
 	}
 	goals_ = std::move(result);

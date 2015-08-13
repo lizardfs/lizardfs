@@ -21,7 +21,6 @@
 #include "common/platform.h"
 
 #include "common/serialization_macros.h"
-#include "common/media_label.h"
 
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ChunkserverListEntry,
 		uint32_t, version,
@@ -34,4 +33,4 @@ LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ChunkserverListEntry,
 		uint64_t, todeltotalspace,
 		uint32_t, todelchunkscount,
 		uint32_t, errorcounter,
-		MediaLabel, label);
+		std::string, label);

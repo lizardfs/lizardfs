@@ -36,7 +36,7 @@ typedef std::vector<matocsserventry*> Chunkservers;
 
 /// A struct used in matocsserv_getservers_sorted
 struct ServerWithUsage {
-	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel* label)
+	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel& label)
 			: server(server),
 			  diskUsage(diskUsage),
 			  label(label) {
@@ -44,7 +44,7 @@ struct ServerWithUsage {
 
 	matocsserventry* server;
 	double diskUsage;
-	const MediaLabel* label;
+	MediaLabel label;
 };
 
 
@@ -53,7 +53,7 @@ struct ServerWithUsage {
  * This function returns a list of chunkservers that currently don't exceed the given limit of
  * chunks replicated into them. Servers with 99% disk usage are treated as non-existing, thus not
  * returned. The returned servers are randomly shuffled, but if the \p label is not a
- * \p kMediaLabelWildcard, then servers with this label would be placed in front of the returned
+ * \p MediaLabel::kWildcard, then servers with this label would be placed in front of the returned
  * list and \p returnedMatching would be set to the number of them.
  *
  * \param label - the requested label.
@@ -92,7 +92,7 @@ std::vector<std::pair<matocsserventry*, ChunkType>> matocsserv_getservers_for_ne
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
 int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport,
-		MediaLabel** label);
+		MediaLabel* label);
 uint16_t matocsserv_replication_read_counter(matocsserventry* e);
 uint16_t matocsserv_replication_write_counter(matocsserventry* e);
 uint16_t matocsserv_deletion_counter(matocsserventry* e);
