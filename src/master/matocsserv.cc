@@ -36,20 +36,16 @@
 #include <vector>
 
 #include "common/cfg.h"
-#include "protocol/cstoma.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
-#include "protocol/input_packet.h"
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/matocs.h"
-#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/output_packet.h"
-#include "protocol/packet.h"
 #include "common/random.h"
+#include "common/slice_traits.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
@@ -57,6 +53,11 @@
 #include "master/filesystem.h"
 #include "master/get_servers_for_new_chunk.h"
 #include "master/personality.h"
+#include "protocol/cstoma.h"
+#include "protocol/input_packet.h"
+#include "protocol/matocs.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 #define MaxPacketSize 500000000
 
@@ -448,52 +449,64 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 	return result;
 }
 
-std::vector<std::pair<matocsserventry*, ChunkPartType>> matocsserv_getservers_for_new_chunk(
-			uint8_t goalId) {
-	/* FIXME:
-	static GoalMap<ChunkCreationHistory> history;
+std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_for_new_chunk(
+		uint8_t goal_id) {
+	static GoalIdRangeArray<ChunkCreationHistory> history;
 	GetServersForNewChunk getter;
+	const Goal &goal(fs_get_goal_definition(goal_id));
 
-	bool isXorGoal = goal::isXorGoal(goalId);
-	// Add servers with weights which are proportional to total space on each server.
-	for (matocsserventry* eptr = matocsservhead; eptr != nullptr ; eptr = eptr->next) {
-		if (isXorGoal && eptr->version < kFirstXorVersion) {
-			// can't store XOR chunks on chunkservers that don't support them
-			continue;
-		}
-		if (eptr->mode != KILL && eptr->totalspace > 0 && eptr->usedspace <= eptr->totalspace
-				&& (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
-			int64_t weight = eptr->totalspace / 1024U / 1024U; // weight = total space in MB
-			getter.addServer(eptr, eptr->label, weight);
+	for (matocsserventry *eptr = matocsservhead; eptr != nullptr; eptr = eptr->next) {
+		if (eptr->mode != KILL && eptr->totalspace > 0 &&
+		    eptr->usedspace <= eptr->totalspace &&
+		    (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
+			int64_t weight =
+			        eptr->totalspace / 1024U / 1024U;  // weight = total space in MB
+			getter.addServer(eptr, eptr->label, weight, eptr->version);
 		}
 	}
-	std::vector<std::pair<matocsserventry*, ChunkPartType>> ret;
-	std::vector<ChunkPartType> chunkTypes;
-	auto servers = getter.chooseServersForGoal(
-			fs_get_goal_definition(goalId), history[goalId]);
 
-	if (isXorGoal) {
-		int level = goal::toXorLevel(goalId);
-		if (servers.size() < level) {
-			return ret; // do not create any parts if servers are missing
+	getter.prepareData(history[goal_id]);
+
+	std::vector<matocsserventry *> used_servers, servers;
+	std::vector<std::pair<matocsserventry *, ChunkPartType>> ret;
+
+	// At some point in future there might be a need to create chunks with more than one slice.
+	// It would be good to clear used servers for each new slice (so we don't exhaust
+	// chunkserver pool to fast). But it should be done on the need only basis so
+	// we don't use any chunkserver twice if not necessary.
+	for (const auto &slice : goal) {
+		std::vector<std::pair<matocsserventry *, ChunkPartType>> slice_ret;
+
+		// add parts index permutation here
+		std::array<int, Goal::Slice::kMaxPartsCount> shuffle;
+
+		std::iota(shuffle.begin(), shuffle.begin() + slice.size(), 0);
+		std::random_shuffle(shuffle.begin(), shuffle.begin() + slice.size());
+
+		int count_full_parts = 0;
+		for (int i = 0; i < slice.size(); ++i) {
+			servers = getter.chooseServersForLabels(
+			        history[goal_id], slice[shuffle[i]],
+			        slice_traits::isXor(slice) ? kFirstXorVersion : 0, used_servers);
+			if (servers.empty()) {
+				continue;
+			}
+			++count_full_parts;
+			for (const auto &server : servers) {
+				slice_ret.push_back(std::make_pair(
+				        server, ChunkPartType(slice.getType(), shuffle[i])));
+			}
 		}
-		chunkTypes.reserve(level + 1);
-		chunkTypes.push_back(slice_traits::xors::ChunkPartType(level, slice_traits::xors::kXorParityPart));
-		for (int part = 1; part <= level; ++part) {
-			chunkTypes.push_back(slice_traits::xors::ChunkPartType(level, part));
+
+		if (slice_traits::isXor(slice) &&
+		    count_full_parts < slice_traits::xors::getXorLevel(slice)) {
+			continue; // do not create any parts if servers are missing
 		}
-		std::random_shuffle(chunkTypes.begin(), chunkTypes.end());
-		if (servers.size() == level) {
-			chunkTypes.pop_back();
-		}
-	} else {
-		chunkTypes.assign(servers.size(), slice_traits::standard::ChunkPartType());
+
+		ret.insert(ret.end(), slice_ret.begin(), slice_ret.end());
 	}
-	for (uint32_t i = 0; i < servers.size(); ++i) {
-		ret.emplace_back(servers[i], chunkTypes[i]);
-	}
+
 	return ret;
-	*/
 }
 
 void matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,

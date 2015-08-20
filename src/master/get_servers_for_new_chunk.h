@@ -31,68 +31,65 @@ struct matocsserventry;
 /// We remember the server's data (pointer, label, weight) to be able to verify if this
 /// information didn't change.
 struct ChunkserverChunkCounter {
-	ChunkserverChunkCounter(matocsserventry* server, MediaLabel label, int64_t weight)
-			: server(server),
-			  label(std::move(label)),
-			  weight(weight),
-			  chunksCreatedSoFar(0) {
+	ChunkserverChunkCounter(matocsserventry *server, MediaLabel label, int64_t weight,
+	                        uint32_t version)
+	    : server(server),
+	      label(std::move(label)),
+	      weight(weight),
+	      version(version),
+	      chunks_created(0) {
 	}
 
-	matocsserventry* server;
+	matocsserventry *server;
 	MediaLabel label;
 	int64_t weight;
+	uint32_t version;
 
 	/// Number of chunks created on this sever.
 	/// This information would be reset if anything did change (eg. list of servers,
 	/// their labels or weights).
-	int64_t chunksCreatedSoFar;
+	int64_t chunks_created;
 };
 
-/// History of chunk creation for some goal
-struct ChunkCreationHistory {
-	ChunkCreationHistory() {}
-	ChunkCreationHistory(Goal goal) : goal(std::move(goal)) {}
+typedef std::vector<ChunkserverChunkCounter> ChunkCreationHistory;
 
-	/// The goal.
-	Goal goal;
-
-	/// Information about chunks created on each server for the \p goal.
-	std::vector<ChunkserverChunkCounter> servers;
-};
-
-/// An algorithm which chooses servers for a new chunk.
+/*! \brief Class implementing algorithm which chooses servers for a new chunk. */
 class GetServersForNewChunk {
 public:
-	struct WeightedServer {
-		WeightedServer(matocsserventry* server, const MediaLabel label, int64_t weight)
-				: server(server),
-				  label(label),
-				  weight(weight),
-				  chunkCount(0) {
-		}
-
-		matocsserventry* server;
-		MediaLabel label;
-		int64_t weight;
-
-		// Used internally by chooseServersForGoal algorithm
-		int64_t chunkCount;
-	};
-
-	/// A constructor.
+	/*! \brief Constructor. */
 	GetServersForNewChunk() {
 		servers_.reserve(32);
 	}
 
-	/// Adds information about a server.
-	void addServer(matocsserventry* server, const MediaLabel& label, int64_t weight) {
-		servers_.emplace_back(server, label, weight);
+	/*! \brief Adds information about a server.
+	 *
+	 * \param server pointer to structure describing server.
+	 * \param label server's label.
+	 * \param weight server priority used in search.
+	 * \param version chunk server version.
+	 */
+	void addServer(matocsserventry *server, const MediaLabel &label, int64_t weight,
+	               uint32_t version) {
+		servers_.emplace_back(server, label, weight, version);
 	}
 
-	/// Chooses servers to fulfill the given goal.
-	std::vector<matocsserventry*> chooseServersForGoal(
-			const Goal& goal, ChunkCreationHistory& history);
+	/*! \brief Prepare data for subsequent calls to chooseServersForLabels.
+	 *
+	 * \param history vector with information about previous requests.
+	 */
+	void prepareData(ChunkCreationHistory &history);
 
+	/*! \brief Chooses servers to fulfill the given goal.
+	 *
+	 * \param history vector with information about previous requests.
+	 * \param labels requested labels for servers.
+	 * \param min_version minimum version of chunk server that should be returned.
+	 * \param used vector with already used chunk servers.
+	 */
+	std::vector<matocsserventry *> chooseServersForLabels(ChunkCreationHistory &history,
+	                                                      const Goal::Slice::Labels &labels,
+	                                                      uint32_t min_version,
+	                                                      std::vector<matocsserventry *> &used);
 private:
-	std::vector<WeightedServer> servers_;
+	std::vector<ChunkserverChunkCounter> servers_;
 };

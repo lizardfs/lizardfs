@@ -22,85 +22,101 @@
 #include "common/massert.h"
 #include "common/random.h"
 
-std::vector<matocsserventry*> GetServersForNewChunk::chooseServersForGoal(
-		const Goal& goal, ChunkCreationHistory& history) {
-	// To avoid overflows (weight * chunksCreatedSoFar), we will reset history every million chunks
+void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
+	// To avoid overflows (weight * chunksCreatedSoFar), we will reset history every million
+	// chunks
 	const int64_t kMaxChunkCount = 1000000;
 
-	// Check if the list of servers didn't change
-	if (history.servers.size() != servers_.size()) {
-		history.servers.clear();
+	if (history.size() != servers_.size()) {
+		history.clear();
 	} else {
 		for (uint32_t i = 0; i < servers_.size(); ++i) {
-			if (servers_[i].server != history.servers[i].server
-					|| servers_[i].weight != history.servers[i].weight
-					|| servers_[i].label != history.servers[i].label
-					|| history.servers[i].chunksCreatedSoFar > kMaxChunkCount) {
-				history.servers.clear();
+			if (servers_[i].server != history[i].server ||
+			    servers_[i].weight != history[i].weight ||
+			    servers_[i].label != history[i].label ||
+			    history[i].chunks_created > kMaxChunkCount) {
+				history.clear();
 				break;
 			}
 		}
 	}
-	// If the list of servers did change or the definition of our goal did change, reset the history
-	if (!(history.goal == goal) || history.servers.empty()) {
-		history.goal = goal;
-		history.servers.clear();
-		for (const auto& server : servers_) {
-			history.servers.emplace_back(server.server, server.label, server.weight);
+
+	// If the list of servers did change or the definition of our goal did change, reset the
+	// history
+	if (history.empty()) {
+		for (const auto &server : servers_) {
+			history.emplace_back(server.server, server.label, server.weight,
+			                     server.version);
 		}
 	}
 
 	// Copy history to servers_
 	for (uint32_t i = 0; i < servers_.size(); ++i) {
-		servers_[i].chunkCount = history.servers[i].chunksCreatedSoFar;
+		servers_[i].chunks_created = history[i].chunks_created;
 	}
 
 	// Order servers by relative disk usage.
 	// random_shuffle to choose randomly if relative disk usage is the same.
 	std::random_shuffle(servers_.begin(), servers_.end());
 	std::stable_sort(servers_.begin(), servers_.end(),
-			[](const WeightedServer& a, const WeightedServer& b) {
-		int64_t aRelativeUsage = a.chunkCount * b.weight;
-		int64_t bRelativeUsage = b.chunkCount * a.weight;
-		return (aRelativeUsage < bRelativeUsage
-				|| (aRelativeUsage == bRelativeUsage && a.weight > b.weight));
-	});
+	                 [](const ChunkserverChunkCounter &a, const ChunkserverChunkCounter &b) {
+		                 int64_t aRelativeUsage = a.chunks_created * b.weight;
+		                 int64_t bRelativeUsage = b.chunks_created * a.weight;
+		                 return (aRelativeUsage < bRelativeUsage ||
+		                         (aRelativeUsage == bRelativeUsage && a.weight > b.weight));
+		         });
+}
 
-	std::vector<matocsserventry*> result;
+std::vector<matocsserventry *> GetServersForNewChunk::chooseServersForLabels(
+	ChunkCreationHistory &history, const Goal::Slice::Labels &labels, uint32_t min_version,
+	std::vector<matocsserventry *> &used) {
+	std::vector<matocsserventry *> result;
+
+	// TODO(Haze): It should be optimized also for large number of servers.
+
 	// Choose servers for non-wildcard labels
-	for (const auto& slice : goal) {
-		for (const auto &labels : slice) {
-			for (const auto &labelAndCount : labels) {
-				const MediaLabel& label = labelAndCount.first;
-				uint32_t copiesToBeCreated = labelAndCount.second;
-				if (label == MediaLabel::kWildcard) {
-					continue;
-				}
-				for (const auto& server : servers_) {
-					if (copiesToBeCreated == 0) {
-						break;
-					} else if (server.label == label) {
-						result.push_back(server.server);
-						copiesToBeCreated--;
-					}
-			}
-			}
-		}
-	}
-	// Add any servers to have the desired number of copies
-	for (const auto& server : servers_) {
-		if ((int)result.size() == goal.getExpectedCopies()) {
+	for (const auto &label_and_count : labels) {
+		int copies_to_be_created = label_and_count.second;
+		if (label_and_count.first == MediaLabel::kWildcard) {
 			break;
 		}
-		if (std::find(result.begin(), result.end(), server.server) == result.end()) {
-			result.push_back(server.server);
+		for (const auto &server : servers_) {
+			if (copies_to_be_created == 0) {
+				break;
+			}
+			if (server.version < min_version ||
+			    std::find(used.begin(), used.end(), server.server) != used.end()) {
+				continue;
+			}
+			if (server.label == label_and_count.first) {
+				result.push_back(server.server);
+				used.push_back(server.server);
+				--copies_to_be_created;
+			}
 		}
 	}
+
+	int expected_copies = Goal::Slice::countLabels(labels);
+
+	// Add any servers to have the desired number of copies
+	for (const auto &server : servers_) {
+		if ((int)result.size() >= expected_copies) {
+			break;
+		}
+		if (server.version < min_version ||
+		    std::find(used.begin(), used.end(), server.server) != used.end()) {
+			continue;
+		}
+		result.push_back(server.server);
+		used.push_back(server.server);
+	}
+
 	// Update the history
-	for (auto& historyEntry : history.servers) {
+	for (auto &historyEntry : history) {
 		if (std::find(result.begin(), result.end(), historyEntry.server) != result.end()) {
-			historyEntry.chunksCreatedSoFar++;
+			historyEntry.chunks_created++;
 		}
 	}
+
 	return result;
 }
