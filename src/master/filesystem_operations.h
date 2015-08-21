@@ -20,12 +20,15 @@
 #pragma once
 
 #include "common/platform.h"
-#include "common/goal_map.h"
+
+#include <map>
+
+#include "common/goal.h"
 
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
 
-const GoalMap<Goal> &fs_get_goal_definitions();
+const std::map<int, Goal> &fs_get_goal_definitions();
 const Goal &fs_get_goal_definition(uint8_t goalId);
 
 void fs_broadcast_metadata_saved(uint8_t status);

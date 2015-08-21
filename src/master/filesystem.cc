@@ -54,7 +54,7 @@ uint32_t test_start_time;
 static bool gSaveMetadataAtExit = true;
 
 // Configuration of goals
-GoalMap<Goal> gGoalDefinitions;
+std::map<int, Goal> gGoalDefinitions;
 
 #endif // ifndef METARESTORE
 

@@ -291,6 +291,9 @@ private:
 	uint8_t value_;
 };
 
+template<typename T>
+using GoalIdRangeArray = std::array<T, GoalId::kMax + 1>;
+
 /*! \brief Class which represents a description of a goal. */
 class Goal {
 public:

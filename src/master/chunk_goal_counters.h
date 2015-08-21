@@ -22,7 +22,6 @@
 
 #include "common/compact_vector.h"
 #include "common/exception.h"
-#include "common/goal_map.h"
 
 /*! \brief Goal counting class for chunks
  *

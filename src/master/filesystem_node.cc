@@ -25,6 +25,7 @@
 
 #include "common/attributes.h"
 #include "common/massert.h"
+#include "common/slice_traits.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
 #include "master/filesystem_checksum.h"
@@ -1377,8 +1378,8 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 
 #ifndef METARESTORE
 
-void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &fgtab,
-				GoalMap<uint32_t> &dgtab) {
+void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalIdRangeArray<uint32_t> &fgtab,
+				GoalIdRangeArray<uint32_t> &dgtab) {
 	fsedge *e;
 
 	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {
@@ -1783,7 +1784,7 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 
 #ifndef METARESTORE
 
-const GoalMap<Goal> &fsnodes_get_goal_definitions() {
+const std::map<int, Goal> &fsnodes_get_goal_definitions() {
 	return gGoalDefinitions;
 }
 

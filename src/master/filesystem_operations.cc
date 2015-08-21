@@ -2058,7 +2058,7 @@ uint8_t fs_apply_repair(uint32_t ts, uint32_t inode, uint32_t indx, uint32_t nve
 
 #ifndef METARESTORE
 uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
-		GoalMap<uint32_t> &fgtab, GoalMap<uint32_t> &dgtab) {
+		GoalIdRangeArray<uint32_t> &fgtab, GoalIdRangeArray<uint32_t> &dgtab) {
 	fsnode *p, *rn;
 	(void)sesflags;
 	if (!GMODE_ISVALID(gmode)) {
@@ -2847,7 +2847,7 @@ uint64_t fs_getversion() {
 }
 
 #ifndef METARESTORE
-const GoalMap<Goal> &fs_get_goal_definitions() {
+const std::map<int, Goal> &fs_get_goal_definitions() {
 	return gGoalDefinitions;
 }
 

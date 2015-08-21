@@ -171,7 +171,7 @@ extern bool gDisableChecksumVerification;
 extern uint32_t test_start_time;
 
 #ifndef METARESTORE
-extern GoalMap<Goal> gGoalDefinitions;
+extern std::map<int, Goal> gGoalDefinitions;
 extern MetadataDumper metadataDumper;
 extern bool gAtimeDisabled;
 extern bool gMagicAutoFileRepair;

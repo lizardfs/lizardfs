@@ -26,7 +26,7 @@
 #include "common/exceptions.h"
 
 void GoalConfigLoader::load(std::istream&& stream) {
-	GoalMap<Goal> result;
+	std::map<int, Goal> result;
 	std::string line;
 	uint32_t lineNum = 0;
 	while (std::getline(stream, line)) {

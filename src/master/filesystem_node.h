@@ -21,6 +21,7 @@
 
 #include "common/platform.h"
 
+#include <array>
 #include <cstdint>
 #include <unordered_map>
 #include <memory>
@@ -29,7 +30,7 @@
 #include "common/acl_type.h"
 #include "common/attributes.h"
 #include "common/extended_acl.h"
-#include "common/goal_map.h"
+#include "common/goal.h"
 #include "master/fs_context.h"
 
 #define NODEHASHBITS (22)
@@ -211,8 +212,8 @@ bool fsnodes_has_tape_goal(fsnode *node);
 void fsnodes_add_sub_stats(fsnode *parent, statsrecord *newsr, statsrecord *prevsr);
 
 void fsnodes_quota_update_size(fsnode *node, int64_t delta);
-void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalMap<uint32_t> &fgtab,
-	GoalMap<uint32_t> &dgtab);
+void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalIdRangeArray<uint32_t> &fgtab,
+				GoalIdRangeArray<uint32_t> &dgtab);
 
 void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode,
 	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);

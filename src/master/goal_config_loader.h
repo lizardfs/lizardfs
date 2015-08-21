@@ -21,7 +21,7 @@
 
 #include <map>
 
-#include "common/goal_map.h"
+#include "common/goal.h"
 
 /// Parser for files with configuration of goals
 class GoalConfigLoader {
@@ -31,11 +31,11 @@ public:
 	void load(std::istream&& stream);
 
 	/// Returns result of the parsing.
-	const GoalMap<Goal>& goals() const {
+	const std::map<int, Goal>& goals() const {
 		return goals_;
 	}
 
 private:
-	GoalMap<Goal> goals_;
+	std::map<int, Goal> goals_;
 };
 
