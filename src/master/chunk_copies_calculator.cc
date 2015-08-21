@@ -23,6 +23,7 @@
 #include <bitset>
 
 #include "common/goal.h"
+#include "common/slice_traits.h"
 
 ChunkCopiesCalculator::ChunkCopiesCalculator(const Goal* goal): goal_(goal) {}
 

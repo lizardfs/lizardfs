@@ -133,7 +133,7 @@ void ChunksHealthCommand::printState(bool isReplication, const ChunksReplication
 	if (isPorcelain) {
 		for (uint8_t goal : goals) {
 			std::cout << (isReplication ? "REP" : "DEL") << ' ' << goalNames.at(goal);
-			for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
+			for (uint32_t part = 0; part < ChunksReplicationState::kMaxPartsCount; ++part) {
 				isReplication
 						? std::cout << ' ' << state.chunksToReplicate(goal, part)
 						: std::cout << ' ' << state.chunksToDelete(goal, part);
@@ -145,7 +145,7 @@ void ChunksHealthCommand::printState(bool isReplication, const ChunksReplication
 				: std::cout << "Chunks deletion state:" << std::endl;
 
 		std::cout << "\tGoal";
-		for (uint32_t i = 0; i <= ChunksReplicationState::kMaxPartsCount; ++i) {
+		for (uint32_t i = 0; i < ChunksReplicationState::kMaxPartsCount; ++i) {
 			std::cout << '\t' << i;
 		}
 		std::cout << '+' << std::endl;
@@ -153,7 +153,7 @@ void ChunksHealthCommand::printState(bool isReplication, const ChunksReplication
 		for (uint8_t goal : goals) {
 			std::string line = '\t' + goalNames.at(goal);
 			uint64_t sum = 0;
-			for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
+			for (uint32_t part = 0; part < ChunksReplicationState::kMaxPartsCount; ++part) {
 				uint64_t chunksCount = isReplication ? state.chunksToReplicate(goal, part)
 						: state.chunksToDelete(goal, part);
 				sum += chunksCount;

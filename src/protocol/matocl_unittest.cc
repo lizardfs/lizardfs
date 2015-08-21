@@ -137,23 +137,22 @@ TEST(MatoclCommunicationTests, FuseWriteChunkEnd) {
 	LIZARDFS_VERIFY_INOUT_PAIR(status);
 }
 
-// FIXME
-/*TEST(MatoclCommunicationTests, XorChunksHealth) {
+TEST(MatoclCommunicationTests, XorChunksHealth) {
 	LIZARDFS_DEFINE_INOUT_PAIR(bool, regular, true, false);
 	ChunksAvailabilityState availIn, availOut;
 	ChunksReplicationState replIn, replOut;
 
 	availIn.addChunk(0, ChunksAvailabilityState::kSafe);
 	availIn.addChunk(1, ChunksAvailabilityState::kEndangered);
-	availIn.addChunk(goal::xorLevelToGoal(2), ChunksAvailabilityState::kEndangered);
-	availIn.addChunk(goal::xorLevelToGoal(3), ChunksAvailabilityState::kLost);
-	availIn.addChunk(goal::xorLevelToGoal(4), ChunksAvailabilityState::kSafe);
+	availIn.addChunk(2, ChunksAvailabilityState::kEndangered);
+	availIn.addChunk(3, ChunksAvailabilityState::kLost);
+	availIn.addChunk(4, ChunksAvailabilityState::kSafe);
 
 	replIn.addChunk(0, 0, 1);
 	replIn.addChunk(2, 1, 0);
-	replIn.addChunk(goal::xorLevelToGoal(2), 2, 10);
-	replIn.addChunk(goal::xorLevelToGoal(3), 15, 5);
-	replIn.addChunk(goal::xorLevelToGoal(4), 12, 13);
+	replIn.addChunk(2, 2, 10);
+	replIn.addChunk(3, 15, 5);
+	replIn.addChunk(4, 12, 13);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::chunksHealth::serialize(buffer, regularIn, availIn, replIn));
@@ -163,19 +162,17 @@ TEST(MatoclCommunicationTests, FuseWriteChunkEnd) {
 	ASSERT_NO_THROW(matocl::chunksHealth::deserialize(buffer, regularOut, availOut, replOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(regular);
-	std::vector<uint8_t> allGoalsAndZero = goal::allGoals();
-	allGoalsAndZero.push_back(0);
-	for (uint8_t goal : allGoalsAndZero) {
-		EXPECT_EQ(availIn.safeChunks(goal), availOut.safeChunks(goal));
+	for (uint8_t goal = 0; goal <= GoalId::kMax; ++goal) {
+		EXPECT_EQ(availIn.safeChunks(goal), availOut.safeChunks(goal)) << "goal " << (int)goal;
 		EXPECT_EQ(availIn.endangeredChunks(goal), availOut.endangeredChunks(goal));
 		EXPECT_EQ(availIn.lostChunks(goal), availOut.lostChunks(goal));
 
-		for (uint32_t part = 0; part <= ChunksReplicationState::kMaxPartsCount; ++part) {
+		for (uint32_t part = 0; part < ChunksReplicationState::kMaxPartsCount; ++part) {
 			EXPECT_EQ(replIn.chunksToReplicate(goal, part), replOut.chunksToReplicate(goal, part));
 			EXPECT_EQ(replIn.chunksToDelete(goal, part), replOut.chunksToDelete(goal, part));
 		}
 	}
-}*/
+}
 
 TEST(MatoclCommunicationTests, FuseDeleteAcl) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);
