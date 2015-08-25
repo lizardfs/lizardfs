@@ -7,6 +7,6 @@ add_library(unittests-helpers ${UNITTESTS_SOURCES})
 add_tests(unittests-helpers ${UNITTESTS_TESTS})
 
 add_executable(unittests ${UNITTESTS_MAIN})
-target_link_libraries(unittests gtest mfscommon
+target_link_libraries(unittests gtest mfscommon master
     "-Wl,--whole-archive" ${TEST_LIBRARIES} "-Wl,--no-whole-archive"
     unittests-helpers unittest-mocks ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})

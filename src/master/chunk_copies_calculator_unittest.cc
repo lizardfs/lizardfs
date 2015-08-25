@@ -23,525 +23,326 @@
 #include <gtest/gtest.h>
 
 #include "common/goal.h"
+#include "common/slice_traits.h"
+#include "master/goal_config_loader.h"
 #include "unittests/chunk_type_constants.h"
-#include "unittests/operators.h"
 
-// FIXME
-/*static const Goal& getDefaultGoal(uint8_t goalId) {
-	static std::map<uint8_t, Goal> defaultGoals;
-	if (defaultGoals.count(goalId) == 0) {
-		defaultGoals[goalId] = Goal::getDefaultGoal(goalId);
-	}
-	return defaultGoals[goalId];
+
+#define sneakyPartType(type) \
+	Goal::Slice::Type(Goal::Slice::Type:: type)
+
+TEST(ChunkCopiesCalculator, addPart) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor3 {A B B C}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 3), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 0), MediaLabel("A"));
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
+
+	ASSERT_EQ(avalible, goal);
+
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 0), MediaLabel("A"));
+
+	ASSERT_NE(avalible, goal);
 }
 
-// Some custom goals for these tests
-static Goal us_us("us_us", {
-		{MediaLabel("us"), 2},
-});
-static Goal eu_eu("eu_eu", {
-		{MediaLabel("eu"), 2},
-});
-static Goal us_eu("us_eu", {
-		{MediaLabel("us"), 1},
-		{MediaLabel("eu"), 1},
-});
-static Goal us_eu_any("us_eu_any", {
-		{MediaLabel("us"), 1},
-		{MediaLabel("eu"), 1},
-		{MediaLabel("_"), 1},
-});
-static Goal us_us_any("us_us_any", {
-		{MediaLabel("us"), 2},
-		{MediaLabel("_"), 1},
-});
-static Goal us_any_any("us_any_any", {
-		{MediaLabel("us"), 1},
-		{MediaLabel("_"), 2},
-});
-static Goal us_eu_any_any("us_eu_any_any", {
-		{MediaLabel("us"), 1},
-		{MediaLabel("eu"), 1},
-		{MediaLabel("_"), 2},
-});
-static Goal any_any("any_any", {
-		{MediaLabel("_"), 2},
-});
+TEST(ChunkCopiesCalculator, removePart) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor3 {A B B C}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 3), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 0), MediaLabel("A"));
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
 
-static void checkPartsToRecoverWithLabels(
-		std::vector<std::pair<ChunkType, MediaLabel>> available,
-		Goal goal,
-		std::vector<ChunkType> expectedPartsToRecover) {
-	SCOPED_TRACE("Testing goal " + goal.name());
-	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(&goal);
-	for (const auto& part : available) {
-		calculator.addPart(part.first, part.second);
-	}
-	std::vector<ChunkType> actualPartsToRecover = calculator.getPartsToRecover();
-	std::sort(expectedPartsToRecover.begin(), expectedPartsToRecover.end());
-	std::sort(actualPartsToRecover.begin(), actualPartsToRecover.end());
-	EXPECT_EQ(expectedPartsToRecover, actualPartsToRecover);
-	EXPECT_EQ(expectedPartsToRecover.size(), calculator.countPartsToRecover());
-}
+	ASSERT_EQ(avalible, goal);
 
-static void checkPartsToRecover(
-		std::vector<ChunkType> available,
-		uint8_t goalId,
-		std::vector<ChunkType> expectedPartsToRemove) {
-	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
-	for (const auto& part : available) {
-		availablePartsWithLabel.emplace_back(part, MediaLabel::kWildcard);
-	}
-	checkPartsToRecoverWithLabels(availablePartsWithLabel,
-			getDefaultGoal(goalId),
-			expectedPartsToRemove);
-}
+	cccp.removePart(sneakyPartType(kXor3), 0, MediaLabel("A"));
+	cccp.removePart(sneakyPartType(kXor3), 1, MediaLabel("B"));
+	cccp.removePart(sneakyPartType(kXor3), 2, MediaLabel("B"));
+	cccp.removePart(sneakyPartType(kXor3), 3, MediaLabel("C"));
 
-static ChunkCopiesCalculator calculator(const std::vector<ChunkType>& parts, uint8_t goal = 2) {
-	ChunkCopiesCalculator calculator(&getDefaultGoal(goal));
-	for (const auto& part : parts) {
-		calculator.addPart(part, MediaLabel::kWildcard);
-	}
-	return calculator;
-}
+	auto slice = cccp.getAvailable().find(sneakyPartType(kXor3));
 
-static void checkPartsToRemoveWithLabels(
-		std::vector<std::pair<ChunkType, MediaLabel>> available,
-		Goal goal,
-		std::vector<ChunkType> expectedPartsToRemove) {
-	SCOPED_TRACE("Testing goal " + goal.name());
-	SCOPED_TRACE("Available parts: " + ::testing::PrintToString(available));
-	ChunkCopiesCalculator calculator(&goal);
-	for (const auto& part : available) {
-		calculator.addPart(part.first, part.second);
-	}
-	std::vector<ChunkType> actualPartsToRemove = calculator.getPartsToRemove();
-	std::sort(expectedPartsToRemove.begin(), expectedPartsToRemove.end());
-	std::sort(actualPartsToRemove.begin(), actualPartsToRemove.end());
-	EXPECT_EQ(expectedPartsToRemove, actualPartsToRemove);
-	EXPECT_EQ(expectedPartsToRemove.size(), calculator.countPartsToRemove());
-}
+	ASSERT_TRUE(slice != cccp.getAvailable().end());
 
-static void checkPartsToRemove(
-		std::vector<ChunkType> available,
-		uint8_t goalId,
-		std::vector<ChunkType> expectedPartsToRemove) {
-	std::vector<std::pair<ChunkType, MediaLabel>> availablePartsWithLabel;
-	for (const auto& part : available) {
-		availablePartsWithLabel.emplace_back(part, MediaLabel::kWildcard);
-	}
-	checkPartsToRemoveWithLabels(availablePartsWithLabel,
-			getDefaultGoal(goalId),
-			expectedPartsToRemove);
-}
-
-TEST(ChunkCopiesCalculatorTests, GetPartsToRecover) {
-	checkPartsToRecover({standard, standard, standard, standard, standard}, 0, {});
-	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, 0, {});
-	checkPartsToRecover({xor_1_of_3}, 0, {});
-
-	checkPartsToRecover({standard, standard, standard, standard, standard}, 3, {});
-	checkPartsToRecover({standard, standard, standard, standard}, 3, {});
-	checkPartsToRecover({standard, standard, standard}, 3, {});
-	checkPartsToRecover({standard, standard}, 3, {standard});
-	checkPartsToRecover({standard}, 3, {standard, standard});
-	checkPartsToRecover({}, 3, {standard, standard, standard});
-
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {});
-	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {xor_1_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_p_of_2}, goal::xorLevelToGoal(2), {xor_2_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({}, goal::xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
-
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 1, {standard});
-	checkPartsToRecover({xor_1_of_2, xor_p_of_2}, 1, {standard});
-	checkPartsToRecover({xor_2_of_2, xor_p_of_2}, 1, {standard});
-
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 1, {standard});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 2, {standard, standard});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2}, 3, {standard, standard, standard});
-
-	checkPartsToRecover({standard}, 1, {});
-	checkPartsToRecover({standard}, goal::xorLevelToGoal(2), {xor_1_of_2, xor_2_of_2, xor_p_of_2});
-	checkPartsToRecover({standard}, goal::xorLevelToGoal(3), {xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
-
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, standard},   goal::xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_3}, goal::xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_2, xor_1_of_2, xor_2_of_2}, goal::xorLevelToGoal(2), {xor_p_of_2});
-	checkPartsToRecover({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3}, goal::xorLevelToGoal(2),
-			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
-
-	uint8_t goalXorMax = goal::xorLevelToGoal(goal::kMaxXorLevel);
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
-	}
-
-	checkPartsToRecover(chunkTypesMax, goalXorMax, {});
-	checkPartsToRecover({standard}, goalXorMax, chunkTypesMax);
-	checkPartsToRecover({xor_1_of_2, xor_2_of_2, xor_p_of_2}, goalXorMax, chunkTypesMax);
-	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
-		std::vector<ChunkType> expected = {chunkTypesMax[i]};
-		std::vector<ChunkType> available = chunkTypesMax;
-		available.erase(available.begin() + i);
-		checkPartsToRecover(available, goalXorMax, expected);
+	for (auto  it = slice->begin(); it != slice->end(); it++) {
+		ASSERT_EQ(it->size(), 0U);
 	}
 }
 
-TEST(ChunkCopiesCalculatorTests, GetPartsToRecoverWithcustomGoals) {
-#define check checkPartsToRecoverWithLabels
-	check({{standard, MediaLabel("us")}}, us_us, {standard});
-	check({{standard, MediaLabel("us")}}, us_eu, {standard});
-	check({{standard, MediaLabel("us")}}, eu_eu, {standard, standard});
-	check({{standard, MediaLabel("us")}}, us_eu_any, {standard, standard});
-	check({{standard, MediaLabel("eu")}}, us_eu_any, {standard, standard});
-	check({{standard, MediaLabel("cn")}}, us_eu_any, {standard, standard});
-	check({{standard, MediaLabel("us")}}, any_any, {standard});
 
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_us,
-	      {standard});
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_eu,
-	      {standard});
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
-	      {standard, standard});
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
-	      {standard, standard});
-	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
-	      {standard, standard});
-	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
-	      {standard, standard});
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, any_any,
-	      {standard});
+TEST(ChunkCopiesCalculator, evalState) {
+	Goal goal = goal_config::parseLine("1 gxor4: $xor4 {A B B B C}\n").second;
+	Goal goal2 = goal_config::parseLine("2 gstandard: A B\n").second;
 
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_us, {});
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, any_any,
-	      {});
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_eu,
-	      {standard});
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, eu_eu,
-	      {standard, standard});
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}}, us_eu_any,
-	      {standard});
-	check({{standard, MediaLabel("us")}, {standard, MediaLabel("us")}},
-	      us_eu_any_any, {standard, standard});
+	Goal melt;
+	melt.mergeIn(goal);
+	melt.mergeIn(goal2);
 
-	check({{standard, MediaLabel("cn")}}, us_eu_any_any, {standard, standard, standard});
-	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {standard, standard});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {standard, standard});
+	ChunkCopiesCalculator cccp(melt);
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("A"));
 
-	check({{standard, MediaLabel("cn")}}, us_eu_any_any, {standard, standard, standard});
-	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}},
-	      us_eu_any_any, {standard, standard, standard});
-	check({{standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("us")},
-	       {xor_2_of_2, MediaLabel("us")}},
-	      us_eu_any_any, {standard, standard, standard});
-#undef check
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
+
+	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
+
+	cccp.removePart(Goal::Slice::Type(Goal::Slice::Type::kStandard), 0,
+				MediaLabel("A"));
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
+
+	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("B"));
+	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("A"));
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
+
+	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("B"));
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
+
+
+	cccp.addPart(slice_traits::xors::ChunkPartType(2, 0), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(2, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(2, 2), MediaLabel("A"));
+	cccp.evalState();
+
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 }
 
-TEST(ChunkCopiesCalculatorTests, GetPartsToRemoveWithcustomGoals) {
-#define check checkPartsToRemoveWithLabels
-	check({{standard, MediaLabel("eu")}}, us_us, {standard});
-	check({{standard, MediaLabel("eu")}}, us_eu, {});
-	check({{standard, MediaLabel("eu")}}, eu_eu, {});
-	check({{standard, MediaLabel("us")}}, eu_eu, {standard});
+TEST(ChunkCopiesCalculator, optimize) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor5 {A B _ B C _}\n").second;
 
-	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_us,
-	      {standard, xor_1_of_2});
-	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("cn")}}, us_us,
-	      {standard, xor_1_of_2});
-	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, us_eu,
-	      {xor_1_of_2});
-	check({{standard, MediaLabel("eu")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
-	      {xor_1_of_2});
-	check({{standard, MediaLabel("us")}, {xor_1_of_2, MediaLabel("us")}}, eu_eu,
-	      {standard, xor_1_of_2});
-	check({{standard, MediaLabel("cn")}, {xor_1_of_2, MediaLabel("us")}}, us_eu_any,
-	      {xor_1_of_2});
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 0), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 3), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 3), MediaLabel("X"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 4), MediaLabel("X"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 5), MediaLabel("A"));
 
-	check({{standard, MediaLabel("cn")}}, us_eu_any, {});
-	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}}, us_eu_any,
-	      {standard});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")}},
-	      us_eu_any, {standard, standard});
-	check({{xor_1_of_2, MediaLabel("us")},
-	       {xor_2_of_2, MediaLabel("eu")},
-	       {xor_p_of_2, MediaLabel("cn")}},
-	      us_eu_any, {xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
 
-	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("us")}}, us_eu, {});
-	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}}, us_eu,
-	      {standard});
-	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}}, us_eu_any,
-	      {});
-	check({{standard, MediaLabel("eu")}, {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {});
-	check({{standard, MediaLabel("cn")}, {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("us")}},
-	      us_eu_any_any, {});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {standard});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")}},
-	      us_eu_any_any, {standard, standard});
+	cccp.optimize();
+	int cost = cccp.countPartsToRecover();
 
-	check({{standard, MediaLabel("eu")},
-	       {standard, MediaLabel("us")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu, {xor_1_of_2});
-	check({{standard, MediaLabel("eu")},
-	       {standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu, {standard, xor_1_of_2});
-	check({{standard, MediaLabel("eu")},
-	       {standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu_any, {xor_1_of_2});
-	check({{standard, MediaLabel("eu")},
-	       {standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu_any_any, {xor_1_of_2});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu_any_any, {xor_1_of_2});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("us")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu_any_any, {xor_1_of_2});
-	check({{standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {standard, MediaLabel("cn")},
-	       {xor_1_of_2, MediaLabel("eu")}},
-	      us_eu_any_any, {standard, xor_1_of_2});
-
-#undef check
+	ASSERT_EQ(1, cost) << "result = " << to_string(cccp.getTarget()) << " ops=(" << cccp.countPartsToRecover() << "," << cccp.countPartsToRemove() << ")";
 }
 
-TEST(ChunkCopiesCalculatorTests, IsRecoveryPossible) {
-	EXPECT_FALSE(calculator({}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({standard, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({standard, standard, standard}).isRecoveryPossible());
+TEST(ChunkCopiesCalculator, updateState) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor3 {A B B C}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 3), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(3, 0), MediaLabel("A"));
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
 
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_p_of_2}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_2_of_2, xor_p_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_p_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_1_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2, xor_2_of_2}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_p_of_2, xor_p_of_2}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_2_of_2, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_p_of_2, standard}).isRecoveryPossible());
+	cccp.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
-	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3, xor_p_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_2_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_3_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_p_of_3}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_1_of_3, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_2_of_3, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_3_of_3, standard}).isRecoveryPossible());
-	EXPECT_TRUE(calculator({xor_p_of_3, standard}).isRecoveryPossible());
+	cccp.removePart(sneakyPartType(kXor3), 0, MediaLabel("A"));
 
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_2_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isRecoveryPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isRecoveryPossible());
+	cccp.updateState(sneakyPartType(kXor3));
+	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
 
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
-	}
+	cccp.updateState(sneakyPartType(kXor3));
+	cccp.removePart(sneakyPartType(kXor3), 1, MediaLabel("B"));
 
-	EXPECT_TRUE(calculator(chunkTypesMax).isRecoveryPossible());
-	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
-		std::vector<ChunkType> available = chunkTypesMax;
-		available.erase(available.begin() + i); // Only i'th part is missing
-		EXPECT_TRUE(calculator(available).isRecoveryPossible());
-		available.erase(available.begin()); // Now two parts are missing
-		EXPECT_FALSE(calculator(available).isRecoveryPossible());
-		available.push_back(standard);
-		EXPECT_TRUE(calculator(available).isRecoveryPossible());
-	}
+	cccp.updateState(sneakyPartType(kXor3));
+	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
+
+	cccp.removePart(sneakyPartType(kXor3), 2, MediaLabel("B"));
+	cccp.removePart(sneakyPartType(kXor3), 3, MediaLabel("C"));
+
+	cccp.updateState(sneakyPartType(kXor3));
+	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
 }
 
-TEST(ChunkCopiesCalculatorTests, GetPartsToRemove) {
-	checkPartsToRemove({standard}, 0, {standard});
-	checkPartsToRemove({standard, standard}, 0, {standard, standard});
-	checkPartsToRemove({xor_1_of_2}, 0, {xor_1_of_2});
-	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
-	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
-	checkPartsToRemove({xor_1_of_2, standard}, 0, {xor_1_of_2, standard});
+TEST(ChunkCopiesCalculator, canRemoveExtraPartsFromSliceSimple) {
+	Goal simple = goal_config::parseLine("1 goalname: A\n").second;
+	ChunkCopiesCalculator calculator(simple);
+	calculator.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("B"));
 
-	checkPartsToRemove({standard}, 1, {});
-	checkPartsToRemove({standard, standard}, 1, {standard});
-	checkPartsToRemove({standard, standard, standard}, 1, {standard, standard});
-	checkPartsToRemove({standard}, 4, {});
-	checkPartsToRemove({standard, standard}, 4, {});
-	checkPartsToRemove({standard, standard, standard}, 4, {});
-	checkPartsToRemove({standard, standard, standard, standard}, 4, {});
-	checkPartsToRemove({standard, standard, standard, standard, standard}, 4, {standard});
-	checkPartsToRemove({standard}, goal::xorLevelToGoal(2), {standard});
+	calculator.optimize();
+	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, calculator.getState());
 
-	checkPartsToRemove({xor_1_of_2}, 1, {xor_1_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_1_of_3}, goal::xorLevelToGoal(2), {xor_1_of_3});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_1_of_3}, goal::xorLevelToGoal(2), {xor_1_of_3});
-	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
-			xor_1_of_2, xor_2_of_2, xor_p_of_2},
-			goal::xorLevelToGoal(2),
-			{xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3});
-	checkPartsToRemove({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3,
-			xor_1_of_2, xor_2_of_2, xor_p_of_2},
-			goal::xorLevelToGoal(3),
-			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, xor_1_of_3},
-			goal::xorLevelToGoal(3),
-			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
+	ASSERT_FALSE(calculator.canRemovePart(sneakyPartType(kStandard), 0, MediaLabel("B")));
 
-	checkPartsToRemove({xor_1_of_2, standard}, 1, {xor_1_of_2});
-	checkPartsToRemove({xor_1_of_2, standard}, goal::xorLevelToGoal(2), {standard});
-	checkPartsToRemove({xor_1_of_2, standard}, goal::xorLevelToGoal(3), {xor_1_of_2, standard});
-	checkPartsToRemove({xor_1_of_2, standard, standard}, 1, {xor_1_of_2, standard});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, 1, {xor_1_of_2, xor_2_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, standard}, goal::xorLevelToGoal(2), {standard});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
-			1,
-			{xor_1_of_2, xor_2_of_2, xor_p_of_2});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_2, xor_p_of_2, standard},
-			goal::xorLevelToGoal(2),
-			{standard});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			1,
-			{xor_1_of_2, xor_2_of_3, xor_p_of_7});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			goal::xorLevelToGoal(2),
-			{xor_2_of_3, xor_p_of_7, standard});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			goal::xorLevelToGoal(3),
-			{xor_1_of_2, xor_p_of_7, standard});
-	checkPartsToRemove({xor_1_of_2, xor_2_of_3, xor_p_of_7, standard},
-			goal::xorLevelToGoal(7),
-			{xor_1_of_2, xor_2_of_3, standard});
+	calculator.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
+	calculator.evalState();
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, calculator.getState());
+
+	// We shouldn't drop to endangered state, but...
+	// slice == Slice::Part::Type::kStandard x 1
+	// so user definitely requested a single copy.
+	// This leads to endangered state by default.
+	ASSERT_TRUE(calculator.canRemovePart(sneakyPartType(kStandard), 0, MediaLabel("B")));
+	ASSERT_TRUE(calculator.canRemovePart(sneakyPartType(kStandard), 0, MediaLabel("A")));
 }
 
-TEST(ChunkCopiesCalculatorTests, IsWritingPossible) {
-	EXPECT_FALSE(calculator({}).isWritingPossible());
-	EXPECT_TRUE(calculator({standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({standard, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({standard, standard, standard}).isWritingPossible());
 
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_2_of_2}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, xor_p_of_2}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_2_of_2, xor_p_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_p_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_1_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2, xor_2_of_2}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_p_of_2, xor_p_of_2}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_1_of_2, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_2_of_2, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_p_of_2, standard}).isWritingPossible());
+TEST(ChunkCopiesCalculator, canRemoveExtraPartsFromSlice) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor5 {A B B C C A}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 0), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 3), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 4), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 5), MediaLabel("C"));
 
-	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3, xor_2_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3, xor_p_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_2_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_3_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_p_of_3}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_1_of_3, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_2_of_3, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_3_of_3, standard}).isWritingPossible());
-	EXPECT_TRUE(calculator({xor_p_of_3, standard}).isWritingPossible());
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
 
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_2_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_1_of_2, xor_p_of_3}).isWritingPossible());
-	EXPECT_FALSE(calculator({xor_2_of_2, xor_p_of_3}).isWritingPossible());
+	cccp.optimize();
+	// goalname: $xor5 {C A A B B C}
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
-	std::vector<ChunkType> chunkTypesMax = {ChunkType::getXorParityChunkType(goal::kMaxXorLevel)};
-	for (ChunkType::XorPart part = 1; part <= goal::kMaxXorLevel; ++part) {
-		chunkTypesMax.push_back(ChunkType::getXorChunkType(goal::kMaxXorLevel, part));
-	}
+	// we should never ever drop to endangered state
+	// (with an exception of slice == Slice::Part::Type::kStandard x 1)
+	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 0, MediaLabel("C")));
+	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 1, MediaLabel("A")));
 
-	EXPECT_TRUE(calculator(chunkTypesMax).isWritingPossible());
-	for (unsigned i = 0; i < chunkTypesMax.size(); ++i) {
-		std::vector<ChunkType> available = chunkTypesMax;
-		available.erase(available.begin() + i); // One part is missing
-		EXPECT_TRUE(calculator(available).isWritingPossible());
-		available.erase(available.begin()); // Now two parts are missing
-		EXPECT_FALSE(calculator(available).isWritingPossible());
-		available.push_back(standard);
-		EXPECT_TRUE(calculator(available).isWritingPossible());
-	}
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 3), MediaLabel("B"));
+
+	cccp.addPart(slice_traits::xors::ChunkPartType(5, 4), MediaLabel("B"));
+
+	cccp.updateState(sneakyPartType(kXor5));
+
+	// now we shouldn't drop to endangered state if we remove extra parts
+	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 0, MediaLabel("C")));
+	ASSERT_TRUE(cccp.canRemovePart(sneakyPartType(kXor5), 3, MediaLabel("B")));
+	ASSERT_TRUE(cccp.canRemovePart(sneakyPartType(kXor5), 4, MediaLabel("B")));
+
+	cccp.removePart(sneakyPartType(kXor5), 5, MediaLabel("C"));
+
+	cccp.updateState(sneakyPartType(kXor5));
+
+	// now we are in endangered state
+	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 3, MediaLabel("B")));
+	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 4, MediaLabel("B")));
 }
 
-TEST(ChunkCopiesCalculatorTests, GetState) {
-	// Simple scenarios
-	EXPECT_EQ(ChunksAvailabilityState::kSafe,
-			calculator({}, 0).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kSafe,
-			calculator({xor_1_of_2, xor_2_of_2, xor_p_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kSafe,
-			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_p_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_2, xor_p_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_2, xor_2_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_3, xor_2_of_3, xor_p_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({}, goal::xorLevelToGoal(2)).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({}, 1).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({xor_1_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({xor_1_of_3, xor_2_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({xor_1_of_3, xor_p_of_3}).getState());
 
-	// More complicated
-	EXPECT_EQ(ChunksAvailabilityState::kSafe,
-			calculator({standard, standard, xor_1_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kSafe,
-			calculator({xor_1_of_3, xor_1_of_2, xor_2_of_2, xor_p_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({xor_1_of_3, xor_2_of_3, xor_3_of_3, xor_1_of_2, xor_2_of_2}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kEndangered,
-			calculator({standard, xor_1_of_2, xor_1_of_3, xor_p_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({xor_1_of_2, xor_2_of_3}).getState());
-	EXPECT_EQ(ChunksAvailabilityState::kLost,
-			calculator({xor_p_of_2, xor_1_of_3}).getState());
-}*/
+TEST(ChunkCopiesCalculator, getLabelsToRecover) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor4 {A B B C A}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("C"));
+
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
+
+	cccp.optimize();
+	//goalname: $xor4 {A B A C B}
+
+	Goal::Slice::Labels labels0 = cccp.getLabelsToRecover(sneakyPartType(kXor4), 0);
+	Goal::Slice::Labels labels1 = cccp.getLabelsToRecover(sneakyPartType(kXor4), 1);
+	Goal::Slice::Labels labels2 = cccp.getLabelsToRecover(sneakyPartType(kXor4), 2);
+	Goal::Slice::Labels labels3 = cccp.getLabelsToRecover(sneakyPartType(kXor4), 3);
+	Goal::Slice::Labels labels4 = cccp.getLabelsToRecover(sneakyPartType(kXor4), 4);
+
+	ASSERT_EQ(labels0.size(), 0U);
+	ASSERT_EQ(labels1.size(), 0U);
+	ASSERT_EQ(labels2.size(), 0U);
+	ASSERT_EQ(labels3.size(), 0U);
+
+	ASSERT_EQ(labels4.size(), 1U);
+	ASSERT_EQ(labels4[MediaLabel("B")], 1);
+}
+
+
+TEST(ChunkCopiesCalculator, getRemovePool) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor4 {A A B B B}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
+
+	cccp.updateState(sneakyPartType(kXor4));
+	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
+
+	cccp.optimize();
+	// goalname: $xor4 {A B A B B}
+	Goal::Slice::Labels labels;
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 0);
+	ASSERT_EQ(labels.size(), 0U);
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 1);
+	ASSERT_EQ(labels.size(), 1U);
+	ASSERT_EQ(labels[MediaLabel("A")], 1);
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 2);
+	ASSERT_EQ(labels.size(), 0U);
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 3);
+	ASSERT_EQ(labels.size(), 1U);
+	ASSERT_EQ(labels[MediaLabel("A")], 1);
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 4);
+	ASSERT_EQ(labels.size(), 2U);
+	ASSERT_EQ(labels[MediaLabel("A")], 1);
+	ASSERT_EQ(labels[MediaLabel("C")], 1);
+}
+
+TEST(ChunkCopiesCalculator, countPartsToMove) {
+	Goal goal = goal_config::parseLine("1 goalname: $xor4 {A A B B C}\n").second;
+	ChunkCopiesCalculator cccp(goal);
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+
+	Goal &avalible = cccp.getAvailable();
+	avalible.setName("goalname");
+
+	cccp.updateState(sneakyPartType(kXor4));
+
+	cccp.optimize();
+	// goalname = $xor5 {C B A B A}
+
+	ASSERT_EQ(std::make_pair(0, 0), cccp.countPartsToMove(sneakyPartType(kXor4), 0));
+	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 1));
+	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 2));
+	ASSERT_EQ(std::make_pair(1, 1), cccp.countPartsToMove(sneakyPartType(kXor4), 3));
+	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 4));
+}
