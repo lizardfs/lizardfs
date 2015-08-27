@@ -27,7 +27,6 @@
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(ConfigurationException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(FilesystemException, Exception);
-LIZARDFS_CREATE_EXCEPTION_CLASS(ParseException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(InitializeException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(ConnectionException, Exception);
 LIZARDFS_CREATE_EXCEPTION_CLASS(ReadException, Exception);
@@ -50,4 +49,17 @@ public:
 private:
 	NetworkAddress server_;
 	ChunkType chunkType_;
+};
+
+class ParseException : public Exception {
+public:
+	ParseException(const std::string& message)
+			: Exception(message) {
+	}
+
+	ParseException(int line, const std::string& message)
+			: Exception("line " + std::to_string(line) + " : " + message) {
+	}
+
+	~ParseException() throw() {}
 };

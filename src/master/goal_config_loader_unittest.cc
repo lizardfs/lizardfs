@@ -24,39 +24,43 @@
 #include "common/exceptions.h"
 #include "common/media_label.h"
 
-// FIXME
 // Helper macros to test the loader
-/*#define LABELS(...) (std::vector<std::string>({__VA_ARGS__}))
-#define EXPECT_GOAL(loader, expected_id, expected_name, expected_labels, expected_tape_labels) \
-	EXPECT_EQ(expected_name, loader.goals()[expected_id].name()); \
-	EXPECT_EQ(ExpectedLabels(expected_labels), loader.goals()[expected_id].chunkLabels()); \
-	EXPECT_EQ(ExpectedLabels(expected_tape_labels), loader.goals()[expected_id].tapeLabels()); \
-	EXPECT_EQ(expected_labels.size(), loader.goals()[expected_id].getExpectedCopies());
+#define LABELS(...) (std::vector<std::string>({__VA_ARGS__}))
 
-
-Goal::Slice::Labels ExpectedLabels(const std::vector<std::string>& tokens) {
-	Goal::Slice::Labels labels;
-	for (const auto& token : tokens) {
-		++labels[MediaLabel(token)];
+#define EXPECT_GOAL(goals, expected_id, expected_name, expected_slice) \
+	{ \
+		EXPECT_EQ(1, goals[(expected_id)].size()); \
+		EXPECT_EQ((expected_name), goals[(expected_id)].getName()); \
+		EXPECT_EQ((expected_slice), *(goals[(expected_id)].begin())); \
 	}
-	return labels;
+
+typedef decltype(goal_config::load(std::istringstream(""))) Goals;
+
+Goal::Slice createSlice(int type,
+		std::vector<std::map<std::string, int>> part_list) {
+	Goal::Slice slice{Goal::Slice::Type(type)};
+	int part_index = 0;
+	for (const auto &part : part_list) {
+		for (const auto label : part) {
+			slice[part_index][MediaLabel(label.first)] += label.second;
+		}
+		++part_index;
+	}
+	return slice;
 }
 
-TEST(GoalConfigLoaderTests, Defaults) {
-	GoalConfigLoader loader;
-	ASSERT_NO_THROW(loader.load(std::istringstream("")));
-	std::vector<std::string> labels;
-	for (int goal = GoalId::kMin; goal <= GoalId::kMax; ++goal) {
-		SCOPED_TRACE("Testing default value for goal " + ::testing::PrintToString(goal));
-		labels.push_back(MediaLabelManager::kWildcard); // add one label
-		EXPECT_GOAL(loader, goal, std::to_string(goal), labels, {});
+TEST(GoalConfigTests, Defaults) {
+	Goals goals;
+	ASSERT_NO_THROW(goals = goal_config::load(std::istringstream("")));
+	for (int goal_id = GoalId::kMin; goal_id <= GoalId::kMax; ++goal_id) {
+		SCOPED_TRACE("Testing default value for goal " + ::testing::PrintToString(goal_id));
+		EXPECT_GOAL(goals, goal_id, std::to_string(goal_id),
+				createSlice(Goal::Slice::Type::kStandard,
+						{{{"_", std::min(goal_id, goal_config::kMaxCompatibleGoal)}}}));
 	}
 }
 
-TEST(GoalConfigLoaderTests, CorrectFile) {
-	// A macro to make the test shorter
-	#define ANY MediaLabelManager::kWildcard
-
+TEST(GoalConfigTests, OldFormat) {
 	std::string config(
 			"# a comment \n"
 			"1  tmp:       ssd    # temporary files only on SSDs!\n"
@@ -66,27 +70,84 @@ TEST(GoalConfigLoaderTests, CorrectFile) {
 			"11 safe     :   _ local remote\n"
 			"12 fast_safe:   local ssd remote\n"
 			"15 blahbah: _    _   hdd\n"
-			"16 tape2: _@    _   tape@\n"
-			"17 tape_aaa: _ _ aaa@\n"
-			"18 only_tape: _@ _@ _@"
+			"16 tape2: _    _   tape\n"
+			"17 AAABB: A B B A A\n"
+			"18 3: _ _ _"
 
 	);
-	GoalConfigLoader loader;
-	ASSERT_NO_THROW(loader.load(std::istringstream(config)));
-	EXPECT_GOAL(loader, 1,  "tmp",       LABELS("ssd"),                    LABELS());
-	EXPECT_GOAL(loader, 10, "fast",      LABELS(ANY, "ssd"),               LABELS());
-	EXPECT_GOAL(loader, 11, "safe",      LABELS(ANY, "local", "remote"),   LABELS());
-	EXPECT_GOAL(loader, 12, "fast_safe", LABELS("local", "ssd", "remote"), LABELS());
-	EXPECT_GOAL(loader, 16, "tape2",     LABELS(ANY),                      LABELS(ANY, "tape"));
-	EXPECT_GOAL(loader, 17, "tape_aaa",  LABELS(ANY, ANY),                 LABELS("aaa"));
-	EXPECT_GOAL(loader, 18, "only_tape", LABELS(),                         LABELS(ANY, ANY, ANY));
+	Goals goals;
+	ASSERT_NO_THROW(goals = goal_config::load(std::istringstream(config)));
+	EXPECT_GOAL(goals, 1,  "tmp",       createSlice(Goal::Slice::Type::kStandard, {
+			{{"ssd", 1}}}));
+	EXPECT_GOAL(goals, 10, "fast",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 1}, {"ssd", 1}}}));
+	EXPECT_GOAL(goals, 11, "safe",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 1}, {"local", 1}, {"remote", 1}}}));
+	EXPECT_GOAL(goals, 12, "fast_safe", createSlice(Goal::Slice::Type::kStandard, {
+			{{"local", 1}, {"ssd", 1}, {"remote", 1}}}));
+	EXPECT_GOAL(goals, 15, "blahbah",   createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 2}, {"hdd", 1}}}));
+	EXPECT_GOAL(goals, 16, "tape2",     createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 2}, {"tape", 1}}}));
+	EXPECT_GOAL(goals, 17, "AAABB",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"B", 2}, {"A", 3}}}));
+	EXPECT_GOAL(goals, 18, "3",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 3}}}));
 
-	#undef ANY
 }
 
-TEST(GoalConfigLoaderTests, IncorrectLines) {
-	GoalConfigLoader loader;
-	#define TRY_PARSE(s) loader.load(std::istringstream(s "\n"))
+TEST(GoalConfigTests, NewFormat) {
+	std::string config(
+			"# a comment \n"
+			"1  tmp:    $      std  {    ssd}    # temporary files only on SSDs!\n"
+			"     # another comment\n"
+			"\n"
+			"10 fast     :  $ std{ _ ssd}\n"
+			"11 safe     :  $std {    _ local remote}\n"
+			"12 fast_safe:  $std {local ssd remote}\n"
+			"15 xor2: $xor2\n"
+			"16 x5: $xor5 { A B C }\n"
+			"17 AAABB: $ xor4 {A B B A A}\n"
+			"18 3: $xor3 {_ _ _}"
+
+	);
+	Goals goals;
+	ASSERT_NO_THROW(goals = goal_config::load(std::istringstream(config)));
+	EXPECT_GOAL(goals, 1,  "tmp",       createSlice(Goal::Slice::Type::kStandard, {
+			{{"ssd", 1}}}));
+	EXPECT_GOAL(goals, 10, "fast",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 1}, {"ssd", 1}}}));
+	EXPECT_GOAL(goals, 11, "safe",      createSlice(Goal::Slice::Type::kStandard, {
+			{{"_", 1}, {"local", 1}, {"remote", 1}}}));
+	EXPECT_GOAL(goals, 12, "fast_safe", createSlice(Goal::Slice::Type::kStandard, {
+			{{"local", 1}, {"ssd", 1}, {"remote", 1}}}));
+	EXPECT_GOAL(goals, 15, "xor2",   createSlice(Goal::Slice::Type::kXor2, {
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}}}));
+	EXPECT_GOAL(goals, 16, "x5",     createSlice(Goal::Slice::Type::kXor5, {
+			{{"A", 1}},
+			{{"B", 1}},
+			{{"C", 1}},
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}}}));
+	EXPECT_GOAL(goals, 17, "AAABB",      createSlice(Goal::Slice::Type::kXor4, {
+			{{"A", 1}},
+			{{"B", 1}},
+			{{"B", 1}},
+			{{"A", 1}},
+			{{"A", 1}}}));
+	EXPECT_GOAL(goals, 18, "3",      createSlice(Goal::Slice::Type::kXor3, {
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}}}));
+
+}
+
+TEST(GoalConfigTests, IncorrectLines) {
+	#define TRY_PARSE(s) goal_config::load(std::istringstream(s "\n"))
 
 	// Malformed lines
 	EXPECT_THROW(TRY_PARSE("1"), ParseException);
@@ -95,11 +156,17 @@ TEST(GoalConfigLoaderTests, IncorrectLines) {
 	EXPECT_THROW(TRY_PARSE("1 lone name of goal: media1 media2"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 goal _ _"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 goal: # nothing here"), ParseException);
-	EXPECT_THROW(TRY_PARSE("1 goal :ssd"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal:"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal: $std{}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal :{ssd}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal : $xor2{"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal : $xor2{A A A A}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal : $ unknown"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 goal : $std unknown"), ParseException);
 
 	// Invalid values
 	EXPECT_THROW(TRY_PARSE("0 goal : _ _"), ParseException);
-	EXPECT_THROW(TRY_PARSE("21 goal : _ _"), ParseException);
+	EXPECT_THROW(TRY_PARSE("41 goal : _ _"), ParseException);
 	EXPECT_THROW(TRY_PARSE("-1 goal : _ _"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 one/two : one two"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 one : one/two"), ParseException);
@@ -113,4 +180,4 @@ TEST(GoalConfigLoaderTests, IncorrectLines) {
 	EXPECT_THROW(TRY_PARSE("1 1: _\n2 2: _ _\n2: 3 _ _"), ParseException);
 
 	#undef TRY_PARSE
-}*/
+}

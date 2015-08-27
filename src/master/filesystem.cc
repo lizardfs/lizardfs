@@ -255,10 +255,13 @@ void fs_become_master() {
 	return;
 }
 
+static void fs_read_goals_from_stream(std::istream& stream) {
+	auto goals = goal_config::load(stream);
+	std::swap(gGoalDefinitions, goals);
+}
+
 static void fs_read_goals_from_stream(std::istream&& stream) {
-	GoalConfigLoader loader;
-	loader.load(std::move(stream));
-	gGoalDefinitions = loader.goals();
+	fs_read_goals_from_stream(stream);
 }
 
 static void fs_read_goal_config_file() {
@@ -284,7 +287,7 @@ static void fs_read_goal_config_file() {
 		throw ConfigurationException("failed to open goal definitions file " + goalConfigFile);
 	}
 	try {
-		fs_read_goals_from_stream(std::move(goalConfigStream));
+		fs_read_goals_from_stream(goalConfigStream);
 		lzfs_pretty_syslog(LOG_INFO,
 				"initialized goal definitions from file %s",
 				goalConfigFile.c_str());

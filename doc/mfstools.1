@@ -9,7 +9,7 @@ mfstools \- perform MooseFS\-specific operations
 [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fIOBJECT\fP...
 .PP
 .B mfssetgoal
-[\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] N|\fBxor\fPN \fIOBJECT\fP...
+[\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] \fBName\fP \fIOBJECT\fP...
 .PP
 .B mfssetquota
 [\fB-r\fP] [\fB-n\fP|\fB-h\fP|\fB-H\fP] [\fB+\fP|\fB-\fP]N \fITODO(alek)\fP...
@@ -60,16 +60,7 @@ mfstools \- perform MooseFS\-specific operations
 [\fB-o\fP] \fISOURCE\fP... \fIDESTINATION\fP
 .PP
 .SH DESCRIPTION
-\fBmfsgetgoal\fP and \fBmfssetgoal\fP operate on object's \fIgoal\fP value. There are two
-types of goals: ordinary goals (1..9) and xor goals (xor2..xor10).
-Ordinary \fIgoal\fP is the number of copies in which all the file's data is stored.
-It means that the file should survive failure of one less chunkservers than its \fIgoal\fP
-value. Ordinary \fIgoal\fP must be set between 1 and 9 (note that 1 is strongly unadvised).
-For xor goals the number represents the \fIxor level\fP. A file with the \fIxor
-level\fP of \fIN\fP has all the chunks divided into \fIN\fP parts (kept in one copy) and
-additionally there is a parity part. It means that the disk space needed to store such a file
-if roughly equal to (\fIN\fP+1)/\fIN\fP of the file's size and the file should survive failure
-of one of the chunkservers. Xor level must be set between 2 and 10.
+\fBmfsgetgoal\fP and \fBmfssetgoal\fP operate on object's \fIgoal\fP value.
 \fBmfsgetgoal\fP prints current \fIgoal\fP value of given object(s).
 \fB-r\fP option enables recursive mode, which works as usual for every
 given file, but for every given directory additionally prints current

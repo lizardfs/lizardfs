@@ -13,21 +13,23 @@ The file *mfsgoals.cfg* contains definitions of the replication goals.
 
 Syntax is:
 
+'id' 'name' : $'type' { 'label' ... }
 'id' 'name' : 'label' ...
 
 The *#* character starts comments.
 
 == DETAILS
 
-There are 20 replication goals, with 'ids' between 1 and 20, inclusive.
+There are 40 replication goals, with 'ids' between 1 and 40, inclusive.
 Each file stored on the filesystem refers to some goal id and is
 replicated according to the goal currently associated with this id.
 
 By default, goal 1 means one copy on any chunkserver, goal 2 means two
-copies on any two chunkservers and so on. The purpose of mfsgoals.cfg
-is to override this behavior, when desired. The file is a list of goal
-definitions, each consisting of 'id', 'name' and a list of 'labels'.
-The maximal length of this list is 30 labels.
+copies on any two chunkservers and so on, until 5 - which is the maximal
+default number of copies. The purpose of mfsgoals.cfg is to override this
+behavior, when desired. The file is a list of goal definitions, each
+consisting of 'id', 'name' and a list of 'labels'. The maximal length
+of this list is 40 labels.
 
 'id' indicates the goal id to be redefined. If some files are already
 assigned this goal id, their effective goal will change.
@@ -36,12 +38,23 @@ assigned this goal id, their effective goal will change.
 (mfssetgoal(1), mfsgetgoal(1)). 'name' can consist of up to 32 alphanumeric
 characters: a-z, A-Z, 0-9, _.
 
+'type' specifies goal type - currently supported types are:
+
+	- *std* - for each file using this goal and for each label, the system
+	         will try to maintain a copy of the file on some chunkserver
+	         with this label.
+	- **xor**N - for each file using this goal, the system will split the file
+	         into N+1 parts (N ordinary + 1 parity). For reading, any N of
+	         the parts are necessary. If labels are specified, parts will
+	         be kept on chunkservers with this labels. Otherwise default wildcard
+	         labels will be used.
+	If the type is unspecified is is assumed to be *std*.
+
 The list of 'labels' is a list of chunkserver labels as defined in
 mfschunkserver.cfg(5). 'label' can consist of up to 32 alphanumeric
 characters: a-z, A-Z, 0-9, _.
 
-For each file using this goal and for each label, the system will try to
-maintain a copy of the file on some chunkserver with this label.
+
 One label may occur multiple times - in such case the system will create
 one copy per each occurrence.
 The special label _ means "a copy on any chunkserver".
@@ -64,6 +77,12 @@ Some example goal definitions:
 13 cached_on_ssd : ssd _
 
 14 very_important_file : _ _ _ _
+
+15 default_xor3 : $xor3
+
+16 fast_read : $xor2 { ssd ssd hdd }
+
+17 xor5 : $xor5 { hdd } # at least one part on hdd
 
 == SNAPSHOT FILES
 

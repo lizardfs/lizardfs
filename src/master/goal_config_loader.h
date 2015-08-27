@@ -19,23 +19,28 @@
 #pragma once
 #include "common/platform.h"
 
+#include <cctype>
+#include <cstring>
+#include <list>
 #include <map>
 
 #include "common/goal.h"
 
 /// Parser for files with configuration of goals
-class GoalConfigLoader {
-public:
-	/// Reads the configuration file and parses it.
-	/// \throws ParseException
-	void load(std::istream&& stream);
+namespace goal_config {
 
-	/// Returns result of the parsing.
-	const std::map<int, Goal>& goals() const {
-		return goals_;
-	}
+/// goals with id below this value are initialized as wildcard * id
+/// goals with id above this value are initialized as wildcard * kMaxCompatibleGoal
+constexpr int kMaxCompatibleGoal = 5;
 
-private:
-	std::map<int, Goal> goals_;
-};
+/// Reads the configuration file and parses it.
+/// \throws ParseException
+std::map<int, Goal> load(std::istream& stream);
+std::map<int, Goal> load(std::istream&& stream);
+
+std::pair<int, Goal> parseLine(const std::string &line);
+
+Goal defaultGoal(int goal_id);
+
+}
 

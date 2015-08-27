@@ -70,6 +70,10 @@ inline int getXorLevel(const ::Goal::Slice &slice) {
 	return getXorLevel(slice.getType());
 }
 
+inline bool isXorLevelValid(int level) {
+	return level >= kMinXorLevel && level <= kMaxXorLevel;
+}
+
 } // xors
 
 }
