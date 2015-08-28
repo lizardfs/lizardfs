@@ -106,6 +106,8 @@ template<class T1, class T2>
 inline uint32_t serializedSize(const std::pair<T1, T2>& pair);
 template <typename K, typename T, typename C, typename A>
 inline uint32_t serializedSize(const std::map<K, T, C, A>& map);
+template<class T>
+inline uint32_t serializedSize(const T& t);
 template<class T, class ... Args>
 inline uint32_t serializedSize(const T& t, const Args& ... args);
 
@@ -246,6 +248,8 @@ template <typename K, typename C, typename A>
 inline void serialize(uint8_t** destination, const std::set<K, C, A>& set);
 template <typename K, typename T, typename C, typename A>
 inline void serialize(uint8_t** destination, const std::map<K, T, C, A>& map);
+template<class T>
+inline void serialize(uint8_t** destination, const T& t);
 template<class T, class... Args>
 inline void serialize(uint8_t** destination, const T& t, const Args&... args);
 
@@ -438,6 +442,8 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 template <typename K, typename T, typename C, typename A>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 		std::map<K, T, C, A>& map);
+template<class T>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& t);
 template<class T, class... Args>
 inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, T& t, Args&... args);
 
