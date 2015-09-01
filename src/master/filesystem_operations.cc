@@ -1016,7 +1016,7 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 	passert(newpath);
 	fsnode *p = fsnodes_create_node(context.ts(), wd, nleng, name, TYPE_SYMLINK, 0777, 0,
 	                                context.uid(), context.gid(), 0,
-	                                AclInheritance::kDontInheritAcl);
+	                                AclInheritance::kDontInheritAcl, *inode);
 	memcpy(newpath, path, pleng);
 	p->data.sdata.path = newpath;
 	p->data.sdata.pleng = pleng;
@@ -1029,6 +1029,7 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 		fsnodes_fill_attr(context, p, wd, *attr);
 	}
 	if (context.isPersonalityMaster()) {
+		assert(*inode == 0);
 		*inode = p->id;
 		fs_changelog(context.ts(),
 		             "SYMLINK(%" PRIu32 ",%s,%s,%" PRIu32 ",%" PRIu32 "):%" PRIu32, wd->id,

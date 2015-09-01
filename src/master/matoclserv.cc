@@ -2472,6 +2472,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	while (pleng>0 && path[pleng-1]==0) {
 		pleng--;
 	}
+	newinode = 0; // request to acquire new inode id
 	status = fs_symlink(matoclserv_get_context(eptr, uid, gid),inode,nleng,name,pleng,path,&newinode,&attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SYMLINK,(status!=LIZARDFS_STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
