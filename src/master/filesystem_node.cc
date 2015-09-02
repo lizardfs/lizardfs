@@ -20,6 +20,7 @@
 #include "common/platform.h"
 #include "filesystem_node.h"
 
+#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 
@@ -33,6 +34,10 @@
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_operations.h"
 #include "master/fs_context.h"
+
+#ifndef NDEBUG
+  #include "master/personality.h"
+#endif
 
 #define LOOKUPNOHASHLIMIT 10
 
@@ -1368,6 +1373,16 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 				n = fsnodes_create_node(ts, p, partleng, path, TYPE_DIRECTORY, 0755,
 				                        0, 0, 0, 0,
 				                        AclInheritance::kDontInheritAcl);
+
+#ifndef METARESTORE
+				assert(metadataserver::isMaster());
+#endif
+
+				fs_changelog(ts, "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32
+				                 ",%" PRIu32 "):%" PRIu32,
+				             p->id, fsnodes_escape_name(partleng, path),
+				             TYPE_DIRECTORY, n->mode & 07777, (uint32_t)0,
+				             (uint32_t)0, (uint32_t)0, n->id);
 			}
 			p = n;
 		}
