@@ -314,6 +314,7 @@ static void fs_read_config_file() {
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("MAGIC_PREFER_BACKGROUND_DUMP", 0));
 
+	chunk_invalidate_goal_cache();
 	fs_read_goal_config_file(); // may throw
 }
 

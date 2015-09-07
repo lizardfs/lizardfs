@@ -46,6 +46,7 @@
 #include "master/chunk_copies_calculator.h"
 #include "master/chunk_goal_counters.h"
 #include "master/filesystem.h"
+#include "master/goal_cache.h"
 
 #ifdef METARESTORE
 #  include <time.h>
@@ -244,6 +245,7 @@ public:
 	static uint64_t allFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 	static uint64_t regularFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 	static std::deque<chunk *> endangeredChunks;
+	static GoalCache goalCache;
 #endif
 
 	// Highest id of the chunk's goal
@@ -292,12 +294,28 @@ public:
 	}
 
 #ifndef METARESTORE
-	Goal getGoal() const {
+	Goal getGoal() {
+		// Do not search for empty goalCounters in cache
+		if (goalCounters_.size() == 0) {
+			return Goal();
+		}
+
+		auto it = goalCache.find(goalCounters_);
+		if (it != goalCache.end()) {
+			return it->second;
+		}
+
 		Goal result;
+		int prev_goal = -1;
 		for (auto counter : goalCounters_) {
 			const Goal &goal = fs_get_goal_definition(counter.goal);
-			result.mergeIn(goal);
+			if (prev_goal != (int)counter.goal) {
+				result.mergeIn(goal);
+				prev_goal = counter.goal;
+			}
 		}
+
+		goalCache.put(goalCounters_, result);
 		return result;
 	}
 
@@ -497,6 +515,7 @@ private:
 #ifndef METARESTORE
 
 std::deque<chunk *> chunk::endangeredChunks;
+GoalCache chunk::goalCache(10000);
 ChunksAvailabilityState chunk::allChunksAvailability, chunk::regularChunksAvailability;
 ChunksReplicationState chunk::allChunksReplicationState, chunk::regularChunksReplicationState;
 uint64_t chunk::count;
@@ -1068,6 +1087,11 @@ int chunk_unlock(uint64_t chunkid) {
 }
 
 #ifndef METARESTORE
+
+int chunk_invalidate_goal_cache(){
+	chunk::goalCache.invalidate();
+	return LIZARDFS_STATUS_OK;
+}
 
 bool chunk_has_only_invalid_copies(uint64_t chunkid) {
 	if (chunkid == 0) {

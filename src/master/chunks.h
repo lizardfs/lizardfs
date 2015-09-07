@@ -92,6 +92,8 @@ void chunk_got_duptrunc_status(matocsserventry *ptr, uint64_t chunkId, ChunkPart
 
 int chunk_can_unlock(uint64_t chunkid, uint32_t lockid);
 
+int chunk_invalidate_goal_cache();
+
 #endif
 
 int chunk_load(FILE *fd, bool loadLockIds);

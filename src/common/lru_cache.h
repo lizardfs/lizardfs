@@ -70,7 +70,7 @@ public:
 	 * \param maxTime period after which every cache entry is discarded
 	 * \param maxElements capacity of the cache, after exceeding which values added least recently
 	 *                are removed
-	 * \param valueObtainer a function that is used for obatining a value for a given key, if
+	 * \param valueObtainer a function that is used for obtaining a value for a given key, if
 	 *                   cached value was not available.
 	 */
 	LruCache(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer)

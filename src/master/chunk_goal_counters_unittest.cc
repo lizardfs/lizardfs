@@ -17,7 +17,10 @@
  */
 
 #include "common/platform.h"
+#include "common/goal.h"
 #include "master/chunk_goal_counters.h"
+#include "master/goal_cache.h"
+#include "master/goal_config_loader.h"
 
 #include <algorithm>
 #include <map>
@@ -155,4 +158,36 @@ TEST(ChunkGoalCounters, LotsOfGoals) {
 	}
 
 	EXPECT_EQ(counters.size(), 0U);
+}
+
+TEST(ChunkGoalCounters, Cache) {
+	ChunkGoalCounters counters;
+	GoalCache cache(2);
+	Goal goal;
+
+	counters.addFile(1);
+
+	cache.put(counters, goal);
+	cache.put(counters, goal);
+	EXPECT_EQ(1U, cache.size());
+
+	ChunkGoalCounters orig = counters;
+	counters.addFile(2);
+	cache.put(counters, goal);
+	EXPECT_EQ(2U, cache.size());
+
+	// Cache capacity is 2, so adding a third entry should end up in size 2
+	ChunkGoalCounters orig2 = counters;
+	counters.addFile(3);
+	cache.put(counters, goal);
+	EXPECT_EQ(2U, cache.size());
+
+	// First object should be invalidated from cache
+	EXPECT_EQ(cache.find(orig), cache.end());
+	EXPECT_NE(cache.find(orig2), cache.end());
+	EXPECT_NE(cache.find(counters), cache.end());
+
+	cache.invalidate();
+
+	EXPECT_EQ(0U, cache.size());
 }

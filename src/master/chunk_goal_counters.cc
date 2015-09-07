@@ -23,7 +23,8 @@
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
 	if (!GoalId::isValid(goal)) {
-		throw ChunkGoalCounters::InvalidOperation("Trying to add non-existent goal: " + std::to_string(goal));
+		throw ChunkGoalCounters::InvalidOperation(
+				"Trying to add non-existent goal: " + std::to_string(goal));
 	}
 
 	/*
@@ -34,33 +35,37 @@ void ChunkGoalCounters::addFile(uint8_t goal) {
 	 * Example:
 	 * Counters state: (0, 255), (1, 14), (2, 20)
 	 * After adding another 0 it becomes:
-	 *                 (0, 255), (0, 1), (1, 14), (2, 20)
+	 *                 (0, 1), (0, 255), (1, 14), (2, 20)
 	 */
-	for (auto &counter : counters_) {
-		if (goal == counter.goal
-				&& counter.count < std::numeric_limits<uint8_t>::max()) {
-				counter.count++;
-				return;
+	auto it = std::lower_bound(counters_.begin(), counters_.end(), goal,
+			[](const GoalCounter &counter, uint8_t other){
+				return counter.goal < other;
+			});
+	if (it == counters_.end()
+			|| it->goal != goal
+			|| it->count == std::numeric_limits<uint8_t>::max()) {
+		if (counters_.full()) {
+			throw ChunkGoalCounters::InvalidOperation("There is no more space for goals");
 		}
-	}
-	if (!counters_.full()) {
-		counters_.push_back({goal, 1});
+		counters_.insert(it, GoalCounter{goal, 1});
 	} else {
-		throw ChunkGoalCounters::InvalidOperation("There is no more space for goals");
+		it->count++;
 	}
 }
 
 void ChunkGoalCounters::removeFile(uint8_t goal) {
-	for (auto it = counters_.begin(); it != counters_.end(); ++it) {
-		if (goal == it->goal) {
-			it->count--;
-			if (it->count == 0) {
-				counters_.erase(it);
-			}
-			return;
-		}
+	auto it = std::lower_bound(counters_.begin(), counters_.end(), goal,
+			[](const GoalCounter &counter, uint8_t other){
+				return counter.goal < other;
+			});
+	if (it == counters_.end() || it->goal != goal) {
+		throw ChunkGoalCounters::InvalidOperation(
+				"Trying to remove non-existent goal: " + std::to_string(goal));
 	}
-	throw ChunkGoalCounters::InvalidOperation("Trying to remove non-existent goal: " + std::to_string(goal));
+	it->count--;
+	if (it->count == 0) {
+		counters_.erase(it);
+	}
 }
 
 void ChunkGoalCounters::changeFileGoal(uint8_t prevGoal, uint8_t newGoal) {
@@ -77,6 +82,8 @@ uint32_t ChunkGoalCounters::fileCount() const {
 }
 
 uint8_t ChunkGoalCounters::highestIdGoal() const {
-	return std::accumulate(counters_.begin(), counters_.end(), (uint8_t)0,
-	                       [](uint8_t a, const GoalCounter &b) { return std::max(a, b.goal); });
+	if (counters_.empty()) {
+		return 0;
+	}
+	return counters_.back().goal;
 }
