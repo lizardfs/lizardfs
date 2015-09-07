@@ -381,6 +381,14 @@ public:
 		return allAvailabilityState_ == ChunksAvailabilityState::kLost;
 	}
 
+	int countMissingParts() const {
+		return allMissingParts_;
+	}
+
+	bool countRedundantParts() const {
+		return allRedundantParts_;
+	}
+
 	uint8_t getFullCopiesCount() const {
 		return allFullCopies_;
 	}
@@ -1086,6 +1094,19 @@ int chunk_get_fullcopies(uint64_t chunkid,uint8_t *vcopies) {
 
 	*vcopies = c->getFullCopiesCount();
 
+	return LIZARDFS_STATUS_OK;
+}
+
+int chunk_get_partstomodify(uint64_t chunkid, int &recover, int &remove) {
+	chunk *c;
+	recover = 0;
+	remove = 0;
+	c = chunk_find(chunkid);
+	if (c==NULL) {
+		return LIZARDFS_ERROR_NOCHUNK;
+	}
+	recover = c->countMissingParts();
+	remove = c->countRedundantParts();
 	return LIZARDFS_STATUS_OK;
 }
 

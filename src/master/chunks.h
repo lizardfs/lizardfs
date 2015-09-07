@@ -64,6 +64,7 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regcopies);
 bool chunk_has_only_invalid_copies(uint64_t chunkid);
 
 int chunk_get_fullcopies(uint64_t chunkid,uint8_t *vcopies);
+int chunk_get_partstomodify(uint64_t chunkid, int &recover, int &remove);
 int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion);
 
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,

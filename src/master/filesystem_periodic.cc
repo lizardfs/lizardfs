@@ -396,19 +396,12 @@ void fs_periodic_test_files() {
 							valid = 0;
 							mchunks++;
 						} else {
-							// FIXME: chunk_get_validcopies is no longer
-							// sufficient to test chunk status
-							// Now chunk has many types of ChunkPart
-							// and each one have different validity
-							// requirements
-							/*
-							if ((goal::isXorGoal(f->goal) && vc == 1) ||
-						           (goal::isOrdinaryGoal(f->goal) &&
-						            vc < gGoalDefinitions[f->goal]
-						                            .getExpectedCopies())) {
-							ugflag = 1;
-							ugchunks++;
-							*/
+							int recover, remove;
+							chunk_get_partstomodify(chunkid, recover, remove);
+							if (recover > 0) {
+								ugflag = 1;
+								ugchunks++;
+							}
 						}
 						chunks++;
 					}
