@@ -1,7 +1,7 @@
 : ${test_timeout:="5 minutes"}
 : ${replication_timeout:="90 seconds"}
 : ${number_of_chunkservers:=12}
-: ${goals="2 3 4 5 6 7 8 9 xor2 xor3 xor4 xor5 xor6 xor7 xor8 xor9 xor10"}
+: ${goals="2 3 4 5 6 7 8 9 xor2 xor3 xor4 xor5 xor6 xor7 xor8 xor9"}
 : ${verify_file_content=YES}
 
 # Returns list of all chunks in the following format:

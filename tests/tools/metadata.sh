@@ -123,8 +123,6 @@ metadata_generate_setgoal() {
 		touch setgoal_incdec/setgoal$goal
 		mfssetgoal $goal setgoal_incdec/setgoal$goal
 	done
-	mfssetgoal -r 6- setgoal_incdec
-	mfssetgoal -r 3+ setgoal_incdec
 }
 
 metadata_generate_settrashtime() {

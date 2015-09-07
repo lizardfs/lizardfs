@@ -26,20 +26,23 @@ setup_local_empty_lizardfs() {
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
 
+	use_new_goal_config="true"
 	local oldpath="$PATH"
 	if [[ $use_moosefs ]]; then
+		use_new_goal_config="false"
 		export PATH="$MOOSEFS_DIR/bin:$MOOSEFS_DIR/sbin:$PATH"
 		build_moosefs
 	fi
 
 	if [[ $use_lizardfsXX ]]; then
+		use_new_goal_config="false"
 		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/lizardfs-${LIZARDFSXX_TAG}
 		export PATH="${LIZARDFSXX_DIR}/bin:${LIZARDFSXX_DIR}/sbin:$PATH"
 		build_lizardfsXX
 	fi
 
 	# Prepare configuration for metadata servers
-	prepare_common_metadata_server_files_
+	use_new_format=$use_new_goal_config prepare_common_metadata_server_files_
 	add_metadata_server_ 0 "master"
 	for ((msid=1 ; msid<number_of_masterservers; ++msid)); do
 		add_metadata_server_ $msid "shadow"
@@ -173,7 +176,21 @@ create_mfsexports_cfg_() {
 }
 
 create_mfsgoals_cfg_() {
-	echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n'
+	for i in {1..5}; do
+		echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n' | grep "^$i " | cat
+	done
+	for i in {6..20}; do
+		wildcards=
+		for ((j=0; j<i; j++)); do
+			wildcards="$wildcards _"
+		done;
+		(echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n' | grep "^$i ") || echo "$i $i: $wildcards"
+	done;
+	if [[ $use_new_format == "true" ]]; then
+		for i in {2..9}; do
+			echo "$((30 + $i)) xor$i: \$xor$i"
+		done;
+	fi;
 }
 
 create_mfstopology_cfg_() {
