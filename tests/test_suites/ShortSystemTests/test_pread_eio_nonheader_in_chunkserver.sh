@@ -38,7 +38,7 @@ assert_awk_finds_no '$4 != "no"' "$list"
 
 # Read our big files, redefined pread is supposed to return EIO somewhere in the middle.
 # Do this many times to make it more probable that the damaged disk will be used.
-for i in {1..15}; do
+for i in {1..30}; do
 	cd ${info[mount$((i % 2))]}
 	assert_success file-validate goal2/big_*
 	assert_success file-validate goal2/small_*

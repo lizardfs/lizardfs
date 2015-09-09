@@ -1,4 +1,4 @@
-timeout_set '4 minutes'
+timeout_set '5 minutes'
 
 assert_program_installed git
 assert_program_installed cmake

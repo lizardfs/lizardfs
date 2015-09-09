@@ -48,7 +48,7 @@ if valgrind_enabled; then
 else
 	timeout="40 seconds"
 fi
-expect_eventually_prints 8 'grep -o "changing.*" "$TEMP_DIR/log" | sort -u | wc -l' "$timeout"
+expect_eventually_prints 8 'grep -o "changing.*" "$TEMP_DIR/log" | sort | uniq -c | wc -l' "$timeout"
 
 # Tell which objects were seen and which weren't
 log=$(cat "$TEMP_DIR/log" | sort | uniq -c)
@@ -56,5 +56,5 @@ for object in {recalculated,not_recalculated}_{edge,node,xattr,chunk}; do
 	expect_awk_finds "/master.fs.checksum.changing_$object/" "$log"
 done
 
-test_freeze_result # Make it easier to termiate all processes by stopping our loops
+test_freeze_result # Make it easier to terminate all processes by stopping our loops
 

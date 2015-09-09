@@ -8,7 +8,7 @@ CHUNKSERVERS=2 \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|REPLICATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
-REPLICATION_TIMEOUT='20 seconds'
+REPLICATION_TIMEOUT='30 seconds'
 
 cd "${info[mount0]}"
 # Ensure that we work on legacy version
@@ -53,7 +53,7 @@ assert_success generate_file file1
 assert_success file-validate file1
 lizardfs_chunkserver_daemon 1 start
 assert_eventually \
-		'[[ $(mfscheckfile file1 | grep "chunks with 2 copies" | wc -l) == 1 ]]' $REPLICATION_TIMEOUT
+		'[[ $(mfscheckfile file1 | grep "chunks with 2 copies" | wc -l) == 1 ]]' "$REPLICATION_TIMEOUT"
 lizardfsXX_chunkserver_daemon 0 stop
 # Check if LizardFS CS can serve newly replicated chunks to old LizardFS client:
 assert_success file-validate file1
@@ -62,7 +62,7 @@ assert_success file-validate file1
 assert_success generate_file file2
 assert_success file-validate file2
 lizardfsXX_chunkserver_daemon 0 start
-assert_eventually '[[ $(mfscheckfile file2 | grep "chunks with 2 copies" | wc -l) == 1 ]]' $REPLICATION_TIMEOUT
+assert_eventually '[[ $(mfscheckfile file2 | grep "chunks with 2 copies" | wc -l) == 1 ]]' "$REPLICATION_TIMEOUT"
 lizardfs_chunkserver_daemon 1 stop
 
 # Check if old LizardFS CS can serve newly replicated chunks (check if the file is consistent):

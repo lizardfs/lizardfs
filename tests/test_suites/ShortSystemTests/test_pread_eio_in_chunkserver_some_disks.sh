@@ -41,7 +41,7 @@ lizardfs_wait_for_all_ready_chunkservers
 
 # Read our files, redefined pread is supposed to return EIO.
 # Do this many times to make it more probable that the damaged disks will be used.
-for i in {1..10}; do
+for i in {1..20}; do
 	assert_success file-validate goal2/*
 done
 for file in goal1/*; do

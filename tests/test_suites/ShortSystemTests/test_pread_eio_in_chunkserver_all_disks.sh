@@ -32,11 +32,11 @@ LD_PRELOAD="$LIZARDFS_ROOT/lib/libchunk_operations_eio.so" \
 		assert_success lizardfs_chunkserver_daemon 0 restart
 lizardfs_wait_for_all_ready_chunkservers
 
-# Read 40% of our files, redefined pread is supposed to return EIO.
+# Read 70% of our files, redefined pread is supposed to return EIO.
 # Do this many times to make it more probable that the damaged disks will be used.
-for i in {1..30}; do
+for i in {1..50}; do
 	cd ${info[mount$((i % 2))]}
-	assert_success file-validate goal2/*[0124]
+	assert_success file-validate goal2/*[0124678]
 done
 
 # Assert that exactly disks marked "pread_EIO" are marked as damaged
