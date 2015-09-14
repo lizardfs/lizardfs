@@ -63,10 +63,18 @@ TEST(LinearAssignmentProblem, TestRandom) {
 	std::array<int, 10> assignment;
 
 	for (int size = 2; size <= 10; ++size) {
+		std::string vmatrix_desc;
+
 		for (int i = 0; i < size; ++i) {
+			vmatrix_desc += "(";
 			for (int j = 0; j < size; ++j) {
 				value_matrix[i][j] = rnd_ranged(1000);
+				if (j > 0) {
+					vmatrix_desc += ",";
+				}
+				vmatrix_desc += std::to_string(value_matrix[i][j]);
 			}
+			vmatrix_desc += ")\n";
 		}
 
 		// evaluate all possible assignments
@@ -88,7 +96,9 @@ TEST(LinearAssignmentProblem, TestRandom) {
 			max_element = std::max(max_element, assignment[i]);
 		}
 
-		EXPECT_EQ(size - 1, max_element) << "size = " << size;
-		EXPECT_EQ(max_value, auction_value) << "size = " << size;
+		EXPECT_EQ(size - 1, max_element) << "size = " << size << "\nvalue_matrix\n"
+		                                 << vmatrix_desc;
+		EXPECT_EQ(max_value, auction_value) << "size = " << size << "\nvalue_matrix\n"
+		                                    << vmatrix_desc;
 	}
 }

@@ -64,20 +64,19 @@ void auctionStep(M &value_matrix, A &assignment, A &object_assignment, P &prices
 			}
 		}
 
-		V bid = v - w + eps;
-		if (bid > V()) {
-			prices[v_idx] += bid;
+		assert((v - w + eps) > V());
 
-			int idx = object_assignment[v_idx];
-			if (idx >= 0) {
-				assignment[idx] = -1;
-				assigned_count--;
-			}
+		prices[v_idx] += v - w + eps;
 
-			object_assignment[v_idx] = unassigned_idx;
-			assignment[unassigned_idx] = v_idx;
-			assigned_count++;
+		int idx = object_assignment[v_idx];
+		if (idx >= 0) {
+			assignment[idx] = -1;
+			assigned_count--;
 		}
+
+		object_assignment[v_idx] = unassigned_idx;
+		assignment[unassigned_idx] = v_idx;
+		assigned_count++;
 	}
 }
 
@@ -95,11 +94,15 @@ void auctionStep(M &value_matrix, A &assignment, A &object_assignment, P &prices
  * \param assignment return vector with optimal assignment (maximizing value).
  *                   Each value in vector represent index of object that is assigned to that
  *                   person.
+ * \param object_assignment return vector with optimal assignment of object-person pairs.
+ *                          Value at index i represents index of person to which this object is
+ *                          assigned.
  * \param size problem size (number of person-object pairs to match).
  */
 template <typename M, std::size_t N>
-void auctionOptimization(M &value_matrix, std::array<int, N> &assignment, int size) {
-	std::array<int, N> object_assignment, prices;
+void auctionOptimization(M &value_matrix, std::array<int, N> &assignment,
+			std::array<int, N> &object_assignment, int size) {
+	std::array<int, N> prices;
 
 	assert(size <= (int)N);
 
@@ -108,6 +111,7 @@ void auctionOptimization(M &value_matrix, std::array<int, N> &assignment, int si
 	}
 	if (size == 1) {
 		assignment[0] = 0;
+		object_assignment[0] = 0;
 		return;
 	}
 
@@ -131,6 +135,21 @@ void auctionOptimization(M &value_matrix, std::array<int, N> &assignment, int si
 
 	eps = 1;
 	detail::auctionStep(value_matrix, assignment, object_assignment, prices, eps, size);
+}
+
+/*! \brief Implementation of Bertsekas auction algorithm.
+ *
+ * \param cost value matrix with integer values - matrix dimension should be (size,size).
+ *             Values in matrix should be considerably lower than MAX_INT.
+ * \param assignment return vector with optimal assignment (maximizing value).
+ *                   Each value in vector represent index of object that is assigned to that
+ *                   person.
+ * \param size problem size (number of person-object pairs to match).
+ */
+template <typename M, std::size_t N>
+void auctionOptimization(M &value_matrix, std::array<int, N> &assignment, int size) {
+	std::array<int, N> object_assignment;
+	auctionOptimization(value_matrix, assignment, object_assignment, size);
 }
 
 }  // linear_assignment
