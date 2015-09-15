@@ -2667,26 +2667,20 @@ bool fs_unregister_packet_type_handler(PacketHeader::Type type, PacketHandler *h
 	return true;
 }
 
-void fs_flock_interrupt(uint32_t reqid) {
-	(void)reqid;
-	// TODO(jotek): uncomment when master will be able to handle this request
-	/*
+void fs_flock_interrupt(const lzfs_locks::InterruptData &data) {
 	threc *rec = fs_get_my_threc();
-	auto message = cltoma::fuseFlock::build(rec->packetId, reqid);
+	auto message = cltoma::fuseFlock::build(rec->packetId, data);
 	// is there anything we can do if send fails?
+	fs_lizcreatepacket(rec, message);
 	fs_lizsend(rec);
-	*/
 }
 
-void fs_setlk_interrupt(uint32_t reqid) {
-	(void)reqid;
-	// TODO(jotek): uncomment when master will be able to handle this request
-	/*
+void fs_setlk_interrupt(const lzfs_locks::InterruptData &data) {
 	threc *rec = fs_get_my_threc();
-	auto message = cltoma::fusSetlk::build(rec->packetId, reqid);
+	auto message = cltoma::fuseSetlk::build(rec->packetId, data);
 	// is there anything we can do if send fails?
+	fs_lizcreatepacket(rec, message);
 	fs_lizsend(rec);
-	*/
 }
 
 uint8_t fs_getlk(uint32_t inode, uint64_t owner, lzfs_locks::FlockWrapper &lock) {

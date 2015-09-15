@@ -153,6 +153,7 @@ static bool acl_enabled = 0;
 bool use_rwlock = 0;
 static std::atomic<bool> gDirectIo(false);
 
+// lock_request_counter shared by flock and setlk
 static uint32_t lock_request_counter = 0;
 static std::mutex lock_request_mutex;
 
@@ -3264,12 +3265,12 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 	}
 }
 
-void flock_interrupt(uint32_t reqid) {
-	fs_flock_interrupt(reqid);
+void flock_interrupt(const lzfs_locks::InterruptData &data) {
+	fs_flock_interrupt(data);
 }
 
-void setlk_interrupt(uint32_t reqid) {
-	fs_setlk_interrupt(reqid);
+void setlk_interrupt(const lzfs_locks::InterruptData &data) {
+	fs_setlk_interrupt(data);
 }
 
 void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {

@@ -29,6 +29,7 @@
 #include "mount/fuse/lock_conversion.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
+#include "mount/thread_safe_map.h"
 #include "protocol/MFSCommunication.h"
 
 #if SPECIAL_INODE_ROOT != FUSE_ROOT_ID
@@ -135,6 +136,9 @@ fuse_entry_param make_fuse_entry_param(const LizardClient::EntryParam& e) {
 #endif
 
 static_assert(std::is_same<LizardClient::Inode, fuse_ino_t>::value, "Types don't match");
+
+
+ThreadSafeMap<std::uintptr_t, lzfs_locks::InterruptData> gLockInterruptData;
 
 #if FUSE_USE_VERSION >= 26
 void mfs_statfs(fuse_req_t req,fuse_ino_t ino) {
@@ -481,14 +485,28 @@ void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 }
 
 #if FUSE_VERSION >= 26
-void lzfs_flock_interrupt(fuse_req_t /*req*/, void *data) {
-	uint32_t reqid = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(data));
-	LizardClient::flock_interrupt(reqid);
+void lzfs_flock_interrupt(fuse_req_t req, void *data) {
+	std::pair<bool, lzfs_locks::InterruptData> interrupt_data = gLockInterruptData.take(
+			reinterpret_cast<std::uintptr_t>(data));
+
+	// if there was any data
+	if (interrupt_data.first) {
+		// handle interrupt
+		LizardClient::flock_interrupt(interrupt_data.second);
+	}
+	fuse_reply_err(req, EINTR);
 }
 
-void lzfs_setlk_interrupt(fuse_req_t /*req*/, void *data) {
-	uint32_t reqid = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(data));
-	LizardClient::setlk_interrupt(reqid);
+void lzfs_setlk_interrupt(fuse_req_t req, void *data) {
+	std::pair<bool, lzfs_locks::InterruptData> interrupt_data = gLockInterruptData.take(
+			reinterpret_cast<std::uintptr_t>(data));
+
+	// if there was any data
+	if (interrupt_data.first) {
+		// handle interrupt
+		LizardClient::setlk_interrupt(interrupt_data.second);
+	}
+	fuse_reply_err(req, EINTR);
 }
 
 void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock) {
@@ -507,7 +525,9 @@ void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 	}
 }
 
+
 void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sleep) {
+	std::uintptr_t interrupt_data_key = gLockInterruptData.generateKey();
 	try {
 		if (fuse_req_interrupted(req)) {
 			fuse_reply_err(req, EINTR);
@@ -521,13 +541,17 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 
 		lzfs_locks::FlockWrapper lzfslock = lzfs_locks::convertPLock(*lock, sleep);
 		short int l_type_holder = lock->l_type;
-
 		uint32_t reqid = LizardClient::setlk_send(get_context(req), ino, fuse_file_info_wrapper(fi),
 				lzfslock);
 
+		// save interrupt data in static structure
+		gLockInterruptData.put(interrupt_data_key,
+				       lzfs_locks::InterruptData(fi->lock_owner, ino, reqid));
+
 		// register interrupt handle
 		if (lzfslock.l_type == lzfs_locks::kShared || lzfslock.l_type == lzfs_locks::kExclusive) {
-			fuse_req_interrupt_func(req, lzfs_setlk_interrupt, reinterpret_cast<void*>(reqid));
+			fuse_req_interrupt_func(req, lzfs_setlk_interrupt,
+					reinterpret_cast<void*>(interrupt_data_key));
 		}
 
 		// WARNING: csetlk_recv() won't work with polonaise server,
@@ -537,8 +561,13 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 
 		*lock = lzfs_locks::convertToFlock(lzfslock);
 		lock->l_type = l_type_holder;
+
+		// release the memory
+		gLockInterruptData.take(interrupt_data_key);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
+		// release the memory
+		gLockInterruptData.take(interrupt_data_key);
 		fuse_reply_err(req, e.errNo);
 	}
 }
@@ -546,6 +575,7 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 #if FUSE_VERSION >= 29
 
 void lzfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int op) {
+	std::uintptr_t interrupt_data_key = gLockInterruptData.generateKey();
 	try {
 		if (fuse_req_interrupted(req)) {
 			fuse_reply_err(req, EINTR);
@@ -561,16 +591,23 @@ void lzfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int o
 		uint32_t reqid = LizardClient::flock_send(get_context(req), ino,
 			fuse_file_info_wrapper(fi), lzfs_op);
 
+		// save interrupt data in static structure
+		gLockInterruptData.put(interrupt_data_key,
+				       lzfs_locks::InterruptData(fi->lock_owner, ino, reqid));
 		// register interrupt handle
-		if (lzfs_op == LIZARDFS_LOCK_SHARED || lzfs_op == LIZARDFS_LOCK_EXCLUSIVE) {
+		if (lzfs_op == lzfs_locks::kShared || lzfs_op == lzfs_locks::kExclusive) {
 			fuse_req_interrupt_func(req, lzfs_flock_interrupt,
-				reinterpret_cast<void*>(reqid));
+					reinterpret_cast<void*>(interrupt_data_key));
 		}
 
 		LizardClient::flock_recv();
 
+		// release the memory
+		gLockInterruptData.take(interrupt_data_key);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
+		// release the memory
+		gLockInterruptData.take(interrupt_data_key);
 		fuse_reply_err(req, e.errNo);
 	}
 }
