@@ -1765,6 +1765,43 @@ int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode
 	return LIZARDFS_STATUS_OK;
 }
 
+int fs_locks_remove_pending(const FsContext &context, uint8_t type, uint64_t ownerid,
+			uint32_t sessionid, uint32_t inode, uint64_t reqid) {
+	ChecksumUpdater cu(context.ts());
+
+	FileLocks *locks;
+
+	if (type == (uint8_t)lzfs_locks::Type::kFlock) {
+		locks = &gMetadata->flock_locks;
+	} else if (type == (uint8_t)lzfs_locks::Type::kPosix) {
+		locks = &gMetadata->posix_locks;
+	} else {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	locks->removePending(inode,
+			[ownerid, sessionid, reqid](const LockRange &range) {
+				const LockRange::Owner &owner = range.owner();
+				if (owner.owner == ownerid
+					&& owner.sessionid == sessionid
+					&& owner.reqid == reqid) {
+					return true;
+				}
+				return false;
+			}
+		);
+
+	if (context.isPersonalityMaster()) {
+		fs_changelog(context.ts(),
+			     "RMPLOCK(%" PRIu8 ",%" PRIu64",%" PRIu32 ",%" PRIu32 ",%" PRIu64")",
+			     type, ownerid, sessionid, inode, reqid);
+	} else {
+		gMetadata->metaversion++;
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
 #ifndef METARESTORE
 
 uint8_t fs_readdir_size(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t uid,

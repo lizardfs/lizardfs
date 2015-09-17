@@ -4099,6 +4099,27 @@ void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, 
 	matocl::manageLocksUnlock::serialize(reply, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
+void matoclserv_fuse_locks_interrupt(matoclserventry *eptr, const uint8_t *data, uint32_t length,
+				     uint8_t type) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t messageId;
+	lzfs_locks::InterruptData interruptData;
+
+	PacketVersion version;
+	deserializePacketVersionNoHeader(data, length, version);
+
+	if (version != 0) {
+		lzfs_pretty_syslog(LOG_ERR, "fuse_flock_interrupt wrong message version\n");
+		return;
+	}
+
+	cltoma::fuseFlock::deserialize(data, length, messageId, interruptData);
+
+	// we do not reply, so there is not need for checking status of this fs_operation
+	fs_locks_remove_pending(context, type, interruptData.owner,
+			   eptr->sesdata->sessionid, interruptData.ino, interruptData.reqid);
+}
+
 
 void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid;
@@ -4781,6 +4802,16 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_FUSE_FLOCK:
 					matoclserv_fuse_flock(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_FLOCK_INTERRUPT:
+					matoclserv_fuse_locks_interrupt(
+						eptr, data, length,
+						(uint8_t)lzfs_locks::Type::kFlock);
+					break;
+				case LIZ_CLTOMA_FUSE_SETLK_INTERRUPT:
+					matoclserv_fuse_locks_interrupt(
+						eptr, data, length,
+						(uint8_t)lzfs_locks::Type::kPosix);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);

@@ -413,6 +413,29 @@ int do_lock_op(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) 
 	return status;
 }
 
+int do_remove_pending_op(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+	uint32_t lock_type;
+	uint64_t ownerid;
+	uint32_t sessionid;
+	uint32_t inode;
+	uint64_t reqid;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(lock_type, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(ownerid, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(sessionid, ptr);
+	EAT(ptr ,filename, lv, ',');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(reqid, ptr);
+	EAT(ptr,filename,lv,')');
+
+	return fs_locks_remove_pending(FsContext::getForRestore(ts), lock_type, ownerid, sessionid,
+		inode, reqid);
+}
+
 int do_lock_clear_session(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	uint32_t lock_type, inode, sessionid;
 	std::vector<FileLocks::Owner> applied;
@@ -857,6 +880,8 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 				status = do_release(filename,lv,ts,ptr+7);
 			} else if (strncmp(ptr,"REPAIR",6)==0) {
 				status = do_repair(filename,lv,ts,ptr+6);
+			} else if (strncmp(ptr,"RMPLOCK",7)==0) {
+				status = do_remove_pending_op(filename,lv,ts,ptr+7);
 			}
 			break;
 		case 'S':

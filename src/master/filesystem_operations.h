@@ -85,3 +85,5 @@ int fs_locks_list_inode(const FsContext &context, uint8_t type, bool pending,
 		uint32_t inode, uint64_t start, uint64_t max, std::vector<lzfs_locks::Info> &locks);
 int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode,
 		std::vector<FileLocks::Owner> &applied);
+int fs_locks_remove_pending(const FsContext &context, uint8_t type, uint64_t ownerid,
+		uint32_t sessionid, uint32_t inode, uint64_t reqid);
