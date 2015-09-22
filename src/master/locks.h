@@ -227,7 +227,6 @@ public:
 	 */
 	bool unlock(uint32_t inode, uint64_t start, uint64_t end, Owner owner);
 
-
 	/*!
 	 * Returns a list of locks from pending queue that might be available
 	 * after removing a lock from range [start, end).

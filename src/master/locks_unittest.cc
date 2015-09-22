@@ -126,8 +126,8 @@ TEST(LocksTest, Removes) {
 	EXPECT_TRUE(unlock(ranges, 10, 20, 1));
 	EXPECT_TRUE(unlock(ranges, 40, 50, 1));
 	EXPECT_TRUE(unlock(ranges, 70, 90, 1));
-	// Removing as a different user should fail
-	EXPECT_FALSE(unlock(ranges, 90, 100, 2));
+	// Removing as a different user should have no effect
+	EXPECT_TRUE(unlock(ranges, 90, 100, 2));
 
 	EXPECT_TRUE(lock_exclusive(ranges, 0, 90, 1));
 
@@ -207,4 +207,30 @@ TEST(LocksTest, PartialUnlock) {
 	 EXPECT_TRUE(unlock(ranges, 1, 2, 2));
 	 // Exclusive lock should now succeed
 	 EXPECT_TRUE(lock_exclusive(ranges, 1, 2, 1));
+}
+
+TEST(LocksTest, StressTest) {
+	LockRanges ranges;
+
+	EXPECT_TRUE(lock_exclusive(ranges, 0, 1, 7));
+
+	for(int j = 0; j < 100; j++) {
+		int i = j % 3;
+		int a = i;
+		int b = (i + 1) % 3;
+		int c = (i + 2) % 3;
+
+		EXPECT_TRUE(lock_exclusive(ranges, b, b + 1, 7));
+		EXPECT_TRUE(unlock(ranges, a, a + 1, 7));
+		EXPECT_TRUE(lock_exclusive(ranges, c, c + 1, 7));
+	}
+
+	EXPECT_TRUE(lock_exclusive(ranges, 0, 1, 6));
+
+	EXPECT_TRUE(unlock(ranges, 1, 2, 7));
+	EXPECT_FALSE(lock_exclusive(ranges, 0, 1, 7));
+
+	EXPECT_TRUE(lock_exclusive(ranges, 1, 2, 6));
+	EXPECT_TRUE(unlock(ranges, 0, 1, 6));
+	EXPECT_TRUE(lock_exclusive(ranges, 0, 1, 7));
 }

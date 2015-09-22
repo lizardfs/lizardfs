@@ -22,6 +22,10 @@
 #include <functional>
 
 bool LockRanges::fits(const LockRange &range) const {
+	if (range.unlocking()) {
+		return true;
+	}
+
 	auto start = std::lower_bound(data_.begin(), data_.end(), range.start,
 			[](const LockRange &other, uint64_t offset) {return other.start < offset;});
 	auto end = std::upper_bound(data_.begin(), data_.end(), range.end,
@@ -34,10 +38,6 @@ bool LockRanges::fits(const LockRange &range) const {
 	for (auto it = start; it != end; ++it) {
 		const LockRange &other = *it;
 		if (range.overlaps(other)) {
-			// Range is to be removed
-			if (range.unlocking() && other.hasOwner(range.owner())) {
-				continue;
-			}
 			// Range overlaps, is not shared and owner is not the same
 			if ((!range.shared() || !other.shared()) && other.owners != range.owners) {
 				return false;
@@ -73,6 +73,11 @@ void LockRanges::insert(LockRange &range) {
 			range.end = std::max(range.end, other.end);
 			other.markUnlocking();
 			continue;
+		}
+
+		// There are no more ranges that can overlap - break
+		if (range.end <= other.start) {
+			break;
 		}
 
 		// Ranges do not overlap, no need for collision check
