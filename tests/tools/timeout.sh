@@ -53,3 +53,7 @@ timeout_set() {
 timeout_set_multiplier() {
 	echo "$1" > "$test_timeout_multiplier_file"
 }
+
+timeout_get_multiplier() {
+	cat "$test_timeout_multiplier_file"
+}

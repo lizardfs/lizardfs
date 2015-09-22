@@ -24,5 +24,4 @@ assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 47 || \$2 
 
 # Add one server and expect chunks to be rebalanced to about 40 on each server.
 lizardfs_chunkserver_daemon 0 start
-timeout=$(if valgrind_enabled; then echo "5 minutes"; else echo "1 minute"; fi)
-assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 38 || \$2 > 42'" "$timeout"
+assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 38 || \$2 > 42'" "1 minute"

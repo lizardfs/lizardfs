@@ -133,7 +133,7 @@ assert_template_no_diff_() {
 # (assert|assertlocal|expect)_eventually <command> [<timeout>]
 assert_template_eventually_() {
 	local command=$1
-	local timeout=${2:-$(get_timeout_for_assert_eventually_)}
+	local timeout=$(rescale_timeout_for_assert_eventually_ "${2:-}")
 	if ! wait_for "$command" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't succedd within $timeout"
 	fi
@@ -154,7 +154,7 @@ assert_template_empty_() {
 assert_template_eventually_prints_() {
 	local string=$1
 	local command=$2
-	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
+	local timeout=$(rescale_timeout_for_assert_eventually_ "${3:-}")
 	if ! wait_for "[[ \$($command) == \"$string\" ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't print '$string' within $timeout. "`
 				`"It prints now: '$(eval "$command" || true)'"
@@ -165,7 +165,7 @@ assert_template_eventually_prints_() {
 assert_template_eventually_matches_() {
 	local regex="$1"
 	local command="$2"
-	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
+	local timeout=$(rescale_timeout_for_assert_eventually_ "${3:-}")
 	if ! wait_for "[[ \$($command) =~ \$regex ]]" "$timeout"; then
 		$FAIL_FUNCTION "'$command' didn't print output matching '$regex' within $timeout. "`
 				`"It prints now: '$(eval "$command" || true)'"
@@ -176,7 +176,7 @@ assert_template_eventually_matches_() {
 assert_template_eventually_equals_() {
 	local command1=$1
 	local command2=$2
-	local timeout=${3:-$(get_timeout_for_assert_eventually_)}
+	local timeout=$(rescale_timeout_for_assert_eventually_ "${3:-}")
 	if ! wait_for "[[ \$($command1) == \$($command2) ]]" "$timeout"; then
 		diff="$(diff -u5 <(eval "$command1") <(eval "$command2") || true)"
 		$FAIL_FUNCTION "'$command1' didn't output the same as '$command2' within $timeout`
@@ -193,12 +193,21 @@ get_source_line() {
 }
 
 # Internal functions
-
-get_timeout_for_assert_eventually_() {
+rescale_timeout_for_assert_eventually_() {
 	if valgrind_enabled; then
-		echo 60 seconds
+		if [[ -n "$1" ]]; then
+			local multiplier=$(timeout_get_multiplier)
+			local value=$(($(date +%s -d "$1") - $(date +%s)))
+			echo $((value * multiplier)) seconds
+		else
+			echo 60 seconds
+		fi
 	else
-		echo 15 seconds
+		if [[ -n "$1" ]]; then
+			echo "$1"
+		else
+			echo 15 seconds
+		fi
 	fi
 }
 

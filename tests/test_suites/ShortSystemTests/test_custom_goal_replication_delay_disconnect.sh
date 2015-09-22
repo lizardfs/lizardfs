@@ -43,9 +43,5 @@ lizardfs_chunkserver_daemon 1 start
 lizardfs_wait_for_ready_chunkservers 3
 
 # Replication should start immediately
-replication_timeout="4 seconds"
-if valgrind_enabled; then
-	replication_timeout="7 seconds"
-fi
-assert_eventually_prints 20 'find_chunkserver_chunks 1 | wc -l' "$replication_timeout"
+assert_eventually_prints 20 'find_chunkserver_chunks 1 | wc -l' "4 seconds"
 assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)
