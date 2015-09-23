@@ -67,6 +67,7 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
+#include "master/filesystem_operations.h"
 #include "master/filesystem_snapshot.h"
 #include "master/masterconn.h"
 #include "master/matocsserv.h"
@@ -570,7 +571,7 @@ matoclserventry *matoclserv_find_connection(uint32_t id) {
 			return eptr;
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 /* new registration procedure */
@@ -3832,6 +3833,164 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
+static void matoclserv_lock_wake_up(uint32_t sessionid, uint32_t messageId,
+		lzfs_locks::Type type) {
+	matoclserventry *eptr;
+	MessageBuffer reply;
+
+	eptr = matoclserv_find_connection(sessionid);
+
+	if (eptr == nullptr) {
+		return;
+	}
+
+	switch (type) {
+	case lzfs_locks::Type::kFlock:
+		matocl::fuseFlock::serialize(reply, messageId, LIZARDFS_STATUS_OK);
+		break;
+	case lzfs_locks::Type::kPosix:
+		matocl::fuseSetlk::serialize(reply, messageId, LIZARDFS_STATUS_OK);
+		break;
+	default:
+		lzfs_pretty_syslog(LOG_ERR, "Incorrect lock type passed for lock wakeup: %u", type);
+		return;
+	}
+
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+static void matoclserv_lock_wake_up(std::vector<FileLocks::Owner> &owners, lzfs_locks::Type type) {
+	for (auto owner : owners) {
+		matoclserv_lock_wake_up(owner.sessionid, owner.msgid, type);
+	}
+}
+
+void matoclserv_fuse_flock(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t messageId;
+	uint32_t inode;
+	uint64_t owner;
+
+	uint32_t requestId;
+	uint16_t op;
+	MessageBuffer reply;
+	PacketVersion version;
+	uint8_t status;
+
+	bool nonblocking = false;
+
+	deserializePacketVersionNoHeader(data, length, version);
+
+	if (version != 0) {
+		lzfs_pretty_syslog(LOG_ERR, "flock wrong message version\n");
+		return;
+	}
+	cltoma::fuseFlock::deserialize(data, length, messageId, inode, owner, requestId, op);
+
+	if (op & lzfs_locks::kNonblock) {
+		nonblocking = true;
+		op &= ~lzfs_locks::kNonblock;
+	}
+
+	std::vector<FileLocks::Owner> applied;
+	status = fs_flock_op(context, inode, owner, eptr->sesdata->sessionid, requestId, messageId,
+			op, nonblocking, applied);
+
+	matoclserv_lock_wake_up(applied, lzfs_locks::Type::kFlock);
+
+	// If it was a release request, do not respond
+	if (op == lzfs_locks::kRelease) {
+		return;
+	}
+
+	// Do not respond only if operation is blocking and status is WAITING
+	if (nonblocking || status != LIZARDFS_ERROR_WAITING) {
+		matocl::fuseFlock::serialize(reply, messageId, status);
+		matoclserv_createpacket(eptr, std::move(reply));
+	}
+}
+
+void matoclserv_fuse_getlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t messageId;
+	uint32_t inode;
+	uint64_t owner;
+
+	uint16_t op;
+	MessageBuffer reply;
+	PacketVersion version;
+	lzfs_locks::FlockWrapper lock_info;
+	uint8_t status;
+	decltype(lock_info.l_start) end;
+
+	deserializePacketVersionNoHeader(data, length, version);
+
+	cltoma::fuseGetlk::deserialize(data, length, messageId, inode, owner, lock_info);
+	op = lock_info.l_type;
+	end = lock_info.l_start + lock_info.l_len;
+
+	status = fs_posixlock_probe(context, inode, lock_info.l_start, end, owner,
+			eptr->sesdata->sessionid, 0, messageId, op, lock_info);
+
+	// Standard states that lock of length 0 is a lock till EOF
+	if (end == std::numeric_limits<decltype(lock_info.l_len)>::max()) {
+		lock_info.l_len = 0;
+	}
+
+	matocl::fuseGetlk::serialize(reply, messageId, status);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t messageId;
+	uint32_t inode;
+	uint64_t owner;
+
+	uint32_t requestId;
+	uint16_t op;
+	MessageBuffer reply;
+	PacketVersion version;
+	uint8_t status;
+	lzfs_locks::FlockWrapper lock_info;
+	decltype(lock_info.l_start) end;
+
+	bool nonblocking = false;
+	deserializePacketVersionNoHeader(data, length, version);
+
+	cltoma::fuseSetlk::deserialize(data, length, messageId, inode, owner, requestId, lock_info);
+	op = lock_info.l_type;
+
+	if (op & lzfs_locks::kNonblock) {
+		nonblocking = true;
+		op &= ~lzfs_locks::kNonblock;
+	}
+
+	// Standard states that lock of length 0 is a lock till EOF
+	if (lock_info.l_len == 0) {
+		end = std::numeric_limits<decltype(lock_info.l_len)>::max();
+	} else {
+		end = lock_info.l_start + lock_info.l_len;
+	}
+
+	std::vector<FileLocks::Owner> applied;
+	status = fs_posixlock_op(context, inode, lock_info.l_start, end,
+			owner, eptr->sesdata->sessionid, requestId, messageId, op, nonblocking, applied);
+
+	matoclserv_lock_wake_up(applied, lzfs_locks::Type::kPosix);
+
+	// If it was a release request, do not respond
+	if (op == lzfs_locks::kRelease) {
+		return;
+	}
+
+	// Do not respond only if operation is blocking and status is WAITING
+	if (nonblocking || status != LIZARDFS_ERROR_WAITING) {
+		matocl::fuseSetlk::serialize(reply, messageId, status);
+		matoclserv_createpacket(eptr, std::move(reply));
+	}
+}
+
 void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
@@ -4079,6 +4238,21 @@ void matoclserv_broadcast_metadata_checksum_recalculated(uint8_t status) {
 	}
 }
 
+void matocl_locks_release(const FsContext &context, uint32_t inode, uint32_t sessionid) {
+	std::vector<FileLocks::Owner> applied;
+
+	fs_locks_clear_session(context, (uint8_t)lzfs_locks::Type::kFlock, inode, sessionid, applied);
+	for (auto candidate : applied) {
+		matoclserv_lock_wake_up(candidate.sessionid, candidate.msgid, lzfs_locks::Type::kFlock);
+	}
+
+	applied.clear();
+	fs_locks_clear_session(context, (uint8_t)lzfs_locks::Type::kPosix, inode, sessionid, applied);
+	for (auto candidate : applied) {
+		matoclserv_lock_wake_up(candidate.sessionid, candidate.msgid, lzfs_locks::Type::kPosix);
+	}
+}
+
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
@@ -4087,6 +4261,7 @@ void matocl_session_timedout(session *sesdata) {
 		afl = fl;
 		fl=fl->next;
 		fs_release(context, afl->inode, sesdata->sessionid);
+		matocl_locks_release(context, afl->inode, sesdata->sessionid);
 		free(afl);
 	}
 	sesdata->openedfiles=NULL;
@@ -4482,6 +4657,15 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_IOLIMIT:
 					matoclserv_iolimit(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_SETLK:
+					matoclserv_fuse_setlk(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_GETLK:
+					matoclserv_fuse_getlk(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_FLOCK:
+					matoclserv_fuse_flock(eptr,data,length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
