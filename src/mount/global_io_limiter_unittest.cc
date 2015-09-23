@@ -394,8 +394,8 @@ TEST(LimiterProxyTests, NumberOfRequestesSentToMaster) {
 							cond.notify_all();
 						}));
 			}
-			usleep(1000);
 			for (int i = 1; i <= ceil(double(N) / delta_ms); i++) {
+				usleep(10000);
 				clock.increase(std::chrono::milliseconds(delta_ms));
 				std::unique_lock<std::mutex> lock(mutex);
 				cond.wait(lock, [&]{return completed == std::min(i * delta_ms, N);});
