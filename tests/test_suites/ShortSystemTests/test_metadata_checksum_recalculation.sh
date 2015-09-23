@@ -1,4 +1,4 @@
-timeout_set 1 minute
+timeout_set 2 minutes
 assert_program_installed attr
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
@@ -13,22 +13,27 @@ CHUNKSERVERS=1 \
 	setup_local_empty_lizardfs info
 
 # Create many chunks and directories to work on
+count=4000
 cd "${info[mount0]}"
-echo 1 | tee chunk_{0..500} >/dev/null
-mkdir dir_{0..1000}
+for ((fst=0; fst < count; fst++)); do
+	echo 1 > chunk_$fst
+done
+to_create="$(eval echo dir_{0..$count})"
+mkdir $to_create
 truncate -s 0 "$TEMP_DIR/log"
 
 # Intensively change nodes, edges, chunks and xattrs metadata in background
 (
 	i=1
+	s=$((count / 20))
 	while ! test_frozen ; do
-		k=$((i * 8009 % 1000))
+		k=$((i * 8009 % count))
 		assert_success mv dir_$k a_$k
 		assert_success mv a_$k dir_$k
 		assert_success attr -qs name -V $i dir_$k
 		assert_success attr -qs name -V $i dir_$((k+1))
-		for k in {1..20}; do
-			assert_success mfssetgoal $((1 + i % 7)) chunk_$(((i * k) % 500))
+		for k in {0..19}; do
+			assert_success mfssetgoal $((1 + i % 7)) chunk_$(((k * s + (i % s)) % count))
 		done
 		: $((++i))
 	done &>/dev/null &
@@ -42,14 +47,10 @@ truncate -s 0 "$TEMP_DIR/log"
 )
 
 # Wait for 4 different types of objects to be changed while being recalculated / not recalculated
+# This test is non-deterministic and below sometimes fails. If that is the case it should be rerun.
+# Really important check is that debug log doesn't contain master.fs.checksum.mismatch.
 touch "$TEMP_DIR/log"
-if valgrind_enabled; then
-	timeout="5 minutes"
-else
-	timeout="40 seconds"
-fi
-expect_eventually_prints 8 'grep -o "changing.*" "$TEMP_DIR/log" | sort | uniq -c | wc -l' "$timeout"
-
+expect_eventually_prints 8 'grep -o "changing.*" "$TEMP_DIR/log" | sort | uniq -c | wc -l' "40 seconds"
 # Tell which objects were seen and which weren't
 log=$(cat "$TEMP_DIR/log" | sort | uniq -c)
 for object in {recalculated,not_recalculated}_{edge,node,xattr,chunk}; do
