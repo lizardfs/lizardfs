@@ -194,17 +194,11 @@ get_source_line() {
 
 # Internal functions
 rescale_timeout_for_assert_eventually_() {
-	if valgrind_enabled; then
-		if [[ -n "$1" ]]; then
-			local multiplier=$(timeout_get_multiplier)
-			local value=$(($(date +%s -d "$1") - $(date +%s)))
-			echo $((value * multiplier)) seconds
-		else
-			echo 60 seconds
-		fi
+	if [[ -n "$1" ]]; then
+		timeout_rescale "$1"
 	else
-		if [[ -n "$1" ]]; then
-			echo "$1"
+		if valgrind_enabled; then
+			echo 60 seconds
 		else
 			echo 15 seconds
 		fi

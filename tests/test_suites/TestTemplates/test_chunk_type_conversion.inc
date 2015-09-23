@@ -64,7 +64,8 @@ for next_goal in $goals; do
 done
 
 # Verify if all chunks that should be created were indeed created
-timeout=$WAIT_FOR_REPLICATION # We will wait for $WAIT_FOR_REPLICATION seconds, no longer!
+# We will wait for $WAIT_FOR_REPLICATION seconds, no longer!
+timeout=$(timeout_rescale_seconds "$WAIT_FOR_REPLICATION")
 end_time=$((timeout + $(date +%s)))
 replication_status=
 while (( $(date +%s) < end_time )); do

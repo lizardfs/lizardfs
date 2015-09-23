@@ -24,4 +24,4 @@ assert_equals 3 $(lizardfs_rebalancing_status | awk '/us/ && $2 == 0' | wc -l)
 
 # Change goal of all our files from eu_eu to 2. Expect chunks to be spread evenly across servers
 mfssetgoal -r 2 eu_files
-assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 4 || \$2 > 6'"
+assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 4 || \$2 > 6'" "1 minute"

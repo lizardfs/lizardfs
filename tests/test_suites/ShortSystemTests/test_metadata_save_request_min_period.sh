@@ -2,7 +2,7 @@ timeout_set '1 minute'
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 master_cfg+="|MAGIC_DEBUG_LOG = master:${TEMP_DIR}/log"
-master_cfg+="|METADATA_SAVE_REQUEST_MIN_PERIOD = 10"
+master_cfg+="|METADATA_SAVE_REQUEST_MIN_PERIOD = $(timeout_rescale_seconds 10)"
 
 CHUNKSERVERS=1 \
 	MASTERSERVERS=2 \
@@ -38,9 +38,9 @@ sed -i 's/file2/fool2/g' "${info[master_data_path]}"/changelog.mfs
 # Start the shadow master again; it shouldn't synchonize within first seconds because of
 # METADATA_SAVE_REQUEST_MIN_PERIOD. Let's verify if the synchronization needs at least 7 seconds.
 lizardfs_master_n 1 start
-sleep 7
+sleep $(timeout_rescale_seconds 7)
 assert_failure lizardfs_shadow_synchronized 1
-assert_eventually "lizardfs_shadow_synchronized 1"
+assert_eventually "lizardfs_shadow_synchronized 1" "15 seconds"
 
 # Verify if the METADATA_SAVE_REQUEST_MIN_PERIOD mechanism was used
 log=$(cat "${TEMP_DIR}/log")

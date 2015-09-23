@@ -58,7 +58,7 @@ assert_eventually_prints '8 xor3 12 xor5' 'chunks_state' '3 minutes'
 mfsmakesnapshot file_snapshot2 file_snapshot4
 mfssetgoal 3 file_snapshot3
 echo "Waiting for chunks to be replicated..."
-assert_eventually_prints '6 standard 8 xor3 12 xor5' 'chunks_state' '1 minute'
+assert_eventually_prints '6 standard 8 xor3 12 xor5' 'chunks_state' '3 minutes'
 
 # Verify if file's data isn't damaged
 assert_success file-validate file*
