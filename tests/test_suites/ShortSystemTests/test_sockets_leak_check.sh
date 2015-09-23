@@ -7,8 +7,9 @@ max_files=10
 max_sockets_delta=100
 time_limit=10
 
+# get number of TCP sockets without closed ones
 get_used_socket_count() {
-	ss -s | grep "TCP:" | awk '{print $2}'
+	ss -s | grep "TCP:" | awk '{print $2 - $6}'
 }
 
 if ! is_program_installed ss; then
