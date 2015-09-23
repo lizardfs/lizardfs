@@ -519,7 +519,7 @@ find_first_chunkserver_with_chunks_matching() {
 find_chunkserver_chunks() {
 	local chunkserver_number=$1
 	shift
-	local hdds=$(sed -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
+	local hdds=$(sed -e 's/*//' -e 's|$|/chunks[A-F0-9][A-F0-9]/|' \
 			"${lizardfs_info_[chunkserver${chunkserver_number}_hdd]}")
 	if (( $# > 0 )); then
 		find $hdds "(" -name 'chunk*.liz' -o -name 'chunk*.mfs' ")" -a "(" "$@" ")"

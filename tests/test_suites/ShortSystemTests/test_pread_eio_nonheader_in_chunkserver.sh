@@ -1,7 +1,7 @@
 # Create an installation with 3 chunkservers, 1 disk each.
 # CS 0 has a disk which will fail during the test when reading bigger files.
 USE_RAMDISK=YES \
-	MOUNTS=2
+	MOUNTS=2 \
 	CHUNKSERVERS=3 \
 	CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0`
 			`|USE_SPLICE = 0" \
