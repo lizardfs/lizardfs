@@ -144,6 +144,12 @@ When set to 1 (max), no other chunks would be processed as long as there are
 any endangered chunks in the queue (not advised)
 (default is 0, i.e. there is no overhead for prioritizing endangered chunks).
 
+*ENDANGERED_CHUNKS_MAX_CAPACITY*::
+Max capacity of endangered chunks queue. This value can limit memory usage of master server
+if there are lots of endangered chunks in the system.
+This value is ignored if ENDANGERED_CHUNKS_PRIORITY is set to 0.
+(default is 1Mi, i.e. no more than 1Mi chunks will be kept in a queue).
+
 *ACCEPTABLE_DIFFERENCE*::
 A maximum difference between disk usage on chunkservers that doesn't trigger chunk rebalancing
 (default is 0.1, i.e. 10%).

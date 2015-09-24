@@ -75,6 +75,7 @@
 #ifndef METARESTORE
 
 static uint64_t gEndangeredChunksServingLimit;
+static uint64_t gEndangeredChunksMaxCapacity;
 
 /* chunk.operation */
 enum {NONE,CREATE,SET_VERSION,DUPLICATE,TRUNCATE,DUPTRUNC};
@@ -354,11 +355,13 @@ public:
 
 		/* Enqueue a chunk as endangered only if:
 		 * 1. Endangered chunks prioritization is on (limit > 0)
-		 * 2. Chunk have more missing parts than it used to.
-		 * 3. Chunk is endangered.
-		 * 4. It is not already in queue
+		 * 2. Limit of endangered chunks in queue is not reached
+		 * 3. Chunk has more missing parts than it used to
+		 * 4. Chunk is endangered
+		 * 5. It is not already in queue
 		 * By checking conditions below we assert no repetitions in endangered queue. */
 		if (gEndangeredChunksServingLimit > 0
+				&& endangeredChunks.size() < gEndangeredChunksMaxCapacity
 				&& allMissingParts_ > oldAllMissingParts
 				&& allAvailabilityState_ == ChunksAvailabilityState::kEndangered
 				&& !inEndangeredQueue) {
@@ -2178,8 +2181,8 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 		// Enqueue chunk again only if it was taken directly from endangered chunks queue
 		// to avoid repetitions. If it was taken from chunk hashmap, inEndangeredQueue bit
 		// would be still up.
-		if (!c->inEndangeredQueue &&
-		    calc.getState() == ChunksAvailabilityState::kEndangered) {
+		if (gEndangeredChunksServingLimit > 0 && chunk::endangeredChunks.size() < gEndangeredChunksMaxCapacity
+			&& !c->inEndangeredQueue && calc.getState() == ChunksAvailabilityState::kEndangered) {
 			c->inEndangeredQueue = 1;
 			chunk::endangeredChunks.push_back(c);
 		}
@@ -2695,6 +2698,7 @@ void chunk_reload(void) {
 	}
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
+	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", 1024*1024UL);
 	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE",0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 }
@@ -2772,6 +2776,7 @@ int chunk_strinit(void) {
 	}
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
+	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", 1024*1024UL);
 	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	jobshpos = 0;
