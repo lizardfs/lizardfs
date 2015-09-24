@@ -1925,8 +1925,7 @@ private:
 	void deleteAllChunkParts(chunk *c);
 	bool replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc);
 	bool removeUnneededChunkPart(chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc);
-	bool removeMarkedChunkParts(chunk *c, ChunkCopiesCalculator& calc);
-	void rebalanceChunkParts(chunk *c, ChunkCopiesCalculator& calc);
+	bool rebalanceChunkParts(chunk *c, ChunkCopiesCalculator& calc, bool only_todel);
 
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
@@ -2197,6 +2196,7 @@ bool ChunkWorker::removeUnneededChunkPart(chunk *c, Goal::Slice::Type slice_type
 	}
 
 	slist *candidate = nullptr;
+	bool candidate_todel = false;
 	double candidate_usage = std::numeric_limits<double>::lowest();
 	for (slist *s = c->slisthead; s != nullptr; s = s->next) {
 		if (!s->is_valid() || s->chunkType != ChunkPartType(slice_type, slice_part)) {
@@ -2211,10 +2211,12 @@ bool ChunkWorker::removeUnneededChunkPart(chunk *c, Goal::Slice::Type slice_type
 			continue;
 		}
 
+		bool is_todel = s->is_todel();
 		double usage = matocsserv_get_usage(s->ptr);
-		if (usage > candidate_usage) {
+		if (std::make_pair(is_todel, usage) > std::make_pair(candidate_todel, candidate_usage)) {
 			candidate = s;
 			candidate_usage = usage;
+			candidate_todel = is_todel;
 		}
 	}
 
@@ -2238,46 +2240,24 @@ bool ChunkWorker::removeUnneededChunkPart(chunk *c, Goal::Slice::Type slice_type
 	return false;
 }
 
-bool ChunkWorker::removeMarkedChunkParts(chunk *c, ChunkCopiesCalculator &calc) {
-	bool need_to_remove = false;
-
-	for (slist *s = c->slisthead; s; s = s->next) {
-		if (s->valid != TDVALID) {
-			continue;
-		}
-
-		if (!calc.canRemovePart(s->chunkType.getSliceType(), s->chunkType.getSlicePart(),
-		                        matocsserv_get_label(s->ptr))) {
-			continue;
-		}
-
-		if (matocsserv_deletion_counter(s->ptr) < TmpMaxDel) {
-			c->deleteCopy(s);
-			c->needverincrease = 1;
-			stats_deletions++;
-			matocsserv_send_deletechunk(s->ptr, c->chunkid, 0, s->chunkType);
-			inforec_.done.del_diskclean++;
-			return true;
-		} else {
-			need_to_remove = true;
-			inforec_.notdone.del_diskclean++;
+bool ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc, bool only_todel) {
+	if(!only_todel) {
+		double min_usage = sortedServers_.front().diskUsage;
+		double max_usage = sortedServers_.back().diskUsage;
+		if ((max_usage - min_usage) <= AcceptableDifference) {
+			return false;
 		}
 	}
 
-	return need_to_remove;
-}
-
-void ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc) {
-	double minUsage = sortedServers_.front().diskUsage;
-	double maxUsage = sortedServers_.back().diskUsage;
-	if ((maxUsage - minUsage) <= AcceptableDifference) {
-		return;
-	}
 	// Consider each copy to be moved to a server with disk usage much less than actual.
 	// There are at least two servers with a disk usage difference grater than
 	// AcceptableDifference, so it's worth checking.
 	for (slist *s = c->slisthead; s != nullptr; s = s->next) {
 		if (!s->is_valid() || matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+			continue;
+		}
+
+		if(only_todel && !s->is_todel()) {
 			continue;
 		}
 
@@ -2301,7 +2281,7 @@ void ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc) {
 		        multi_label_rebalance ? sortedServers_
 		                              : labeledSortedServers_[current_copy_label];
 		for (const auto &empty_server : sorted_servers) {
-			if (empty_server.diskUsage >
+			if (!only_todel && empty_server.diskUsage >
 			    current_copy_disk_usage - AcceptableDifference) {
 				break;  // No more suitable destination servers (next servers have
 				        // higher usage)
@@ -2320,10 +2300,12 @@ void ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc) {
 			}
 			if (tryReplication(c, s->chunkType, empty_server.server)) {
 				inforec_.copy_rebalance++;
-				return;
+				return true;
 			}
 		}
 	}
+
+	return false;
 }
 
 void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
@@ -2412,8 +2394,8 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 		}
 	}
 
-	// step 9. remove chunk parts marked for deletion if it won't break chunk safety
-	if (removeMarkedChunkParts(c, calc)) {
+	// step 9. If chunk has parts marked as "to delete" then move them to other servers
+	if(rebalanceChunkParts(c, calc, true)) {
 		return;
 	}
 
@@ -2423,7 +2405,7 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 
 	// step 10. if there is too big difference between chunkservers then make copy of chunk from
 	// a server with a high disk usage on a server with low disk usage
-	rebalanceChunkParts(c, calc);
+	rebalanceChunkParts(c, calc, false);
 }
 
 static std::unique_ptr<ChunkWorker> gChunkWorker;
