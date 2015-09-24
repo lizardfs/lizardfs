@@ -1519,8 +1519,6 @@ uint8_t fs_append(const FsContext &context, uint32_t inode, uint32_t inode_src) 
 	return status;
 }
 
-#ifndef METARESTORE
-
 static int fsnodes_check_lock_permissions(const FsContext &context, uint32_t inode, uint16_t op) {
 	fsnode *dummy;
 	uint8_t modemask = MODE_MASK_EMPTY;
@@ -1625,24 +1623,41 @@ int fs_lock_op(const FsContext &context, FileLocks &locks, uint32_t inode,
 int fs_flock_op(const FsContext &context, uint32_t inode, uint64_t owner, uint32_t sessionid,
 		uint32_t reqid, uint32_t msgid, uint16_t op, bool nonblocking,
 		std::vector<FileLocks::Owner> &applied) {
-	return fs_lock_op(context, gMetadata->flock_locks, inode, 0, 1, owner, sessionid,
+	ChecksumUpdater cu(context.ts());
+	int ret = fs_lock_op(context, gMetadata->flock_locks, inode, 0, 1, owner, sessionid,
 			reqid, msgid, op, nonblocking, applied);
+	if (context.isPersonalityMaster()) {
+		fs_changelog(context.ts(), "FLCK(%" PRIu8 ",%" PRIu32 ",0,1,%" PRIu64 ",%" PRIu32 ",%" PRIu16 ")",
+				(uint8_t)lzfs_locks::Type::kFlock, inode, owner, sessionid, op);
+	} else {
+		gMetadata->metaversion++;
+	}
+	return ret;
 }
 
 int fs_posixlock_op(const FsContext &context, uint32_t inode, uint64_t start, uint64_t end,
 		uint64_t owner, uint32_t sessionid, uint32_t reqid, uint32_t msgid, uint16_t op,
 		bool nonblocking, std::vector<FileLocks::Owner> &applied) {
-	return fs_lock_op(context, gMetadata->posix_locks, inode, start, end, owner, sessionid,
+	ChecksumUpdater cu(context.ts());
+	int ret = fs_lock_op(context, gMetadata->posix_locks, inode, start, end, owner, sessionid,
 			reqid, msgid, op, nonblocking, applied);
+	if (context.isPersonalityMaster()) {
+		fs_changelog(context.ts(), "FLCK(%" PRIu8 ",%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu32 ",%" PRIu16 ")",
+				(uint8_t)lzfs_locks::Type::kPosix, inode, start, end, owner, sessionid, op);
+	} else {
+		gMetadata->metaversion++;
+	}
+	return ret;
 }
 
 int fs_locks_clear_session(const FsContext &context, uint8_t type, uint32_t inode,
 		uint32_t sessionid, std::vector<FileLocks::Owner> &applied) {
-	(void)context;
 
 	if (type != (uint8_t)lzfs_locks::Type::kFlock && type != (uint8_t)lzfs_locks::Type::kPosix) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
+
+	ChecksumUpdater cu(context.ts());
 
 	FileLocks *locks = type == (uint8_t)lzfs_locks::Type::kFlock ? &gMetadata->flock_locks
 	                                                             : &gMetadata->posix_locks;
@@ -1661,6 +1676,12 @@ int fs_locks_clear_session(const FsContext &context, uint8_t type, uint32_t inod
 		for (auto &candidate : queue) {
 			applied.insert(applied.end(), candidate.owners.begin(), candidate.owners.end());
 		}
+	}
+	if (context.isPersonalityMaster()) {
+		fs_changelog(context.ts(), "CLRLCK(%" PRIu8 ",%" PRIu32 ",%" PRIu32 ")", type, inode,
+		             sessionid);
+	} else {
+		gMetadata->metaversion++;
 	}
 
 	return LIZARDFS_STATUS_OK;
@@ -1722,7 +1743,8 @@ static void fs_manage_lock_try_lock_pending(FileLocks &locks, uint32_t inode, ui
 
 int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode,
 		std::vector<FileLocks::Owner> &applied) {
-	(void)context;
+	ChecksumUpdater cu(context.ts());
+
 	if (type == (uint8_t)lzfs_locks::Type::kFlock) {
 		gMetadata->flock_locks.unlock(inode);
 		fs_manage_lock_try_lock_pending(gMetadata->flock_locks, inode, 0, 1, applied);
@@ -1734,8 +1756,16 @@ int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
+	if (context.isPersonalityMaster()) {
+		fs_changelog(context.ts(), "FLCKINODE(%" PRIu8 ",%" PRIu32 ")", type, inode);
+	} else {
+		gMetadata->metaversion++;
+	}
+
 	return LIZARDFS_STATUS_OK;
 }
+
+#ifndef METARESTORE
 
 uint8_t fs_readdir_size(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t uid,
 		uint32_t gid, uint8_t flags, void **dnode, uint32_t *dbuffsize) {

@@ -21,6 +21,7 @@
 #include "master/filesystem_store.h"
 
 #include <cstdio>
+#include <vector>
 
 #include "common/cwrap.h"
 #include "common/main.h"
@@ -38,6 +39,7 @@
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_operations.h"
 #include "master/filesystem_checksum.h"
+#include "master/locks.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
 #include "master/metadata_dumper.h"
@@ -129,7 +131,7 @@ int xattr_load(FILE *fd, int ignoreflag) {
 
 		ihash = xattr_inode_hash_fn(inode);
 		for (ih = gMetadata->xattr_inode_hash[ihash]; ih && ih->inode != inode;
-		     ih = ih->next) {
+			ih = ih->next) {
 		}
 
 		if (ih && ih->anleng + anleng + 1 > MFS_XATTR_LIST_MAX) {
@@ -271,7 +273,7 @@ static int fs_loadacl(FILE *fd, int ignoreflag) {
 			return 1;
 		} else if (size > 10000000) {
 			throw Exception("strange size of entry: " + std::to_string(size),
-			                LIZARDFS_ERROR_ERANGE);
+				LIZARDFS_ERROR_ERANGE);
 		}
 
 		// Read the entry
@@ -866,6 +868,11 @@ static void fs_storequotas(FILE *fd) {
 	fs_store_generic(fd, entries);
 }
 
+static void fs_storelocks(FILE *fd) {
+	gMetadata->flock_locks.store(fd);
+	gMetadata->posix_locks.store(fd);
+}
+
 int fs_lostnode(fsnode *p) {
 	uint8_t artname[40];
 	uint32_t i, l;
@@ -964,6 +971,19 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 	return 0;
 }
 
+static int fs_loadlocks(FILE *fd, int ignoreflag) {
+	try {
+		gMetadata->flock_locks.load(fd);
+		gMetadata->posix_locks.load(fd);
+	} catch (Exception &ex) {
+		lzfs_pretty_syslog(LOG_ERR, "loading locks: %s", ex.what());
+		if (!ignoreflag || ex.status() != LIZARDFS_STATUS_OK) {
+			return -1;
+		}
+	}
+	return 0;
+}
+
 void fs_storefree(FILE *fd) {
 	uint8_t wbuff[8 * 1024], *ptr;
 
@@ -1043,6 +1063,22 @@ int fs_loadfree(FILE *fd) {
 	return 0;
 }
 
+static int process_section(const char *label, uint8_t (&hdr)[16], uint8_t *&ptr,
+		off_t &offbegin, off_t &offend, FILE *&fd) {
+	offend = ftello(fd);
+	memcpy(hdr, label, 8);
+	ptr = hdr + 8;
+	put64bit(&ptr, offend - offbegin - 16);
+	fseeko(fd, offbegin, SEEK_SET);
+	if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
+		syslog(LOG_NOTICE, "fwrite error");
+		return LIZARDFS_ERROR_IO;
+	}
+	offbegin = offend;
+	fseeko(fd, offbegin + 16, SEEK_SET);
+	return LIZARDFS_STATUS_OK;
+}
+
 void fs_store(FILE *fd, uint8_t fver) {
 	uint8_t hdr[16];
 	uint8_t *ptr;
@@ -1064,97 +1100,41 @@ void fs_store(FILE *fd, uint8_t fver) {
 	}
 	fs_storenodes(fd);
 	if (fver >= kMetadataVersionWithSections) {
-		offend = ftello(fd);
-		memcpy(hdr, "NODE 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("NODE 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
 	}
 	fs_storeedges(fd);
 	if (fver >= kMetadataVersionWithSections) {
-		offend = ftello(fd);
-		memcpy(hdr, "EDGE 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("EDGE 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
 	}
 	fs_storefree(fd);
 	if (fver >= kMetadataVersionWithSections) {
-		offend = ftello(fd);
-		memcpy(hdr, "FREE 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("FREE 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
-
 		xattr_store(fd);
-
-		offend = ftello(fd);
-		memcpy(hdr, "XATR 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("XATR 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
-
 		fs_storeacls(fd);
-
-		offend = ftello(fd);
-		memcpy(hdr, "ACLS 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("ACLS 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
-
 		fs_storequotas(fd);
-
-		offend = ftello(fd);
-		memcpy(hdr, "QUOT 1.1", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("QUOT 1.1", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		offbegin = offend;
-		fseeko(fd, offbegin + 16, SEEK_SET);
+		fs_storelocks(fd);
+		if (process_section("FLCK 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
+			return;
+		}
 	}
 	chunk_store(fd);
 	if (fver >= kMetadataVersionWithSections) {
-		offend = ftello(fd);
-		memcpy(hdr, "CHNK 1.0", 8);
-		ptr = hdr + 8;
-		put64bit(&ptr, offend - offbegin - 16);
-		fseeko(fd, offbegin, SEEK_SET);
-		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+		if (process_section("CHNK 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
 
@@ -1342,6 +1322,15 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 				}
 			} else if (memcmp(hdr, "LOCK 1.0", 8) == 0) {
 				fseeko(fd, sleng, SEEK_CUR);
+			} else if (memcmp(hdr, "FLCK 1.0", 8) == 0) {
+				lzfs_pretty_syslog_attempt(LOG_ERR, "loading file locks from the metadata file");
+				if (fs_loadlocks(fd, ignoreflag) < 0) {
+#ifndef METARESTORE
+					lzfs_pretty_syslog(LOG_ERR,
+					                   "error reading metadata (chunks)");
+#endif
+					return -1;
+				}
 			} else if (memcmp(hdr, "CHNK 1.0", 8) == 0) {
 				lzfs_pretty_syslog_attempt(
 				        LOG_INFO, "loading chunks data from the metadata file");

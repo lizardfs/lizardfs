@@ -175,6 +175,9 @@ assert_success lizardfs_admin_master manage-locks unlock flock --inode 3
 assert_eventually_prints $((1 + 0)) 'lizardfs_admin_master manage-locks list flock --porcelain --pending | wc -l'
 assert_eventually_prints $((1 + 1)) 'lizardfs_admin_master manage-locks list flock --porcelain --active | wc -l'
 
+# No processes actively try to lock a file, so master restart would not affect system state at all
+assert_success lizardfs_master_daemon restart
+
 # After releasing the last lock (read lock for inode 3), system should be clear from flocks
 lockinfo=$(lizardfs_admin_master manage-locks list flock --porcelain --active | tail -n 1)
 inode=$(echo ${lockinfo} | cut -d' ' -f1)

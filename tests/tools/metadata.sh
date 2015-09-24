@@ -170,7 +170,7 @@ metadata_generate_chunks() {
 	echo 'zZzZ' >>chunk_z
 }
 
-metdata_generate_chunks_with_goals() {
+metadata_generate_chunks_with_goals() {
 	for i in {1..20}; do
 		mkdir chunks_with_goals_$i
 		mfssetgoal $i chunks_with_goals_$i
@@ -273,6 +273,38 @@ metadata_generate_truncate() {
 	truncate -s "$LIZARDFS_CHUNK_SIZE" truncate_short4
 }
 
+metadata_generate_filelocks() {
+	metadata_generate_filelocks_ flockcmd r w
+	metadata_generate_filelocks_ posixlockcmd w r
+}
+
+metadata_generate_filelocks_() {
+	for i in {1..20}; do
+		touch lock_file$i
+		${1} lock_file$i $2 >/dev/null &
+		pid1[$i]=$!
+	done
+
+	for i in {1..20}; do
+		${1} lock_file$i $3 >/dev/null &
+		pid2[$i]=$!
+	done
+
+	for i in {1..5}; do
+		kill -s SIGUSR1 ${pid1[$i]}
+	done
+	for i in {6..10}; do
+		kill -s SIGKILL ${pid1[$i]}
+	done
+
+	for i in {11..15}; do
+		kill -s SIGUSR1 ${pid2[$i]}
+	done
+	for i in {16..20}; do
+		kill -s SIGKILL ${pid2[$i]}
+	done
+}
+
 metadata_get_all_generators() {
 	echo metadata_generate_files
 	echo metadata_generate_funny_inodes
@@ -283,7 +315,7 @@ metadata_get_all_generators() {
 	echo metadata_generate_settrashtime
 	echo metadata_generate_seteattr
 	echo metadata_generate_chunks
-	echo metdata_generate_chunks_with_goals
+	echo metadata_generate_chunks_with_goals
 	echo metadata_generate_snapshot
 	echo metadata_generate_xattrs
 	echo metadata_generate_acls
@@ -291,6 +323,7 @@ metadata_get_all_generators() {
 	echo metadata_generate_uids_gids
 	echo metadata_generate_touch
 	echo metadata_generate_truncate
+	echo metadata_generate_filelocks
 }
 
 metadata_generate_all() {

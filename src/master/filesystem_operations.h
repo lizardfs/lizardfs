@@ -62,8 +62,8 @@ int fs_flock_op(const FsContext &context, uint32_t inode, uint64_t owner, uint32
  * - shared/exlusive blocking/nonblocking lock
  * - handle interrupt
  */
-int fs_posixlock_op(const FsContext &context, uint32_t inode, uint64_t owner,
-		uint64_t start, uint64_t end, uint32_t sessionid, uint32_t reqid, uint32_t msgid,
+int fs_posixlock_op(const FsContext &context, uint32_t inode, uint64_t start,
+		uint64_t end, uint64_t owner, uint32_t sessionid, uint32_t reqid, uint32_t msgid,
 		uint16_t op, bool nonblocking, std::vector<FileLocks::Owner> &applied);
 
 /*! \brief Perform a POSIX lock probe on filesystem

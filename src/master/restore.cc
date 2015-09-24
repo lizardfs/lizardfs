@@ -28,6 +28,7 @@
 #include "common/slogger.h"
 #include "master/filesystem.h"
 #include "master/filesystem_snapshot.h"
+#include "master/filesystem_operations.h"
 
 #ifndef METARESTORE
 # include "common/debug_log.h"
@@ -190,8 +191,8 @@
 	} \
 }
 
-#define GETU32(data,clptr) do { char* end = NULL; (data)=strtoul(clptr,&end,10); clptr = end; } while (false)
-#define GETU64(data,clptr) do { char* end = NULL; (data)=strtoull(clptr,&end,10); clptr = end; } while (false)
+#define GETU32(data,clptr) do { char* end_ = NULL; (data)=strtoul(clptr,&end_,10); clptr = end_; } while (0)
+#define GETU64(data,clptr) do { char* end_ = NULL; (data)=strtoull(clptr,&end_,10); clptr = end_; } while (0)
 
 int do_access(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	uint32_t inode;
@@ -365,6 +366,79 @@ int do_move(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 			parent_src, strlen((char*)name_src), name_src,
 			parent_dst, strlen((char*)name_dst), name_dst,
 			&inode, nullptr);
+}
+
+int do_lock_op(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+	uint32_t lock_type, inode, sessionid;
+	uint64_t start, end;
+	uint64_t owner;
+	uint32_t op;
+	const bool nonblocking = false;
+	std::vector<FileLocks::Owner> dummy_applied;
+	EAT(ptr, filename, lv, '(');
+	GETU32(lock_type, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(start, ptr);
+	EAT(ptr ,filename, lv, ',');
+	GETU64(end, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU64(owner, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(sessionid, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(op, ptr);
+	EAT(ptr,filename,lv,')');
+
+	int status = LIZARDFS_STATUS_OK;
+
+	switch (static_cast<lzfs_locks::Type>(lock_type)) {
+	case lzfs_locks::Type::kFlock:
+		status = fs_flock_op(FsContext::getForRestore(ts), inode, owner, sessionid, 0, 0,
+				op, nonblocking, dummy_applied);
+		break;
+	case lzfs_locks::Type::kPosix:
+		status = fs_posixlock_op(FsContext::getForRestore(ts), inode, start, end, owner, sessionid, 0, 0,
+				op, nonblocking, dummy_applied);
+		break;
+	default:
+		lzfs_pretty_syslog(LOG_ERR, "Invalid lock type passed to restore: %u", lock_type);
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	if (status==LIZARDFS_ERROR_WAITING) {
+		return LIZARDFS_STATUS_OK;
+	}
+	return status;
+}
+
+int do_lock_clear_session(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+	uint32_t lock_type, inode, sessionid;
+	std::vector<FileLocks::Owner> applied;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(lock_type, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(sessionid, ptr);
+	EAT(ptr, filename, lv, ')');
+
+	return fs_locks_clear_session(FsContext::getForRestore(ts), lock_type, inode, sessionid, applied);
+}
+
+int do_lock_unlock_inode(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+	uint32_t lock_type, inode;
+	std::vector<FileLocks::Owner> applied;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(lock_type, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ')');
+
+	return fs_locks_unlock_inode(FsContext::getForRestore(ts), lock_type, inode, applied);
 }
 
 int do_purge(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -726,6 +800,8 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 				status = do_create(filename,lv,ts,ptr+6);
 			} else if (strncmp(ptr,"CUSTOMER",8)==0) {      // deprecated
 				status = do_session(filename,lv,ts,ptr+8);
+			} else if (strncmp(ptr,"CLRLCK",6)==0) {
+				status = do_lock_clear_session(filename,lv,ts,ptr+6);
 			}
 			break;
 		case 'D':
@@ -741,7 +817,11 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 			}
 			break;
 		case 'F':
-			if (strncmp(ptr,"FREEINODES",10)==0) {
+			if (strncmp(ptr,"FLCKINODE",9)==0) {
+				status = do_lock_unlock_inode(filename,lv,ts,ptr+9);
+			} else if (strncmp(ptr, "FLCK", 4) == 0) {
+				status = do_lock_op(filename,lv,ts,ptr+4);
+			} else if (strncmp(ptr, "FREEINODES", 10) == 0) {
 				status = do_freeinodes(filename,lv,ts,ptr+10);
 			}
 			break;
