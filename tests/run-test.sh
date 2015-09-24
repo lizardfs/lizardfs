@@ -64,7 +64,10 @@ for log_file in "$ERROR_DIR"/* ; do
 			# Do not inform users that there is nonempty syslog
 			# It is always nonempty if the test failed
 			echo "(FATAL) Errors in ${log_file_name}" | tee "${ERROR_FILE}"
-			cat "${log_file}"
+			# print all non-binary files to stdout
+			if file --mime-encoding "${log_file_name}" | awk '{exit $2=="binary"}'; then
+				cat "${log_file}"
+			fi
 		fi
 		if [[ $TEST_OUTPUT_DIR ]]; then
 			cp "${log_file}" "$TEST_OUTPUT_DIR/$(date '+%F_%T')__$(basename $1 .sh)__${log_file_name}"
