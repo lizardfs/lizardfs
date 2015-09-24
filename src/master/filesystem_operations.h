@@ -77,3 +77,11 @@ int fs_posixlock_probe(const FsContext &context, uint32_t inode, uint64_t start,
  */
 int fs_locks_clear_session(const FsContext &context, uint8_t type, uint32_t inode,
 		uint32_t sessionid, std::vector<FileLocks::Owner> &applied);
+
+/*! \brief Perform a lock management operation on inode */
+int fs_locks_list_all(const FsContext &context, uint8_t type, bool pending,
+		uint64_t start, uint64_t max, std::vector<lzfs_locks::Info> &locks);
+int fs_locks_list_inode(const FsContext &context, uint8_t type, bool pending,
+		uint32_t inode, uint64_t start, uint64_t max, std::vector<lzfs_locks::Info> &locks);
+int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode,
+		std::vector<FileLocks::Owner> &applied);

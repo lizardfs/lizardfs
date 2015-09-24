@@ -86,6 +86,11 @@ inline int Options::convert(const std::string &str) const {
 }
 
 template<>
+inline unsigned int Options::convert(const std::string &str) const {
+	return std::stoul(str);
+}
+
+template<>
 inline long Options::convert(const std::string &str) const {
 	return std::stol(str);
 }

@@ -35,6 +35,7 @@
 #include "master/matocsserv.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
+#include "protocol/matocl.h"
 
 static uint32_t stats_statfs = 0;
 static uint32_t stats_getattr = 0;
@@ -1660,6 +1661,77 @@ int fs_locks_clear_session(const FsContext &context, uint8_t type, uint32_t inod
 		for (auto &candidate : queue) {
 			applied.insert(applied.end(), candidate.owners.begin(), candidate.owners.end());
 		}
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+int fs_locks_list_all(const FsContext &context, uint8_t type, bool pending, uint64_t start,
+		uint64_t max, std::vector<lzfs_locks::Info> &result) {
+	(void)context;
+	FileLocks *locks;
+	if (type == (uint8_t)lzfs_locks::Type::kFlock) {
+		locks = &gMetadata->flock_locks;
+	} else if (type == (uint8_t)lzfs_locks::Type::kPosix) {
+		locks = &gMetadata->posix_locks;
+	} else {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	if (pending) {
+		locks->copyPendingToVector(start, max, result);
+	} else {
+		locks->copyActiveToVector(start, max, result);
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+int fs_locks_list_inode(const FsContext &context, uint8_t type, bool pending, uint32_t inode,
+		uint64_t start, uint64_t max, std::vector<lzfs_locks::Info> &result) {
+	(void)context;
+	FileLocks *locks;
+
+	if (type == (uint8_t)lzfs_locks::Type::kFlock) {
+		locks = &gMetadata->flock_locks;
+	} else if (type == (uint8_t)lzfs_locks::Type::kPosix) {
+		locks = &gMetadata->posix_locks;
+	} else {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	if (pending) {
+		locks->copyPendingToVector(inode, start, max, result);
+	} else {
+		locks->copyActiveToVector(inode, start, max, result);
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+static void fs_manage_lock_try_lock_pending(FileLocks &locks, uint32_t inode, uint64_t start,
+		uint64_t end, std::vector<FileLocks::Owner> &applied) {
+	FileLocks::LockQueue queue;
+	locks.gatherCandidates(inode, start, end, queue);
+	for (auto &candidate : queue) {
+		if (locks.apply(inode, candidate)) {
+			applied.insert(applied.end(), candidate.owners.begin(), candidate.owners.end());
+		}
+	}
+}
+
+int fs_locks_unlock_inode(const FsContext &context, uint8_t type, uint32_t inode,
+		std::vector<FileLocks::Owner> &applied) {
+	(void)context;
+	if (type == (uint8_t)lzfs_locks::Type::kFlock) {
+		gMetadata->flock_locks.unlock(inode);
+		fs_manage_lock_try_lock_pending(gMetadata->flock_locks, inode, 0, 1, applied);
+	} else if (type == (uint8_t)lzfs_locks::Type::kPosix) {
+		gMetadata->posix_locks.unlock(inode);
+		fs_manage_lock_try_lock_pending(gMetadata->posix_locks, inode, 0,
+		                                std::numeric_limits<uint64_t>::max(), applied);
+	} else {
+		return LIZARDFS_ERROR_EINVAL;
 	}
 
 	return LIZARDFS_STATUS_OK;

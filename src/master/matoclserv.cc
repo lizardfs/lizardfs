@@ -3991,6 +3991,115 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 	}
 }
 
+void matoclserv_manage_locks_list(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t inode;
+	lzfs_locks::Type type;
+	bool pending;
+	uint64_t start;
+	uint64_t max;
+	PacketVersion version;
+	std::vector<lzfs_locks::Info> locks;
+	int status;
+
+	if (eptr->registered != ClientState::kAdmin) {
+		syslog(LOG_NOTICE, "Listing file locks is available only for registered admins");
+		eptr->mode = KILL;
+		return;
+	}
+
+	deserializePacketVersionNoHeader(data, length, version);
+
+	if (version == cltoma::manageLocksList::kAll) {
+		cltoma::manageLocksList::deserialize(data, length, type, pending, start, max);
+		max = std::min(max, (uint64_t)LIZ_CLTOMA_MANAGE_LOCKS_LIST_LIMIT);
+		status = fs_locks_list_all(context, (uint8_t)type, pending, start, max, locks);
+	} else if (version == cltoma::manageLocksList::kInode) {
+		cltoma::manageLocksList::deserialize(data, length, inode, type, pending, start, max);
+		max = std::min(max, (uint64_t)LIZ_CLTOMA_MANAGE_LOCKS_LIST_LIMIT);
+		status = fs_locks_list_inode(context, (uint8_t)type, pending, inode, start, max, locks);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown LIZ_CLTOMA_MANAGE_LOCKS_LIST version: " + std::to_string(version));
+	}
+
+	if (status != LIZARDFS_STATUS_OK) {
+		lzfs_pretty_syslog(LOG_WARNING, "Master received invalid lock type %" PRIu8
+		                                " from in LIZ_CLTOMA_MANAGE_LOCKS_LIST packet",
+		                   (uint8_t)type);
+	}
+
+	MessageBuffer reply;
+	matocl::manageLocksList::serialize(reply, locks);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	FsContext context = FsContext::getForMaster(main_time());
+	uint32_t inode;
+	uint64_t owner;
+	uint32_t sessionid;
+	lzfs_locks::Type type;
+	uint64_t start;
+	uint64_t end;
+	PacketVersion version;
+	uint8_t status;
+	std::vector<FileLocks::Owner> flocks_applied, posix_applied;
+
+	if (eptr->registered != ClientState::kAdmin) {
+		syslog(LOG_NOTICE, "Removing file locks is available only for registered admins");
+		eptr->mode = KILL;
+		return;
+	}
+
+	deserializePacketVersionNoHeader(data, length, version);
+
+	if (version == cltoma::manageLocksUnlock::kSingle) {
+		cltoma::manageLocksUnlock::deserialize(data, length, type, inode, sessionid, owner, start,
+		                                       end);
+		// Passing a 0 as lock's end is equivalent to passing 'till EOF'
+		if (end == 0) {
+			end = std::numeric_limits<decltype(end)>::max();
+		}
+		if (type == lzfs_locks::Type::kAll || type == lzfs_locks::Type::kFlock) {
+			status = fs_flock_op(context, inode, owner, sessionid, 0, 0, lzfs_locks::kUnlock, true,
+			                     flocks_applied);
+		}
+		if (status == LIZARDFS_STATUS_OK &&
+		    (type == lzfs_locks::Type::kAll || type == lzfs_locks::Type::kPosix)) {
+			status = fs_posixlock_op(context, inode, start, end, owner, sessionid, 0, 0,
+			                         lzfs_locks::kUnlock, true, posix_applied);
+		}
+	} else if (version == cltoma::manageLocksUnlock::kInode) {
+		cltoma::manageLocksUnlock::deserialize(data, length, type, inode);
+		if (type == lzfs_locks::Type::kAll || type == lzfs_locks::Type::kFlock) {
+			status = fs_locks_unlock_inode(context, (uint8_t)lzfs_locks::Type::kFlock, inode,
+			                               flocks_applied);
+		}
+		if (status == LIZARDFS_STATUS_OK &&
+		    (type == lzfs_locks::Type::kAll || type == lzfs_locks::Type::kPosix)) {
+			status = fs_locks_unlock_inode(context, (uint8_t)lzfs_locks::Type::kPosix, inode,
+			                               posix_applied);
+		}
+	} else {
+		throw IncorrectDeserializationException("Unknown LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK version: " +
+		                                        std::to_string(version));
+	}
+
+	for (auto sessionAndMsg : flocks_applied) {
+		matoclserv_lock_wake_up(sessionAndMsg.sessionid, sessionAndMsg.msgid,
+		                        lzfs_locks::Type::kFlock);
+	}
+	for (auto sessionAndMsg : posix_applied) {
+		matoclserv_lock_wake_up(sessionAndMsg.sessionid, sessionAndMsg.msgid,
+		                        lzfs_locks::Type::kPosix);
+	}
+
+	MessageBuffer reply;
+	matocl::manageLocksUnlock::serialize(reply, status);
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
 void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
@@ -4449,6 +4558,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_LIST_TAPESERVERS:
 					matoclserv_list_tapeservers(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_MANAGE_LOCKS_LIST:
+					matoclserv_manage_locks_list(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK:
+					matoclserv_manage_locks_unlock(eptr,data,length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

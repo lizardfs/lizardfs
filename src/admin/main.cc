@@ -31,6 +31,7 @@
 #include "admin/list_mounts_command.h"
 #include "admin/list_tapeservers_command.h"
 #include "admin/magic_recalculate_metadata_checksum_command.h"
+#include "admin/manage_locks_command.h"
 #include "admin/metadataserver_status_command.h"
 #include "admin/promote_shadow_command.h"
 #include "admin/ready_chunkservers_count_command.h"
@@ -53,6 +54,7 @@ int main(int argc, const char** argv) {
 			new ListMountsCommand(),
 			new ListMetadataserversCommand(),
 			new ListTapeserversCommand(),
+			new ManageLocksCommand(),
 			new MetadataserverStatusCommand(),
 			new ReadyChunkserversCountCommand(),
 			new PromoteShadowCommand(),
