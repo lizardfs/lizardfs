@@ -830,7 +830,7 @@ private:
 		std::lock_guard<std::mutex> lock(mutex_);
 		Descriptor descriptor = ++lastDescriptor_;
 		fileInfos_.insert({descriptor,
-				LizardClient::FileInfo(toLizardFsFlags(polonaiseFlags), 0, 0, descriptor)});
+				LizardClient::FileInfo(toLizardFsFlags(polonaiseFlags), 0, 0, descriptor, 0)});
 		return descriptor;
 	}
 

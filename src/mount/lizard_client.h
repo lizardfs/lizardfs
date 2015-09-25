@@ -31,6 +31,7 @@
 #include "common/exception.h"
 #include "mount/lizard_client_context.h"
 #include "mount/stat_defs.h"
+#include "protocol/lock_info.h"
 
 namespace LizardClient {
 
@@ -42,14 +43,20 @@ typedef unsigned long int Inode;
  * removed when a file is closed.
  */
 struct FileInfo {
-	FileInfo(int flags, unsigned int direct_io, unsigned int keep_cache, uint64_t fh)
-			: flags(flags), direct_io(direct_io), keep_cache(keep_cache), fh(fh) {
+	FileInfo(int flags, unsigned int direct_io, unsigned int keep_cache, uint64_t fh,
+		uint64_t lock_owner)
+			: flags(flags),
+			direct_io(direct_io),
+			keep_cache(keep_cache),
+			fh(fh),
+			lock_owner(lock_owner) {
 	}
 
 	int flags;
 	unsigned int direct_io : 1;
 	unsigned int keep_cache : 1;
 	uint64_t fh;
+	uint64_t lock_owner;
 };
 
 /**
@@ -171,6 +178,16 @@ void access(Context ctx, Inode ino, int mask);
 EntryParam create(Context ctx, Inode parent, const char *name,
 		mode_t mode, FileInfo* fi);
 
+void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+void setlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock, int sleep);
+void flock_interrupt(uint32_t reqid);
+void setlk_interrupt(uint32_t reqid);
+void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+void setlk_recv();
+uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op);
+void flock_recv();
+
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rw_lock_,
@@ -183,15 +200,12 @@ void remove_dir_info(FileInfo *f);
 // destroy
 // forget
 // fsyncdir
-// getlk
-// setlk
 // bmap
 // ioctl
 // poll
 // write_buf
 // retrieve_reply
 // forget_multi
-// flock
 // fallocate
 // readdirplus
 

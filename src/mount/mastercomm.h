@@ -28,6 +28,7 @@
 #include "common/attributes.h"
 #include "common/chunk_type_with_address.h"
 #include "protocol/packet.h"
+#include "protocol/lock_info.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
@@ -84,6 +85,13 @@ uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path);
 uint8_t fs_undel(uint32_t inode);
 uint8_t fs_purge(uint32_t inode);
 
+uint8_t fs_getlk(uint32_t inode, uint64_t owner, lzfs_locks::FlockWrapper &lock);
+uint8_t fs_setlk_send(uint32_t inode, uint64_t owner, uint32_t reqid, const lzfs_locks::FlockWrapper &lock);
+uint8_t fs_setlk_recv();
+uint8_t fs_flock_send(uint32_t inode, uint64_t owner, uint32_t reqid, uint16_t op);
+uint8_t fs_flock_recv();
+void fs_flock_interrupt(uint32_t reqid);
+void fs_setlk_interrupt(uint32_t reqid);
 
 uint8_t fs_custom(MessageBuffer& buffer);
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);

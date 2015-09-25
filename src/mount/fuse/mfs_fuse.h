@@ -64,3 +64,10 @@ void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, double acl_cache_timeout_,
 		unsigned acl_cache_size_, bool use_rwlock_ = true);
+#if FUSE_VERSION >= 26
+void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock);
+void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sleep) ;
+#endif
+#if FUSE_VERSION >= 29
+void lzfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int op);
+#endif

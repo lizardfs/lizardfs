@@ -39,7 +39,6 @@
 #include "common/acl_type.h"
 #include "common/datapack.h"
 #include "common/lru_cache.h"
-#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/posix_acl_xattr.h"
 #include "common/slogger.h"
@@ -60,6 +59,7 @@
 #include "mount/symlinkcache.h"
 #include "mount/tweaks.h"
 #include "mount/writedata.h"
+#include "protocol/MFSCommunication.h"
 
 #include "mount/stat_defs.h" // !!! This must be last include. Do not move !!!
 
@@ -150,6 +150,10 @@ static int sugid_clear_mode = 0;
 static bool acl_enabled = 0;
 bool use_rwlock = 0;
 static std::atomic<bool> gDirectIo(false);
+
+static uint32_t lock_request_counter = 0;
+static std::mutex lock_request_mutex;
+
 
 static std::unique_ptr<AclCache> acl_cache;
 
@@ -262,6 +266,9 @@ enum {
 	OP_REMOVEXATTR,
 	OP_GETDIR_FULL,
 	OP_GETDIR_SMALL,
+	OP_GETLK,
+	OP_SETLK,
+	OP_FLOCK,
 	STATNODES
 };
 
@@ -317,6 +324,9 @@ void statsptr_init(void) {
 	} else {
 		statsptr[OP_GETDIR_SMALL] = stats_get_counterptr(stats_get_subnode(s,"getdir-small",0));
 	}
+	statsptr[OP_GETLK] = stats_get_counterptr(stats_get_subnode(s,"getlk",0));
+	statsptr[OP_SETLK] = stats_get_counterptr(stats_get_subnode(s,"setlk",0));
+	statsptr[OP_FLOCK] = stats_get_counterptr(stats_get_subnode(s,"flock",0));
 }
 
 void stats_inc(uint8_t id) {
@@ -2290,6 +2300,7 @@ void release(Context ctx,
 		return;
 	}
 	if (fileinfo!=NULL) {
+		fs_flock_send(ino, fi->lock_owner, 0, lzfs_locks::kRelease);
 		remove_file_info(fi);
 	}
 	fs_release(ino);
@@ -2684,6 +2695,8 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	if (fileinfo->mode==IO_WRITE || fileinfo->mode==IO_WRITEONLY) {
 		err = write_data_flush(fileinfo->data);
 	}
+	lzfs_locks::FlockWrapper file_lock(lzfs_locks::kRelease,0,0,0);
+	fs_setlk_send(ino, fi->lock_owner, 0, file_lock);
 	if (err!=0) {
 		oplog_printf(ctx, "flush (%lu): %s",
 				(unsigned long int)ino,
@@ -3235,6 +3248,135 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s): OK",
 				(unsigned long int)ino,
 				name);
+	}
+}
+
+void flock_interrupt(uint32_t reqid) {
+	fs_flock_interrupt(reqid);
+}
+
+void setlk_interrupt(uint32_t reqid) {
+	fs_setlk_interrupt(reqid);
+}
+
+void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
+	uint32_t status;
+
+	stats_inc(OP_FLOCK);
+	if (IS_SPECIAL_INODE(ino)) {
+		if (debug_mode) {
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	if (!fi) {
+		if (debug_mode) {
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	// communicate with master
+	status = fs_getlk(ino, fi->lock_owner, lock);
+
+	if (status) {
+		status = mfs_errorconv(status);
+		throw RequestException(status);
+	}
+}
+
+uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
+	uint32_t reqid;
+	uint32_t status;
+
+	stats_inc(OP_SETLK);
+	if (IS_SPECIAL_INODE(ino)) {
+		if (debug_mode) {
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	if (!fi) {
+		if (debug_mode) {
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	// increase flock_id counter
+	lock_request_mutex.lock();
+	reqid = lock_request_counter++;
+	lock_request_mutex.unlock();
+
+	// communicate with master
+	status = fs_setlk_send(ino, fi->lock_owner, reqid, lock);
+
+	if (status) {
+		status = mfs_errorconv(status);
+		throw RequestException(status);
+	}
+
+	return reqid;
+}
+
+void setlk_recv() {
+	uint32_t status = fs_setlk_recv();
+
+	if (status) {
+		status = mfs_errorconv(status);
+		throw RequestException(status);
+	}
+}
+
+uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op) {
+	uint32_t reqid;
+	uint32_t status;
+
+	stats_inc(OP_FLOCK);
+	if (IS_SPECIAL_INODE(ino)) {
+		if (debug_mode) {
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	if (!fi) {
+		if (debug_mode) {
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, strerr(EPERM));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, strerr(EPERM));
+		}
+		throw RequestException(EINVAL);
+	}
+
+	// increase flock_id counter
+	lock_request_mutex.lock();
+	reqid = lock_request_counter++;
+	lock_request_mutex.unlock();
+
+	// communicate with master
+	status = fs_flock_send(ino, fi->lock_owner, reqid, op);
+
+	if (status) {
+		status = mfs_errorconv(status);
+		throw RequestException(status);
+	}
+
+	return reqid;
+}
+
+void flock_recv() {
+	uint32_t status = fs_flock_recv();
+
+	if (status) {
+		status = mfs_errorconv(status);
+		throw RequestException(status);
 	}
 }
 

@@ -39,21 +39,21 @@
   #include <pwd.h>
 #endif
 
-#include "protocol/cltoma.h"
 #include "common/datapack.h"
 #include "common/exception.h"
 #include "common/exit_status.h"
 #include "common/goal.h"
 #include "common/lizardfs_version.h"
-#include "protocol/matocl.h"
 #include "common/md5.h"
-#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
-#include "protocol/packet.h"
 #include "common/sockets.h"
 #include "common/slogger.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 struct threc {
 	pthread_t thid;
@@ -391,12 +391,11 @@ bool fs_lizsend(threc *rec) {
 	return false;
 }
 
-bool fs_lizreceive(threc *rec, uint32_t expectedCommand, MessageBuffer& messageData) {
+bool fs_lizrecv(threc *rec, uint32_t expectedCommand, MessageBuffer& messageData) {
 	try {
 		std::unique_lock<std::mutex> lock(rec->mutex);
 		if (fs_threc_wait(rec, lock)) {
 			if (rec->receivedType == expectedCommand) {
-				std::unique_lock<std::mutex> lock(rec->mutex);
 				rec->received = false;  // we steal ownership of the received buffer
 				messageData = std::move(rec->inputBuffer);
 				return true;
@@ -2667,3 +2666,150 @@ bool fs_unregister_packet_type_handler(PacketHeader::Type type, PacketHandler *h
 	perTypePacketHandlers.erase(it);
 	return true;
 }
+
+void fs_flock_interrupt(uint32_t reqid) {
+	(void)reqid;
+	// TODO(jotek): uncomment when master will be able to handle this request
+	/*
+	threc *rec = fs_get_my_threc();
+	auto message = cltoma::fuseFlock::build(rec->packetId, reqid);
+	// is there anything we can do if send fails?
+	fs_lizsend(rec);
+	*/
+}
+
+void fs_setlk_interrupt(uint32_t reqid) {
+	(void)reqid;
+	// TODO(jotek): uncomment when master will be able to handle this request
+	/*
+	threc *rec = fs_get_my_threc();
+	auto message = cltoma::fusSetlk::build(rec->packetId, reqid);
+	// is there anything we can do if send fails?
+	fs_lizsend(rec);
+	*/
+}
+
+uint8_t fs_getlk(uint32_t inode, uint64_t owner, lzfs_locks::FlockWrapper &lock) {
+	threc *rec = fs_get_my_threc();
+
+	auto message = cltoma::fuseGetlk::build(rec->packetId, inode, owner, lock);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GETLK, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == 0) {
+			uint8_t status;
+			uint32_t dummyMessageId;
+			matocl::fuseGetlk::deserialize(message, dummyMessageId, status);
+			return status;
+		} else {
+			fs_got_inconsistent(
+				"LIZ_MATOCL_GETLK",
+				message.size(),
+				"unknown version " + std::to_string(packetVersion));
+			return LIZARDFS_ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_GETLK", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+uint8_t fs_setlk_send(uint32_t inode, uint64_t owner, uint32_t reqid, const lzfs_locks::FlockWrapper &lock) {
+	threc *rec = fs_get_my_threc();
+
+	auto message = cltoma::fuseSetlk::build(rec->packetId, inode, owner, reqid, lock);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsend(rec)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_setlk_recv() {
+	MessageBuffer message;
+	threc* rec = fs_get_my_threc();
+
+	if (!fs_lizrecv(rec, LIZ_MATOCL_FUSE_SETLK, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == 0) {
+			uint8_t status;
+			uint32_t dummyMessageId;
+			matocl::fuseSetlk::deserialize(message, dummyMessageId, status);
+			return status;
+		} else {
+			fs_got_inconsistent(
+				"LIZ_MATOCL_SETLK",
+				message.size(),
+				"unknown version " + std::to_string(packetVersion));
+			return LIZARDFS_ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_SETLK", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+uint8_t fs_flock_send(uint32_t inode, uint64_t owner, uint32_t reqid, uint16_t op) {
+	threc *rec = fs_get_my_threc();
+
+	auto message = cltoma::fuseFlock::build(rec->packetId, inode, owner, reqid, op);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsend(rec)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_flock_recv() {
+	MessageBuffer message;
+	threc* rec = fs_get_my_threc();
+
+	if (!fs_lizrecv(rec, LIZ_MATOCL_FUSE_FLOCK, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packetVersion;
+		deserializePacketVersionNoHeader(message, packetVersion);
+		if (packetVersion == 0) {
+			uint8_t status;
+			uint32_t dummyMessageId;
+			matocl::fuseFlock::deserialize(message, dummyMessageId, status);
+			return status;
+		} else {
+			fs_got_inconsistent(
+				"LIZ_MATOCL_FLOCK",
+				message.size(),
+				"unknown version " + std::to_string(packetVersion));
+			return LIZARDFS_ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FLOCK", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
