@@ -21,6 +21,7 @@
 #include "common/platform.h"
 
 #include "common/compact_vector.h"
+#include "common/lock_info.h"
 
 #include <unordered_map>
 
@@ -58,7 +59,10 @@ struct LockRange {
 	 *   kUnlock    - equivalent to Linux's F_UNLCK
 	 */
 	enum class Type : uint8_t {
-		kInvalid, kExclusive, kShared, kUnlock
+		kInvalid   = 0,
+		kUnlock    = 1,
+		kShared    = 2,
+		kExclusive = 4
 	};
 
 	typedef compact_vector<Owner> Owners;
@@ -146,31 +150,58 @@ struct LockRange {
 /*! \brief Set of ranges, allows to insert, delete and overwrite existing ranges */
 class LockRanges {
 public:
-	typedef compact_vector<LockRange> Data;
+	typedef compact_vector<LockRange> Container;
+	typedef Container::iterator iterator;
+	typedef Container::const_iterator const_iterator;
 
 	/*! \brief Checks if range is suitable for insertion */
 	bool fits(const LockRange &range) const;
 
-	/*!
-	 *  \brief Inserts range into the structure
+	/*! Tries to find first lock colliding with the given one
+	 * \return address of the first colliding lock, nullptr otherwise */
+	const LockRange *findCollision(const LockRange &range) const;
+
+	/*! \brief Inserts range into the structure
 	 *  Assumes that range is suitable for insertion (fits() function returned true)
 	 */
 	void insert(LockRange &range);
+
+	iterator erase(const_iterator start, const_iterator end) {
+		return data_.erase(start, end);
+	}
 
 	size_t size() const {
 		return data_.size();
 	}
 
+	iterator begin() {
+		return data_.begin();
+	}
+
+	iterator end() {
+		return data_.end();
+	}
+
+	const_iterator begin() const {
+		return data_.begin();
+	}
+
+	const_iterator end() const {
+		return data_.end();
+	}
+
+	void clear();
+
 private:
 
 	/*! \brief Inserts range into data structure, preserving begin/end iterators */
-	Data::iterator insert(const Data::iterator &it, const LockRange &range,
-			Data::iterator &begin, Data::iterator &end);
+	Container::iterator insert(const Container::iterator &it, const LockRange &range,
+			Container::iterator &begin, Container::iterator &end);
 
-	Data::iterator insert(const Data::iterator &it, LockRange &&range,
-			Data::iterator &begin, Data::iterator &end);
+	Container::iterator insert(const Container::iterator &it, LockRange &&range,
+			Container::iterator &begin, Container::iterator &end);
 
-	Data data_;
+	Container data_;
 };
 
 inline bool operator<(const LockRange &range, const LockRange &other) {
@@ -190,32 +221,36 @@ public:
 	/*! \brief Queue of all pending locks */
 	typedef compact_vector<Lock> LockQueue;
 
-	static FileLocks &instance() {
-		static FileLocks instance_;
-
-		return instance_;
+	FileLocks() : active_locks_(), pending_locks_() {
 	}
 
-	/*!
-	 * \brief Tries to place a lock on inode
-	 */
+	/*! \brief Tries to place a lock on inode */
 	bool apply(uint32_t inode, Lock lock, bool nonblocking = false);
 
 	/*!
 	 * \brief Tries to place a read (shared) lock on inode
 	 * \param start - beginning of locked range
 	 * \param end - end of locked range
+	 * \return true if operation succeeded
 	 */
-	bool readLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+	bool sharedLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
 			bool nonblocking = false);
 
 	/*!
 	 * \brief Tries to place a write (exclusive) lock on inode
 	 * \param start - beginning of locked range
 	 * \param end - end of locked range
+	 * \return true if operation succeeded
 	 */
-	bool writeLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+	bool exclusiveLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
 			bool nonblocking = false);
+
+	/*!
+	 * \brief Checks if any offending locks are active.
+	 * \return lock's address if it exists, nullptr otherwise.
+	 */
+	const Lock *findCollision(uint32_t inode, Lock::Type type, uint64_t start, uint64_t end,
+			Owner owner);
 
 	/*!
 	 * \brief Tries to unlock an inode.
@@ -224,36 +259,142 @@ public:
 	 * after this unlock.
 	 * \param start - beginning of unlocked range
 	 * \param end - end of unlocked range
+	 * \return true if operation succeeded
 	 */
 	bool unlock(uint32_t inode, uint64_t start, uint64_t end, Owner owner);
 
 	/*!
-	 * Returns a list of locks from pending queue that might be available
+	 * \brief Removes all locks from specified inode
+	 */
+	void unlock(uint32_t inode);
+
+	/*! \brief Removes locks from specified inode.
+	 * \param pred unary predicate applied to its owner.
+	 * \return Range of a file affected by this unlock
+	 */
+	template<typename UnaryPredicate>
+	std::pair<uint64_t, uint64_t> unlock(uint32_t inode, UnaryPredicate pred);
+
+	/*! \brief Gather candidates from pending locks.
+	 * \param inode inode number
+	 * \param start beginning of regarded range
+	 * \param end end of regarded range
+	 * \return a list of locks from pending queue that might be available
 	 * after removing a lock from range [start, end).
 	 * Candidates are not guaranteed to be suitable for insertion,
 	 * it still needs to be checked with a call to fits() function.
 	 * This function effectively removes candidates from queue,
-	 * so they need to be reinserted after checking if they can be applied.
-	 * \param start - beginning of regarded range
-	 * \param end - end of regarded range
+	 * so they need to be reinserted after checking if they can be applied
 	 */
 	void gatherCandidates(uint32_t inode, uint64_t start, uint64_t end, LockQueue &result);
 
+	/*! \brief Removes pending lock from queue using unary predicate applied to lock */
+	template<typename UnaryPredicate>
+	void removePending(uint32_t inode, UnaryPredicate pred);
+
+	/*! \brief Copy active locks to vector storage.
+	 * \param index index of first lock to copy
+	 * \param count number of locks to copy
+	 * \param data output vector with copied locks
+	 */
+	void copyActiveToVector(int64_t index, int64_t count, std::vector<lzfs_locks::Info> &data);
+
+	/*! \brief Copy pending locks to vector storage.
+	 * \param index index of first lock to copy
+	 * \param count number of locks to copy
+	 * \param data output vector with copied locks
+	 */
+	void copyPendingToVector(int64_t index, int64_t count, std::vector<lzfs_locks::Info> &data);
+
+	/*! \brief Copy active locks for specific inode to vector storage.
+	 * \param inode inode number
+	 * \param index index of first lock to copy
+	 * \param count number of locks to copy
+	 * \param data output vector with copied locks
+	 */
+	void copyActiveToVector(uint32_t inode, int64_t index, int64_t count,
+	                        std::vector<lzfs_locks::Info> &data);
+
+	/*! \brief Copy pending locks for specific inode to vector storage.
+	 * \param inode inode number
+	 * \param index index of first lock to copy
+	 * \param count number of locks to copy
+	 * \param data output vector with copied locks
+	 */
+	void copyPendingToVector(uint32_t inode, int64_t index, int64_t count,
+	                        std::vector<lzfs_locks::Info> &data);
+
+	/*! \brief Load class state from stream.
+	 * \param file pointer to FILE structure that specifies input stream
+	 */
+	void load(FILE *file);
+
+	/*! \brief Save class state to stream.
+	 * \param file pointer to FILE structure that specifies output stream
+	 */
+	void store(FILE *file);
+
+	/*! \brief Removes all locks from the class. */
 	void clear();
 
-
 private:
-	FileLocks() : active_locks_(), pending_locks_() {}
 	FileLocks(const FileLocks &other) = delete;
 	FileLocks(FileLocks &&other) = delete;
 	FileLocks &operator=(const FileLocks &) = delete;
 	FileLocks &operator=(FileLocks &&) = delete;
 
-	/*!
-	 * \brief Enqueues a lock
-	 */
+	/*! \brief Enqueues a lock */
 	void enqueue(uint32_t inode, Lock lock);
 
 	std::unordered_map<uint32_t, Locks> active_locks_;
 	std::unordered_map<uint32_t, LockQueue> pending_locks_;
 };
+
+template<typename UnaryPredicate>
+void FileLocks::removePending(uint32_t inode, UnaryPredicate pred) {
+	auto it = pending_locks_.find(inode);
+	if (it == pending_locks_.end()) {
+		return;
+	}
+	LockQueue &queue = it->second;
+
+	queue.erase(
+		std::remove_if(queue.begin(), queue.end(), pred),
+		queue.end()
+	);
+
+	// If last lock was unqueued, inode info can be removed from structure
+	if (queue.empty()) {
+		pending_locks_.erase(it);
+	}
+}
+
+template<typename UnaryPredicate>
+std::pair<uint64_t, uint64_t> FileLocks::unlock(uint32_t inode, UnaryPredicate pred) {
+	uint64_t start = std::numeric_limits<uint64_t>::max();
+	uint64_t end = 0;
+	auto it = active_locks_.find(inode);
+	if (it == active_locks_.end()) {
+		return {start, end};
+	}
+	auto &locks = it->second;
+
+	auto erase_it = std::remove_if(locks.begin(), locks.end(),
+			[pred, &start, &end] (LockRange &lock) {
+				auto erased_owners_it = std::remove_if(lock.owners.begin(),
+						lock.owners.end(), pred);
+				// If owner was erased, lock's range might become a candidate for overwrite
+				if (erased_owners_it != lock.owners.end()) {
+					start = std::min(start, lock.start);
+					end = std::max(end, lock.end);
+				}
+				if (erased_owners_it != lock.owners.begin()) {
+					lock.owners.erase(erased_owners_it, lock.owners.end());
+					return false;
+				}
+
+				return true;
+			});
+	locks.erase(erase_it, locks.end());
+	return {start, end};
+}

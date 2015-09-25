@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2015 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -233,4 +233,91 @@ TEST(LocksTest, StressTest) {
 	EXPECT_TRUE(lock_exclusive(ranges, 1, 2, 6));
 	EXPECT_TRUE(unlock(ranges, 0, 1, 6));
 	EXPECT_TRUE(lock_exclusive(ranges, 0, 1, 7));
+}
+
+/*
+ * FileLocks class tests
+ */
+
+static std::vector<FileLocks::Owner> owners = {
+	{0, 1, 2, 3},
+	{1, 2, 3, 4},
+	{2, 3, 4, 5},
+	{3, 4, 5, 6},
+	{4, 5, 6, 7},
+	{5, 6, 7, 8},
+};
+
+TEST(LocksTest, Probe) {
+	FileLocks locks;
+	const LockRange *collision;
+
+	collision = locks.findCollision(0, LockRange::Type::kExclusive, 2, 5, owners[0]);
+	EXPECT_EQ(nullptr, collision);
+
+	EXPECT_TRUE(locks.sharedLock(0, 0, 10, owners[1]));
+	collision = locks.findCollision(0, LockRange::Type::kExclusive, 2, 5, owners[0]);
+	EXPECT_EQ(0U, collision->start);
+	EXPECT_EQ(10U, collision->end);
+	EXPECT_EQ(collision->type, LockRange::Type::kShared);
+
+	EXPECT_TRUE(locks.unlock(0, 0, 10, owners[1]));
+	collision = locks.findCollision(0, LockRange::Type::kExclusive, 2, 5, owners[0]);
+	EXPECT_EQ(nullptr, collision);
+
+	locks.clear();
+}
+
+TEST(LocksTest, Unqueue) {
+	FileLocks locks;
+	FileLocks::LockQueue queue;
+
+	EXPECT_TRUE(locks.exclusiveLock(0, 0, 10, owners[1]));
+	// 3 locks will be enqueued
+	EXPECT_FALSE(locks.exclusiveLock(0, 0, 3, owners[2]));
+	EXPECT_FALSE(locks.exclusiveLock(0, 3, 5, owners[3]));
+	EXPECT_FALSE(locks.exclusiveLock(0, 5, 10, owners[4]));
+
+	// owner[3]'s lock will be removed from queue
+	locks.removePending(0,
+		[](const FileLocks::Lock &lock){
+			auto owner = lock.owner();
+			return owner.owner == owners[3].owner
+				&& owner.sessionid == owners[3].sessionid
+				&& owner.reqid == owners[3].reqid;
+		});
+
+	// Only 2 locks should be in candidate queue,
+	// since one of them was unqueued
+	EXPECT_TRUE(locks.unlock(0, 0, 10, owners[1]));
+	locks.gatherCandidates(0, 0, 10, queue);
+	EXPECT_EQ(2U, queue.size());
+	for (auto queued : queue) {
+		EXPECT_TRUE(locks.apply(0, queued));
+	}
+	queue.clear();
+
+	// Range [3, 5) should be available for locking, since lock 3 was removePendingd
+	EXPECT_TRUE(locks.sharedLock(0, 3, 5, owners[1]));
+
+	// Read lock should be enqueued because of applied write locks
+	EXPECT_FALSE(locks.sharedLock(0, 3, 6, owners[5]));
+
+	// Read lock will be unqueued
+	locks.removePending(0,
+		[](const FileLocks::Lock &lock){
+			auto owner = lock.owner();
+			return owner.owner == owners[5].owner
+				&& owner.sessionid == owners[5].sessionid
+				&& owner.reqid == owners[5].reqid;
+		});
+
+	// Write lock is partially removed to allow potential read locks
+	EXPECT_TRUE(locks.unlock(0, 5, 6, owners[4]));
+
+	// But the read lock was unqueued, so no candidates should exist in queue
+	locks.gatherCandidates(0, 0, 10, queue);
+	EXPECT_EQ(0U, queue.size());
+
+	locks.clear();
 }

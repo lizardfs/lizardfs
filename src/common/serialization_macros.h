@@ -120,15 +120,15 @@
 #define LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(EnumClassName, ... /*values*/) \
 		enum class EnumClassName : uint8_t { __VA_ARGS__ }; \
 		inline uint32_t serializedSize(const EnumClassName& value) { \
-			return serializedSize(static_cast<uint8_t>(value)); \
+			return ::serializedSize(static_cast<uint8_t>(value)); \
 		} \
 		inline void serialize(uint8_t** destination, const EnumClassName& value) { \
-			serialize(destination, static_cast<uint8_t>(value)); \
+			::serialize(destination, static_cast<uint8_t>(value)); \
 		} \
 		inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, \
 				EnumClassName& value) { \
 			uint8_t tmp; \
-			deserialize(source, bytesLeftInBuffer, tmp); \
+			::deserialize(source, bytesLeftInBuffer, tmp); \
 			if (tmp >= COUNT_ARGS(__VA_ARGS__)) { \
 				throw IncorrectDeserializationException("Bad " #EnumClassName \
 						" value = " + std::to_string(uint32_t(tmp))); \

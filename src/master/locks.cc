@@ -18,17 +18,24 @@
 
 #include "common/platform.h"
 #include "master/locks.h"
+
 #include <algorithm>
 #include <functional>
 
+#include "common/slogger.h"
+
 bool LockRanges::fits(const LockRange &range) const {
+	return findCollision(range) == nullptr;
+}
+
+const LockRange *LockRanges::findCollision(const LockRange &range) const {
 	if (range.unlocking()) {
-		return true;
+		return nullptr;
 	}
 
-	auto start = std::lower_bound(data_.begin(), data_.end(), range.start,
+	auto start = ::std::lower_bound(data_.begin(), data_.end(), range.start,
 			[](const LockRange &other, uint64_t offset) {return other.start < offset;});
-	auto end = std::upper_bound(data_.begin(), data_.end(), range.end,
+	auto end = ::std::upper_bound(data_.begin(), data_.end(), range.end,
 			[](uint64_t offset, const LockRange &other) {return offset < other.start;});
 
 	if (start != data_.begin()) {
@@ -40,17 +47,14 @@ bool LockRanges::fits(const LockRange &range) const {
 		if (range.overlaps(other)) {
 			// Range overlaps, is not shared and owner is not the same
 			if ((!range.shared() || !other.shared()) && other.owners != range.owners) {
-				return false;
+				return std::addressof(other);
 			}
 		}
 	}
-	return true;
+
+	return nullptr;
 }
 
-/*!
- *  \brief Inserts range into the structure
- *  Assumes that range is suitable for insertion (fits() function returned true)
- */
 void LockRanges::insert(LockRange &range) {
 	auto start = ::std::lower_bound(data_.begin(), data_.end(), range.start,
 			[](const LockRange &other, uint64_t offset) {return other.start < offset;});
@@ -145,8 +149,8 @@ void LockRanges::insert(LockRange &range) {
 		);
 }
 
-LockRanges::Data::iterator LockRanges::insert(const Data::iterator &it, const LockRange &range,
-		Data::iterator &begin, Data::iterator &end) {
+LockRanges::Container::iterator LockRanges::insert(const Container::iterator &it, const LockRange &range,
+		Container::iterator &begin, Container::iterator &end) {
 	int dist_begin = std::distance(begin, it);
 	int dist_end = std::distance(it, end);
 	auto ret = data_.insert(it, range);
@@ -155,8 +159,8 @@ LockRanges::Data::iterator LockRanges::insert(const Data::iterator &it, const Lo
 	return ret;
 }
 
-LockRanges::Data::iterator LockRanges::insert(const Data::iterator &it, LockRange &&range,
-		Data::iterator &begin, Data::iterator &end) {
+LockRanges::Container::iterator LockRanges::insert(const Container::iterator &it, LockRange &&range,
+		Container::iterator &begin, Container::iterator &end) {
 	int dist_begin = std::distance(begin, it);
 	int dist_end = std::distance(it, end);
 	auto ret = data_.insert(it, std::move(range));
@@ -165,29 +169,55 @@ LockRanges::Data::iterator LockRanges::insert(const Data::iterator &it, LockRang
 	return ret;
 }
 
-bool FileLocks::readLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+void LockRanges::clear() {
+	data_.clear();
+}
+
+bool FileLocks::sharedLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
 		bool nonblocking) {
 	return apply(inode, Lock{Lock::Type::kShared, start, end, owner}, nonblocking);
 }
 
-bool FileLocks::writeLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
+bool FileLocks::exclusiveLock(uint32_t inode, uint64_t start, uint64_t end, Owner owner,
 		bool nonblocking) {
 	return apply(inode, Lock{Lock::Type::kExclusive, start, end, owner}, nonblocking);
+}
+
+const FileLocks::Lock *FileLocks::findCollision(uint32_t inode, Lock::Type type, uint64_t start,
+		uint64_t end, Owner owner) {
+	auto it = active_locks_.find(inode);
+	if (it == active_locks_.end()) {
+		return nullptr;
+	}
+
+	return it->second.findCollision(Lock{type, start, end, owner});
 }
 
 bool FileLocks::unlock(uint32_t inode, uint64_t start, uint64_t end, Owner owner) {
 	return apply(inode, Lock{Lock::Type::kUnlock, start, end, owner});
 }
 
+void FileLocks::unlock(uint32_t inode) {
+	active_locks_.erase(inode);
+}
+
 bool FileLocks::apply(uint32_t inode, Lock lock, bool nonblocking) {
-	Locks &locks = active_locks_[inode];
+	auto it = active_locks_.find(inode);
+	if (it == active_locks_.end()) {
+		it = active_locks_.emplace(inode, Locks()).first;
+	}
+	Locks &locks = it->second;
 
 	if (locks.fits(lock)) {
 		locks.insert(lock);
+		// If last lock was unlocked, inode info can be removed from structure
+		if (locks.size() == 0) {
+			active_locks_.erase(it);
+		}
 		return true;
 	}
 
-	if (!nonblocking) {
+	if (!nonblocking && !lock.unlocking()) {
 		enqueue(inode, lock);
 	}
 	return false;
@@ -200,7 +230,11 @@ void FileLocks::enqueue(uint32_t inode, Lock lock) {
 }
 
 void FileLocks::gatherCandidates(uint32_t inode, uint64_t start, uint64_t end, LockQueue &result) {
-	LockQueue &queue = pending_locks_[inode];
+	auto it = pending_locks_.find(inode);
+	if (it == pending_locks_.end()) {
+		return;
+	}
+	LockQueue &queue = it->second;
 
 	auto first = ::std::lower_bound(queue.begin(), queue.end(), start,
 			[](const Lock &lock, uint64_t offset) {return lock.start < offset;});
@@ -217,4 +251,186 @@ void FileLocks::gatherCandidates(uint32_t inode, uint64_t start, uint64_t end, L
 
 void FileLocks::clear() {
 	return active_locks_.clear();
+}
+
+template <typename Container>
+void copyToVector(const Container &full_data, int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	int64_t pos = 0; // current index (increased only until pos < index)
+
+	data.clear();
+
+	if (count <= 0) {
+		return;
+	}
+
+	for (const auto &entry : full_data) {
+		for (const auto &lock : entry.second) {
+			// each owner is treated as distinct entry in output
+			if ((pos + lock.owners.size()) <= index) {
+				pos += lock.owners.size();
+				continue;
+			}
+
+			assert(lock.owners.size() > 0);
+
+			// first we skip to proper owner
+			auto iowner = std::next(lock.owners.begin(), std::max(index - pos, (int64_t)0));
+			pos += std::max(index - pos, (int64_t)0);
+			for (;iowner != lock.owners.end(); ++iowner) {
+				data.push_back(
+					{0, entry.first, iowner->owner, iowner->sessionid,
+					static_cast<uint16_t>(lock.type), lock.start, lock.end
+					}
+				);
+				if (--count <= 0) {
+					return;
+				}
+			};
+		}
+	}
+}
+
+template <typename Container>
+void copyInodeToVector(const Container &lock_data, uint32_t inode, int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	int64_t pos = 0; // current index (increased only until pos < index)
+
+	data.clear();
+
+	if (count <= 0) {
+		return;
+	}
+
+	for (const auto &lock : lock_data) {
+		// each owner is treated as distinct entry in output
+		if ((pos + lock.owners.size()) <= index) {
+			pos += lock.owners.size();
+			continue;
+		}
+
+		assert(lock.owners.size() > 0);
+
+		// first we skip to proper owner
+		auto iowner = std::next(lock.owners.begin(), std::max(index - pos, (int64_t)0));
+		pos += std::max(index - pos, (int64_t)0);
+		for (;iowner != lock.owners.end(); ++iowner) {
+			data.push_back(
+				{0, inode, iowner->owner, iowner->sessionid,
+				static_cast<uint16_t>(lock.type), lock.start, lock.end
+				}
+			);
+			if (--count <= 0) {
+				return;
+			}
+		};
+	}
+}
+
+void FileLocks::copyActiveToVector(int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	::copyToVector(active_locks_, index, count, data);
+}
+
+void FileLocks::copyPendingToVector(int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	::copyToVector(pending_locks_, index, count, data);
+}
+
+void FileLocks::copyActiveToVector(uint32_t inode, int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	auto active_it = active_locks_.find(inode);
+
+	if (active_it == active_locks_.end()) {
+		data.clear();
+		return;
+	}
+
+	::copyInodeToVector(active_it->second, inode, index, count, data);
+}
+
+void FileLocks::copyPendingToVector(uint32_t inode, int64_t index, int64_t count,
+		std::vector<lzfs_locks::Info> &data) {
+	auto pending_it = pending_locks_.find(inode);
+
+	if (pending_it == pending_locks_.end()) {
+		data.clear();
+		return;
+	}
+
+	::copyInodeToVector(pending_it->second, inode, index, count, data);
+}
+
+template <typename Inserter>
+void load(FILE *file, Inserter insert) {
+	static std::vector<uint8_t> buffer;
+	uint64_t count;
+	uint32_t size;
+
+	size = sizeof(count);
+	buffer.resize(size);
+	if (fread(buffer.data(), 1, size, file) != size) {
+		throw Exception("fread error (size)");
+	}
+	deserialize(buffer, count);
+
+	size = serializedSize(lzfs_locks::Info());
+	for (uint64_t i = 0; i < count; ++i) {
+		lzfs_locks::Info info;
+
+		buffer.resize(size);
+		if (fread(buffer.data(), 1, size, file) != size) {
+			throw Exception("fread error (size)");
+		}
+
+		deserialize(buffer, info);
+
+		FileLocks::Lock lock{static_cast<FileLocks::Lock::Type>(info.type), info.start, info.end,
+		                     FileLocks::Owner{info.owner, info.sessionid, 0, 0}};
+
+		insert(info.inode, lock);
+	}
+}
+
+template <typename Container>
+void store(FILE *file, const Container &data) {
+	std::vector<uint8_t> buffer;
+
+	uint64_t count = 0;
+	for (const auto &entry : data) {
+		for (const auto &lock : entry.second) {
+			count += lock.owners.size();
+		}
+	}
+
+	buffer.clear();
+	serialize(buffer, count);
+	if (fwrite(buffer.data(), 1, buffer.size(), file) != buffer.size()) {
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
+	}
+
+	for (const auto &entry : data) {
+		for (const auto &lock : entry.second) {
+			for (const auto &owner : lock.owners) {
+				lzfs_locks::Info info = {0, entry.first, owner.owner, owner.sessionid,
+				                         static_cast<uint16_t>(lock.type), lock.start, lock.end};
+
+				buffer.clear();
+				serialize(buffer, info);
+				if (fwrite(buffer.data(), 1, buffer.size(), file) != buffer.size()) {
+					lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
+				}
+			}
+		}
+	}
+}
+
+void FileLocks::load(FILE *file) {
+	::load(file, [this](uint32_t inode, Lock &lock) { active_locks_[inode].insert(lock); });
+	::load(file, [this](uint32_t inode, Lock &lock) { pending_locks_[inode].push_back(lock); });
+}
+
+void FileLocks::store(FILE *file) {
+	::store(file, active_locks_);
+	::store(file, pending_locks_);
 }
