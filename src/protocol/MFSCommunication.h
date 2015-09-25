@@ -345,6 +345,12 @@ enum class SugidClearMode {
 	"ext", \
 	"xfs"
 
+/// field values: operation
+#define LIZARDFS_LOCK_UNLOCK    1
+#define LIZARDFS_LOCK_SHARED    2
+#define LIZARDFS_LOCK_EXCLUSIVE 4
+#define LIZARDFS_LOCK_INTERRUPT 8
+#define LIZARDFS_LOCK_NONBLOCK 16
 
 // flags: "flags" fileld in "CLTOMA_FUSE_AQUIRE"
 #define WANT_READ 1
@@ -1685,6 +1691,57 @@ enum class SugidClearMode {
 // 0x622
 #define LIZ_MATOCL_LIST_TAPESERVERS (1000U + 570U)
 /// tapeservers:(vector<TapeserverInfo>)
+
+// 0x623
+#define LIZ_CLTOMA_FUSE_FLOCK (1000U + 571U)
+/// msgid:32 inode:32 owner:64 reqid:32 operation:16
+
+// 0x624
+#define LIZ_MATOCL_FUSE_FLOCK (1000U + 572U)
+/// msgid:32 status:8
+
+// 0x625
+#define LIZ_CLTOMA_FUSE_GETLK (1000U + 573U)
+/// msgid:32 inode:32 owner:64 type:16 start:64 len:64 pid:32
+
+// 0x626
+#define LIZ_MATOCL_FUSE_GETLK (1000U + 574U)
+/// version==0 msgid:32 status:8
+/// version==1 msgid:32 type:16 start:64 len:64 pid:32
+
+// 0x627
+#define LIZ_CLTOMA_FUSE_SETLK (1000U + 575U)
+/// msgid:32 inode:32 owner:64 reqid:32 type:16 start:64 len:64 pid:32
+
+// 0x628
+#define LIZ_MATOCL_FUSE_SETLK (1000U + 576U)
+/// msgid:32 status:8
+
+// 0x629
+#define LIZ_CLTOMA_FUSE_FLOCK_INTERRUPT (1000U + 577U)
+/// messageid:32 owner:64 inode:32 reqid:32
+
+// 0x62A
+#define LIZ_CLTOMA_FUSE_SETLK_INTERRUPT (1000U + 578U)
+/// messageid:32 owner:64 inode:32 reqid:32
+
+// 0x62B
+#define LIZ_CLTOMA_MANAGE_LOCKS_LIST (1000U + 579U)
+/// version==0 type:8 pending:8 start:64 max:64
+/// version==1 inode:32 type:8 pending:8 start:64 max:64
+
+// 0x62C
+#define LIZ_MATOCL_MANAGE_LOCKS_LIST (1000U + 580U)
+/// list:(vector<lockInfo>)
+
+// 0x62D
+#define LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK (1000U + 581U)
+/// version==0 type:8 inode:32 sessionid:32 owner:64 start:64 end:64
+/// version==1 type:8 inode:32
+
+// 0x62E
+#define LIZ_MATOCL_MANAGE_LOCKS_UNLOCK (1000U + 582U)
+/// status:8
 
 // CHUNKSERVER STATS
 

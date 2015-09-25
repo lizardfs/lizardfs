@@ -21,7 +21,7 @@
 #include "common/platform.h"
 
 #include "common/compact_vector.h"
-#include "common/lock_info.h"
+#include "protocol/lock_info.h"
 
 #include <unordered_map>
 
@@ -59,18 +59,11 @@ struct LockRange {
 	 *   kUnlock    - equivalent to Linux's F_UNLCK
 	 */
 	enum class Type : uint8_t {
-		kInvalid   = 0,
-		kUnlock    = 1,
-		kShared    = 2,
-		kExclusive = 4
+		kInvalid   = lzfs_locks::kInvalid,
+		kUnlock    = lzfs_locks::kUnlock,
+		kShared    = lzfs_locks::kShared,
+		kExclusive = lzfs_locks::kExclusive
 	};
-
-	static_assert(
-		Type::kUnlock == static_cast<Type>(lzfs_locks::kUnlock)
-		&& Type::kShared == static_cast<Type>(lzfs_locks::kShared)
-		&& Type::kExclusive == static_cast<Type>(lzfs_locks::kExclusive),
-		"lock types must match"
-	);
 
 	typedef compact_vector<Owner> Owners;
 

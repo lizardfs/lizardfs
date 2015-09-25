@@ -28,14 +28,15 @@
 #include "common/chunkserver_list_entry.h"
 #include "common/io_limits_database.h"
 #include "common/metadataserver_list_entry.h"
-#include "protocol/MFSCommunication.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
-#include "protocol/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
 #include "common/tape_copy_location_info.h"
+#include "protocol/lock_info.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
@@ -321,6 +322,42 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseTruncateEnd, LIZ_MATOCL_FUSE_TRUNCATE_END, kResponsePacketVersion,
 		uint32_t, messageId,
 		Attributes, attributes)
+
+// LIZ_MATOCL_FUSE_FLOCK
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseFlock, LIZ_MATOCL_FUSE_FLOCK, 0,
+		uint32_t, messageId,
+		uint8_t, status)
+
+// LIZ_MATOCL_FUSE_GETLK
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetlk, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetlk, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetlk, LIZ_MATOCL_FUSE_GETLK, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetlk, LIZ_MATOCL_FUSE_GETLK, kResponsePacketVersion,
+		uint32_t, messageId,
+		lzfs_locks::FlockWrapper, lock)
+
+// LIZ_MATOCL_FUSE_SETLK
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseSetlk, LIZ_MATOCL_FUSE_SETLK, 0,
+		uint32_t, messageId,
+		uint8_t, status)
+
+// LIZ_MATOCL_MANAGE_LOCKS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, manageLocksList, LIZ_MATOCL_MANAGE_LOCKS_LIST, 0,
+		std::vector<lzfs_locks::Info>, locks
+		)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, manageLocksUnlock, LIZ_MATOCL_MANAGE_LOCKS_UNLOCK, 0,
+		uint8_t, status)
 
 namespace matocl {
 

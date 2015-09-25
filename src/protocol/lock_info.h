@@ -20,8 +20,6 @@
 
 #include "common/platform.h"
 
-#include <fcntl.h>
-
 #include "common/serialization_macros.h"
 
 namespace lzfs_locks {
@@ -47,6 +45,18 @@ LIZARDFS_DEFINE_SERIALIZABLE_CLASS(Info,
 	uint64_t, end
 );
 
+struct InterruptData {
+	InterruptData() : owner(), ino(), reqid() {}
+	InterruptData(uint64_t o, uint32_t i, uint32_t r)
+		: owner(o), ino(i), reqid(r) {}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(owner, ino, reqid);
+
+	uint64_t owner;
+	uint32_t ino;
+	uint32_t reqid;
+};
+
 /*! \brief Structure representing basic fields of 'struct flock' from Linux.
  *
  * Field l_whence from struct flock is ignored because it is always equal to
@@ -64,10 +74,10 @@ struct FlockWrapper {
 
 	LIZARDFS_DEFINE_SERIALIZE_METHODS(l_type, l_start, l_len, l_pid);
 
-	int16_t l_type;
-	int64_t l_start;
-	int64_t l_len;
-	int32_t l_pid;
+	int16_t l_type;   // Type of lock: F_RDLCK, F_WRLCK, or F_UNLCK.
+	int64_t l_start;  // Offset where the lock begins.
+	int64_t l_len;    // Size of the locked area; zero means until EOF.
+	int32_t l_pid;    // Process holding the lock.
 };
 
 } // namespace lzfs_locks

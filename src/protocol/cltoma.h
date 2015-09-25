@@ -24,11 +24,12 @@
 
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
-#include "protocol/MFSCommunication.h"
 #include "common/moosefs_string.h"
-#include "protocol/packet.h"
 #include "common/quota.h"
 #include "common/serialization_macros.h"
+#include "protocol/lock_info.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0,
 		uint32_t, messageId,
@@ -230,6 +231,77 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, gid,
 		uint64_t, length,
 		uint32_t, lockid)
+
+// FILE LOCKS
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseFlock, LIZ_CLTOMA_FUSE_FLOCK, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint64_t, owner,
+		uint32_t, requestId,
+		uint16_t, operation)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseFlock, LIZ_CLTOMA_FUSE_FLOCK_INTERRUPT, 0,
+		uint32_t, messageId,
+		lzfs_locks::InterruptData, interruptData)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseGetlk, LIZ_CLTOMA_FUSE_GETLK, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint64_t, owner,
+		lzfs_locks::FlockWrapper, lock)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetlk, LIZ_CLTOMA_FUSE_SETLK, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint64_t, owner,
+		uint32_t, requestId,
+		lzfs_locks::FlockWrapper, lock)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetlk, LIZ_CLTOMA_FUSE_SETLK_INTERRUPT, 0,
+		uint32_t, messageId,
+		lzfs_locks::InterruptData, interruptData)
+
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, manageLocksList, kAll, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, manageLocksList, kInode, 1)
+
+#define LIZ_CLTOMA_MANAGE_LOCKS_LIST_LIMIT 1024
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, manageLocksList, LIZ_CLTOMA_MANAGE_LOCKS_LIST, kAll,
+		lzfs_locks::Type, type,
+		bool, pending,
+		uint64_t, start,
+		uint64_t, max)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, manageLocksList, LIZ_CLTOMA_MANAGE_LOCKS_LIST, kInode,
+		uint32_t, inode,
+		lzfs_locks::Type, type,
+		bool, pending,
+		uint64_t, start,
+		uint64_t, max)
+
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, manageLocksUnlock, kSingle, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, manageLocksUnlock, kInode, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, manageLocksUnlock, LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK, kSingle,
+		lzfs_locks::Type, type,
+		uint32_t, inode,
+		uint32_t, sessionid,
+		uint64_t, owner,
+		uint64_t, start,
+		uint64_t, end)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, manageLocksUnlock, LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK, kInode,
+		lzfs_locks::Type, type,
+		uint32_t, inode)
 
 namespace cltoma {
 

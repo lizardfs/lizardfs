@@ -24,9 +24,9 @@
 #include <map>
 
 #include "common/goal.h"
-#include "common/lock_info.h"
 #include "master/fs_context.h"
 #include "master/locks.h"
+#include "protocol/lock_info.h"
 
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
