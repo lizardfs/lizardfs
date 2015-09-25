@@ -65,6 +65,13 @@ struct LockRange {
 		kExclusive = 4
 	};
 
+	static_assert(
+		Type::kUnlock == static_cast<Type>(lzfs_locks::kUnlock)
+		&& Type::kShared == static_cast<Type>(lzfs_locks::kShared)
+		&& Type::kExclusive == static_cast<Type>(lzfs_locks::kExclusive),
+		"lock types must match"
+	);
+
 	typedef compact_vector<Owner> Owners;
 
 	LockRange() : type(Type::kInvalid), start(), end(), owners() {}

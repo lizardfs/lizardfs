@@ -31,6 +31,7 @@
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_node.h"
 #include "master/fs_context.h"
+#include "master/locks.h"
 #include "master/matocsserv.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
@@ -1518,6 +1519,152 @@ uint8_t fs_append(const FsContext &context, uint32_t inode, uint32_t inode_src) 
 }
 
 #ifndef METARESTORE
+
+static int fsnodes_check_lock_permissions(const FsContext &context, uint32_t inode, uint16_t op) {
+	fsnode *dummy;
+	uint8_t modemask = MODE_MASK_EMPTY;
+
+	if (op == lzfs_locks::kExclusive) {
+		modemask = MODE_MASK_W;
+	} else if (op == lzfs_locks::kShared) {
+		modemask = MODE_MASK_R;
+	}
+
+	return fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, modemask, inode, &dummy);
+}
+
+int fs_posixlock_probe(const FsContext &context, uint32_t inode, uint64_t start, uint64_t end,
+		uint64_t owner, uint32_t sessionid, uint32_t reqid, uint32_t msgid, uint16_t op,
+		lzfs_locks::FlockWrapper &info) {
+	uint8_t status;
+
+	if (op != lzfs_locks::kShared && op != lzfs_locks::kExclusive && op != lzfs_locks::kUnlock) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	if ((status = fsnodes_check_lock_permissions(context, inode, op)) != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+
+	FileLocks &locks = gMetadata->posix_locks;
+	const FileLocks::Lock *collision;
+
+	collision = locks.findCollision(inode, static_cast<FileLocks::Lock::Type>(op), start, end,
+			FileLocks::Owner{owner, sessionid, reqid, msgid});
+
+	if (collision == nullptr) {
+		info.l_type = lzfs_locks::kUnlock;
+		return LIZARDFS_STATUS_OK;
+	} else {
+		info.l_type = static_cast<int>(collision->type);
+		info.l_start = collision->start;
+		info.l_len = collision->end - collision->start;
+		return LIZARDFS_ERROR_WAITING;
+	}
+}
+
+int fs_lock_op(const FsContext &context, FileLocks &locks, uint32_t inode,
+		uint64_t start, uint64_t end, uint64_t owner, uint32_t sessionid,
+		uint32_t reqid, uint32_t msgid, uint16_t op, bool nonblocking,
+		std::vector<FileLocks::Owner> &applied) {
+	uint8_t status;
+
+	if ((status = fsnodes_check_lock_permissions(context, inode, op)) != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+
+	FileLocks::LockQueue queue;
+	bool success = false;
+
+	switch (op) {
+	case lzfs_locks::kShared:
+		success = locks.sharedLock(inode, start, end,
+				FileLocks::Owner{owner, sessionid, reqid, msgid}, nonblocking);
+		break;
+	case lzfs_locks::kExclusive:
+		success = locks.exclusiveLock(inode, start, end,
+				FileLocks::Owner{owner, sessionid, reqid, msgid}, nonblocking);
+		break;
+	case lzfs_locks::kRelease:
+		locks.removePending(inode, [sessionid,owner](const FileLocks::Lock &lock) {
+			const FileLocks::Lock::Owner &lock_owner = lock.owner();
+			return lock_owner.sessionid == sessionid && lock_owner.owner == owner;
+		});
+		start = 0;
+		end   = std::numeric_limits<uint64_t>::max();
+		/* no break */
+	case lzfs_locks::kUnlock:
+		success = locks.unlock(inode, start, end,
+				FileLocks::Owner{owner, sessionid, reqid, msgid});
+		break;
+	default:
+		return LIZARDFS_ERROR_EINVAL;
+	}
+	status = success ? LIZARDFS_STATUS_OK : LIZARDFS_ERROR_WAITING;
+
+	// If lock is exclusive, no further action is required
+	// For shared locks it is required to gather candidates for lock.
+	// The case when it is needed is when the owner had exclusive lock applied to a file range
+	// and he issued shared lock for this same range. This converts exclusive lock
+	// to shared lock. In the result we may need to apply other shared pending locks
+	// for this range.
+	if (op == lzfs_locks::kExclusive) {
+		return status;
+	}
+
+	locks.gatherCandidates(inode, start, end, queue);
+	for (auto &candidate : queue) {
+		if (locks.apply(inode, candidate)) {
+			applied.insert(applied.end(), candidate.owners.begin(), candidate.owners.end());
+		}
+	}
+	return status;
+}
+
+int fs_flock_op(const FsContext &context, uint32_t inode, uint64_t owner, uint32_t sessionid,
+		uint32_t reqid, uint32_t msgid, uint16_t op, bool nonblocking,
+		std::vector<FileLocks::Owner> &applied) {
+	return fs_lock_op(context, gMetadata->flock_locks, inode, 0, 1, owner, sessionid,
+			reqid, msgid, op, nonblocking, applied);
+}
+
+int fs_posixlock_op(const FsContext &context, uint32_t inode, uint64_t start, uint64_t end,
+		uint64_t owner, uint32_t sessionid, uint32_t reqid, uint32_t msgid, uint16_t op,
+		bool nonblocking, std::vector<FileLocks::Owner> &applied) {
+	return fs_lock_op(context, gMetadata->posix_locks, inode, start, end, owner, sessionid,
+			reqid, msgid, op, nonblocking, applied);
+}
+
+int fs_locks_clear_session(const FsContext &context, uint8_t type, uint32_t inode,
+		uint32_t sessionid, std::vector<FileLocks::Owner> &applied) {
+	(void)context;
+
+	if (type != (uint8_t)lzfs_locks::Type::kFlock && type != (uint8_t)lzfs_locks::Type::kPosix) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	FileLocks *locks = type == (uint8_t)lzfs_locks::Type::kFlock ? &gMetadata->flock_locks
+	                                                             : &gMetadata->posix_locks;
+
+	locks->removePending(inode, [sessionid](const FileLocks::Lock &lock) {
+		return lock.owner().sessionid == sessionid;
+	});
+	std::pair<uint64_t, uint64_t> range = locks->unlock(inode,
+	    [sessionid](const FileLocks::Lock::Owner &owner) {
+			return owner.sessionid == sessionid;
+		});
+
+	if (range.first < range.second) {
+		FileLocks::LockQueue queue;
+		locks->gatherCandidates(inode, range.first, range.second, queue);
+		for (auto &candidate : queue) {
+			applied.insert(applied.end(), candidate.owners.begin(), candidate.owners.end());
+		}
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
 uint8_t fs_readdir_size(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t uid,
 		uint32_t gid, uint8_t flags, void **dnode, uint32_t *dbuffsize) {
 	fsnode *p, *rn;
@@ -1696,6 +1843,7 @@ uint8_t fs_release(const FsContext &context, uint32_t inode, uint32_t sessionid)
 	ChecksumUpdater cu(context.ts());
 	fsnode *p;
 	sessionidrec *cr, **crp;
+
 	p = fsnodes_id_to_node(inode);
 	if (!p) {
 		return LIZARDFS_ERROR_ENOENT;

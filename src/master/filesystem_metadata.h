@@ -33,6 +33,7 @@
 #include "master/filesystem_node.h"
 #include "master/filesystem_snapshot_manager.h"
 #include "master/filesystem_xattr.h"
+#include "master/locks.h"
 #include "master/metadata_dumper.h"
 #include "master/quota_database.h"
 
@@ -53,6 +54,8 @@ public:
 	sessionidrec_bucket *crbhead;
 	sessionidrec *crfreehead;
 	SnapshotManager snapshot_manager;
+	FileLocks flock_locks;
+	FileLocks posix_locks;
 
 	uint32_t maxnodeid;
 	uint32_t nextsessionid;
@@ -85,6 +88,9 @@ public:
 	      edgehash{},
 	      crbhead{},
 	      crfreehead{},
+	      snapshot_manager{},
+	      flock_locks{},
+	      posix_locks{},
 	      maxnodeid{},
 	      nextsessionid{},
 	      nodes{},

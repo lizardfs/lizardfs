@@ -20,9 +20,21 @@
 
 #include "common/platform.h"
 
+#include <fcntl.h>
+
 #include "common/serialization_macros.h"
 
 namespace lzfs_locks {
+enum {
+	kInvalid   = 0,
+	kUnlock    = 1,
+	kShared    = 2,
+	kExclusive = 4,
+	kInterrupt = 8,
+	kNonblock  = 16,
+	kRelease   = 32
+};
+
 LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(Type, kFlock, kPosix, kAll)
 
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(Info,
@@ -34,4 +46,28 @@ LIZARDFS_DEFINE_SERIALIZABLE_CLASS(Info,
 	uint64_t, start,
 	uint64_t, end
 );
-}
+
+/*! \brief Structure representing basic fields of 'struct flock' from Linux.
+ *
+ * Field l_whence from struct flock is ignored because it is always equal to
+ * SEEK_SET (fuse always converts from other values to SEEK_SET).
+ */
+struct FlockWrapper {
+	FlockWrapper() : l_type(0), l_start(0), l_len(0), l_pid(0) {};
+
+	FlockWrapper(int16_t l_type, int64_t l_start, int64_t l_len, int32_t l_pid) :
+		l_type(l_type),
+		l_start(l_start),
+		l_len(l_len),
+		l_pid(l_pid) {
+	}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(l_type, l_start, l_len, l_pid);
+
+	int16_t l_type;
+	int64_t l_start;
+	int64_t l_len;
+	int32_t l_pid;
+};
+
+} // namespace lzfs_locks
