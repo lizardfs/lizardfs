@@ -19,22 +19,63 @@
 #include "common/platform.h"
 #include "admin/options.h"
 
-Options::Options(const std::vector<std::string>& expectedOptions,
-		const std::vector<std::string>& argv) {
+#include <cassert>
+
+Options::Options(const std::vector<std::string> &expectedOptions,
+		const std::vector<std::string> &argv) {
 	// Set expected options
 	for (const auto& option : expectedOptions) {
-		options_[option] = false;
+		assert(!option.empty());
+		if (option.back() == '=') {
+			auto trimmed = option;
+			trimmed.pop_back();
+			valued_options_[trimmed] = "";
+			options_[trimmed] = false;
+		} else {
+			options_[option] = false;
+		}
 	}
 
-	// Set some to true using provided argv
-	for (const std::string& arg : argv) {
+	bool expecting_value = false;
+	std::string valued_option;
+	for (const std::string &arg : argv) {
+		assert(!arg.empty());
+
+		// If value of an option is expected, assign it
+		if (expecting_value) {
+			valued_options_[valued_option] = arg;
+			expecting_value = false;
+			continue;
+		}
 		if (arg.substr(0, 2) == "--") {
-			if (!isOptionExpected(arg)) {
-				throw ParseError("Unexpected option " + arg);
-			}
-			options_[arg] = true;
+			parseOption(arg, expecting_value, valued_option);
 		} else {
 			arguments_.push_back(arg);
 		}
 	}
+	if (expecting_value) {
+		throw ParseError("Option " + valued_option + " needs an argument");
+	}
+}
+
+void Options::parseOption(const std::string &arg, bool &expecting_value, std::string &valued_option) {
+	size_t separator = arg.find('=');
+	if (separator != std::string::npos) {
+		auto left = arg.substr(0, separator);
+		auto right = arg.substr(separator + 1);
+		if (isOptionValued(left)) {
+			valued_options_[left] = right;
+			options_[left] = true;
+			return;
+		}
+		throw ParseError("Unexpected parameter passed to option " + left);
+	}
+	if (!isOptionExpected(arg)) {
+		throw ParseError("Unexpected option " + arg);
+	}
+	if (isOptionValued(arg)) {
+		valued_option = arg;
+		expecting_value = true;
+	}
+	options_[arg] = true;
 }
