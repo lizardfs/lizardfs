@@ -1614,7 +1614,7 @@ int file_repair(const char *fname) {
 	return 0;
 }
 
-int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uint32_t srcinode,uint8_t canoverwrite) {
+int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uint32_t srcinode,uint8_t canoverwrite,int long_wait) {
 	uint8_t reqbuff[8+22+255],*wptr,*buff;
 	const uint8_t *rptr;
 	uint32_t cmd,leng,dstinode,uid,gid;
@@ -1648,7 +1648,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 		close_master_conn(1);
 		return -1;
 	}
-	if (tcpread(fd,reqbuff,8)!=8) {
+	if (tcptoread(fd, reqbuff, 8, long_wait ? -1 : 60000) != 8) {
 		printf("%s->%s/%s: master query: receive error\n",srcname,dstdir,dstbase);
 		close_master_conn(1);
 		return -1;
@@ -1662,7 +1662,8 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 		return -1;
 	}
 	buff = (uint8_t*) malloc(leng);
-	if (tcpread(fd,buff,leng)!=(int32_t)leng) {
+	// snapshot can take long time to finish so we increase timeout
+	if (tcptoread(fd, buff, leng, 60 * 1000) != (int32_t)leng) {
 		printf("%s->%s/%s: master query: receive error\n",srcname,dstdir,dstbase);
 		free(buff);
 		close_master_conn(1);
@@ -1692,7 +1693,7 @@ int make_snapshot(const char *dstdir,const char *dstbase,const char *srcname,uin
 	return 0;
 }
 
-int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uint8_t canowerwrite) {
+int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uint8_t canowerwrite,int long_wait) {
 	char to[PATH_MAX+1],base[PATH_MAX+1],dir[PATH_MAX+1];
 	char src[PATH_MAX+1];
 	struct stat sst,dst;
@@ -1736,7 +1737,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 			printf("directory %s does not exist\n",dstname);
 			return -1;
 		}
-		return make_snapshot(to,base,srcnames[0],sst.st_ino,canowerwrite);
+		return make_snapshot(to,base,srcnames[0],sst.st_ino,canowerwrite,long_wait);
 	} else {        // dst exists
 		if (realpath(dstname,to)==NULL) {
 			printf("%s: realpath error on %s: %s\n",dstname,to,strerr(errno));
@@ -1761,7 +1762,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 				printf("%s: basename error\n",to);
 				return -1;
 			}
-			return make_snapshot(dir,base,srcnames[0],sst.st_ino,canowerwrite);
+			return make_snapshot(dir,base,srcnames[0],sst.st_ino,canowerwrite,long_wait);
 		} else {        // dst is a directory
 			status = 0;
 			for (i=0 ; i<srcelements ; i++) {
@@ -1794,7 +1795,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 							continue;
 						}
 					}
-					if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite)<0) {
+					if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite,long_wait)<0) {
 						status=-1;
 					}
 				} else {        // src is a directory
@@ -1810,7 +1811,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 							status=-1;
 							continue;
 						}
-						if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite)<0) {
+						if (make_snapshot(to,base,srcnames[i],sst.st_ino,canowerwrite,long_wait)<0) {
 							status=-1;
 						}
 					} else {        // src is a directory and name has not trailing slash
@@ -1821,7 +1822,7 @@ int snapshot(const char *dstname,char * const *srcnames,uint32_t srcelements,uin
 							status=-1;
 							continue;
 						}
-						if (make_snapshot(dir,base,srcnames[i],sst.st_ino,canowerwrite)<0) {
+						if (make_snapshot(dir,base,srcnames[i],sst.st_ino,canowerwrite,long_wait)<0) {
 							status=-1;
 						}
 					}
@@ -1922,8 +1923,9 @@ void usage(int f) {
 			print_numberformat_options();
 			break;
 		case MFSMAKESNAPSHOT:
-			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-of] src [src ...] dst\n");
-			fprintf(stderr,"-o - allow to overwrite existing objects\n");
+			fprintf(stderr,"make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-ofl] src [src ...] dst\n");
+			fprintf(stderr,"-o,-f - allow to overwrite existing objects\n");
+			fprintf(stderr,"-l - wait until snapshot will finish (otherwise there is 60s timeout)\n");
 			break;
 		case MFSGETEATTR:
 			fprintf(stderr,"get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
@@ -2079,6 +2081,7 @@ int main(int argc,char **argv) {
 	int ch;
 	int oflag=0;
 	int rflag=0;
+	int lflag=0;
 	uint8_t eattr=0,smode=SMODE_SET;
 	std::string goal;
 	uint32_t trashtime=86400;
@@ -2211,6 +2214,9 @@ int main(int argc,char **argv) {
 			case 'o':
 				oflag=1;
 				break;
+			case 'l':
+				lflag=1;
+				break;
 			}
 		}
 		argc -= optind;
@@ -2218,7 +2224,7 @@ int main(int argc,char **argv) {
 		if (argc<2) {
 			usage(f);
 		}
-		return snapshot(argv[argc-1],argv,argc-1,oflag);
+		return snapshot(argv[argc-1],argv,argc-1,oflag,lflag);
 	case MFSGETGOAL:
 	case MFSSETGOAL:
 	case MFSGETTRASHTIME:
