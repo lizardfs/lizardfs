@@ -29,7 +29,7 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 
-static const uint32_t kTimeout_ms = 5000;
+const int ServerConnection::kDefaultTimeout;
 
 namespace {
 
@@ -100,13 +100,17 @@ MessageBuffer receiveRequestGeneric(
 
 } // anonymous namespace
 
-ServerConnection::ServerConnection(const std::string& host, const std::string& port) : fd_(-1) {
+ServerConnection::ServerConnection(const std::string& host, const std::string& port) :
+		fd_(-1),
+		timeout_(kDefaultTimeout) {
 	NetworkAddress server;
 	tcpresolve(host.c_str(), port.c_str(), &server.ip, &server.port, false);
 	connect(server);
 }
 
-ServerConnection::ServerConnection(const NetworkAddress& server) : fd_(-1) {
+ServerConnection::ServerConnection(const NetworkAddress& server) :
+		fd_(-1),
+		timeout_(kDefaultTimeout) {
 	connect(server);
 }
 
@@ -120,15 +124,16 @@ MessageBuffer ServerConnection::sendAndReceive(
 		const MessageBuffer& request,
 		PacketHeader::Type expectedType,
 		ReceiveMode receiveMode) {
-	return ServerConnection::sendAndReceive(fd_, request, expectedType, receiveMode);
+	return ServerConnection::sendAndReceive(fd_, request, expectedType, receiveMode, timeout_);
 }
 
 MessageBuffer ServerConnection::sendAndReceive(
 		int fd,
 		const MessageBuffer& request,
 		PacketHeader::Type expectedType,
-		ReceiveMode receiveMode) {
-	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+		ReceiveMode receiveMode,
+		int tm) {
+	Timeout timeout{std::chrono::milliseconds(tm)};
 	sendRequestGeneric(fd, request, timeout);
 	return receiveRequestGeneric(fd, expectedType, receiveMode, timeout);
 }
@@ -140,7 +145,7 @@ void ServerConnection::connect(const NetworkAddress& server) {
 				"Can't create socket: " + std::string(strerr(tcpgetlasterror())));
 	}
 	tcpnonblock(fd_);
-	if (tcpnumtoconnect(fd_, server.ip, server.port, kTimeout_ms) != 0) {
+	if (tcpnumtoconnect(fd_, server.ip, server.port, timeout_) != 0) {
 		tcpclose(fd_);
 		fd_ = -1;
 		throw ConnectionException(
@@ -158,7 +163,7 @@ MessageBuffer KeptAliveServerConnection::sendAndReceive(
 		const MessageBuffer& request,
 		PacketHeader::Type expectedResponseType,
 		ReceiveMode receiveMode) {
-	Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+	Timeout timeout{std::chrono::milliseconds(timeout_)};
 	/* synchronized with nopThread_ */ {
 		std::unique_lock<std::mutex> lock(mutex_);
 		sendRequestGeneric(fd_, request, timeout);
@@ -173,7 +178,7 @@ void KeptAliveServerConnection::startNopThread() {
 			cond_.wait_for(lock, std::chrono::seconds(1));
 			if (threadCanRun_) {
 				// We have the lock, we can send something
-				Timeout timeout{std::chrono::milliseconds(kTimeout_ms)};
+				Timeout timeout{std::chrono::milliseconds(timeout_)};
 				sendRequestGeneric(fd_, buildMooseFsPacket(ANTOAN_NOP), timeout);
 			}
 		}

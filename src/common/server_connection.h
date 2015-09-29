@@ -36,6 +36,8 @@ public:
 		kReceiveFirstMessage,       ///< Returns the first received response, even ANTOAN_NOP
 	};
 
+	static const int kDefaultTimeout = 5000;
+
 	ServerConnection(const std::string& host, const std::string& port);
 	ServerConnection(const NetworkAddress& server);
 	virtual ~ServerConnection();
@@ -54,11 +56,17 @@ public:
 			int fd,
 			const MessageBuffer& request,
 			PacketHeader::Type expectedResponseType,
-			ReceiveMode receiveMode = ReceiveMode::kReceiveFirstNonNopMessage);
+			ReceiveMode receiveMode = ReceiveMode::kReceiveFirstNonNopMessage,
+			int timeout = kDefaultTimeout);
+
+	void setTimeout(int timeout) {
+		timeout_ = timeout;
+	}
 
 protected:
 	/// A socket (or -1 if closed)
 	int fd_;
+	int timeout_;
 
 private:
 	/// Opens a connection and sets \p fd_
