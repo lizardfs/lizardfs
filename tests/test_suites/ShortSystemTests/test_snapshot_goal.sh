@@ -56,7 +56,7 @@ assert_eventually_prints '8 xor3 12 xor5' 'chunks_state' '3 minutes'
 
 # Make a new snapshot of goal 3, expect 6 standard chunks (2 chunks x 3 copies)
 mfsmakesnapshot file_snapshot2 file_snapshot4
-mfssetgoal 3 file_snapshot3
+mfssetgoal 3 file_snapshot4
 echo "Waiting for chunks to be replicated..."
 assert_eventually_prints '6 standard 8 xor3 12 xor5' 'chunks_state' '3 minutes'
 
