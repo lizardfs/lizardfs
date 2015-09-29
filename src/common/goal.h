@@ -184,10 +184,10 @@ public:
 		  data_(type_.expectedParts()) {
 	}
 	Slice(const Slice&) = default;
-	Slice(Slice &&) noexcept = default;
+	Slice(Slice &&) = default;
 
 	Slice &operator=(const Slice &) = default;
-	Slice &operator=(Slice &&) noexcept = default;
+	Slice &operator=(Slice &&) = default;
 
 	int getExpectedCopies() const;
 
@@ -338,10 +338,10 @@ public:
 	}
 
 	Goal(const Goal &) = default;
-	Goal(Goal &&) noexcept = default;
+	Goal(Goal &&) = default;
 
 	Goal &operator=(const Goal &) = default;
-	Goal &operator=(Goal &&) noexcept = default;
+	Goal &operator=(Goal &&) = default;
 
 	/*! \brief Set specific slice of the Goal */
 	void setSlice(Slice slice) {
