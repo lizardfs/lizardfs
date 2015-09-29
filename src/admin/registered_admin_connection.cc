@@ -61,10 +61,13 @@ std::string getPassword() {
 
 std::unique_ptr<RegisteredAdminConnection> RegisteredAdminConnection::create(
 		const std::string& host,
-		const std::string& port) {
+		const std::string& port,
+		int timeout) {
 	// Connect the master server
 	auto connection = std::unique_ptr<RegisteredAdminConnection>(
 			new RegisteredAdminConnection(host, port));
+
+	connection->setTimeout(timeout);
 
 	// Get a challenge
 	auto challengeMessage = connection->sendAndReceive(

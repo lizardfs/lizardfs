@@ -32,7 +32,8 @@ public:
 	/// Throws if something goes wrong.
 	static std::unique_ptr<RegisteredAdminConnection> create(
 			const std::string& host,
-			const std::string& port);
+			const std::string& port,
+			int timeout = kDefaultTimeout);
 
 private:
 	/// Private constructor for ::create.
