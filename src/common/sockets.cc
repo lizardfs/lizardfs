@@ -596,7 +596,7 @@ int32_t tcpsend(int sock, const void *buff, uint32_t len, int flags) {
 #endif
 }
 
-int32_t tcptoread(int sock, void *buff, uint32_t leng, uint32_t msecto) {
+int32_t tcptoread(int sock, void *buff, uint32_t leng, int msecto) {
 	uint32_t rcvd = 0;
 	int i;
 	struct pollfd pfd;
@@ -622,7 +622,7 @@ int32_t tcptoread(int sock, void *buff, uint32_t leng, uint32_t msecto) {
 	return rcvd;
 }
 
-int32_t tcptowrite(int sock, const void *buff, uint32_t leng, uint32_t msecto) {
+int32_t tcptowrite(int sock, const void *buff, uint32_t leng, int msecto) {
 	uint32_t sent = 0;
 	int i;
 	struct pollfd pfd;
