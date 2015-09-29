@@ -36,17 +36,15 @@ void MagicRecalculateMetadataChecksumCommand::usage() const {
 }
 
 LizardFsProbeCommand::SupportedOptions MagicRecalculateMetadataChecksumCommand::supportedOptions() const {
-	return { {"--async", "Don't wait for the task to finish."} };
+	return { {"--async", "Don't wait for the task to finish."},
+	         {"--timeout=", "Operation timeout" }};
 }
 
 void MagicRecalculateMetadataChecksumCommand::run(const Options& options) const {
-	if (options.arguments().size() != 2) {
-		throw WrongUsageException(
-				"Expected <metadataserver ip> and <metadataserver port> for " + name());
-	}
-
 	bool async = options.isSet("--async");
-	auto connection = RegisteredAdminConnection::create(options.argument(0), options.argument(1));
+
+	int timeout = 1000 * options.getValue<int>("--timeout", ServerConnection::kDefaultTimeout / 1000);
+	auto connection = RegisteredAdminConnection::create(options.argument(0), options.argument(1), timeout);
 	auto request = cltoma::adminRecalculateMetadataChecksum::build(async);
 	auto response = connection->sendAndReceive(request, LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM);
 	uint8_t status;
