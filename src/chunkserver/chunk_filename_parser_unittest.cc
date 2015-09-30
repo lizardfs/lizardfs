@@ -31,6 +31,10 @@ TEST(ChunkFilenameParser, ParseStandardChunkFilename) {
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
 	EXPECT_EQ(0x000001U, filenameParser.chunkVersion());
 	EXPECT_EQ(slice_traits::standard::ChunkPartType(), filenameParser.chunkType());
+
+	// hashes unparsable by stoll(), but parsable by stoull()
+	EXPECT_EQ(ChunkFilenameParser::OK,
+			ChunkFilenameParser("chunk_9999999999999999_00000001.liz").parse());
 }
 
 TEST(ChunkFilenameParser, ParseXorChunkFilename) {

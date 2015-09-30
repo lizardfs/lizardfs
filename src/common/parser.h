@@ -20,11 +20,11 @@
 
 #include "common/platform.h"
 
+#include <cassert>
 #include <cstdint>
 #include <sstream>
+#include <stdexcept>
 #include <string>
-
-#include "common/massert.h"
 
 class Parser {
 public:
@@ -73,13 +73,23 @@ private:
 	template<typename T>
 	T intFromHexString(const std::string& number,
 			size_t position = 0, size_t length = std::string::npos) {
-		sassert(length / 2 <= sizeof(T));
-		return T(std::stoll(number.substr(position, length), nullptr, 16));
+		if(length / 2 > sizeof(T)) {
+			throw std::out_of_range("too big hex value passed to parser");
+		}
+		if (number.at(0) == '-') {
+			return T(std::stoll(number.substr(position, length), nullptr, 16));
+		} else {
+			return T(std::stoull(number.substr(position, length), nullptr, 16));
+		}
 	}
 
 	template<typename T>
 	T intFromDecString(const std::string& number,
 			size_t position = 0, size_t length = std::string::npos) {
-		return T(std::stoll(number.substr(position, length), nullptr, 10));
+		if (number.at(0) == '-') {
+			return T(std::stoll(number.substr(position, length), nullptr, 10));
+		} else {
+			return T(std::stoull(number.substr(position, length), nullptr, 10));
+		}
 	}
 };

@@ -27,6 +27,7 @@
 
 ChunkFilenameParser::ChunkFilenameParser(const std::string& filename)
 	: Parser(filename),
+	  chunkFormat_(),
 	  chunkType_(),
 	  chunkVersion_(0),
 	  chunkId_(0),
@@ -38,7 +39,7 @@ static int isUpperCaseHexDigit(int c) {
 	return isdigit(c) || (isxdigit(c) && isupper(c));
 }
 
-ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
+ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() try {
 	bool isParityChunk = (consume("xor_parity_of_") == Parser::OK);
 	if (isParityChunk) {
 		if (consume("0") == Parser::OK) {
@@ -107,9 +108,13 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() {
 
 	chunkType_ = slice_traits::standard::ChunkPartType();
 	return ChunkFilenameParser::OK;
+} catch (const std:: invalid_argument &e) {
+	return ChunkFilenameParser::ERROR_INVALID_FILENAME;
+} catch (const std::out_of_range &e) {
+	return ChunkFilenameParser::ERROR_INVALID_FILENAME;
 }
 
-ChunkFilenameParser::Status ChunkFilenameParser::parse() {
+ChunkFilenameParser::Status ChunkFilenameParser::parse() try {
 	chunkFormat_ = ChunkFormat::INTERLEAVED;
 
 	if (consume("chunk_") != Parser::OK) {
@@ -156,6 +161,10 @@ ChunkFilenameParser::Status ChunkFilenameParser::parse() {
 	}
 
 	return OK;
+} catch (const std:: invalid_argument &e) {
+	return ChunkFilenameParser::ERROR_INVALID_FILENAME;
+} catch (const std::out_of_range &e) {
+	return ChunkFilenameParser::ERROR_INVALID_FILENAME;
 }
 
 ChunkFormat ChunkFilenameParser::chunkFormat() const {
