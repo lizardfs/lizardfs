@@ -27,7 +27,7 @@ for goal in two_hdds two_with_hdd; do
 done
 
 # Check if chunks are properly rebalanced now
-assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 != 16'"
+assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 != 16'" "1 minute"
 
 # Check if chunks are properly rebalanced after starting hdd chunkserver
 lizardfs_chunkserver_daemon 3 start

@@ -42,7 +42,7 @@ truncate -s 0 "$TEMP_DIR/log"
 # Recalculate metadata checksum in tight loop in background
 (
 	while ! test_frozen; do
-		assert_success lizardfs_admin_master magic-recalculate-metadata-checksum
+		assert_success lizardfs_admin_master magic-recalculate-metadata-checksum --timeout $(timeout_rescale_seconds 5)
 	done &>/dev/null &
 )
 

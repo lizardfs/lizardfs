@@ -11,6 +11,14 @@ CHUNKSERVERS=3 \
 
 cd "${info[mount0]}"
 
+rescale_value() {
+	if valgrind_enabled; then
+		echo $((4 * $1))
+	else
+		echo "$1"
+	fi
+}
+
 time=$(which time) # We need /usr/bin/time or something like this in this test, not a bash built-in
 head -c 1M /dev/zero > warmup
 for mb in 9 5 3 1; do
@@ -21,17 +29,17 @@ for mb in 9 5 3 1; do
 	echo "$MESSAGE"
 	seconds=$("$time" -f %e file-generate file_${mb} 2>&1)
 	actual_time_ms=$(bc <<< "scale=0; $seconds * 1000 / 1")
-	assert_near $expected_time_ms $actual_time_ms 250
+	assert_near $expected_time_ms $actual_time_ms $(rescale_value 250)
 
 	export MESSAGE="Reading $mb MB at 1 MB/s"
 	echo "$MESSAGE"
 	seconds=$("$time" -f %e file-validate file_${mb} 2>&1)
 	actual_time_ms=$(bc <<< "scale=0; $seconds * 1000 / 1")
-	assert_near $expected_time_ms $actual_time_ms 250
+	assert_near $expected_time_ms $actual_time_ms $(rescale_value 250)
 
 	export MESSAGE="Reading + writing $mb MB at 1 MB/s"
 	echo "$MESSAGE"
 	seconds=$("$time" -f %e bash -c "file-validate file_${mb} & file-generate garbage & wait" 2>&1)
 	actual_time_ms=$(bc <<< "scale=0; $seconds * 1000 / 1")
-	assert_near $((2 * expected_time_ms)) $actual_time_ms 250
+	assert_near $((2 * expected_time_ms)) $actual_time_ms $(rescale_value 250)
 done
