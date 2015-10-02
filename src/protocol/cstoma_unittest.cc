@@ -166,3 +166,16 @@ TEST(CstomaCommunicationTests, Replicate) {
 	LIZARDFS_VERIFY_INOUT_PAIR(status);
 	LIZARDFS_VERIFY_INOUT_PAIR(chunkVersion);
 }
+
+TEST(CstomaCommunicationTests, Status) {
+	LIZARDFS_DEFINE_INOUT_PAIR(uint8_t, load, 77, 0);
+
+	std::vector<uint8_t> buffer;
+	ASSERT_NO_THROW(cstoma::status::serialize(buffer, loadIn));
+
+	verifyHeader(buffer, LIZ_CSTOMA_STATUS);
+	removeHeaderInPlace(buffer);
+	ASSERT_NO_THROW(cstoma::status::deserialize(buffer, loadOut));
+
+	LIZARDFS_VERIFY_INOUT_PAIR(load);
+}

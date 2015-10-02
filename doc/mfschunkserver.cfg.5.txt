@@ -87,6 +87,10 @@ if enabled then chunkserver detects zero values in chunk data and frees
 corresponding file blocks (decreasing file system usage). This option works only on Linux
 with file systems supporting punching holes (XFS, ext4, Btrfs, tmpfs)
 
+*ENABLE_LOAD_FACTOR*::
+if enabled, chunkserver will send periodical reports of its I/O load to master,
+which will be taken into consideration when picking chunkservers for I/O operations.
+
 *REPLICATION_BANDWIDTH_LIMIT_KBPS*::
 limit how many kilobytes can be replicated from other chunkservers to this chunkserver in every
 second (by default undefined, i.e. no limits)

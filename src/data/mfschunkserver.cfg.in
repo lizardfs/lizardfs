@@ -82,6 +82,11 @@
 ## (Default : 0)
 # HDD_PUNCH_HOLES = 1
 
+## If enabled, chunkserver will send periodical reports of its I/O load to master,
+## which will be taken into consideration when picking chunkservers for I/O operations.
+## (Default : 0)
+# ENABLE_LOAD_FACTOR = 0
+
 ## Limit how many kilobytes can be replicated from other chunkservers to
 ## this chunkserver in every second (by default undefined, i.e. no limits)
 # REPLICATION_BANDWIDTH_LIMIT_KBPS = 8192

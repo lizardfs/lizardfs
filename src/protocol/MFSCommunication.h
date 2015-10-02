@@ -690,6 +690,10 @@ enum class SugidClearMode {
 /// version==0 chunkid:64 chunktype:8 status:8
 /// version==1 chunkid:64 chunktype:16 status:8
 
+// 0x0494
+#define LIZ_CSTOMA_STATUS (1000U + 172U)
+/// load:8
+
 // CHUNKSERVER <-> CLIENT/CHUNKSERVER
 
 // 0x00C8

@@ -49,7 +49,7 @@ void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
 	if (history.empty()) {
 		for (const auto &server : servers_) {
 			history.emplace_back(server.server, server.label, server.weight,
-			                     server.version);
+			                     server.version, server.load_factor);
 		}
 	}
 
@@ -62,12 +62,12 @@ void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
 	// random_shuffle to choose randomly if relative disk usage is the same.
 	std::random_shuffle(servers_.begin(), servers_.end());
 	std::stable_sort(servers_.begin(), servers_.end(),
-	                 [](const ChunkserverChunkCounter &a, const ChunkserverChunkCounter &b) {
-		                 int64_t aRelativeUsage = a.chunks_created * b.weight;
-		                 int64_t bRelativeUsage = b.chunks_created * a.weight;
-		                 return (aRelativeUsage < bRelativeUsage ||
-		                         (aRelativeUsage == bRelativeUsage && a.weight > b.weight));
-		         });
+				 [](const ChunkserverChunkCounter &a, const ChunkserverChunkCounter &b) {
+					 int64_t aRelativeUsage = a.chunks_created * b.weight;
+					 int64_t bRelativeUsage = b.chunks_created * a.weight;
+					 return std::make_tuple(aRelativeUsage, -a.weight, a.load_factor)
+					 < std::make_tuple(bRelativeUsage, -b.weight, b.load_factor);
+			 });
 
 	if (gAvoidSameIpChunkservers) {
 		sortAvoidingSameIp();

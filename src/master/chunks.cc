@@ -199,7 +199,7 @@ static uint32_t HashSteps;
 static uint32_t HashCPS;
 static uint32_t ChunksLoopPeriod;
 static uint32_t ChunksLoopTimeout;
-static double   AcceptableDifference;
+static double   gAcceptableDifference;
 static bool     RebalancingBetweenLabels = false;
 
 static uint32_t jobsnorepbefore;
@@ -2222,16 +2222,16 @@ bool ChunkWorker::removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type
 
 bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, bool only_todel, const IpCounter &ip_counter) {
 	if(!only_todel) {
-		double min_usage = sortedServers_.front().diskUsage;
-		double max_usage = sortedServers_.back().diskUsage;
-		if ((max_usage - min_usage) <= AcceptableDifference) {
+		double min_usage = sortedServers_.front().disk_usage;
+		double max_usage = sortedServers_.back().disk_usage;
+		if ((max_usage - min_usage) <= gAcceptableDifference) {
 			return false;
 		}
 	}
 
 	// Consider each copy to be moved to a server with disk usage much less than actual.
 	// There are at least two servers with a disk usage difference grater than
-	// AcceptableDifference, so it's worth checking.
+	// gAcceptableDifference, so it's worth checking.
 	for (const auto &part : c->parts) {
 		if (!part.is_valid()) {
 			continue;
@@ -2277,8 +2277,8 @@ bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, boo
 				}
 			}
 
-			if (!only_todel && empty_server.diskUsage >
-			    current_copy_disk_usage - AcceptableDifference) {
+			if (!only_todel && empty_server.disk_usage >
+			    current_copy_disk_usage - gAcceptableDifference) {
 				break;  // No more suitable destination servers (next servers have
 				        // higher usage)
 			}
@@ -2870,7 +2870,7 @@ void chunk_reload(void) {
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
 	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", static_cast<uint64_t>(1024*1024UL));
-	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE",0.1, 0.001, 10.0);
+	gAcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE",0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 }
 #endif
@@ -2948,7 +2948,7 @@ int chunk_strinit(void) {
 	double endangeredChunksPriority = cfg_ranged_get("ENDANGERED_CHUNKS_PRIORITY", 0.0, 0.0, 1.0);
 	gEndangeredChunksServingLimit = HashSteps * endangeredChunksPriority;
 	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", static_cast<uint64_t>(1024*1024UL));
-	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
+	gAcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	eventloop_reloadregister(chunk_reload);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
@@ -2959,4 +2959,3 @@ int chunk_strinit(void) {
 #endif
 	return 1;
 }
-

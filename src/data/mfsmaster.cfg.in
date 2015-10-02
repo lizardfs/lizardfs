@@ -252,3 +252,8 @@
 ## will try to avoid using those that share the same ip.
 ## (Default: 0)
 # AVOID_SAME_IP_CHUNKSERVERS = 0
+
+## When set, percentage of load will be added to chunkserver disk usage to determine most fitting
+## chunkserver. Heavy loaded chunkservers will be picked for operations less frequently.
+## (Default: 0, Valid range: [0, 0.5])
+# LOAD_FACTOR_PENALTY = 0

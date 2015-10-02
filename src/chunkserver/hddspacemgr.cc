@@ -66,6 +66,7 @@
 #include "chunkserver/chunk_filename_parser.h"
 #include "chunkserver/chunk_signature.h"
 #include "chunkserver/indexed_resource_pool.h"
+#include "chunkserver/iostat.h"
 #include "chunkserver/open_chunk.h"
 #include "common/cfg.h"
 #include "common/cwrap.h"
@@ -192,6 +193,7 @@ static std::atomic<uint32_t> stats_duptrunc(0);
 
 static const int kOpenRetryCount = 4;
 static const int kOpenRetry_ms = 5;
+static IoStat gIoStat;
 
 void hdd_report_damaged_chunk(uint64_t chunkid, ChunkPartType chunk_type) {
 	TRACETHIS1(chunkid);
@@ -1149,6 +1151,10 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 	*tdusedspace = tdtotal-tdavail;
 	*tdtotalspace = tdtotal;
 	*tdchunkcount = tdchunks;
+}
+
+int hdd_get_load_factor() {
+	return gIoStat.getLoadFactor();
 }
 
 static inline int hdd_int_chunk_readcrc(MooseFSChunk *c, uint32_t chunk_version) {
@@ -3803,6 +3809,15 @@ static void hdd_folders_reinit(void) {
 		}
 		folderactions = 1; // continue folder actions
 	}
+
+	std::unique_lock<std::mutex> folderlock_lock(folderlock);
+	std::vector<std::string> paths;
+	for (f = folderhead; f; f = f->next) {
+		paths.emplace_back(f->path);
+	}
+	folderlock_lock.unlock();
+
+	gIoStat.resetPaths(paths);
 
 	if (!anyDiskAvailable) {
 		throw InitializeException("no data paths defined in the " + hddfname + " file");

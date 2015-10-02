@@ -40,12 +40,13 @@ struct ChunkserverChunkCounter {
 	}
 
 	ChunkserverChunkCounter(matocsserventry *server, MediaLabel label, int64_t weight,
-	                        uint32_t version)
+	                        uint32_t version, uint8_t load_factor)
 	    : server(server),
 	      label(std::move(label)),
 	      weight(weight),
 	      version(version),
-	      chunks_created(0) {
+	      chunks_created(0),
+	      load_factor(load_factor) {
 	}
 
 	matocsserventry *server;
@@ -53,10 +54,11 @@ struct ChunkserverChunkCounter {
 	int64_t weight;
 	uint32_t version;
 
-	/// Number of chunks created on this sever.
+	/// Number of chunks created on this server.
 	/// This information would be reset if anything did change (eg. list of servers,
 	/// their labels or weights).
 	int64_t chunks_created;
+	uint8_t load_factor;
 };
 
 typedef std::vector<ChunkserverChunkCounter> ChunkCreationHistory;
@@ -77,8 +79,8 @@ public:
 	 * \param version chunk server version.
 	 */
 	void addServer(matocsserventry *server, const MediaLabel &label, int64_t weight,
-	               uint32_t version) {
-		servers_.emplace_back(server, label, weight, version);
+	               uint32_t version, uint8_t load_factor) {
+		servers_.emplace_back(server, label, weight, version, load_factor);
 	}
 
 	/*! \brief Prepare data for subsequent calls to chooseServersForLabels.

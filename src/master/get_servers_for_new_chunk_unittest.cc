@@ -47,7 +47,7 @@ protected:
 			}
 			// We will use the address of the entry in our map as a matocsserventry* pointer.
 			const matocsserventry* serverPtr = reinterpret_cast<const matocsserventry*>(&(*it));
-			getter.addServer(const_cast<matocsserventry*>(serverPtr), it->second, 1, 0);
+			getter.addServer(const_cast<matocsserventry*>(serverPtr), it->second, 1, 0, 0);
 		}
 		return getter;
 	}
@@ -213,7 +213,7 @@ void testScenario(double maxUsageDifference, std::vector<std::string> goalDefs,
 		GetServersForNewChunk algorithm;
 		for (int server = 0; server < int(servers.size()); ++server) {
 			algorithm.addServer(reinterpret_cast<matocsserventry*>(server + 1),
-					MediaLabel(servers[server].first), servers[server].second, 0);
+					MediaLabel(servers[server].first), servers[server].second, 0, 0);
 		}
 		algorithm.prepareData(history);
 

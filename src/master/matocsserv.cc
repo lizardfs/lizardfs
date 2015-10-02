@@ -67,6 +67,8 @@
 // matocsserventry.mode
 enum{KILL, CONNECTED};
 
+double gLoadFactorPenalty = 0.;
+
 struct matocsserventry {
 	matocsserventry() : inputPacket(MaxPacketSize) {}
 
@@ -92,10 +94,21 @@ struct matocsserventry {
 	uint16_t rrepcounter;
 	uint16_t wrepcounter;
 	uint16_t delcounter;
+	uint8_t load_factor;
 
 	csdbentry *csdb; /*!< Pointer to database entry for chunkserver. */
 
 	matocsserventry *next;
+
+	static bool lessUsedAndLoaded(matocsserventry *first, matocsserventry *second) {
+		double first_load_penalty = gLoadFactorPenalty * (double)first->load_factor / 100.;
+		double second_load_penalty = gLoadFactorPenalty * (double)second->load_factor / 100.;
+
+		double first_usage = double(first->usedspace) / double(first->totalspace) + first_load_penalty;
+		double second_usage = double(second->usedspace) / double(second->totalspace) + second_load_penalty;
+
+		return first_usage < second_usage;
+	}
 };
 
 static matocsserventry *matocsservhead=NULL;
@@ -346,8 +359,8 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 			result.emplace_back(eptr, usage, eptr->label);
 		}
 	}
-	std::sort(result.begin(), result.end(), [](const ServerWithUsage& a, const ServerWithUsage& b) {
-		return a.diskUsage < b.diskUsage;
+	std::sort(result.begin(), result.end(), [](const ServerWithUsage &u1, const ServerWithUsage &u2){
+		return matocsserventry::lessUsedAndLoaded(u1.server, u2.server);
 	});
 	return result;
 }
@@ -372,7 +385,7 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 			//
 			// weight = percent free spaces
 			const int64_t weight = 1024 * 1024 * (1. - matocsserv_get_usage(eptr));
-			getter.addServer(eptr, eptr->label, weight, eptr->version);
+			getter.addServer(eptr, eptr->label, weight, eptr->version, eptr->load_factor);
 		}
 	}
 
@@ -469,22 +482,19 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 		}
 	}
 	std::random_shuffle(servers.begin(), servers.end());
-	if (returned_matching > 0) {
-		if (gAvoidSameIpChunkservers) {
-			counting_sort(servers, [&ip_counter](matocsserventry *server) {
-				auto it = ip_counter.find(server->servip);
-				return it != ip_counter.end() ? it->second : 0;
-			});
+	std::sort(servers.begin(), servers.end(), matocsserventry::lessUsedAndLoaded);
+	if (gAvoidSameIpChunkservers) {
+		counting_sort(servers, [&ip_counter](matocsserventry *server) {
+			auto it = ip_counter.find(server->servip);
+			return it != ip_counter.end() ? it->second : 0;
+		});
+	}
 
-			std::stable_partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
-				return cs->label == label;
-			});
-		} else {
-			// Move servers matching the requested label to the front of the servers array
-			std::partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
-				return cs->label == label;
-			});
-		}
+	if (returned_matching > 0) {
+		// Move servers matching the requested label to the front of the servers array
+		std::stable_partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
+			return cs->label == label;
+		});
 	}
 }
 
@@ -1323,6 +1333,12 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 	}
 }
 
+void matocsserv_liz_status(matocsserventry *eptr, const std::vector<uint8_t> &data) {
+	uint8_t load_factor;
+	cstoma::status::deserialize(data, load_factor);
+	eptr->load_factor = load_factor;
+}
+
 void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t i;
@@ -1537,6 +1553,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, PacketHeader header, const Mess
 				break;
 			case LIZ_CSTOMA_REGISTER_LABEL:
 				matocsserv_liz_register_label(eptr, data);
+				break;
+			case LIZ_CSTOMA_STATUS:
+				matocsserv_liz_status(eptr, data);
 				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message "
@@ -1758,6 +1777,7 @@ void matocsserv_reload(void) {
 	oldListenPort = ListenPort;
 	ListenHost = cfg_getstr("MATOCS_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOCS_LISTEN_PORT","9420");
+	gLoadFactorPenalty = cfg_get_minmaxvalue<double>("LOAD_FACTOR_PENALTY", 0., 0., 0.5);
 	if (strcmp(oldListenHost,ListenHost)==0 && strcmp(oldListenPort,ListenPort)==0) {
 		free(oldListenHost);
 		free(oldListenPort);
@@ -1803,6 +1823,7 @@ uint32_t matocsserv_get_version(matocsserventry *e) {
 int matocsserv_init(void) {
 	ListenHost = cfg_getstr("MATOCS_LISTEN_HOST","*");
 	ListenPort = cfg_getstr("MATOCS_LISTEN_PORT","9420");
+	gLoadFactorPenalty = cfg_get_minmaxvalue<double>("LOAD_FACTOR_PENALTY", 0., 0., 0.5);
 
 	lsock = tcpsocket();
 	if (lsock<0) {

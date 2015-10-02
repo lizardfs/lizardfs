@@ -39,17 +39,17 @@ typedef std::vector<matocsserventry*> Chunkservers;
 
 /// A struct used in matocsserv_getservers_sorted
 struct ServerWithUsage {
-	ServerWithUsage() : server(nullptr), diskUsage(), label() {
+	ServerWithUsage() : server(nullptr), disk_usage(), label() {
 	}
 
-	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel& label)
+	ServerWithUsage(matocsserventry* server, double disk_usage, const MediaLabel& label)
 			: server(server),
-			  diskUsage(diskUsage),
+			  disk_usage(disk_usage),
 			  label(label) {
 	}
 
 	matocsserventry* server;
-	double diskUsage;
+	double disk_usage;
 	MediaLabel label;
 };
 
@@ -125,4 +125,3 @@ int matocsserv_send_duptruncchunk(matocsserventry* e,
 int matocsserv_init(void);
 void matocsserv_getserverdata(const matocsserventry* s, ChunkserverListEntry &result);
 csdbentry *matocsserv_get_csdb(matocsserventry* s);
-
