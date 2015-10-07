@@ -66,10 +66,6 @@
 #  endif
 #endif
 
-#ifndef MFSMAXFILES
-#  define MFSMAXFILES 5000
-#endif
-
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
@@ -1224,16 +1220,6 @@ int main(int argc,char **argv) {
 	main_configure_debug_log();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
-#ifdef MFSMAXFILES
-		rls.rlim_cur = MFSMAXFILES;
-		rls.rlim_max = MFSMAXFILES;
-		if (setrlimit(RLIMIT_NOFILE,&rls)<0) {
-			lzfs_pretty_syslog(LOG_WARNING,"can't change open files limit to %u, check restrictions with `ulimit -n'",MFSMAXFILES);
-		} else {
-			lzfs_pretty_syslog(LOG_INFO,"open files limit limit changed to to %u",MFSMAXFILES);
-		}
-#endif
-
 		lockmemory = cfg_getnum("LOCK_MEMORY",0);
 #ifdef MFS_USE_MEMLOCK
 		if (lockmemory) {
