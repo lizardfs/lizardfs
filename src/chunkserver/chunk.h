@@ -70,6 +70,11 @@ struct folder {
 	unsigned int damaged:1;
 	unsigned int toremove:2;
 	uint8_t scanprogress;
+#define MGST_MIGRATEDONE 0u
+#define MGST_MIGRATEINPROGRESS 1u
+#define MGST_MIGRATETERMINATE 2u
+#define MGST_MIGRATEFINISHED 3u
+	uint8_t migratestate;
 	uint64_t sizelimit;
 	uint64_t leavefree;
 	uint64_t avail;
@@ -86,6 +91,7 @@ struct folder {
 	int lfd;
 	double carry;
 	pthread_t scanthread;
+	pthread_t migratethread;
 	Chunk *testhead,**testtail;
 	struct folder *next;
 };
@@ -101,15 +107,15 @@ public:
 	virtual off_t getFileSizeFromBlockCount(uint32_t blockCount) const = 0;
 	virtual bool isFileSizeValid(off_t fileSize) const = 0;
 	uint32_t maxBlocksInFile() const;
-	std::string generateFilenameForVersion(uint32_t version) const;
+	std::string generateFilenameForVersion(uint32_t version, int layout_version = 0) const;
 	int renameChunkFile(const std::string& newFilename);
 	virtual void setBlockCountFromFizeSize(off_t fileSize) = 0;
 	void setFilename(const std::string& filename) { filename_ = filename; }
 	ChunkPartType type() const { return type_; }
 	ChunkFormat chunkFormat() const { return chunkFormat_; };
-	static uint32_t getSubfolderNumber(uint64_t chunkId);
-	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber);
-	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId);
+	static uint32_t getSubfolderNumber(uint64_t chunkId, int layout_version = 0);
+	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber, int layout_version = 0);
+	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_version = 0);
 
 	uint64_t chunkid;
 	struct folder *owner;

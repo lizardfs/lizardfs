@@ -1055,6 +1055,10 @@ void hdd_check_folders() {
 				f->toremove = 0;
 				break;
 			}
+			if (f->migratestate == MGST_MIGRATEFINISHED) {
+				zassert(pthread_join(f->migratethread,NULL));
+				f->migratestate = MGST_MIGRATEDONE;
+			}
 			if (f->toremove==0) { // 0 here means 'removed', so delete it from data structures
 				*fptr = f->next;
 				syslog(LOG_NOTICE,"folder %s successfully removed",f->path);
@@ -1116,6 +1120,10 @@ void hdd_check_folders() {
 					changed = 1;
 				}
 			}
+		}
+		if (f->migratestate == MGST_MIGRATEFINISHED) {
+			zassert(pthread_join(f->migratethread,NULL));
+			f->migratestate = MGST_MIGRATEDONE;
 		}
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
@@ -3112,7 +3120,8 @@ static inline void hdd_add_chunk(folder *f,
 		ChunkFormat chunkFormat,
 		uint32_t version,
 		ChunkPartType chunkType,
-		uint8_t todel) {
+		uint8_t todel,
+		int layout_version) {
 	TRACETHIS();
 	folder *prevf;
 	Chunk *c;
@@ -3135,7 +3144,7 @@ static inline void hdd_add_chunk(folder *f,
 			c->blocks = 0;
 			c->owner = f;
 			c->todel = todel;
-			c->setFilename(c->generateFilenameForVersion(version));
+			c->setFilename(c->generateFilenameForVersion(version, layout_version));
 			zassert(pthread_mutex_lock(&testlock));
 			// remove from previous chain
 			*(c->testprev) = c->testnext;
@@ -3155,7 +3164,7 @@ static inline void hdd_add_chunk(folder *f,
 		c->blocks = 0;
 		c->owner = f;
 		c->todel = todel;
-		c->setFilename(c->generateFilenameForVersion(version));
+		c->setFilename(c->generateFilenameForVersion(version, layout_version));
 		sassert(c->filename() == fullname);
 		zassert(pthread_mutex_lock(&testlock));
 		c->testprev = f->testtail;
@@ -3173,79 +3182,225 @@ static inline void hdd_add_chunk(folder *f,
 	zassert(pthread_mutex_unlock(&folderlock));
 }
 
-// Moves chunks from
-//    XY/chunk_??????????????XY_...
-// to
-//    chunksAB/chunk_??????????AB????_...
-void hdd_folder_migrate_directories(folder *f) {
-	// Allocate memory for directory entries as suggested in man readdir_r
-	long nameMax = pathconf(f->path, _PC_NAME_MAX);
-	if (nameMax == -1) {
-		nameMax = 255;
-	}
-	std::vector<uint8_t> direntry(offsetof(struct dirent, d_name) + nameMax + 1);
-	struct dirent *destorage = reinterpret_cast<struct dirent*>(direntry.data());
+/*! \brief Scan folder for new chunks in specific directory layout
+ *
+ * \param f folder
+ * \param begin_time time from start of scan
+ * \param layout_version directory and chunk name format identificator
+ *                       value 0 corresponds to current layout version
+ *                       other values are for older version
+ */
+void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) {
+	DIR *dd;
+	struct dirent *de, *destorage;
+	uint32_t tcheckcnt;
+	uint8_t lastperc, currentperc;
+	uint32_t lasttime, currenttime;
 
-	// Look for old folders and move all chunk files from then to new destinations
-	bool migrateMessageWasPrinted = false;
-	for (unsigned oldSubfolderNumber = 0; oldSubfolderNumber < 256; ++oldSubfolderNumber) {
-		char oldSubfolderName[3];
-		sprintf(oldSubfolderName, "%02X", oldSubfolderNumber);
-		std::string oldSubfolderPath = std::string(f->path) + oldSubfolderName + "/";
-		cdirectory_t dd(opendir(oldSubfolderPath.c_str()));
-		if (dd) {
-			if (!migrateMessageWasPrinted) {
-				syslog(LOG_NOTICE, "Migrating data from %s?? to %schunks??", f->path, f->path);
-				migrateMessageWasPrinted = true;
-			}
-			struct dirent *de;
-			while (readdir_r(dd.get(), destorage, &de) == 0 && de != nullptr) {
-				ChunkFilenameParser filenameParser(de->d_name);
-				if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
-					continue;
+	zassert(pthread_mutex_lock(&folderlock));
+	unsigned scan_state = f->scanstate;
+	zassert(pthread_mutex_unlock(&folderlock));
+	if (scan_state == SCST_SCANTERMINATE) {
+		return;
+	}
+
+	/* size of name added to size of structure because on some os'es d_name has size of 1 byte */
+	std::vector<uint8_t> buffer(sizeof(struct dirent) + pathconf(f->path, _PC_NAME_MAX) + 1);
+	destorage = reinterpret_cast<struct dirent *>(buffer.data());
+
+	bool scanterm = false;
+	tcheckcnt = 0;
+	lastperc = 0;
+	lasttime = time(NULL);
+	for (unsigned subfolderNumber = 0; subfolderNumber < Chunk::kNumberOfSubfolders && !scanterm;
+	     ++subfolderNumber) {
+		std::string subfolderPath =
+		    f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber, layout_version) + "/";
+		dd = opendir(subfolderPath.c_str());
+		if (!dd) {
+			continue;
+		}
+
+		while (readdir_r(dd, destorage, &de) == 0 && de != NULL && !scanterm) {
+			ChunkFilenameParser filenameParser(de->d_name);
+			if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
+				if (strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
+					lzfs_pretty_syslog(LOG_WARNING,
+					                   "Invalid file %s placed in chunk directory %s; skipping it.",
+					                   de->d_name, subfolderPath.c_str());
 				}
-				std::string newSubfolderPath = std::string(f->path) +
-						Chunk::getSubfolderNameGivenChunkId(filenameParser.chunkId()) + "/";
-				std::string oldChunkPath = oldSubfolderPath + de->d_name;
-				std::string newChunkPath = newSubfolderPath + de->d_name;
-				if (rename(oldChunkPath.c_str(), newChunkPath.c_str()) != 0) {
-					syslog(LOG_WARNING, "Can't migrate %s to %s: %s",
-							oldChunkPath.c_str(), newChunkPath.c_str(), strerr(errno));
-					// Probably something is really wrong (ro fs, wrong permissions,
-					// new dirs on a different mountpoint) -- don't try to move any chunks more.
-					return;
+				continue;
+			}
+			if (Chunk::getSubfolderNumber(filenameParser.chunkId(), layout_version) !=
+			    subfolderNumber) {
+				lzfs_pretty_syslog(LOG_WARNING,
+				                   "Chunk %s%s placed in a wrong directory; skipping it.",
+				                   subfolderPath.c_str(), de->d_name);
+				continue;
+			}
+			hdd_add_chunk(f, subfolderPath + de->d_name, filenameParser.chunkId(),
+			              filenameParser.chunkFormat(), filenameParser.chunkVersion(),
+			              filenameParser.chunkType(), f->todel, layout_version);
+			tcheckcnt++;
+			if (tcheckcnt >= 1000) {
+				zassert(pthread_mutex_lock(&folderlock));
+				if (f->scanstate == SCST_SCANTERMINATE) {
+					scanterm = true;
 				}
+				zassert(pthread_mutex_unlock(&folderlock));
+				tcheckcnt = 0;
 			}
-			if (rmdir(oldSubfolderPath.c_str()) != 0) {
-				syslog(LOG_WARNING, "Can't remove old directory %s: %s",
-						oldSubfolderPath.c_str(), strerr(errno));
-			}
+		}
+		closedir(dd);
+
+		currenttime = time(NULL);
+		currentperc = (subfolderNumber * 100.0) / 256.0;
+		if (currentperc > lastperc && currenttime > lasttime) {
+			lastperc = currentperc;
+			lasttime = currenttime;
+			zassert(pthread_mutex_lock(&folderlock));
+			f->scanprogress = currentperc;
+			zassert(pthread_mutex_unlock(&folderlock));
+			zassert(pthread_mutex_lock(&dclock));
+			hddspacechanged = 1;  // report chunk count to master
+			zassert(pthread_mutex_unlock(&dclock));
+			lzfs_pretty_syslog(LOG_NOTICE, "scanning folder %s: %" PRIu8 "%% (%" PRIu32 "s)",
+			                   f->path, lastperc, currenttime - begin_time);
 		}
 	}
 }
 
-void* hdd_folder_scan(void *arg) {
-	TRACETHIS();
-	folder *f = (folder*)arg;
+/*! \brief Moves/renames chunks from old layout to current
+ *
+ * \param f folder
+ * \param layout_version layout version that is going to be converted to current layout
+ *
+ * \return number of chunks moved/renamed
+ */
+int64_t hdd_folder_migrate_directories(folder *f, int layout_version) {
 	DIR *dd;
-	struct dirent *de,*destorage;
-	uint32_t tcheckcnt;
-	uint8_t todel;
-	uint8_t lastperc,currentperc;
-	uint32_t lasttime,currenttime,begintime;
+	struct dirent *de, *destorage;
+	int64_t count = 0;
 
-	begintime = time(NULL);
+	assert(layout_version > 0);
 
 	zassert(pthread_mutex_lock(&folderlock));
-	todel = f->todel;
-	hdd_refresh_usage(f);
+	if (f->migratestate == MGST_MIGRATETERMINATE) {
+		zassert(pthread_mutex_unlock(&folderlock));
+		return count;
+	}
 	zassert(pthread_mutex_unlock(&folderlock));
 
 	/* size of name added to size of structure because on some os'es d_name has size of 1 byte */
-	destorage = (struct dirent*)malloc(sizeof(struct dirent)+pathconf(f->path,_PC_NAME_MAX)+1);
-	passert(destorage);
+	std::vector<uint8_t> buffer(sizeof(struct dirent) + pathconf(f->path, _PC_NAME_MAX) + 1);
+	destorage = reinterpret_cast<struct dirent *>(buffer.data());
 
-	if (todel==0) {
+	bool scan_term = false;
+	int check_cnt = 0;
+	for (unsigned subfolder_number = 0; subfolder_number < Chunk::kNumberOfSubfolders && !scan_term;
+	     ++subfolder_number) {
+		std::string subfolder_path =
+		    f->path + Chunk::getSubfolderNameGivenNumber(subfolder_number, layout_version) + "/";
+		dd = opendir(subfolder_path.c_str());
+		if (!dd) {
+			continue;
+		}
+
+		while (readdir_r(dd, destorage, &de) == 0 && de != NULL && !scan_term) {
+			ChunkFilenameParser filenameParser(de->d_name);
+			if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
+				continue;
+			}
+
+			if (Chunk::getSubfolderNumber(filenameParser.chunkId(), layout_version) !=
+			    subfolder_number) {
+				continue;
+			}
+
+			Chunk *chunk = hdd_chunk_find(filenameParser.chunkId(), filenameParser.chunkType());
+			if (!chunk) {
+				continue;
+			}
+
+			if (chunk->filename() != (subfolder_path + de->d_name)) {
+				hdd_chunk_release(chunk);
+				continue;
+			}
+
+			if (chunk->renameChunkFile(chunk->generateFilenameForVersion(chunk->version)) < 0) {
+				std::string old_path = subfolder_path + de->d_name;
+				std::string new_path = chunk->generateFilenameForVersion(chunk->version);
+				lzfs_pretty_syslog(LOG_WARNING, "Can't migrate %s to %s: %s", old_path.c_str(),
+				                   new_path.c_str(), strerr(errno));
+				// Probably something is really wrong (ro fs, wrong permissions,
+				// new dirs on a different mountpoint) -- don't try to move any chunks more.
+				scan_term = true;
+			}
+			hdd_chunk_release(chunk);
+			count++;
+
+			check_cnt++;
+			if (check_cnt >= 100) {
+				zassert(pthread_mutex_lock(&folderlock));
+				if (f->migratestate == MGST_MIGRATETERMINATE) {
+					scan_term = true;
+				}
+				zassert(pthread_mutex_unlock(&folderlock));
+				check_cnt = 0;
+			}
+
+			// micro sleep to reduce load on disk as migrate doesn't have to finish fast
+			if (!scan_term) {
+				usleep(1000);
+			}
+		}
+		closedir(dd);
+
+		if (!scan_term && rmdir(subfolder_path.c_str()) != 0) {
+			lzfs_pretty_syslog(LOG_WARNING, "Can't remove old directory %s: %s",
+			                   subfolder_path.c_str(), strerr(errno));
+		}
+	}
+
+	return count;
+}
+
+void *hdd_folder_migrate(void *arg) {
+	TRACETHIS();
+	folder *f = (folder *)arg;
+
+	uint32_t begin_time = time(NULL);
+
+	int64_t count = hdd_folder_migrate_directories(f, 1);
+
+	zassert(pthread_mutex_lock(&folderlock));
+	if (f->migratestate != MGST_MIGRATETERMINATE) {
+		if (count > 0) {
+			lzfs_pretty_syslog(LOG_NOTICE,
+			                   "converting directories in folder %s: complete (%" PRIu32 "s)",
+			                   f->path, (uint32_t)(time(NULL)) - begin_time);
+		}
+	} else {
+		lzfs_pretty_syslog(LOG_NOTICE, "converting directories in folder %s: interrupted", f->path);
+	}
+	f->migratestate = MGST_MIGRATEFINISHED;
+	zassert(pthread_mutex_unlock(&folderlock));
+
+	return NULL;
+}
+
+void *hdd_folder_scan(void *arg) {
+	TRACETHIS();
+	folder *f = (folder *)arg;
+
+	uint32_t begin_time = time(NULL);
+
+	zassert(pthread_mutex_lock(&folderlock));
+	unsigned todel = f->todel;
+	hdd_refresh_usage(f);
+	zassert(pthread_mutex_unlock(&folderlock));
+
+	if (todel == 0) {
 		mkdir(f->path, 0755);
 	}
 
@@ -3253,88 +3408,35 @@ void* hdd_folder_scan(void *arg) {
 	hddspacechanged = 1;
 	zassert(pthread_mutex_unlock(&dclock));
 
-	if (todel==0) {
-		for (unsigned subfolderNumber = 0;
-				subfolderNumber < Chunk::kNumberOfSubfolders;
-				++subfolderNumber) {
+	if (todel == 0) {
+		for (unsigned subfolderNumber = 0; subfolderNumber < Chunk::kNumberOfSubfolders;
+		     ++subfolderNumber) {
 			std::string subfolderPath =
-					f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber);
+			    f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber, 0);
 			mkdir(subfolderPath.c_str(), 0755);
 		}
-		hdd_folder_migrate_directories(f);
-	} else if (access((std::string(f->path) + "00").c_str(), F_OK) == 0) {
-		syslog(LOG_WARNING, "Old chunk directories exist on a hdd marked as 'to remove' (%s). "
-				"This files will not be migrated which makes them not available for reading!",
-				f->path);
 	}
 
-	/* scan new file names */
-	bool scanterm = false;
-	tcheckcnt = 0;
-	lastperc = 0;
-	lasttime = time(NULL);
-	for (unsigned subfolderNumber = 0;
-			subfolderNumber < Chunk::kNumberOfSubfolders && !scanterm;
-			++subfolderNumber) {
-		std::string subfolderPath =
-				f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber) + "/";
-		dd = opendir(subfolderPath.c_str());
-		if (dd) {
-			while (readdir_r(dd,destorage,&de)==0 && de!=NULL && !scanterm) {
-				ChunkFilenameParser filenameParser(de->d_name);
-				if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
-					continue;
-				}
-				if (Chunk::getSubfolderNumber(filenameParser.chunkId()) != subfolderNumber) {
-					syslog(LOG_WARNING, "Chunk %s%s placed in a wrong directory; skipping it.",
-							subfolderPath.c_str(), de->d_name);
-					continue;
-				}
-				hdd_add_chunk(f,
-						subfolderPath + de->d_name,
-						filenameParser.chunkId(),
-						filenameParser.chunkFormat(),
-						filenameParser.chunkVersion(),
-						filenameParser.chunkType(),
-						todel);
-				tcheckcnt++;
-				if (tcheckcnt>=1000) {
-					zassert(pthread_mutex_lock(&folderlock));
-					if (f->scanstate==SCST_SCANTERMINATE) {
-						scanterm = true;
-					}
-					zassert(pthread_mutex_unlock(&folderlock));
-					tcheckcnt = 0;
-				}
-			}
-			closedir(dd);
-		}
-		currenttime = time(NULL);
-		currentperc = (subfolderNumber * 100.0) / 256.0;
-		if (currentperc>lastperc && currenttime>lasttime) {
-			lastperc=currentperc;
-			lasttime=currenttime;
-			zassert(pthread_mutex_lock(&folderlock));
-			f->scanprogress = currentperc;
-			zassert(pthread_mutex_unlock(&folderlock));
-			zassert(pthread_mutex_lock(&dclock));
-			hddspacechanged = 1; // report chunk count to master
-			zassert(pthread_mutex_unlock(&dclock));
-			syslog(LOG_NOTICE,"scanning folder %s: %" PRIu8 "%% (%" PRIu32 "s)",f->path,lastperc,currenttime-begintime);
-		}
-	}
-	free(destorage);
+	hdd_folder_scan_layout(f, begin_time, 1);
+	hdd_folder_scan_layout(f, begin_time, 0);
 	hdd_testshuffle(f);
 
 	zassert(pthread_mutex_lock(&folderlock));
-		if (f->scanstate==SCST_SCANTERMINATE) {
-			syslog(LOG_NOTICE,"scanning folder %s: interrupted",f->path);
-		} else {
-			syslog(LOG_NOTICE,"scanning folder %s: complete (%" PRIu32 "s)",f->path,(uint32_t)(time(NULL))-begintime);
-		}
+	if (f->scanstate == SCST_SCANTERMINATE) {
+		lzfs_pretty_syslog(LOG_NOTICE, "scanning folder %s: interrupted", f->path);
+	} else {
+		lzfs_pretty_syslog(LOG_NOTICE, "scanning folder %s: complete (%" PRIu32 "s)", f->path,
+		                   (uint32_t)(time(NULL)) - begin_time);
+	}
 	f->scanstate = SCST_SCANFINISHED;
 	f->scanprogress = 100;
+
+	if (f->scanstate != SCST_SCANTERMINATE && f->migratestate == MGST_MIGRATEDONE) {
+		f->migratestate = MGST_MIGRATEINPROGRESS;
+		zassert(pthread_create(&(f->migratethread), &thattr, hdd_folder_migrate, f));
+	}
 	zassert(pthread_mutex_unlock(&folderlock));
+
 	return NULL;
 }
 
@@ -3395,11 +3497,17 @@ void hdd_term(void) {
 	}
 	zassert(pthread_mutex_lock(&folderlock));
 	i = 0;
-	for (f=folderhead ; f ; f=f->next) {
-		if (f->scanstate==SCST_SCANINPROGRESS) {
+	for (f = folderhead; f; f = f->next) {
+		if (f->scanstate == SCST_SCANINPROGRESS) {
 			f->scanstate = SCST_SCANTERMINATE;
 		}
-		if (f->scanstate==SCST_SCANTERMINATE || f->scanstate==SCST_SCANFINISHED) {
+		if (f->scanstate == SCST_SCANTERMINATE || f->scanstate == SCST_SCANFINISHED) {
+			i++;
+		}
+		if (f->migratestate == MGST_MIGRATEINPROGRESS) {
+			f->migratestate = MGST_MIGRATETERMINATE;
+		}
+		if (f->migratestate == MGST_MIGRATETERMINATE || f->migratestate == MGST_MIGRATEFINISHED) {
 			i++;
 		}
 	}
@@ -3409,9 +3517,14 @@ void hdd_term(void) {
 		usleep(10000); // not very elegant solution.
 		zassert(pthread_mutex_lock(&folderlock));
 		for (f=folderhead ; f ; f=f->next) {
-			if (f->scanstate==SCST_SCANFINISHED) {
-				zassert(pthread_join(f->scanthread,NULL));
-				f->scanstate = SCST_WORKING;    // any state - to prevent calling pthread_join again
+			if (f->scanstate == SCST_SCANFINISHED) {
+				zassert(pthread_join(f->scanthread, NULL));
+				f->scanstate = SCST_WORKING;  // any state - to prevent calling pthread_join again
+				i--;
+			}
+			if (f->migratestate == MGST_MIGRATEFINISHED) {
+				zassert(pthread_join(f->migratethread, NULL));
+				f->migratestate = MGST_MIGRATEDONE;
 				i--;
 			}
 		}
@@ -3769,6 +3882,7 @@ int hdd_parseline(char *hddcfgline) {
 	f->damaged = damaged;
 	f->scanstate = SCST_SCANNEEDED;
 	f->scanprogress = 0;
+	f->migratestate = MGST_MIGRATEDONE;
 	f->path = strdup(pptr);
 	passert(f->path);
 	f->toremove = 0;

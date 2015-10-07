@@ -48,10 +48,10 @@ Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat
 	  chunkFormat_(format){
 }
 
-std::string Chunk::generateFilenameForVersion(uint32_t version) const {
+std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_version) const {
 	std::stringstream ss;
 	char buffer[30];
-	ss << owner->path << Chunk::getSubfolderNameGivenChunkId(chunkid) << "/chunk_";
+	ss << owner->path << Chunk::getSubfolderNameGivenChunkId(chunkid, layout_version) << "/chunk_";
 	if (slice_traits::isXor(type_)) {
 		if (slice_traits::xors::isXorParity(type_)) {
 			ss << "xor_parity_of_";
@@ -92,19 +92,27 @@ void Chunk::setBlockCountFromFizeSize(off_t fileSize) {
 	blocks = fileSize / kHddBlockSize;
 }
 
-uint32_t Chunk::getSubfolderNumber(uint64_t chunkId) {
-	return (chunkId >> 16) & 0xFF;
+uint32_t Chunk::getSubfolderNumber(uint64_t chunkId, int layout_version) {
+	// layout version 0 corresponds to current directory/chunk naming convention
+	// values greater than 0 describe older versions (order is not important)
+	return (layout_version == 0 ? chunkId >> 16 : chunkId) & 0xFF;
 }
 
-std::string Chunk::getSubfolderNameGivenNumber(uint32_t subfolderNumber) {
+std::string Chunk::getSubfolderNameGivenNumber(uint32_t subfolderNumber, int layout_version) {
 	sassert(subfolderNumber < Chunk::kNumberOfSubfolders);
 	char buffer[16];
-	sprintf(buffer, "chunks%02X", unsigned(subfolderNumber));
+	// layout version 0 corresponds to current directory/chunk naming convention
+	// values greater than 0 describe older versions (order is not important)
+	if (layout_version == 0) {
+		sprintf(buffer, "chunks%02X", unsigned(subfolderNumber));
+	} else {
+		sprintf(buffer, "%02X", unsigned(subfolderNumber));
+	}
 	return std::string(buffer);
 }
 
-std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId) {
-	return Chunk::getSubfolderNameGivenNumber(Chunk::getSubfolderNumber(chunkId));
+std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_version) {
+	return Chunk::getSubfolderNameGivenNumber(Chunk::getSubfolderNumber(chunkId, layout_version), layout_version);
 }
 
 MooseFSChunk::MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
