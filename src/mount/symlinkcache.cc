@@ -33,12 +33,12 @@
 #define HASH_BUCKET_SIZE 16
 #define HASH_BUCKETS 6257
 
-const uint32_t kCacheTimeInSeconds = 60;
+static uint32_t kCacheTimeInSeconds;
 
 // entries in cache = HASH_FUNCTIONS*HASH_BUCKET_SIZE*HASH_BUCKETS
 // 4 * 16 * 6257 = 400448
-// Symlink cache capacity can be easly changed by altering HASH_BUCKETS value.
-// Any number should work but it is better to use prime numers here.
+// Symlink cache capacity can be easily changed by altering HASH_BUCKETS value.
+// Any number should work but it is better to use prime numbers here.
 
 typedef struct _hashbucket {
 	uint32_t inode[HASH_BUCKET_SIZE];
@@ -168,9 +168,10 @@ int symlink_cache_search(uint32_t inode,const uint8_t **path) {
 	return 0;
 }
 
-void symlink_cache_init(void) {
+void symlink_cache_init(uint32_t cache_time) {
 	symlinkhash = (hashbucket*) malloc(sizeof(hashbucket)*HASH_BUCKETS);
 	memset(symlinkhash,0,sizeof(hashbucket)*HASH_BUCKETS);
+	kCacheTimeInSeconds = cache_time;
 	symlink_cache_statsptr_init();
 }
 

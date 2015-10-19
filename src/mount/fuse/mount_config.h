@@ -104,6 +104,7 @@ struct mfsopts_ {
 	int chunkservertotalreadto;
 	int prefetchxorstripes;
 	int chunkserverwriteto;
+	unsigned symlinkcachetimeout;
 
 	mfsopts_()
 		: masterhost(NULL),
@@ -131,8 +132,10 @@ struct mfsopts_ {
 			mkdircopysgid(0),
 #endif
 			sugidclearmodestr(NULL),
+			sugidclearmode(),
 			cachemode(NULL),
 			cachefiles(0),
+			keepcache(),
 			passwordask(0),
 			donotrememberpassword(0),
 			writecachesize(0),
@@ -150,7 +153,8 @@ struct mfsopts_ {
 			chunkserverbasicreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			chunkservertotalreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			prefetchxorstripes(0),
-			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) {
+			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO),
+			symlinkcachetimeout(3600) {
 	}
 };
 

@@ -24,5 +24,5 @@
 
 void symlink_cache_insert(uint32_t inode,const uint8_t *path);
 int symlink_cache_search(uint32_t inode,const uint8_t **path);
-void symlink_cache_init(void);
+void symlink_cache_init(uint32_t cache_time = 3600);
 void symlink_cache_term(void);

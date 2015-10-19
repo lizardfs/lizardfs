@@ -251,7 +251,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
-	symlink_cache_init();
+	symlink_cache_init(gMountOptions.symlinkcachetimeout);
 	if (gMountOptions.meta == 0) {
 		// initialize the global IO limiter before starting mastercomm threads
 		gGlobalIoLimiter();

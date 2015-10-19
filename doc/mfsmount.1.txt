@@ -185,6 +185,9 @@ Enable or disable character or block special device files interpretation.
 *-o exec*|*-o noexec*::
 Allow or disallow execution of binaries.
 
+*-o symlinkcachetimeout=*'N'::
+Set timeout value for symlink cache timeout in seconds. Default value is 3600.
+
 == DATA CACHE MODES
 
 There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shuldn't

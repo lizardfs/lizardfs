@@ -75,6 +75,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
+	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
@@ -168,6 +169,7 @@ void usage(const char *progname) {
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
+"    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"
 "\n");
 	fprintf(stderr,
 "CMODE can be set to:\n"
