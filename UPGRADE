@@ -1,5 +1,27 @@
 This file contains some important notes on upgrade process.
 
+* Upgrading to LizardFS 3.9.2:
+
+    Direct upgrade is possible from LizardFS 2.6.0.
+
+    - Upgrade shadow master servers before the master server; shadow master will always
+      refuse to connect to the master server in any newer version.
+      !!!!!!!!!! ATTENTION !!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!
+      ! It is recommended to perform metadata save before upgrading shadow servers       !
+      ! and refrain from using mfsmakesnapshot tool before upgrading master.             !
+      ! Not complying to this rule might cause potential checksum mismatches in shadows. !
+      ! Metadata save can be triggered by admin tool:                                    !
+      ! $ lizardfs-admin save-metadata HOST PORT                                         !
+      !!!!!!!!!! ATTENTION !!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!
+    - Upgrade the master/shadow servers before any chunkserver or client.
+    - Clients and chunkservers can be updated in any order, but bear in mind that
+      old chunkservers would not be able to store XOR chunks.
+    - Neither master servers nor chunkservers have hard coded connection limit anymore.
+      The previous value were 5000 for master server and 10000 for chunkserver.
+      It is advisable to check if system limits are high enough for proper work of LizardFS cluster.
+      Mentioned values can be changed by modifying /etc/security/limits.d/10-lizardfs.conf
+      file or by using ulimit command.
+
 * Upgrading to LizardFS 2.6.0:
 
     Direct upgrade is possible from:

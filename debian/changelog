@@ -1,9 +1,25 @@
-lizardfs (3.9.1) unstable; urgency=low
+lizardfs (3.9.2) stable; urgency=medium
 
-  * (all) xor format
-  * (all) performance improvements
+  * (all) Introduced XOR goal types
+  * (all) Added file locks (flock & fcntl)
+  * (all) Increased max number of files from 500 million to over 4 billion
+  * (all) Introduced managing open file limits by PAM
+  * (master) Improved consistency of applying changelogs by shadow masters
+  * (master) Redesigned snapshot execution in master
+  * (master) Redesigned chunk loop logic
+  * (master) Added option to limit chunk loop's CPU usage
+  * (master) Removed hard coded connection limit
+  * (chunkserver) Added new network threads responsible for handling requests
+    sent by chunkserver's clients
+  * (chunkserver) Introduced new more efficient directory layout
+  * (chunkserver) Added option to choose if fsync should be performed after each write
+    for increased safety
+  * (chunkserver) Removed hard coded connection limit
+  * (chunkserver) Added replication network bandwidth limiting
+  * (mount) Improved symlink cache and added configurable timeout value
+  * (all) Minor bug fixes and improvements
 
- -- Adam Nieżurawski <contact@lizardfs.org>  Thu, 15 Jun 2015 15:00:00 +0200
+ -- Piotr Sarna <contact@lizardfs.org>  Fri, 23 Oct 2015 15:00:00 +0200
 
 lizardfs (2.6.0) stable; urgency=medium
 

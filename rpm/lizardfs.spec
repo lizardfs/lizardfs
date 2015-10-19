@@ -450,9 +450,25 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Mon Jun 15 2015 Adam Nieżurawski <contact@lizardfs.org> - 3.9.1
-- (all) xor format
-- (all) performance improvements
+* Fri Oct 23 2015 Piotr Sarna <contact@lizardfs.org> - 3.9.2
+- (all) Introduced XOR goal types
+- (all) Added file locks (flock & fcntl)
+- (all) Increased max number of files from 500 million to over 4 billion
+- (all) Introduced managing open file limits by PAM
+- (master) Improved consistency of applying changelogs by shadow masters
+- (master) Redesigned snapshot execution in master
+- (master) Redesigned chunk loop logic
+- (master) Added option to limit chunk loop's CPU usage
+- (master) Removed hard coded connection limit
+- (chunkserver) Added new network threads responsible for handling requests
+  sent by chunkserver's clients
+- (chunkserver) Introduced new more efficient directory layout
+- (chunkserver) Added option to choose if fsync should be performed after each write
+  for increased safety
+- (chunkserver) Removed hard coded connection limit
+- (chunkserver) Added replication network bandwidth limiting
+- (mount) Improved symlink cache and added configurable timeout value
+- (all) Minor bug fixes and improvements
 
 * Mon Feb 09 2015 Adam Ochmanski <contact@lizardfs.org> - 2.6.0
 - (all) Added comments in all config files
