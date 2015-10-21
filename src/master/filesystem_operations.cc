@@ -2207,7 +2207,7 @@ uint8_t fs_apply_repair(uint32_t ts, uint32_t inode, uint32_t indx, uint32_t nve
 
 #ifndef METARESTORE
 uint8_t fs_getgoal(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode,
-		GoalIdRangeArray<uint32_t> &fgtab, GoalIdRangeArray<uint32_t> &dgtab) {
+		GoalStatistics &fgtab, GoalStatistics &dgtab) {
 	fsnode *p, *rn;
 	(void)sesflags;
 	if (!GMODE_ISVALID(gmode)) {

@@ -169,7 +169,7 @@ uint8_t fs_checkfile(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t
 uint8_t fs_opencheck(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint32_t uid,uint32_t gid,uint32_t auid,uint32_t agid,uint8_t flags,Attributes& attr);
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *chunkid,uint64_t *length);
 uint8_t fs_writeend(uint32_t inode,uint64_t length,uint64_t chunkid, uint32_t lockid);
-uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalIdRangeArray<uint32_t> &fgtab,GoalIdRangeArray<uint32_t> &dgtab);
+uint8_t fs_getgoal(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,GoalStatistics &fgtab, GoalStatistics &dgtab);
 uint8_t fs_gettrashtime_prepare(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_t gmode, TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);
 void fs_gettrashtime_store(TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes,uint8_t *buff);
 uint8_t fs_geteattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t gmode,uint32_t feattrtab[16],uint32_t deattrtab[16]);

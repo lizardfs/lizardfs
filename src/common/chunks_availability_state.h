@@ -122,7 +122,7 @@ public:
 	constexpr static uint32_t kMaxPartsCount = 11; /*!< Maximum number of parts that we keep
 	                                                    in statistics. */
 
-	static_assert(kMaxPartsCount == Goal::Slice::kMaxPartsCount,
+	static_assert((int)kMaxPartsCount == Goal::Slice::kMaxPartsCount,
 	              "Most of the code assumes that those two values are equal. Do not change "
 	              "without tests.");
 

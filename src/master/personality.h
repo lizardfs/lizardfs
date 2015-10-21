@@ -24,7 +24,7 @@ namespace metadataserver {
 
 enum class Personality {
 	kMaster,
-	kShadow,
+	kShadow
 };
 
 /*! \brief Get current personality.

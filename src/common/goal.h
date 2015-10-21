@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <map>
 #include <numeric>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -183,11 +184,20 @@ public:
 		: type_(std::move(type)),
 		  data_(type_.expectedParts()) {
 	}
-	Slice(const Slice&) = default;
-	Slice(Slice &&) = default;
+	Slice(const Slice &other) : type_(other.type_), data_(other.data_) {}
+	Slice(Slice &&other) noexcept : type_(std::move(other.type_)), data_(std::move(other.data_)) {}
 
-	Slice &operator=(const Slice &) = default;
-	Slice &operator=(Slice &&) = default;
+	Slice &operator=(const Slice &other) {
+		type_ = other.type_;
+		data_ = other.data_;
+		return *this;
+	}
+
+	Slice &operator=(Slice &&other) noexcept {
+		type_ = std::move(other.type_);
+		data_ = std::move(other.data_);
+		return *this;
+	}
 
 	int getExpectedCopies() const;
 
@@ -291,9 +301,6 @@ private:
 	uint8_t value_;
 };
 
-template<typename T>
-using GoalIdRangeArray = std::array<T, GoalId::kMax + 1>;
-
 /*! \brief Class which represents a description of a goal. */
 class Goal {
 public:
@@ -351,7 +358,7 @@ public:
 			it_slice->second = std::move(slice);
 		} else {
 			Slice::Type type = slice.getType();
-			goal_slices_.emplace(std::move(type), std::move(slice));
+			goal_slices_.insert({std::move(type), std::move(slice)});
 		}
 	}
 
@@ -377,7 +384,7 @@ public:
 	Slice& operator[](const Slice::Type& type) {
 		auto it = goal_slices_.find(type);
 		if (it == goal_slices_.end()) {
-			return goal_slices_.emplace(type, Slice(type)).first->second;
+			return goal_slices_.insert({type, Slice(type)}).first->second;
 		}
 		return it->second;
 	}

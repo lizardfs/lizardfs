@@ -27,8 +27,8 @@ constexpr const char* MediaLabelManager::kWildcard;
 const MediaLabel MediaLabel::kWildcard(MediaLabelManager::kWildcardHandleValue);
 
 MediaLabelManager::MediaLabelManager() : next_handle_(1) {
-	label_data_.emplace(kWildcard, kWildcardHandleValue);
-	handle_data_.emplace(kWildcardHandleValue, kWildcard);
+	label_data_.insert({kWildcard, kWildcardHandleValue});
+	handle_data_.insert({kWildcardHandleValue, kWildcard});
 }
 
 /*! Internal function returning handle to media label string.
@@ -43,9 +43,9 @@ MediaLabelManager::HandleValue MediaLabelManager::iGetHandle(const std::string &
 		if (next_handle_ == kWildcardHandleValue) {
 			throw std::runtime_error("MediaLabelManager::No more space for new label");
 		}
-		ilabel = label_data_.emplace(label, next_handle_).first;
+		ilabel = label_data_.insert({label, next_handle_}).first;
 		try {
-			handle_data_.emplace(next_handle_, label);
+			handle_data_.insert({next_handle_, label});
 		} catch (...) {
 			label_data_.erase(label);
 			throw;

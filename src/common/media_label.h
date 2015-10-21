@@ -113,8 +113,8 @@ public:
 	MediaLabel() noexcept : handle_() {
 	}
 
-	MediaLabel(const MediaLabel &) noexcept = default;
-	MediaLabel(MediaLabel &&) noexcept = default;
+	MediaLabel(const MediaLabel &other) noexcept : handle_(other.handle_) {}
+	MediaLabel(MediaLabel &&other) noexcept : handle_(std::move(other.handle_)) {}
 
 	/*! Constructor creating media label from string.
 	 *
@@ -131,8 +131,15 @@ public:
 	explicit MediaLabel(MediaLabelManager::HandleValue handle) noexcept : handle_(handle) {
 	}
 
-	MediaLabel &operator=(const MediaLabel &) noexcept = default;
-	MediaLabel &operator=(MediaLabel &&) noexcept = default;
+	MediaLabel &operator=(const MediaLabel &other) noexcept {
+		handle_ = other.handle_;
+		return *this;
+	}
+
+	MediaLabel &operator=(MediaLabel &&other) noexcept {
+		handle_ = std::move(other.handle_);
+		return *this;
+	}
 
 	/*! \brief Conversion to media label string. */
 	explicit operator std::string() const {

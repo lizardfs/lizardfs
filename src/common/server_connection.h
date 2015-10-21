@@ -33,7 +33,7 @@ class ServerConnection {
 public:
 	enum class ReceiveMode {
 		kReceiveFirstNonNopMessage, ///< Ignores ANTOAN_NOP responses
-		kReceiveFirstMessage,       ///< Returns the first received response, even ANTOAN_NOP
+		kReceiveFirstMessage        ///< Returns the first received response, even ANTOAN_NOP
 	};
 
 	static const int kDefaultTimeout = 5000;

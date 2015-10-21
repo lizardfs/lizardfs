@@ -87,7 +87,7 @@ private:
 		kReceivingReadStatusMessage,
 		kReceivingReadDataMessage,
 		kReceivingDataBlock,
-		kFinished,
+		kFinished
 	};
 
 	/* The buffer which will be used to receive messages from a chunkserver */

@@ -204,7 +204,7 @@ void FileLocks::unlock(uint32_t inode) {
 bool FileLocks::apply(uint32_t inode, Lock lock, bool nonblocking) {
 	auto it = active_locks_.find(inode);
 	if (it == active_locks_.end()) {
-		it = active_locks_.emplace(inode, Locks()).first;
+		it = active_locks_.insert(std::make_pair(inode, std::move(Locks()))).first;
 	}
 	Locks &locks = it->second;
 

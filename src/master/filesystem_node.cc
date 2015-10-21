@@ -1393,8 +1393,8 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 
 #ifndef METARESTORE
 
-void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalIdRangeArray<uint32_t> &fgtab,
-				GoalIdRangeArray<uint32_t> &dgtab) {
+void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalStatistics &fgtab,
+		GoalStatistics &dgtab) {
 	fsedge *e;
 
 	if (node->type == TYPE_FILE || node->type == TYPE_TRASH || node->type == TYPE_RESERVED) {

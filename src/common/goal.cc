@@ -28,7 +28,7 @@
 const int Goal::Slice::Type::kTypeParts[Goal::Slice::Type::kTypeCount] = {
 	1, 1, 3, 4,  5, 6, 7, 8, 9, 10};
 
-const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::kTypeNames = {
+const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::kTypeNames = {{
 	"std",
 	"tape",
 	"xor2",
@@ -38,8 +38,8 @@ const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::
 	"xor6",
 	"xor7",
 	"xor8",
-	"xor9",
-};
+	"xor9"
+}};
 
 int Goal::Slice::getExpectedCopies() const {
 	int ret = 0;
@@ -122,9 +122,9 @@ Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Label
 			first_sum += first_label.second;
 			merged_sum += first_label.second;
 		} else {
-			merged_labels.emplace_hint(
-			        merged_labels.end(), first_label.first,
-			        std::max(first_label.second, second_label_it->second));
+			merged_labels.insert(
+			        merged_labels.end(), {first_label.first,
+			        std::max(first_label.second, second_label_it->second)});
 			first_sum += first_label.second;
 			second_sum += second_label_it->second;
 			merged_sum += std::max(first_label.second, second_label_it->second);
@@ -183,7 +183,7 @@ void Goal::mergeIn(const Goal &otherGoal) {
 		// Check if there is no element of this type yet
 		if (position == goal_slices_.end()) {
 			// Union of A with empty set is A
-			goal_slices_.emplace(other_slice.getType(), other_slice);
+			goal_slices_.insert({other_slice.getType(), other_slice});
 		} else {
 			Slice &current_element = position->second;
 			// There should be same number of parts

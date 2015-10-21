@@ -34,7 +34,7 @@ private:
 	enum PlanBuilderType {
 		BUILDER_NONE,
 		BUILDER_STANDARD,
-		BUILDER_XOR,
+		BUILDER_XOR
 	};
 
 	class PlanBuilder {

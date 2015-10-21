@@ -451,7 +451,7 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 
 std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_for_new_chunk(
 		uint8_t goal_id) {
-	static GoalIdRangeArray<ChunkCreationHistory> history;
+	static std::array<ChunkCreationHistory, GoalId::kMax + 1> history;
 	GetServersForNewChunk getter;
 	const Goal &goal(fs_get_goal_definition(goal_id));
 

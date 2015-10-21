@@ -27,8 +27,7 @@ Options::Options(const std::vector<std::string> &expectedOptions,
 	for (const auto& option : expectedOptions) {
 		assert(!option.empty());
 		if (option.back() == '=') {
-			auto trimmed = option;
-			trimmed.pop_back();
+			auto trimmed = option.substr(0, option.size() - 1);
 			valued_options_[trimmed] = "";
 			options_[trimmed] = false;
 		} else {

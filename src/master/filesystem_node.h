@@ -55,6 +55,7 @@ enum class ExpectedNodeType { kFile, kDirectory, kNotDirectory, kAny };
 class fsnode;
 
 typedef std::unordered_map<uint32_t, uint32_t> TrashtimeMap;
+typedef std::array<uint32_t, GoalId::kMax + 1> GoalStatistics;
 
 typedef struct _sessionidrec {
 	uint32_t sessionid;
@@ -212,8 +213,8 @@ bool fsnodes_has_tape_goal(fsnode *node);
 void fsnodes_add_sub_stats(fsnode *parent, statsrecord *newsr, statsrecord *prevsr);
 
 void fsnodes_quota_update_size(fsnode *node, int64_t delta);
-void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalIdRangeArray<uint32_t> &fgtab,
-				GoalIdRangeArray<uint32_t> &dgtab);
+void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalStatistics &fgtab,
+		GoalStatistics &dgtab);
 
 void fsnodes_gettrashtime_recursive(fsnode *node, uint8_t gmode,
 	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);

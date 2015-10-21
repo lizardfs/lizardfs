@@ -189,7 +189,7 @@ enum class AdminTask {
 	kTerminate,  ///< Admin successfully requested termination of the server
 	kReload,  ///< Admin successfully requested reloading the configuration
 	kSaveMetadata,  ///< Admin successfully requested saving metadata
-	kRecalculateChecksums,  ///< Admin successfully requested recalculation of metadata checksum
+	kRecalculateChecksums   ///< Admin successfully requested recalculation of metadata checksum
 };
 
 /** Client entry in the server. */
@@ -3210,7 +3210,7 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const u
 				"Unknown packet type for matoclserv_fuse_getgoal: " + std::to_string(header.type));
 	}
 
-	GoalIdRangeArray<uint32_t> fgtab{0}, dgtab{0}; // explicit value initialization to clear variables
+	GoalStatistics fgtab{{0}}, dgtab{{0}}; // explicit value initialization to clear variables
 	uint8_t status = fs_getgoal(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
 			inode, gmode, fgtab, dgtab);
 

@@ -232,12 +232,12 @@ static void testPlanner(const ReadPlanner& planner, ChunkPartType partNotUsedInT
 TEST(MultiVariantReadPlannerTests, BuildPlanForXor) {
 	MultiVariantReadPlanner planner;
 	// We will test each xor level
-	for (uint32_t xorLevel = slice_traits::xors::kMinXorLevel;
+	for (int xorLevel = slice_traits::xors::kMinXorLevel;
 			xorLevel <= slice_traits::xors::kMaxXorLevel; ++xorLevel) {
 		// Prepare a list of all parts for the current level, ie;
 		// parts = { xor_p_of_N, xor_1_of_N, xor_2_of_N, ...., xor_N_of_N }
 		Vector parts{slice_traits::xors::ChunkPartType(xorLevel, slice_traits::xors::kXorParityPart)};
-		for (uint32_t xorPart = 1; xorPart <= xorLevel; ++xorPart) {
+		for (int xorPart = 1; xorPart <= xorLevel; ++xorPart) {
 			parts.push_back(slice_traits::xors::ChunkPartType(xorLevel, xorPart));
 		}
 
