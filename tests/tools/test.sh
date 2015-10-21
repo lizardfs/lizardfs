@@ -93,6 +93,7 @@ test_begin() {
 	trap 'trap - ERR; set +eE; catch_error_ "${BASH_SOURCE:-}" "${LINENO:-}" "${FUNCNAME:-}"; exit 1' ERR
 	set -E
 	timeout_init
+	system_init
 	if [[ ${USE_VALGRIND} ]]; then
 		valgrind_enable
 	fi

@@ -47,7 +47,7 @@ fi
 
 echo ; echo Prepare sudo configuration
 if ! [[ -d /etc/sudoers.d ]]; then
-	# Sudo is not installed bydefault on Debian machines
+	# Sudo is not installed by default on Debian machines
 	echo "sudo not installed!" >&2
 	echo "Install it manually: apt-get install sudo" >&2
 	echo "Then run this script again" >&2
@@ -61,6 +61,21 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 		lizardfstest ALL = NOPASSWD: /bin/sh -c echo\ 1\ >\ /proc/sys/vm/drop_caches
 	END
 	chmod 0440 /etc/sudoers.d/lizardfstest
+fi
+if ! [[ -d /etc/security/limits.d ]]; then
+	echo "pam module pam_limits is not installed!" >&2
+	exit 1
+fi
+if ! [[ -f /etc/security/limits.d/10-lizardfstests.conf ]]; then
+	# Change limit of open files for user lizardfstest
+	echo "lizardfstest hard nofile 10000" > /etc/security/limits.d/10-lizardfstests.conf
+	chmod 0644 /etc/security/limits.d/10-lizardfstests.conf
+fi
+if ! grep 'pam_limits.so' /etc/pam.d/sudo > /dev/null; then
+	cat >>/etc/pam.d/sudo <<-END
+		### Reload pam limits on sudo - necessary for lizardfs tests. ###
+		session required pam_limits.so
+	END
 fi
 
 echo ; echo 'Add users lizardfstest_{0..9}'
@@ -166,16 +181,19 @@ case "$release" in
 		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
 		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
+		apt-get install libpam0g-dev
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr nc rsync tidy wget boost-program-options boost-system
 		yum install libboost-filesystem libboost-iostreams
+		yum install pam-devel
 		;;
 	CentOS/7)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
+		yum install pam-devel
 		;;
 	*)
 		set +x
