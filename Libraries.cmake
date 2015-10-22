@@ -139,3 +139,8 @@ endif()
 find_library(JUDY_LIBRARY Judy)
 message(STATUS "JUDY_LIBRARY: ${JUDY_LIBRARY}")
 
+# Find PAM libraries
+find_library(PAM_LIBRARY pam)
+find_library(PAM_MISC_LIBRARY pam_misc)
+set(PAM_LIBRARIES ${PAM_LIBRARY} ${PAM_MISC_LIBRARY})
+message(STATUS "PAM_LIBRARIES: ${PAM_LIBRARIES}")

@@ -1,4 +1,5 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+add_definitions(-DLIZARDFS_MAX_FILES=10000)
 add_definitions(-DAPPNAME=mfschunkserver)
 
 collect_sources(CHUNKSERVER)
@@ -7,5 +8,5 @@ target_link_libraries(chunkserver lzfsprotocol mfscommon ${ADDITIONAL_LIBS})
 add_tests(chunkserver ${CHUNKSERVER_TESTS})
 
 add_executable(mfschunkserver ${MAIN_SRC})
-target_link_libraries(mfschunkserver chunkserver)
+target_link_libraries(mfschunkserver chunkserver ${PAM_LIBRARIES})
 install(TARGETS mfschunkserver RUNTIME DESTINATION ${SBIN_SUBDIR})

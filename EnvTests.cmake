@@ -26,7 +26,8 @@ include(TestBigEndian)
 set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h
     netinet/in.h stddef.h stdlib.h string.h sys/mman.h
     sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
-    syslog.h unistd.h stdbool.h Judy.h)
+    syslog.h unistd.h stdbool.h Judy.h security/pam_appl.h
+)
 
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)

@@ -14,7 +14,5 @@ endif()
 add_tests(metarestore ${METARESTORE_TESTS})
 
 add_executable(mfsmetarestore ${METARESTORE_MAIN})
-target_link_libraries(mfsmetarestore metarestore)
-target_link_libraries(mfsmetarestore mfscommon)
-target_link_libraries(mfsmetarestore)
+target_link_libraries(mfsmetarestore metarestore mfscommon ${PAM_LIBRARIES})
 install(TARGETS mfsmetarestore RUNTIME DESTINATION ${SBIN_SUBDIR})

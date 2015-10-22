@@ -23,6 +23,8 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %define         liz_user           %{liz_project}
 %define         liz_datadir        %{_localstatedir}/lib/%{liz_project}
 %define         liz_confdir        %{_sysconfdir}/%{liz_project}
+%define         liz_limits_conf    /etc/security/limits.d/10-lizardfs.conf
+%define         liz_pam_d          /etc/pam.d/lizardfs
 
 %description
 LizardFS is an Open Source, easy to deploy and maintain, distributed,
@@ -116,6 +118,14 @@ fi
 if ! getent passwd %{liz_user} > /dev/null 2>&1 ; then
 	adduser --system -g %{liz_group} --no-create-home --home-dir %{liz_datadir} %{liz_user}
 fi
+if [ ! -f %{liz_limits_conf} ]; then
+	echo "%{liz_user} soft nofile 10000" > %{liz_limits_conf}
+	echo "%{liz_user} hard nofile 10000" >> %{liz_limits_conf}
+	chmod 0644 %{liz_limits_conf}
+fi
+if [ ! -f %{liz_pam_d} ]; then
+	echo "session	required	pam_limits.so" > %{liz_pam_d}
+fi
 exit 0
 
 %post master
@@ -193,6 +203,11 @@ if ! getent group %{liz_group} > /dev/null 2>&1 ; then
 fi
 if ! getent passwd %{liz_user} > /dev/null 2>&1 ; then
 	adduser --system -g %{liz_group} --no-create-home --home-dir %{liz_datadir} %{liz_user}
+fi
+if [ ! -f %{liz_limits_conf} ]; then
+	echo "%{liz_user} soft nofile 10000" > %{liz_limits_conf}
+	echo "%{liz_user} hard nofile 10000" >> %{liz_limits_conf}
+	chmod 0644 %{liz_limits_conf}
 fi
 exit 0
 

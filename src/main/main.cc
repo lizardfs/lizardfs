@@ -49,10 +49,10 @@
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
-#include "protocol/MFSCommunication.h"
 #include "common/setup.h"
 #include "common/slogger.h"
 #include "common/time_utils.h"
+#include "protocol/MFSCommunication.h"
 
 #if defined(LIZARDFS_HAVE_MLOCKALL)
 #  if defined(LIZARDFS_HAVE_SYS_MMAN_H)
@@ -64,6 +64,15 @@
 #  if defined(RLIMIT_MEMLOCK) && defined(MCL_CURRENT) && defined(MCL_FUTURE)
 #    define MFS_USE_MEMLOCK 1
 #  endif
+#endif
+
+#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+#  include <security/pam_appl.h>
+#  include <security/pam_misc.h>
+#endif
+
+#ifndef LIZARDFS_MAX_FILES
+#  define LIZARDFS_MAX_FILES 5000
 #endif
 
 #define STR_AUX(x) #x
@@ -135,6 +144,9 @@ typedef struct eloopentry {
 
 static eloopentry *eloophead=NULL;
 
+#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+static pam_handle_t *gPAMHandle=NULL;
+#endif
 
 struct timeentry {
 	typedef void (*fun_t)(void);
@@ -783,6 +795,43 @@ void changeugid(RunMode runmode) {
 	}
 }
 
+bool open_pam_session() {
+#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+	static struct pam_conv conv = {misc_conv, NULL};
+
+	assert(gPAMHandle == NULL);
+
+	int retval;
+
+	retval = pam_start("lizardfs", DEFAULT_USER, &conv, &gPAMHandle);
+	if (retval != PAM_SUCCESS) {
+		lzfs_pretty_errlog(LOG_ERR, "Can't initialize PAM");
+		return false;
+	}
+
+	retval = pam_open_session(gPAMHandle, 0);
+	if (retval != PAM_SUCCESS) {
+		lzfs_pretty_errlog(LOG_ERR, "Can't open PAM session");
+		return false;
+	}
+
+	return true;
+#else
+	return false;
+#endif
+}
+
+void close_pam_session() {
+#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+	if (!gPAMHandle) {
+		return;
+	}
+
+	int retval = pam_close_session(gPAMHandle, 0);
+	pam_end(gPAMHandle, retval);
+#endif
+}
+
 class FileLock {
 public:
 	enum class LockStatus {
@@ -1220,6 +1269,21 @@ int main(int argc,char **argv) {
 	main_configure_debug_log();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
+		if (!open_pam_session()) {
+			rls.rlim_cur = LIZARDFS_MAX_FILES;
+			rls.rlim_max = LIZARDFS_MAX_FILES;
+			if (setrlimit(RLIMIT_NOFILE, &rls) < 0) {
+				lzfs_pretty_syslog(
+				    LOG_WARNING,
+				    "can't change open files limit to %u, check restrictions with `ulimit -n'",
+				    LIZARDFS_MAX_FILES);
+			} else {
+				lzfs_pretty_syslog(
+				    LOG_INFO, "failed to use system open files limit, changed to default value %u",
+				    LIZARDFS_MAX_FILES);
+			}
+		}
+
 		lockmemory = cfg_getnum("LOCK_MEMORY",0);
 #ifdef MFS_USE_MEMLOCK
 		if (lockmemory) {
@@ -1324,6 +1388,7 @@ int main(int argc,char **argv) {
 		lzfs_pretty_syslog(LOG_WARNING,"trying to lock memory, but memory lock not supported");
 	}
 #endif
+
 	if (initialize()) {
 		if (getrlimit(RLIMIT_NOFILE,&rls)==0) {
 			lzfs_pretty_syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
@@ -1353,5 +1418,6 @@ int main(int argc,char **argv) {
 	cfg_term();
 	strerr_term();
 	closelog();
+	close_pam_session();
 	return ch;
 }
