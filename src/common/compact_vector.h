@@ -362,7 +362,7 @@ struct compact_vector_base {
 
 	pointer allocate(size_type n) {
 		if (n == 0) {
-			return nullptr;
+			return pointer();
 		}
 
 		if (n > 0 && n <= internal_size()) {
