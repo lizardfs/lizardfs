@@ -135,6 +135,8 @@ enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 typedef struct _finfo {
 	uint8_t mode;
 	void *data;
+	uint8_t use_flocks;
+	uint8_t use_posixlocks;
 	pthread_mutex_t lock;
 	pthread_mutex_t flushlock;
 } finfo;
@@ -1971,6 +1973,9 @@ static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 		fileinfo->data = NULL;
 	}
 #endif
+	fileinfo->use_flocks = false;
+	fileinfo->use_posixlocks = false;
+
 	return fileinfo;
 }
 
@@ -2299,9 +2304,13 @@ void release(Context ctx,
 				(ino==SPECIAL_INODE_OPLOG)?"OPLOG":"OPHISTORY");
 		return;
 	}
-	if (fileinfo!=NULL) {
-		fs_flock_send(ino, fi->lock_owner, 0, lzfs_locks::kRelease);
+	if (fileinfo != NULL){
+		if (fileinfo->use_flocks) {
+			fs_flock_send(ino, fi->lock_owner, 0, lzfs_locks::kRelease);
+			fileinfo->use_flocks = false;
+		}
 		remove_file_info(fi);
+		fileinfo->use_posixlocks = false;
 	}
 	fs_release(ino);
 	oplog_printf(ctx, "release (%lu): OK",
@@ -2696,7 +2705,11 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 		err = write_data_flush(fileinfo->data);
 	}
 	lzfs_locks::FlockWrapper file_lock(lzfs_locks::kRelease,0,0,0);
-	fs_setlk_send(ino, fi->lock_owner, 0, file_lock);
+	auto use_posixlocks = fileinfo->use_posixlocks;
+	lock.unlock();
+	if (use_posixlocks) {
+		fs_setlk_send(ino, fi->lock_owner, 0, file_lock);
+	}
 	if (err!=0) {
 		oplog_printf(ctx, "flush (%lu): %s",
 				(unsigned long int)ino,
@@ -3291,6 +3304,7 @@ void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper
 uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
 	uint32_t reqid;
 	uint32_t status;
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 
 	stats_inc(OP_SETLK);
 	if (IS_SPECIAL_INODE(ino)) {
@@ -3313,6 +3327,11 @@ uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::Flo
 	lock_request_mutex.lock();
 	reqid = lock_request_counter++;
 	lock_request_mutex.unlock();
+
+	if (fileinfo != NULL) {
+		PthreadMutexWrapper lock(fileinfo->lock);
+		fileinfo->use_posixlocks = true;
+	}
 
 	// communicate with master
 	status = fs_setlk_send(ino, fi->lock_owner, reqid, lock);
@@ -3337,6 +3356,7 @@ void setlk_recv() {
 uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op) {
 	uint32_t reqid;
 	uint32_t status;
+	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 
 	stats_inc(OP_FLOCK);
 	if (IS_SPECIAL_INODE(ino)) {
@@ -3359,6 +3379,11 @@ uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op) {
 	lock_request_mutex.lock();
 	reqid = lock_request_counter++;
 	lock_request_mutex.unlock();
+
+	if (fileinfo != NULL) {
+		PthreadMutexWrapper lock(fileinfo->lock);
+		fileinfo->use_flocks = true;
+	}
 
 	// communicate with master
 	status = fs_flock_send(ino, fi->lock_owner, reqid, op);
