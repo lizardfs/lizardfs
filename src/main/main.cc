@@ -269,14 +269,13 @@ void *main_timeregister_ms(uint64_t period, void (*fun)(void)) {
 }
 
 void main_timeunregister(void* handler) {
-	TimeEntries::iterator it(gTimeEntries.begin());
-	for (TimeEntries::iterator end(gTimeEntries.end()); it != end; ++it) {
+	for (TimeEntries::iterator it = gTimeEntries.begin(); it != gTimeEntries.end(); ++it) {
 		if (&(*it) == handler) {
 			gTimeEntries.erase(it);
-			break;
+			return;
 		}
 	}
-	massert(it != gTimeEntries.end(), "unregistering unknown handle from time table");
+	mabort("unregistering unknown handle from time table");
 }
 
 int main_timechange(void* handle, int mode, uint64_t seconds, uint64_t offset) {

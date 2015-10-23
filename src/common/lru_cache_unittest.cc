@@ -176,7 +176,7 @@ TEST(LruCacheTests, TestMultiThreadedCache) {
 				{
 					for (uint64_t j = 0; j < 1000; ++j) {
 						ASSERT_EQ(j, cache.get(t0, j));
-						ASSERT_NO_THROW(cache.erase(j - 5, j + 5));
+						ASSERT_NO_THROW(cache.erase(j - std::min(j, (uint64_t)5), j + 5));
 					}
 				}));
 	}
