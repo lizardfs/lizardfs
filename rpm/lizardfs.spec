@@ -2,8 +2,8 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        3.9.1
-Release:        1%{?distro}
+Version:        3.9.2
+Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
 URL:            http://www.lizardfs.org/
