@@ -486,27 +486,25 @@ void mfs_init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 
 #if FUSE_VERSION >= 26
 void lzfs_flock_interrupt(fuse_req_t req, void *data) {
-	std::pair<bool, lzfs_locks::InterruptData> interrupt_data = gLockInterruptData.take(
-			reinterpret_cast<std::uintptr_t>(data));
+	auto interrupt_data = gLockInterruptData.take(reinterpret_cast<std::uintptr_t>(data));
 
 	// if there was any data
 	if (interrupt_data.first) {
 		// handle interrupt
 		LizardClient::flock_interrupt(interrupt_data.second);
+		fuse_reply_err(req, EINTR);
 	}
-	fuse_reply_err(req, EINTR);
 }
 
 void lzfs_setlk_interrupt(fuse_req_t req, void *data) {
-	std::pair<bool, lzfs_locks::InterruptData> interrupt_data = gLockInterruptData.take(
-			reinterpret_cast<std::uintptr_t>(data));
+	auto interrupt_data = gLockInterruptData.take(reinterpret_cast<std::uintptr_t>(data));
 
 	// if there was any data
 	if (interrupt_data.first) {
 		// handle interrupt
 		LizardClient::setlk_interrupt(interrupt_data.second);
+		fuse_reply_err(req, EINTR);
 	}
-	fuse_reply_err(req, EINTR);
 }
 
 void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock) {
@@ -563,12 +561,16 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 		lock->l_type = l_type_holder;
 
 		// release the memory
-		gLockInterruptData.take(interrupt_data_key);
-		fuse_reply_err(req, 0);
+		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
+		if (interrupt_data.first) {
+			fuse_reply_err(req, 0);
+		}
 	} catch (LizardClient::RequestException& e) {
 		// release the memory
-		gLockInterruptData.take(interrupt_data_key);
-		fuse_reply_err(req, e.errNo);
+		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
+		if (interrupt_data.first) {
+			fuse_reply_err(req, e.errNo);
+		}
 	}
 }
 #endif
@@ -603,12 +605,16 @@ void lzfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int o
 		LizardClient::flock_recv();
 
 		// release the memory
-		gLockInterruptData.take(interrupt_data_key);
-		fuse_reply_err(req, 0);
+		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
+		if (interrupt_data.first) {
+			fuse_reply_err(req, 0);
+		}
 	} catch (LizardClient::RequestException& e) {
 		// release the memory
-		gLockInterruptData.take(interrupt_data_key);
-		fuse_reply_err(req, e.errNo);
+		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
+		if (interrupt_data.first) {
+			fuse_reply_err(req, e.errNo);
+		}
 	}
 }
 #endif

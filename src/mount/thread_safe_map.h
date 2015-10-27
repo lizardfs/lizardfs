@@ -6,7 +6,6 @@
 
 #include "common/platform.h"
 
-
 template<typename K, typename D>
 class ThreadSafeMap {
 public:
@@ -27,10 +26,11 @@ public:
 		std::lock_guard<std::mutex> lock(map_mutex_);
 		std::pair<bool, D> ret;
 		ret.first = false;
-		if (map_.count(key)) {
+		auto ikey = map_.find(key);
+		if (ikey != map_.end()) {
 			ret.first = true;
-			ret.second = map_[key];
-			map_.erase(key);
+			ret.second = ikey->second;
+			map_.erase(ikey);
 		}
 
 		return ret;
