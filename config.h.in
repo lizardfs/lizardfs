@@ -57,7 +57,6 @@
 #cmakedefine LIZARDFS_HAVE_STDBOOL_H
 #cmakedefine LIZARDFS_HAVE_ZLIB_H
 #cmakedefine LIZARDFS_HAVE_JUDY_H
-#cmakedefine LIZARDFS_HAVE_SECURITY_PAM_APPL_H
 
 /* [CMake] Structures */
 #cmakedefine LIZARDFS_HAVE_STRUCT_STAT_ST_BLOCKS
@@ -106,6 +105,7 @@
 #cmakedefine LIZARDFS_HAVE_GETCWD
 #cmakedefine LIZARDFS_HAVE_POSIX_FADVISE
 #cmakedefine LIZARDFS_HAVE_CLOCK_GETTIME
+#cmakedefine LIZARDFS_HAVE_PAM
 
 /* [CMake] Other */
 #cmakedefine HAVE_CRCUTIL

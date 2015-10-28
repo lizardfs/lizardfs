@@ -66,7 +66,7 @@
 #  endif
 #endif
 
-#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+#if defined(LIZARDFS_HAVE_PAM)
 #  include <security/pam_appl.h>
 #  include <security/pam_misc.h>
 #endif
@@ -144,7 +144,7 @@ typedef struct eloopentry {
 
 static eloopentry *eloophead=NULL;
 
-#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+#if defined(LIZARDFS_HAVE_PAM)
 static pam_handle_t *gPAMHandle=NULL;
 #endif
 
@@ -795,7 +795,7 @@ void changeugid(RunMode runmode) {
 }
 
 bool open_pam_session() {
-#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+#if defined(LIZARDFS_HAVE_PAM)
 	static struct pam_conv conv = {misc_conv, NULL};
 
 	assert(gPAMHandle == NULL);
@@ -821,7 +821,7 @@ bool open_pam_session() {
 }
 
 void close_pam_session() {
-#if defined(LIZARDFS_HAVE_SECURITY_PAM_APPL_H)
+#if defined(LIZARDFS_HAVE_PAM)
 	if (!gPAMHandle) {
 		return;
 	}
