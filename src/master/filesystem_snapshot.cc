@@ -21,6 +21,7 @@
 #include "common/main.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
+#include "master/filesystem_quota.h"
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
 			uint16_t nleng_dst, const uint8_t *name_dst, uint8_t can_overwrite,
@@ -92,10 +93,13 @@ uint8_t fsnodes_deprecated_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, f
 	fsedge *e;
 	fsnode *dstnode;
 	uint8_t status;
-	if (fsnodes_inode_quota_exceeded(srcnode->uid, srcnode->gid)) {
+	if (fsnodes_quota_exceeded_ug(srcnode, {{QuotaResource::kInodes, 1}}) ||
+	    fsnodes_quota_exceeded_dir(parentnode, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	if (srcnode->type == TYPE_FILE && fsnodes_size_quota_exceeded(srcnode->uid, srcnode->gid)) {
+	if (srcnode->type == TYPE_FILE &&
+	    (fsnodes_quota_exceeded_ug(srcnode, {{QuotaResource::kSize, 1}}) ||
+	     fsnodes_quota_exceeded_dir(parentnode, {{QuotaResource::kSize, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	if ((e = fsnodes_lookup(parentnode, nleng, name))) {
@@ -189,7 +193,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 				dstnode->data.fdata.length = srcnode->data.fdata.length;
 				fsnodes_get_stats(dstnode, &nsr);
 				fsnodes_add_sub_stats(parentnode, &nsr, &psr);
-				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
+				fsnodes_quota_update(dstnode, {{QuotaResource::kSize, nsr.size - psr.size}});
 			}
 		} else if (srcnode->type == TYPE_SYMLINK) {
 			if (dstnode->data.sdata.pleng != srcnode->data.sdata.pleng) {
@@ -270,7 +274,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 				dstnode->data.fdata.length = srcnode->data.fdata.length;
 				fsnodes_get_stats(dstnode, &nsr);
 				fsnodes_add_sub_stats(parentnode, &nsr, &psr);
-				fsnodes_quota_update_size(dstnode, nsr.size - psr.size);
+				fsnodes_quota_update(dstnode, {{QuotaResource::kSize, nsr.size - psr.size}});
 			} else if (srcnode->type == TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng > 0) {
 					dstnode->data.sdata.path =

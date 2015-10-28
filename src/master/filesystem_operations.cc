@@ -29,6 +29,7 @@
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_node.h"
+#include "master/filesystem_quota.h"
 #include "master/fs_context.h"
 #include "master/locks.h"
 #include "master/matocsserv.h"
@@ -375,6 +376,7 @@ void fs_statfs(uint32_t rootinode, uint8_t sesflags, uint64_t *totalspace, uint6
 		*inodes = 0;
 	} else {
 		matocsserv_getspace(totalspace, availspace);
+		fsnodes_quota_adjust_space(rn, *totalspace, *availspace);
 		fsnodes_get_stats(rn, &sr);
 		*inodes = sr.inodes;
 		if (sr.realsize + *availspace < *totalspace) {
@@ -614,7 +616,7 @@ uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 				status = chunk_multi_truncate(
 				        ochunkid, lockId, (length & MFSCHUNKMASK), p->goal,
 				        denyTruncatingParity,
-				        fsnodes_size_quota_exceeded(p->uid, p->gid), &nchunkid);
+				        fsnodes_quota_exceeded(p, {{QuotaResource::kSize, 1}}), &nchunkid);
 				if (status != LIZARDFS_STATUS_OK) {
 					return status;
 				}
@@ -1009,8 +1011,9 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 	if (fsnodes_nameisused(wd, nleng, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
-	if ((context.isPersonalityMaster()) &&
-	    fsnodes_inode_quota_exceeded(context.uid(), context.gid())) {
+	if (context.isPersonalityMaster() &&
+	    (fsnodes_quota_exceeded_ug(context.uid(), context.gid(), {{QuotaResource::kInodes, 1}}) ||
+	     fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	uint8_t *newpath = (uint8_t *)malloc(pleng);
@@ -1100,7 +1103,8 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd, nleng, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
-	if (fsnodes_inode_quota_exceeded(uid, gid)) {
+	if (fsnodes_quota_exceeded_ug(uid, gid, {{QuotaResource::kInodes, 1}}) ||
+	    fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(ts, wd, nleng, name, type, mode, umask, uid, gid, 0,
@@ -1166,7 +1170,8 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (fsnodes_nameisused(wd, nleng, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
-	if (fsnodes_inode_quota_exceeded(uid, gid)) {
+	if (fsnodes_quota_exceeded_ug(uid, gid, {{QuotaResource::kInodes, 1}}) ||
+	    fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	p = fsnodes_create_node(ts, wd, nleng, name, TYPE_DIRECTORY, mode, umask, uid, gid,
@@ -1399,11 +1404,18 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 	} else {
 		*inode = node->id;
 	}
+
+	std::array<int64_t, 2> quota_delta = {{1, 1}};
 	if (se->child->type == TYPE_DIRECTORY) {
 		if (fsnodes_isancestor(se->child, dwd)) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
+		statsrecord &stats = *se->child->data.ddata.stats;
+		quota_delta = {{(int64_t)stats.inodes, (int64_t)stats.size}};
+	} else if (se->child->type == TYPE_FILE) {
+		quota_delta[(int)QuotaResource::kSize] = fsnodes_get_size(se->child);
 	}
+
 	if (fsnodes_namecheck(nleng_dst, name_dst) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
@@ -1416,6 +1428,26 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 		    !fsnodes_sticky_access(dwd, de->child, context.uid())) {
 			return LIZARDFS_ERROR_EPERM;
 		}
+		if (de->child->type == TYPE_DIRECTORY) {
+			statsrecord &stats = *de->child->data.ddata.stats;
+			quota_delta[(int)QuotaResource::kInodes] -= stats.inodes;
+			quota_delta[(int)QuotaResource::kSize] -= stats.size;
+		} else if (de->child->type == TYPE_FILE) {
+			quota_delta[(int)QuotaResource::kInodes] -= 1;
+			quota_delta[(int)QuotaResource::kSize] -= fsnodes_get_size(de->child);
+		} else {
+			quota_delta[(int)QuotaResource::kInodes] -= 1;
+			quota_delta[(int)QuotaResource::kSize] -= 1;
+		}
+	}
+
+	if (fsnodes_quota_exceeded_dir(
+	        dwd, swd, {{QuotaResource::kInodes, quota_delta[(int)QuotaResource::kInodes]},
+	                   {QuotaResource::kSize, quota_delta[(int)QuotaResource::kSize]}})) {
+		return LIZARDFS_ERROR_QUOTA;
+	}
+
+	if (de) {
 		fsnodes_unlink(context.ts(), de);
 	}
 	fsnodes_remove_edge(context.ts(), se);
@@ -1503,7 +1535,7 @@ uint8_t fs_append(const FsContext &context, uint32_t inode, uint32_t inode_src) 
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	if (context.isPersonalityMaster() && fsnodes_size_quota_exceeded(p->uid, p->gid)) {
+	if (context.isPersonalityMaster() && fsnodes_quota_exceeded(p, {{QuotaResource::kSize, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	status = fsnodes_appendchunks(context.ts(), p, sp);
@@ -2109,7 +2141,7 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 	}
 #endif
 
-	const bool quota_exceeded = fsnodes_size_quota_exceeded(p->uid, p->gid);
+	const bool quota_exceeded = fsnodes_quota_exceeded(p, {{QuotaResource::kSize, 1}});
 	statsrecord psr;
 	fsnodes_get_stats(p, &psr);
 
@@ -2170,7 +2202,7 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 	for (fsedge *e = p->parents; e; e = e->nextparent) {
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
-	fsnodes_quota_update_size(p, nsr.size - psr.size);
+	fsnodes_quota_update(p, {{QuotaResource::kSize, nsr.size - psr.size}});
 	if (length) {
 		*length = p->data.fdata.length;
 	}
@@ -2299,7 +2331,7 @@ uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 	for (e = p->parents; e; e = e->nextparent) {
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
-	fsnodes_quota_update_size(p, nsr.size - psr.size);
+	fsnodes_quota_update(p, {{QuotaResource::kSize, nsr.size - psr.size}});
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
 }
@@ -2337,7 +2369,7 @@ uint8_t fs_apply_repair(uint32_t ts, uint32_t inode, uint32_t indx, uint32_t nve
 	for (fsedge *e = p->parents; e; e = e->nextparent) {
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
-	fsnodes_quota_update_size(p, nsr.size - psr.size);
+	fsnodes_quota_update(p, {{QuotaResource::kSize, nsr.size - psr.size}});
 	gMetadata->metaversion++;
 	p->mtime = p->ctime = ts;
 	fsnodes_update_checksum(p);

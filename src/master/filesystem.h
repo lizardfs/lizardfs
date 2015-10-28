@@ -179,11 +179,13 @@ uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint8_t mode);
 uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid);
 uint8_t fs_getacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList& acl);
-uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid, std::vector<QuotaEntry> &results);
-uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t root_inode, uint32_t uid,
+		std::vector<QuotaEntry> &results);
+uint8_t fs_quota_get(uint8_t sesflags, uint32_t root_inode, uint32_t uid, uint32_t gid,
 		const std::vector<QuotaOwner> &owners, std::vector<QuotaEntry> &results);
 uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
-uint8_t fs_quota_get_info(const std::vector<QuotaEntry>& entries, std::vector<std::string>& result);
+uint8_t fs_quota_get_info(uint32_t root_inode, const std::vector<QuotaEntry> &entries,
+		std::vector<std::string> &result);
 
 uint32_t fs_newsessionid(void);
 

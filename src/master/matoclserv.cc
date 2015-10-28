@@ -4207,19 +4207,19 @@ void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32
 	if (version == cltoma::fuseGetQuota::kAllLimits) {
 		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid);
 		matoclserv_ugid_remap(eptr, &uid, &gid);
-		status = fs_quota_get_all(eptr->sesdata->sesflags, uid, results);
+		status = fs_quota_get_all(eptr->sesdata->sesflags, eptr->sesdata->rootinode, uid, results);
 	} else if (version == cltoma::fuseGetQuota::kSelectedLimits) {
 		std::vector<QuotaOwner> owners;
 		cltoma::fuseGetQuota::deserialize(data, length, messageId, uid, gid, owners);
 		matoclserv_ugid_remap(eptr, &uid, &gid);
-		status = fs_quota_get(eptr->sesdata->sesflags, uid, gid, owners, results);
+		status = fs_quota_get(eptr->sesdata->sesflags, eptr->sesdata->rootinode, uid, gid, owners, results);
 	} else {
 		throw IncorrectDeserializationException(
 				"Unknown LIZ_CLTOMA_FUSE_GET_QUOTA version: " + std::to_string(version));
 	}
 	MessageBuffer reply;
 	if (status == LIZARDFS_STATUS_OK) {
-		status = fs_quota_get_info(results, info);
+		status = fs_quota_get_info(eptr->sesdata->rootinode, results, info);
 	}
 	if (status == LIZARDFS_STATUS_OK) {
 		matocl::fuseGetQuota::serialize(reply, messageId, results, info);

@@ -39,6 +39,7 @@
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_operations.h"
 #include "master/filesystem_checksum.h"
+#include "master/filesystem_quota.h"
 #include "master/locks.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
@@ -799,7 +800,7 @@ int fs_loadnode(FILE *fd) {
 #endif
 			sessionids--;
 		}
-		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+		fsnodes_quota_update(p, {{QuotaResource::kSize, +fsnodes_get_size(p)}});
 	}
 	p->parents = NULL;
 	nodepos = NODEHASHPOS(p->id);
@@ -813,7 +814,7 @@ int fs_loadnode(FILE *fd) {
 	if (type == TYPE_FILE || type == TYPE_TRASH || type == TYPE_RESERVED) {
 		gMetadata->filenodes++;
 	}
-	fsnodes_quota_register_inode(p);
+	fsnodes_quota_update(p, {{QuotaResource::kInodes, +1}});
 	return 0;
 }
 
@@ -958,9 +959,9 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 		std::vector<QuotaEntry> entries;
 		fs_load_generic(fd, entries);
 		for (const auto &entry : entries) {
-			gMetadata->quota_database.set(entry.entryKey.rigor, entry.entryKey.resource,
-			                              entry.entryKey.owner.ownerType,
-			                              entry.entryKey.owner.ownerId, entry.limit);
+			gMetadata->quota_database.set(entry.entryKey.owner.ownerType,
+			                              entry.entryKey.owner.ownerId, entry.entryKey.rigor,
+			                              entry.entryKey.resource, entry.limit);
 		}
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading quotas: %s", ex.what());
@@ -1418,7 +1419,7 @@ void fs_new(void) {
 	gMetadata->dirnodes = 1;
 	gMetadata->filenodes = 0;
 	fs_checksum(ChecksumMode::kForceRecalculate);
-	fsnodes_quota_register_inode(gMetadata->root);
+	fsnodes_quota_update(gMetadata->root, {{QuotaResource::kInodes, +1}});
 }
 #endif
 

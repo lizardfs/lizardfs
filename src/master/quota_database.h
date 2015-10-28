@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,51 +22,129 @@
 
 #include <cstdint>
 #include <memory>
+#include <unordered_map>
 
+#include "common/hashfn.h"
 #include "protocol/quota.h"
-
-class QuotaDatabaseImplementation;
-
-struct QuotaLimits {
-	uint64_t inodesSoftLimit;
-	uint64_t inodesHardLimit;
-	uint64_t inodes;
-	uint64_t bytesSoftLimit;
-	uint64_t bytesHardLimit;
-	uint64_t bytes;
-};
 
 class QuotaDatabase {
 public:
-	QuotaDatabase();
-	~QuotaDatabase();
+	typedef std::array<std::array<uint64_t, 2>, 3> Limits;
+	typedef std::unordered_map<uint32_t, Limits> DataTable;
 
-	// Sets the given limit
-	void set(QuotaRigor rigor, QuotaResource resource, QuotaOwnerType ownerType, uint32_t ownerId,
-			uint64_t value);
+public:
+	QuotaDatabase() = default;
 
-	// Removes the given limit
-	void remove(QuotaRigor rigor, QuotaResource resource,
-			QuotaOwnerType ownerType, uint32_t ownerId);
 
-	// Checks if uid/gid pair didn't exceed the given limit
-	bool isExceeded(QuotaRigor rigor, QuotaResource resource, uint32_t uid, uint32_t gid) const;
+	/*! \brief Gets information about the given owner's usage of resources and limits.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 * \return Pointer to full set of limits.
+	 */
+	const Limits *get(QuotaOwnerType owner_type, uint32_t owner_id) const {
+		const auto &map = quota_data_[(int)owner_type];
+		auto it = map.find(owner_id);
+		if (it == map.end()) {
+			return nullptr;
+		}
 
-	// Gets information about the given owner's usage of resources and limits
-	const QuotaLimits* get(QuotaOwnerType ownerType, uint32_t ownerId) const;
+		return &(it->second);
+	}
 
-	// Returns all quota entries (with used)
+	/*! \brief Set quota for specific resource.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 * \param rigor Resource rigor (soft, hard, used).
+	 * \param resource Resource type (number of inodes, size of file).
+	 * \param value Resource value to set.
+	 */
+	void set(QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor, QuotaResource resource,
+	         uint64_t value) {
+		quota_data_[(int)owner_type][(int)owner_id][(int)rigor][(int)resource] = value;
+	}
+
+	/*! \brief Update quota for specific resource.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 * \param rigor Resource rigor (soft, hard, used).
+	 * \param resource Resource type (number of inodes, size of file).
+	 * \param delta New resource value is equal to old value plus \param delta.
+	 */
+	void update(QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor,
+	            QuotaResource resource, int64_t delta) {
+		quota_data_[(int)owner_type][(int)owner_id][(int)rigor][(int)resource] += delta;
+	}
+
+	/*! \brief Remove quota for specific resource.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 * \param rigor Resource rigor (soft, hard, used).
+	 * \param resource Resource type (number of inodes, size of file).
+	 */
+	void remove(QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor,
+	            QuotaResource resource);
+
+	/*! \brief Remove all resource quotas for specific entry.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 */
+	void remove(QuotaOwnerType owner_type, uint32_t owner_id);
+
+	/*! \brief Remove cleared resources for specific entry.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 */
+	void removeEmpty(QuotaOwnerType owner_type, uint32_t owner_id) {
+		auto &map = quota_data_[(int)owner_type];
+		auto it = map.find(owner_id);
+		if (it != map.end()) {
+			if (it->second == Limits{{{{0}}}}) {  // workaround for a bug in gcc 4.6
+				map.erase(it);
+			}
+		}
+	}
+
+	/*! \brief Checks if changing resource exceeds quota.
+	 * \param owner_type Quota entry type (user, group, inode (directory)).
+	 * \param owner_id Entry id.
+	 * \param rigor Resource rigor (soft, hard, used).
+	 * \param resource_list List of resources to check (with change value).
+	 */
+	bool exceeds(
+	    QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor,
+	    const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list) const;
+
+	/*! \brief Returns all quota entries (with used). */
 	std::vector<QuotaEntry> getEntriesWithStats() const;
 
-	// Returns all quota entries (without used)
+	/*! \brief Returns all quota entries (without used). */
 	std::vector<QuotaEntry> getEntries() const;
 
-	// Increases/decreases usage of the given resource by the given owner
-	void changeUsage(QuotaResource resource, uint32_t uid, uint32_t gid, int64_t delta);
-
-	// Get a checksum of the database (usage doesn't count)
+	/*! Get a checksum of the database (usage is not included). */
 	uint64_t checksum() const;
 
-private:
-	std::unique_ptr<QuotaDatabaseImplementation> impl_;
+protected:
+	static uint64_t hash(const QuotaEntry &entry) {
+		uint64_t hash = 0x2a9ae768d80f202f;  // some random number
+		hashCombine(hash, static_cast<uint8_t>(entry.entryKey.owner.ownerType),
+		            static_cast<uint8_t>(entry.entryKey.owner.ownerId),
+		            static_cast<uint8_t>(entry.entryKey.rigor),
+		            static_cast<uint8_t>(entry.entryKey.resource), entry.limit);
+		return hash;
+	}
+
+	template<typename Func>
+	void forEach(Func func) const {
+		for(auto owner_type : {QuotaOwnerType::kUser, QuotaOwnerType::kGroup, QuotaOwnerType::kInode}) {
+			for (const auto &data_entry : quota_data_[(int)owner_type]) {
+				for (auto rigor : {QuotaRigor::kSoft, QuotaRigor::kHard}) {
+					for (auto resource : {QuotaResource::kInodes, QuotaResource::kSize}) {
+						func(rigor, resource, owner_type, data_entry.first, data_entry.second);
+					}
+				}
+			}
+		}
+	}
+
+	std::array<DataTable, 3> quota_data_;
 };

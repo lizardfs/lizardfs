@@ -184,8 +184,6 @@ void fsnodes_get_stats(fsnode *node, statsrecord *sr);
 bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f, fsnode *p);
 int fsnodes_access(fsnode *node, uint32_t uid, uint32_t gid, uint8_t modemask, uint8_t sesflags);
 
-bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid);
-
 void fsnodes_setlength(fsnode *obj, uint64_t length);
 void fsnodes_change_uid_gid(fsnode *p, uint32_t uid, uint32_t gid);
 int fsnodes_nameisused(fsnode *node, uint16_t nleng, const uint8_t *name);
@@ -212,7 +210,6 @@ void fsnodes_checkfile(fsnode *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
 bool fsnodes_has_tape_goal(fsnode *node);
 void fsnodes_add_sub_stats(fsnode *parent, statsrecord *newsr, statsrecord *prevsr);
 
-void fsnodes_quota_update_size(fsnode *node, int64_t delta);
 void fsnodes_getgoal_recursive(fsnode *node, uint8_t gmode, GoalStatistics &fgtab,
 		GoalStatistics &dgtab);
 
@@ -238,4 +235,3 @@ void fsnodes_getpath_data(fsedge *e, uint8_t *path, uint32_t size);
 
 int64_t fsnodes_get_size(fsnode *node);
 
-void fsnodes_quota_register_inode(fsnode *node);

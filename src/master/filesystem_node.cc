@@ -652,9 +652,9 @@ fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uin
 	p->checksum = 0;
 	fsnodes_update_checksum(p);
 	fsnodes_link(ts, node, p, nleng, name);
-	fsnodes_quota_register_inode(p);
+	fsnodes_quota_update(p, {{QuotaResource::kInodes, +1}});
 	if (type == TYPE_FILE) {
-		fsnodes_quota_update_size(p, +fsnodes_get_size(p));
+		fsnodes_quota_update(p, {{QuotaResource::kSize, +fsnodes_get_size(p)}});
 	}
 	return p;
 }
@@ -988,7 +988,7 @@ uint8_t fsnodes_appendchunks(uint32_t ts, fsnode *dstobj, fsnode *srcobj) {
 	}
 	dstobj->data.fdata.length = length;
 	fsnodes_get_stats(dstobj, &nsr);
-	fsnodes_quota_update_size(dstobj, nsr.size - psr.size);
+	fsnodes_quota_update(dstobj, {{QuotaResource::kSize, nsr.size - psr.size}});
 	for (fsedge *e = dstobj->parents; e; e = e->nextparent) {
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
@@ -1066,7 +1066,7 @@ void fsnodes_setlength(fsnode *obj, uint64_t length) {
 		}
 	}
 	fsnodes_get_stats(obj, &nsr);
-	fsnodes_quota_update_size(obj, nsr.size - psr.size);
+	fsnodes_quota_update(obj, {{QuotaResource::kSize, nsr.size - psr.size}});
 	for (fsedge *e = obj->parents; e; e = e->nextparent) {
 		fsnodes_add_sub_stats(e->parent, &nsr, &psr);
 	}
@@ -1075,16 +1075,16 @@ void fsnodes_setlength(fsnode *obj, uint64_t length) {
 
 void fsnodes_change_uid_gid(fsnode *p, uint32_t uid, uint32_t gid) {
 	int64_t size = 0;
-	fsnodes_quota_unregister_inode(p);
+	fsnodes_quota_update(p, {{QuotaResource::kInodes, -1}});
 	if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
 		size = fsnodes_get_size(p);
-		fsnodes_quota_update_size(p, -size);
+		fsnodes_quota_update(p, {{QuotaResource::kSize, -size}});
 	}
 	p->uid = uid;
 	p->gid = gid;
-	fsnodes_quota_register_inode(p);
+	fsnodes_quota_update(p, {{QuotaResource::kInodes, +1}});
 	if (p->type == TYPE_FILE || p->type == TYPE_TRASH || p->type == TYPE_RESERVED) {
-		fsnodes_quota_update_size(p, +size);
+		fsnodes_quota_update(p, {{QuotaResource::kSize, +size}});
 	}
 }
 
@@ -1117,7 +1117,7 @@ static inline void fsnodes_remove_node(uint32_t ts, fsnode *toremove) {
 	    toremove->type == TYPE_RESERVED) {
 		uint32_t i;
 		uint64_t chunkid;
-		fsnodes_quota_update_size(toremove, -fsnodes_get_size(toremove));
+		fsnodes_quota_update(toremove, {{QuotaResource::kSize, -fsnodes_get_size(toremove)}});
 		gMetadata->filenodes--;
 		for (i = 0; i < toremove->data.fdata.chunks; i++) {
 			chunkid = toremove->data.fdata.chunktab[i];
@@ -1133,7 +1133,8 @@ static inline void fsnodes_remove_node(uint32_t ts, fsnode *toremove) {
 	}
 	gMetadata->inode_pool.release(toremove->id, ts, true);
 	xattr_removeinode(toremove->id);
-	fsnodes_quota_unregister_inode(toremove);
+	fsnodes_quota_update(toremove, {{QuotaResource::kInodes, -1}});
+	fsnodes_quota_remove(QuotaOwnerType::kInode, toremove->id);
 #ifndef METARESTORE
 	dcm_modify(toremove->id, 0);
 #endif

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -19,169 +19,105 @@
 #include "common/platform.h"
 #include "master/quota_database.h"
 
-#include <unordered_map>
-
-#include "common/hashfn.h"
-
-// Data structures and helper function used to implement QuotaDatabase
-class QuotaDatabaseImplementation {
-public:
-	typedef std::unordered_map<uint32_t, QuotaLimits> DataTable;
-	DataTable gidData, uidData;
-
-	// Returns limits. If it didn't exist -- creates an empty one
-	QuotaLimits& getLimits(QuotaOwnerType ownerType, uint32_t ownerId) {
-		auto& map = (ownerType == QuotaOwnerType::kUser ? uidData : gidData);
-		return map[ownerId];
+void QuotaDatabase::remove(QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor,
+		QuotaResource resource) {
+	auto &map = quota_data_[(int)owner_type];
+	auto it = map.find(owner_id);
+	if (it == map.end()) {
+		return;
 	}
 
-	QuotaLimits* getLimitsOrNull(QuotaOwnerType ownerType, uint32_t ownerId) {
-		auto& map = (ownerType == QuotaOwnerType::kUser ? uidData : gidData);
-		auto it = map.find(ownerId);
-		if (it == map.end()) {
-			return nullptr;
-		}
-		return &it->second;
+	it->second[(int)rigor][(int)resource] = 0;
+	if (it->second == Limits()) {
+		map.erase(it);
+	}
+}
+
+void QuotaDatabase::remove(QuotaOwnerType owner_type, uint32_t owner_id) {
+	auto &map = quota_data_[(int)owner_type];
+	auto it = map.find(owner_id);
+	if (it == map.end()) {
+		return;
 	}
 
-	// Returns a reference to the requested QuotaLimits' field
-	uint64_t& extractLimit(QuotaLimits& limits, QuotaRigor rigor, QuotaResource resource) {
-		if (rigor == QuotaRigor::kSoft && resource == QuotaResource::kInodes) {
-			return limits.inodesSoftLimit;
-		} else if (rigor == QuotaRigor::kHard && resource == QuotaResource::kInodes) {
-			return limits.inodesHardLimit;
-		} else if (rigor == QuotaRigor::kSoft && resource == QuotaResource::kSize) {
-			return limits.bytesSoftLimit;
-		} else if (rigor == QuotaRigor::kHard && resource == QuotaResource::kSize) {
-			return limits.bytesHardLimit;
-		} else {
-			throw Exception("This will never happen");
-		}
-	}
+	map.erase(it);
+}
 
-	// Returns stats for all non-empty limits
-	void getStats(std::vector<QuotaEntry> &ret, DataTable &data, QuotaOwnerType ownerType) {
-		for (auto &dataEntry : data) {
-			for (auto resource : {QuotaResource::kInodes, QuotaResource::kSize}) {
-				if (dataEntry.second.inodesSoftLimit > 0 || dataEntry.second.inodesHardLimit > 0 ||
-				    dataEntry.second.bytesSoftLimit > 0 || dataEntry.second.bytesHardLimit > 0) {
-					uint64_t limit = extractUsage(dataEntry.second, resource);
-					ret.push_back(
-					    {{{ownerType, dataEntry.first}, QuotaRigor::kUsed, resource}, limit});
-				}
-			}
-		}
-	}
-
-	// Returns all non-empty limits set in a given table
-	void getEntries(std::vector<QuotaEntry>& ret, DataTable& data, QuotaOwnerType ownerType) {
-		for (auto& dataEntry : data) {
-			for (auto rigor : {QuotaRigor::kSoft, QuotaRigor::kHard}) {
-				for (auto resource : {QuotaResource::kInodes, QuotaResource::kSize}) {
-					uint64_t limit = extractLimit(dataEntry.second, rigor, resource);
-					if (limit > 0) {
-						ret.push_back({{{ownerType, dataEntry.first}, rigor, resource}, limit});
-					}
-				}
-			}
-		}
-	}
-
-	// Returns a reference to the requested QuotaLimits' field
-	uint64_t& extractUsage(QuotaLimits& limits, QuotaResource resource) {
-		if (resource == QuotaResource::kInodes) {
-			return limits.inodes;
-		} else if (resource == QuotaResource::kSize) {
-			return limits.bytes;
-		} else {
-			throw Exception("This will never happen");
-		}
-	}
-
-	bool isLimitExceeded(QuotaRigor rigor, QuotaResource resource,
-			QuotaOwnerType ownerType, uint32_t ownerId) {
-		QuotaLimits* limits = getLimitsOrNull(ownerType, ownerId);
-		if (limits != nullptr) {
-			uint64_t limit = extractLimit(*limits, rigor, resource);
-			uint64_t usage = extractUsage(*limits, resource);
-			if (rigor == QuotaRigor::kHard) {
-				// QuotaRigor::kHard is considered exceeded if it is
-				// greater than or equal to the limit, so increment usage by one.
-				++usage;
-			}
-			if (limit != 0 && usage > limit) {
-				return true;
-			}
-		}
+bool QuotaDatabase::exceeds(QuotaOwnerType owner_type, uint32_t owner_id, QuotaRigor rigor,
+		const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list) const {
+	const Limits *entry = get(owner_type, owner_id);
+	if (!entry) {
 		return false;
 	}
 
-	// Hash given entry
-	uint64_t hash(const QuotaEntry& entry) const {
-		uint64_t hash = 0x2a9ae768d80f202f; // some random number
-		hashCombine(hash,
-				static_cast<uint8_t>(entry.entryKey.owner.ownerType),
-				static_cast<uint8_t>(entry.entryKey.owner.ownerId),
-				static_cast<uint8_t>(entry.entryKey.rigor),
-				static_cast<uint8_t>(entry.entryKey.resource),
-				entry.limit);
-		return hash;
+	for (const auto &resource : resource_list) {
+		uint64_t limit = (*entry)[(int)rigor][(int)resource.first];
+		uint64_t usage = (*entry)[(int)QuotaRigor::kUsed][(int)resource.first] + resource.second;
+
+		if (limit != 0 && usage > limit) {
+			return true;
+		}
 	}
-};
 
-// The actual implementation starts here
-
-QuotaDatabase::QuotaDatabase() : impl_(new QuotaDatabaseImplementation()) {}
-
-QuotaDatabase::~QuotaDatabase() {}
-
-void QuotaDatabase::set(QuotaRigor rigor, QuotaResource resource,
-		QuotaOwnerType ownerType, uint32_t ownerId, uint64_t value) {
-	auto& limits = impl_->getLimits(ownerType, ownerId);
-	impl_->extractLimit(limits, rigor, resource) = value;
-}
-
-void QuotaDatabase::remove(QuotaRigor rigor, QuotaResource resource,
-		QuotaOwnerType ownerType, uint32_t ownerId) {
-	set(rigor, resource, ownerType, ownerId, 0);
-}
-
-bool QuotaDatabase::isExceeded(QuotaRigor rigor, QuotaResource resource,
-		uint32_t uid, uint32_t gid) const {
-	return impl_->isLimitExceeded(rigor, resource, QuotaOwnerType::kUser, uid)
-			|| impl_->isLimitExceeded(rigor, resource, QuotaOwnerType::kGroup, gid);
-}
-
-const QuotaLimits* QuotaDatabase::get(QuotaOwnerType ownerType, uint32_t ownerId) const {
-	return impl_->getLimitsOrNull(ownerType, ownerId);
-}
-
-
-std::vector<QuotaEntry> QuotaDatabase::getEntriesWithStats() const {
-	std::vector<QuotaEntry> ret;
-	impl_.get()->getEntries(ret, impl_->uidData, QuotaOwnerType::kUser);
-	impl_.get()->getStats(ret, impl_->uidData, QuotaOwnerType::kUser);
-	impl_.get()->getEntries(ret, impl_->gidData, QuotaOwnerType::kGroup);
-	impl_.get()->getStats(ret, impl_->gidData, QuotaOwnerType::kGroup);
-	return ret;
+	return false;
 }
 
 std::vector<QuotaEntry> QuotaDatabase::getEntries() const {
-	std::vector<QuotaEntry> ret;
-	impl_.get()->getEntries(ret, impl_->uidData, QuotaOwnerType::kUser);
-	impl_.get()->getEntries(ret, impl_->gidData, QuotaOwnerType::kGroup);
-	return ret;
+	std::vector<QuotaEntry> result;
+
+	forEach([&result](QuotaRigor rigor, QuotaResource resource, QuotaOwnerType owner_type,
+	                  uint32_t owner_id, const Limits &entry) {
+		uint64_t limit = entry[(int)rigor][(int)resource];
+		if (limit > 0) {
+			result.push_back({{{owner_type, owner_id}, rigor, resource}, limit});
+		}
+	});
+
+	return result;
 }
 
-void QuotaDatabase::changeUsage(QuotaResource resource, uint32_t uid, uint32_t gid, int64_t delta) {
-	impl_->extractUsage(impl_->getLimits(QuotaOwnerType::kUser, uid), resource) += delta;
-	impl_->extractUsage(impl_->getLimits(QuotaOwnerType::kGroup, gid), resource) += delta;
-}
+std::vector<QuotaEntry> QuotaDatabase::getEntriesWithStats() const {
+	std::vector<QuotaEntry> result;
 
-uint64_t QuotaDatabase::checksum() const {
-	uint64_t checksum = 0xcd13ca11bcb1beb5; // some random number
-	for (const auto& entry : getEntries()) {
-		addToChecksum(checksum, impl_->hash(entry));
+	for (auto owner_type :
+	     {QuotaOwnerType::kUser, QuotaOwnerType::kGroup, QuotaOwnerType::kInode}) {
+		for (const auto &data_entry : quota_data_[(int)owner_type]) {
+			for (auto resource : {QuotaResource::kInodes, QuotaResource::kSize}) {
+				bool non_zero = false;
+
+				for (auto rigor : {QuotaRigor::kSoft, QuotaRigor::kHard}) {
+					uint64_t limit = data_entry.second[(int)rigor][(int)resource];
+					if (limit > 0) {
+						result.push_back(
+						    {{{owner_type, data_entry.first}, rigor, resource}, limit});
+						non_zero = true;
+					}
+				}
+
+				if (non_zero) {
+					uint64_t value = data_entry.second[(int)QuotaRigor::kUsed][(int)resource];
+					result.push_back(
+					    {{{owner_type, data_entry.first}, QuotaRigor::kUsed, resource}, value});
+				}
+			}
+		}
 	}
+
+	return result;
+}
+
+// Get a checksum of the database (usage doesn't count)
+uint64_t QuotaDatabase::checksum() const {
+	uint64_t checksum = 0xcd13ca11bcb1beb5;  // some random number
+
+	forEach([this, &checksum](QuotaRigor rigor, QuotaResource resource, QuotaOwnerType owner_type,
+	                          uint32_t owner_id, const Limits &entry) {
+		uint64_t limit = entry[(int)rigor][(int)resource];
+		if (limit > 0) {
+			QuotaEntry qentry = {{{owner_type, owner_id}, rigor, resource}, limit};
+			addToChecksum(checksum, hash(qentry));
+		}
+	});
+
 	return checksum;
 }

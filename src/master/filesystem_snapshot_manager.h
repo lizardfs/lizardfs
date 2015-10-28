@@ -114,7 +114,8 @@ public:
 	bool workAvailable() const;
 
 protected:
-	int cloneNodeTest(fsnode *src_node, fsedge *dst_edge, const CloneData &info);
+	int cloneNodeTest(fsnode *src_node, fsnode *dst_parent, fsedge *dst_edge,
+	                  const CloneData &info);
 	fsnode *cloneToExistingNode(uint32_t ts, fsnode *src_node, fsnode *parent_node,
 	                            fsedge *dst_edge, const CloneData &info);
 	fsnode *cloneToNewNode(uint32_t ts, fsnode *src_node, fsnode *parent_node,

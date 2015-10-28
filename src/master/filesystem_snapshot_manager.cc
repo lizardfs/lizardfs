@@ -26,6 +26,7 @@
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_operations.h"
+#include "master/filesystem_quota.h"
 
 SnapshotManager::SnapshotManager(int default_batch_size) : batch_size_(default_batch_size) {
 }
@@ -134,12 +135,14 @@ bool SnapshotManager::workAvailable() const {
 }
 
 /*! \brief Test if node can be cloned. */
-int SnapshotManager::cloneNodeTest(fsnode *src_node, fsedge *dst_edge, const CloneData &info) {
-	if (fsnodes_inode_quota_exceeded(src_node->uid, src_node->gid)) {
+int SnapshotManager::cloneNodeTest(fsnode *src_node, fsnode *dst_parent, fsedge *dst_edge, const CloneData &info) {
+	if (fsnodes_quota_exceeded_ug(src_node, {{QuotaResource::kInodes, 1}}) ||
+	    fsnodes_quota_exceeded_dir(dst_parent, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	if (src_node->type == TYPE_FILE &&
-	    fsnodes_size_quota_exceeded(src_node->uid, src_node->gid)) {
+	    (fsnodes_quota_exceeded_ug(src_node, {{QuotaResource::kSize, 1}}) ||
+	     fsnodes_quota_exceeded_dir(dst_parent, {{QuotaResource::kSize, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
 	if (dst_edge) {
@@ -171,7 +174,7 @@ int SnapshotManager::cloneNode(uint32_t ts, const CloneData &info) {
 	fsedge *dst_edge = fsnodes_lookup(dst_parent, info.dst_name.size(),
 	                                  reinterpret_cast<const uint8_t *>(info.dst_name.c_str()));
 
-	int status = cloneNodeTest(src_node, dst_edge, info);
+	int status = cloneNodeTest(src_node, dst_parent, dst_edge, info);
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
@@ -329,7 +332,7 @@ void SnapshotManager::cloneChunkData(fsnode *src_node, fsnode *dst_node, fsnode 
 
 	fsnodes_get_stats(dst_node, &nsr);
 	fsnodes_add_sub_stats(dst_parent, &nsr, &psr);
-	fsnodes_quota_update_size(dst_node, nsr.size - psr.size);
+	fsnodes_quota_update(dst_node, {{QuotaResource::kSize, nsr.size - psr.size}});
 }
 
 void SnapshotManager::cloneDirectoryData(fsnode *src_node, fsnode *dst_node,

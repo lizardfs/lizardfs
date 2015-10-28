@@ -37,16 +37,17 @@
 #include <vector>
 
 #include "common/chunk_with_address_and_label.h"
-#include "protocol/cltoma.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/human_readable_format.h"
-#include "protocol/matocl.h"
-#include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/server_connection.h"
 #include "common/sockets.h"
 #include "common/special_inode_defs.h"
+#include "master/quota_database.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
+#include "protocol/MFSCommunication.h"
 
 #define tcpread(s,b,l) tcptoread(s,b,l,10000)
 #define tcpwrite(s,b,l) tcptowrite(s,b,l,10000)
@@ -1980,8 +1981,8 @@ void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard
  * \param limit Table (3x2) with quota limits. Each entry corresponds to specific
  *              quota type. (The function can only print known quota types that fit in table)
  */
-void quota_print_entry(int owner_type, uint32_t owner_id, const std::string &info,
-		const std::array<std::array<uint64_t, 2>, 3> &limit) {
+void quota_print_entry(int owner_type, uint32_t owner_id, const std::string& info,
+		const QuotaDatabase::Limits &limit) {
 	static const char *owner_type_name[3] = {"User ", "Group", "Unknown"};
 	std::string line;
 
@@ -2035,7 +2036,7 @@ void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::ve
 				"Inodes: current usage, soft limit, hard limit;");
 
 	std::pair<int, uint32_t> prev_entry(-1, 0);
-	std::array<std::array<uint64_t, 2>, 3> limits_value{{{{0}}}}; // workaround for a bug in gcc 4.6
+	QuotaDatabase::Limits limits_value{{{{0}}}}; // workaround for a bug in gcc 4.6
 	std::string info;
 	for (auto index : ordering) {
 		const QuotaEntry &entry = quota_entries[index];
@@ -2047,12 +2048,13 @@ void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::ve
 		if (type_with_id != prev_entry) {
 			quota_print_entry(prev_entry.first, prev_entry.second, info, limits_value);
 			prev_entry = type_with_id;
-			limits_value = std::array<std::array<uint64_t, 2>, 3>{{{{0}}}}; // workaround for a bug in gcc 4.6
+			limits_value = QuotaDatabase::Limits{{{{0}}}}; // workaround for a bug in gcc 4.6
 			info.clear();
 		}
 
 		// Store only known values in limit table that quota_print_entry function can print.
-		if ((int)entry.entryKey.rigor <= 2 && (int)entry.entryKey.resource <= 1) {
+		if ((int)entry.entryKey.rigor < limits_value.size() &&
+		    (int)entry.entryKey.resource < limits_value[(int)entry.entryKey.rigor].size()) {
 			limits_value[(int)entry.entryKey.rigor][(int)entry.entryKey.resource] = entry.limit;
 		}
 	}
