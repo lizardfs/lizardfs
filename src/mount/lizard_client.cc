@@ -2310,8 +2310,8 @@ void release(Context ctx,
 			fs_flock_send(ino, fi->lock_owner, 0, lzfs_locks::kRelease);
 			fileinfo->use_flocks = false;
 		}
-		remove_file_info(fi);
 		fileinfo->use_posixlocks = false;
+		remove_file_info(fi);
 	}
 	fs_release(ino);
 	oplog_printf(ctx, "release (%lu): OK",
