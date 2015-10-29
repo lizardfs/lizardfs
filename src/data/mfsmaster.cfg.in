@@ -1,3 +1,5 @@
+# mfsmaster.cfg(5)
+
 ## Personality of this instance of metadata server ('master' or 'shadow').
 ## 'master' means that this instance of metadata server acts as main
 ## metadata server govering all file system metadata modifications.
@@ -105,8 +107,8 @@
 ## (Default: 100000)
 # CHUNKS_LOOP_MAX_CPS = 100000
 
-## Chunks loop will check all chunks in specified time (in seconds) unless CHUNKS_LOOP_MAX_CPS
-## will force slower execution.
+## Chunks loop will check all chunks in specified time (in seconds) unless
+## CHUNKS_LOOP_MAX_CPS will force slower execution.
 ## (Default: 300)
 # CHUNKS_LOOP_MIN_TIME = 300
 
@@ -134,9 +136,19 @@
 ## (Default: 10)
 # CHUNKS_READ_REP_LIMIT = 10
 
-## Ratio of endangered chunks that should be treated with higher priority.
-## (Default: 0)
+## Percentage of endangered chunks that should be replicated with high priority.
+## Example: when set to 0.2, up to 20% of chunks served in one turn would be extracted
+## from endangered priority queue.
+## When set to 1 (max), no other chunks would be processed as long as there are
+## any endangered chunks in the queue (not advised)
+## (Default: 0), i.e. there is no overhead for prioritizing endangered chunks.
 # ENDANGERED_CHUNKS_PRIORITY = 0
+
+## Max capacity of endangered chunks queue. This value can limit memory
+## usage of master server if there are lots of endangered chunks in the
+## system. This value is ignored if ENDANGERED_CHUNKS_PRIORITY is set to 0.
+## (Default: 1Mi), i.e. no more than 1Mi chunks will be kept in a queue.
+# ENDANGERED_CHUNKS_MAX_CAPACITY = 1Mi
 
 ## A maximum difference between disk usage on chunkservers that doesn't trigger
 ## chunk rebalancing. Value is fraction of one (i.e. 0.1 is 10%).

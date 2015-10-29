@@ -1,3 +1,4 @@
+# mfsmetalogger.cfg(5)
 
 ## User to run daemon as.
 # WORKING_USER = @DEFAULT_USER@
