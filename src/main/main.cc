@@ -92,7 +92,7 @@ enum class ExitingStatus {
 	kRunning = 0,
 	kWantExit = 1,
 	kCanExit = 2,
-	kDoExit = 3,
+	kDoExit = 3
 };
 
 static bool nextPollNonblocking = false;

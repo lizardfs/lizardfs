@@ -50,10 +50,10 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 	TemporaryDirectory temp("/tmp", this->test_info_->name());
 	std::string chunkFileName(temp.name() + "/" + "chunk");
 	std::ofstream file(chunkFileName);
-	ASSERT_TRUE(file) << "Cannot create a file " << chunkFileName;
+	ASSERT_TRUE((bool)file) << "Cannot create a file " << chunkFileName;
 	file.write(reinterpret_cast<const char*>(chunkFileContents.data()), chunkFileContents.size());
 	file.close();
-	ASSERT_TRUE(file) << "Cannot write data to file " << chunkFileName;
+	ASSERT_TRUE((bool)file) << "Cannot write data to file " << chunkFileName;
 
 	// Open file and read header contents
 	int fd = open(chunkFileName.c_str(), O_RDONLY);

@@ -39,7 +39,7 @@ enum ChunkState {
 	CH_AVAIL,
 	CH_LOCKED,
 	CH_DELETED,
-	CH_TOBEDELETED,
+	CH_TOBEDELETED
 };
 
 struct cntcond {

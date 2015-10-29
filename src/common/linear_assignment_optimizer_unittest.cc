@@ -53,7 +53,7 @@ TEST(LinearAssignmentProblem, TestSize1) {
 
 	linear_assignment::auctionOptimization(value_matrix, assignment, 1);
 
-	std::array<int, 1> expected_result = {0};
+	std::array<int, 1> expected_result = {{0}};
 
 	EXPECT_EQ(expected_result, assignment);
 }
