@@ -91,7 +91,7 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 #else
 				po::value<int>(&setup.bind_port)->default_value(9423),
 #endif
-				"listen for incomming connections on given port")
+				"listen for incoming connections on given port")
 			("mountpoint,M",
 				po::value<std::string>(&setup.mountpoint)->default_value("/polonaise"),
 				"mount point reported to master")

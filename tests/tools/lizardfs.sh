@@ -277,7 +277,7 @@ lizardfs_make_conf_for_shadow() {
 lizardfs_make_conf_for_master() {
 	local new_master=$1
 	local old_master=${lizardfs_info_[current_master]}
-	# move master responsiblity to new masterserver
+	# move master responsibility to new masterserver
 	cp -f "${lizardfs_info_[master${new_master}_master_cfg]}" "${lizardfs_info_[master${new_master}_cfg]}"
 	lizardfs_info_[master_cfg]=${lizardfs_info_[master${new_master}_master_cfg]}
 	lizardfs_info_[master_data_path]=${lizardfs_info_[master${new_master}_data_path]}

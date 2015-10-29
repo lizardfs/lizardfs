@@ -36,7 +36,7 @@ for filesize in 30 90 $((9 * block_size)) $((15 * block_size - 30)) $((15 * bloc
 				assert_success truncate -s $truncated snapshot2
 				assert_success file-validate file # This file shouldn't be changed!
 				expect_files_equal <(head -c $truncated file) <(head -c $truncated snapshot2)
-				# Now revert the original size, but it should be filled wih zeros
+				# Now revert the original size, but it should be filled with zeros
 				assert_success truncate -s $filesize snapshot2
 				assert_success file-validate file # This file shouldn't be changed!
 				expect_files_equal <(head -c $truncated file) <(head -c $truncated snapshot2)

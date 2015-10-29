@@ -12,7 +12,7 @@ timeout_killer_thread() {
 		local now_ts=$(date +%s)
 
 		if [[ -z $begin_ts || -z $value_string || -z $multiplier ]]; then
-			# A race with timeout_set occured (it truncates the endTS file and then writes it)
+			# A race with timeout_set occurred (it truncates the endTS file and then writes it)
 			# or a race with test_cleanup (test_timeout_end_ts_file has just been removed)
 			continue
 		fi
