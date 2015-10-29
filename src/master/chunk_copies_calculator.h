@@ -81,7 +81,7 @@ public:
 	 * This function evaluates chunk state (safe, endangered, lost).
 	 *
 	 * Safe state is when chunk part can disappear and chunk is not lost.
-	 * Endangered state is when loosing one chunk part leads to losing some of chunk data.
+	 * Endangered state is when losing one chunk part leads to losing some of chunk data.
 	 * Lost state is when there is a part of chunk data that is not available.
 	 *
 	 * State query functions may be used only after this function has been executed.

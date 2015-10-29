@@ -34,7 +34,7 @@ test_frozen() {
 	[[ -f "$test_end_file" ]]
 }
 
-# You can call this function in a test case to immediatelly end the test.
+# You can call this function in a test case to immediately end the test.
 # You don't have to; it will be called automatically at the end of the test.
 test_end() {
 	trap - DEBUG

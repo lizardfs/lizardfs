@@ -215,7 +215,7 @@ mfs (1.6.22) unstable; urgency=low
   * (cs) removed getting attributes of every chunk during initualization -
     speeds up starting of chunkserver
   * (cs) changed calculating of total/used space. Superuser space now is
-    substracted from total space instead of adding it to used space
+    subtracted from total space instead of adding it to used space
   * (master+mount) fixed directory cache.
   * (debian) rewritten init scripts to use mfscommon commands
     (start/stop/restart/reload) instead of start-stop-daemon (where stop

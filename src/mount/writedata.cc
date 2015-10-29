@@ -341,7 +341,7 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 	if (!id->dataChain.empty() && status == 0) { // still have some work to do
 		id->trycnt = 0; // on good write reset try counter
 		write_delayed_enqueue(id, seconds, lock);
-	} else {        // no more work or error occured
+	} else {        // no more work or error occurred
 		// if this is an error then release all data blocks
 		write_cb_release_blocks(id->dataChain.size(), lock);
 		id->dataChain.clear();
