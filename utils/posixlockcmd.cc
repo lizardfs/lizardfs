@@ -16,15 +16,16 @@
    along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <sys/file.h>
-#include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <errno.h>
+#include <fcntl.h>
 #include <map>
+#include <signal.h>
+#include <string>
+#include <sys/file.h>
+#include <unistd.h>
 
 int fd;
 int cmdno;
