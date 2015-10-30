@@ -211,7 +211,7 @@ int mainNetworkThreadInit(void) {
 
 	gNrOfNetworkWorkers = cfg_get_minvalue<uint32_t>("NR_OF_NETWORK_WORKERS", 1, 1);
 	gNrOfHddWorkersPerNetworkWorker = cfg_get_minvalue<uint32_t>(
-			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", 20, 1);
+			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", 2, 1);
 	gBgjobsCountPerNetworkWorker = cfg_get_minvalue<uint32_t>(
 			"BGJOBSCNT_PER_NETWORK_WORKER", 1000, 10);
 	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 1);

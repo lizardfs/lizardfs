@@ -93,7 +93,7 @@ sockets
 
 *NR_OF_HDD_WORKERS_PER_NETWORK_WORKER*::
 number of threads that each network worker may use to do disk operations like opening chunks,
-reading or writing them (default is 20)
+reading or writing them (default is 2)
 
 *READ_AHEAD_KB*::
 additional number of kilobytes which should be passed to posix_fadvise(POSIX_FADV_WILLNEED)
