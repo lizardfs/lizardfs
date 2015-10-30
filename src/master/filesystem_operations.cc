@@ -1,8 +1,7 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015
-   Skytechnology sp. z o.o..
+   Copyright 2013-2015 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2863,89 +2862,6 @@ uint8_t fs_apply_setacl(uint32_t ts, uint32_t inode, char aclType, const char *a
 		gMetadata->metaversion++;
 	}
 	return status;
-}
-
-#ifndef METARESTORE
-uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
-			std::vector<QuotaOwnerAndLimits> &results) {
-	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
-		return LIZARDFS_ERROR_EPERM;
-	}
-	results = gMetadata->gQuotaDatabase.getAll();
-	return LIZARDFS_STATUS_OK;
-}
-
-uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
-		const std::vector<QuotaOwner> &owners,
-		std::vector<QuotaOwnerAndLimits> &results) {
-	std::vector<QuotaOwnerAndLimits> tmp;
-	for (const QuotaOwner &owner : owners) {
-		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
-			switch (owner.ownerType) {
-			case QuotaOwnerType::kUser:
-				if (uid != owner.ownerId) {
-					return LIZARDFS_ERROR_EPERM;
-				}
-				break;
-			case QuotaOwnerType::kGroup:
-				if (gid != owner.ownerId && !(sesflags & SESFLAG_IGNOREGID)) {
-					return LIZARDFS_ERROR_EPERM;
-				}
-				break;
-			default:
-				return LIZARDFS_ERROR_EINVAL;
-			}
-		}
-		const QuotaLimits *result =
-		        gMetadata->gQuotaDatabase.get(owner.ownerType, owner.ownerId);
-		if (result) {
-			tmp.emplace_back(owner, *result);
-		}
-	}
-	results.swap(tmp);
-	return LIZARDFS_STATUS_OK;
-}
-
-uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry> &entries) {
-	uint32_t ts = main_time();
-	ChecksumUpdater cu(ts);
-	if (sesflags & SESFLAG_READONLY) {
-		return LIZARDFS_ERROR_EROFS;
-	}
-	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
-		return LIZARDFS_ERROR_EPERM;
-	}
-	for (const QuotaEntry &entry : entries) {
-		const QuotaOwner &owner = entry.entryKey.owner;
-		gMetadata->gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
-		                              owner.ownerType, owner.ownerId, entry.limit);
-		fs_changelog(ts, "SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
-		             (entry.entryKey.rigor == QuotaRigor::kSoft) ? 'S' : 'H',
-		             (entry.entryKey.resource == QuotaResource::kSize) ? 'S' : 'I',
-		             (owner.ownerType == QuotaOwnerType::kUser) ? 'U' : 'G',
-		             uint32_t{owner.ownerId}, uint64_t{entry.limit});
-	}
-	return LIZARDFS_STATUS_OK;
-}
-#endif
-
-uint8_t fs_apply_setquota(char rigor, char resource, char ownerType, uint32_t ownerId,
-			uint64_t limit) {
-	QuotaRigor quotaRigor = QuotaRigor::kSoft;
-	QuotaResource quotaResource = QuotaResource::kSize;
-	QuotaOwnerType quotaOwnerType = QuotaOwnerType::kUser;
-	bool valid = true;
-	valid &= decodeChar("SH", {QuotaRigor::kSoft, QuotaRigor::kHard}, rigor, quotaRigor);
-	valid &= decodeChar("SI", {QuotaResource::kSize, QuotaResource::kInodes}, resource,
-	                    quotaResource);
-	valid &= decodeChar("UG", {QuotaOwnerType::kUser, QuotaOwnerType::kGroup}, ownerType,
-	                    quotaOwnerType);
-	if (!valid) {
-		return LIZARDFS_ERROR_EINVAL;
-	}
-	gMetadata->metaversion++;
-	gMetadata->gQuotaDatabase.set(quotaRigor, quotaResource, quotaOwnerType, ownerId, limit);
-	return LIZARDFS_STATUS_OK;
 }
 
 #ifndef METARESTORE

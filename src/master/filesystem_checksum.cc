@@ -190,7 +190,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	hashCombine(checksum, gMetadata->fsNodesChecksum);
 	hashCombine(checksum, gMetadata->fsEdgesChecksum);
 	hashCombine(checksum, gMetadata->xattrChecksum);
-	hashCombine(checksum, gMetadata->gQuotaDatabase.checksum());
+	hashCombine(checksum, gMetadata->quota_database.checksum());
 	hashCombine(checksum, chunk_checksum(mode));
 	return checksum;
 }

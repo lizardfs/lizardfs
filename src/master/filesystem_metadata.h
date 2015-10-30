@@ -68,7 +68,7 @@ public:
 	uint32_t filenodes;
 	uint32_t dirnodes;
 
-	QuotaDatabase gQuotaDatabase;
+	QuotaDatabase quota_database;
 
 	uint64_t fsNodesChecksum;
 	uint64_t fsEdgesChecksum;
@@ -101,7 +101,7 @@ public:
 	      reservednodes{},
 	      filenodes{},
 	      dirnodes{},
-	      gQuotaDatabase{},
+	      quota_database{},
 	      fsNodesChecksum{},
 	      fsEdgesChecksum{},
 	      xattrChecksum{} {

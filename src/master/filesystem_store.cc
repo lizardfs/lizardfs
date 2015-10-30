@@ -864,7 +864,7 @@ static void fs_storeacls(FILE *fd) {
 }
 
 static void fs_storequotas(FILE *fd) {
-	const std::vector<QuotaEntry> &entries = gMetadata->gQuotaDatabase.getEntries();
+	const std::vector<QuotaEntry> &entries = gMetadata->quota_database.getEntries();
 	fs_store_generic(fd, entries);
 }
 
@@ -958,7 +958,7 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 		std::vector<QuotaEntry> entries;
 		fs_load_generic(fd, entries);
 		for (const auto &entry : entries) {
-			gMetadata->gQuotaDatabase.set(entry.entryKey.rigor, entry.entryKey.resource,
+			gMetadata->quota_database.set(entry.entryKey.rigor, entry.entryKey.resource,
 			                              entry.entryKey.owner.ownerType,
 			                              entry.entryKey.owner.ownerId, entry.limit);
 		}

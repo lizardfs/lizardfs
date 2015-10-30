@@ -33,6 +33,7 @@
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_operations.h"
+#include "master/filesystem_quota.h"
 #include "master/fs_context.h"
 
 #ifndef NDEBUG
@@ -269,33 +270,6 @@ bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f, fsnode *p) {
 	}
 	// Or if f is ancestor of p
 	return fsnodes_isancestor(f, p);
-}
-
-// quota
-
-bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return gMetadata->gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kInodes, uid,
-	                                            gid);
-}
-
-bool fsnodes_size_quota_exceeded(uint32_t uid, uint32_t gid) {
-	return gMetadata->gQuotaDatabase.isExceeded(QuotaRigor::kHard, QuotaResource::kSize, uid,
-	                                            gid);
-}
-
-void fsnodes_quota_register_inode(fsnode *node) {
-	gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, +1);
-}
-
-static void fsnodes_quota_unregister_inode(fsnode *node) {
-	gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kInodes, node->uid, node->gid, -1);
-}
-
-void fsnodes_quota_update_size(fsnode *node, int64_t delta) {
-	if (delta != 0) {
-		gMetadata->gQuotaDatabase.changeUsage(QuotaResource::kSize, node->uid, node->gid,
-		                                      delta);
-	}
 }
 
 // stats
