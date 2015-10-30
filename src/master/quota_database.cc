@@ -59,6 +59,20 @@ public:
 		}
 	}
 
+	// Returns stats for all non-empty limits
+	void getStats(std::vector<QuotaEntry> &ret, DataTable &data, QuotaOwnerType ownerType) {
+		for (auto &dataEntry : data) {
+			for (auto resource : {QuotaResource::kInodes, QuotaResource::kSize}) {
+				if (dataEntry.second.inodesSoftLimit > 0 || dataEntry.second.inodesHardLimit > 0 ||
+				    dataEntry.second.bytesSoftLimit > 0 || dataEntry.second.bytesHardLimit > 0) {
+					uint64_t limit = extractUsage(dataEntry.second, resource);
+					ret.push_back(
+					    {{{ownerType, dataEntry.first}, QuotaRigor::kUsed, resource}, limit});
+				}
+			}
+		}
+	}
+
 	// Returns all non-empty limits set in a given table
 	void getEntries(std::vector<QuotaEntry>& ret, DataTable& data, QuotaOwnerType ownerType) {
 		for (auto& dataEntry : data) {
@@ -142,16 +156,13 @@ const QuotaLimits* QuotaDatabase::get(QuotaOwnerType ownerType, uint32_t ownerId
 	return impl_->getLimitsOrNull(ownerType, ownerId);
 }
 
-std::vector<QuotaOwnerAndLimits> QuotaDatabase::getAll() const {
-	std::vector<QuotaOwnerAndLimits> ret;
-	for (const auto& uidAndLimits : impl_->uidData) {
-		QuotaOwner owner(QuotaOwnerType::kUser, uidAndLimits.first);
-		ret.emplace_back(owner, uidAndLimits.second);
-	}
-	for (const auto& gidAndLimits : impl_->gidData) {
-		QuotaOwner owner(QuotaOwnerType::kGroup, gidAndLimits.first);
-		ret.emplace_back(owner, gidAndLimits.second);
-	}
+
+std::vector<QuotaEntry> QuotaDatabase::getEntriesWithStats() const {
+	std::vector<QuotaEntry> ret;
+	impl_.get()->getEntries(ret, impl_->uidData, QuotaOwnerType::kUser);
+	impl_.get()->getStats(ret, impl_->uidData, QuotaOwnerType::kUser);
+	impl_.get()->getEntries(ret, impl_->gidData, QuotaOwnerType::kGroup);
+	impl_.get()->getStats(ret, impl_->gidData, QuotaOwnerType::kGroup);
 	return ret;
 }
 

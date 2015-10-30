@@ -23,9 +23,18 @@
 #include <cstdint>
 #include <memory>
 
-#include "common/quota.h"
+#include "protocol/quota.h"
 
 class QuotaDatabaseImplementation;
+
+struct QuotaLimits {
+	uint64_t inodesSoftLimit;
+	uint64_t inodesHardLimit;
+	uint64_t inodes;
+	uint64_t bytesSoftLimit;
+	uint64_t bytesHardLimit;
+	uint64_t bytes;
+};
 
 class QuotaDatabase {
 public:
@@ -46,10 +55,10 @@ public:
 	// Gets information about the given owner's usage of resources and limits
 	const QuotaLimits* get(QuotaOwnerType ownerType, uint32_t ownerId) const;
 
-	// Returns all quotas and usages
-	std::vector<QuotaOwnerAndLimits> getAll() const;
+	// Returns all quota entries (with used)
+	std::vector<QuotaEntry> getEntriesWithStats() const;
 
-	// Returns all quota entries
+	// Returns all quota entries (without used)
 	std::vector<QuotaEntry> getEntries() const;
 
 	// Increases/decreases usage of the given resource by the given owner

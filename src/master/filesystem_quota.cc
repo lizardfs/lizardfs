@@ -40,18 +40,18 @@ bool decodeChar(const char *keys, const std::vector<T> values, char key, T &valu
 
 #ifndef METARESTORE
 uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
-			std::vector<QuotaOwnerAndLimits> &results) {
+			std::vector<QuotaEntry> &results) {
 	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return LIZARDFS_ERROR_EPERM;
 	}
-	results = gMetadata->quota_database.getAll();
+	results = gMetadata->quota_database.getEntriesWithStats();
 	return LIZARDFS_STATUS_OK;
 }
 
 uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		const std::vector<QuotaOwner> &owners,
-		std::vector<QuotaOwnerAndLimits> &results) {
-	std::vector<QuotaOwnerAndLimits> tmp;
+		std::vector<QuotaEntry> &results) {
+	std::vector<QuotaEntry> tmp;
 	for (const QuotaOwner &owner : owners) {
 		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
 			switch (owner.ownerType) {
@@ -72,7 +72,12 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		const QuotaLimits *result =
 		        gMetadata->quota_database.get(owner.ownerType, owner.ownerId);
 		if (result) {
-			tmp.emplace_back(owner, *result);
+			tmp.push_back({{owner, QuotaRigor::kSoft, QuotaResource::kInodes}, result->inodesSoftLimit});
+			tmp.push_back({{owner, QuotaRigor::kHard, QuotaResource::kInodes}, result->inodesHardLimit});
+			tmp.push_back({{owner, QuotaRigor::kUsed, QuotaResource::kInodes}, result->inodes});
+			tmp.push_back({{owner, QuotaRigor::kSoft, QuotaResource::kSize}, result->bytesSoftLimit});
+			tmp.push_back({{owner, QuotaRigor::kHard, QuotaResource::kSize}, result->bytesHardLimit});
+			tmp.push_back({{owner, QuotaRigor::kUsed, QuotaResource::kSize}, result->bytes});
 		}
 	}
 	results.swap(tmp);

@@ -4200,7 +4200,7 @@ void matoclserv_fuse_setquota(matoclserventry *eptr, const uint8_t *data, uint32
 
 void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t version, messageId, uid, gid;
-	std::vector<QuotaOwnerAndLimits> results;
+	std::vector<QuotaEntry> results;
 	uint8_t status;
 	deserializePacketVersionNoHeader(data, length, version);
 	if (version == cltoma::fuseGetQuota::kAllLimits) {

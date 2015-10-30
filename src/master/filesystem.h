@@ -29,7 +29,6 @@
 #include "common/acl_type.h"
 #include "common/exception.h"
 #include "common/goal.h"
-#include "common/quota.h"
 #include "common/tape_key.h"
 #include "common/tape_copy_location_info.h"
 #include "master/checksum.h"
@@ -37,6 +36,7 @@
 #include "master/fs_context.h"
 #include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
+#include "protocol/quota.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
@@ -179,10 +179,9 @@ uint8_t fs_getxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t o
 uint8_t fs_setxattr(uint32_t rootinode,uint8_t sesflags,uint32_t inode,uint8_t opened,uint32_t uid,uint32_t gid,uint8_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint8_t mode);
 uint8_t fs_unlink(uint32_t rootinode,uint8_t sesflags,uint32_t parent,uint16_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid);
 uint8_t fs_getacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList& acl);
-uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid,
-		std::vector<QuotaOwnerAndLimits>& results);
+uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid, std::vector<QuotaEntry> &results);
 uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
-		const std::vector<QuotaOwner>& owners, std::vector<QuotaOwnerAndLimits>& results);
+		const std::vector<QuotaOwner> &owners, std::vector<QuotaEntry> &results);
 uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
 
 uint32_t fs_newsessionid(void);

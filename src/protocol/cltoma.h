@@ -25,11 +25,11 @@
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/moosefs_string.h"
-#include "common/quota.h"
 #include "common/serialization_macros.h"
 #include "protocol/lock_info.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
+#include "protocol/quota.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0,
 		uint32_t, messageId,

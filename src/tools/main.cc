@@ -1973,6 +1973,42 @@ void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard
 	}
 }
 
+/*! \brief Print one quota entry.
+ * \param owner_type Quota entry owner type. If equals to -1 then do not print entry.
+ * \param owner_id Quota entry owner id.
+ * \param limit Table (3x2) with quota limits. Each entry corresponds to specific
+ *              quota type. (The function can only print known quota types that fit in table)
+ */
+void quota_print_entry(int owner_type, uint32_t owner_id,
+		const std::array<std::array<uint64_t, 2>, 3> &limit) {
+	static const char *owner_type_name[3] = {"User ", "Group", "Unknown"};
+	std::string line;
+
+	if (owner_type < 0) {
+		return;
+	}
+
+	fputs(owner_type_name[std::min(owner_type, 2)], stdout);
+	fputs(" ", stdout);
+	printf("%10" PRIu32, owner_id);
+	fputs(" ", stdout);
+
+	quota_putc_plus_or_minus(limit[(int)QuotaRigor::kUsed][(int)QuotaResource::kSize],
+	                         limit[(int)QuotaRigor::kSoft][(int)QuotaResource::kSize],
+	                         limit[(int)QuotaRigor::kHard][(int)QuotaResource::kSize]);
+	quota_putc_plus_or_minus(limit[(int)QuotaRigor::kUsed][(int)QuotaResource::kInodes],
+	                         limit[(int)QuotaRigor::kSoft][(int)QuotaResource::kInodes],
+	                         limit[(int)QuotaRigor::kHard][(int)QuotaResource::kInodes]);
+	fputs(" ", stdout);
+	print_number("", " ", limit[(int)QuotaRigor::kUsed][(int)QuotaResource::kSize], 0, 1, 1);
+	print_number("", " ", limit[(int)QuotaRigor::kSoft][(int)QuotaResource::kSize], 0, 1, 1);
+	print_number("", " ", limit[(int)QuotaRigor::kHard][(int)QuotaResource::kSize], 0, 1, 1);
+	print_number("", " ", limit[(int)QuotaRigor::kUsed][(int)QuotaResource::kInodes], 0, 0, 1);
+	print_number("", " ", limit[(int)QuotaRigor::kSoft][(int)QuotaResource::kInodes], 0, 0, 1);
+	print_number("", " ", limit[(int)QuotaRigor::kHard][(int)QuotaResource::kInodes], 0, 0, 1);
+	puts("");
+}
+
 int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 		std::vector<int> requestedGid, bool reportAll) {
 	std::vector<uint8_t> request;
@@ -2000,7 +2036,7 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
 	try {
 		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_GET_QUOTA);
-		std::vector<QuotaOwnerAndLimits> parsedResponse;
+		std::vector<QuotaEntry> parsedResponse;
 		PacketVersion version;
 		deserializePacketVersionNoHeader(response, version);
 		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
@@ -2009,27 +2045,35 @@ int quota_rep(const std::string& mountPath, std::vector<int> requestedUids,
 			throw Exception(std::string(mountPath) + ": failed", status);
 		}
 		matocl::fuseGetQuota::deserialize(response, messageId, parsedResponse);
+
+		std::sort(parsedResponse.begin(), parsedResponse.end(),
+		          [](const QuotaEntry &e1, const QuotaEntry &e2) {
+			          return std::make_tuple(e1.entryKey.owner.ownerType, e1.entryKey.owner.ownerId,
+			                                 e1.entryKey.rigor) <
+			                 std::make_tuple(e2.entryKey.owner.ownerType, e2.entryKey.owner.ownerId,
+			                                 e2.entryKey.rigor);
+			      });
+
 		puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
 				"Inodes: current usage, soft limit, hard limit;");
-		for (auto limit : parsedResponse) {
-			std::string line;
-			fputs(limit.owner.ownerType == QuotaOwnerType::kUser ? "User " : "Group", stdout);
-			fputs(" ", stdout);
-			printf("%10" PRIu32, limit.owner.ownerId);
-			fputs(" ", stdout);
-			quota_putc_plus_or_minus(limit.limits.bytes, limit.limits.bytesSoftLimit,
-					limit.limits.bytesHardLimit);
-			quota_putc_plus_or_minus(limit.limits.inodes, limit.limits.inodesSoftLimit,
-					limit.limits.inodesHardLimit);
-			fputs(" ", stdout);
-			print_number("", " ", limit.limits.bytes, 0, 1, 1);
-			print_number("", " ", limit.limits.bytesSoftLimit, 0, 1, 1);
-			print_number("", " ", limit.limits.bytesHardLimit, 0, 1, 1);
-			print_number("", " ", limit.limits.inodes, 0, 0, 1);
-			print_number("", " ", limit.limits.inodesSoftLimit, 0, 0, 1);
-			print_number("", " ", limit.limits.inodesHardLimit, 0, 0, 1);
-			puts("");
+
+		std::pair<int, uint32_t> prev_entry(-1, 0);
+		std::array<std::array<uint64_t, 2>, 3> limits_value{{{{0}}}}; // workaround for a bug in gcc 4.6
+		for (auto entry : parsedResponse) {
+			if (std::make_pair((int)entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId) !=
+			    prev_entry) {
+				quota_print_entry(prev_entry.first, prev_entry.second, limits_value);
+				prev_entry = std::make_pair((int)entry.entryKey.owner.ownerType,
+				                            entry.entryKey.owner.ownerId);
+				limits_value = std::array<std::array<uint64_t, 2>, 3>{{{{0}}}}; // workaround for a bug in gcc 4.6
+			}
+
+			// Store only known values in limit table that quota_print_entry function can print.
+			if ((int)entry.entryKey.rigor <= 2 && (int)entry.entryKey.resource <= 1) {
+				limits_value[(int)entry.entryKey.rigor][(int)entry.entryKey.resource] = entry.limit;
+			}
 		}
+		quota_print_entry(prev_entry.first, prev_entry.second, limits_value);
 	} catch (Exception& e) {
 		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);

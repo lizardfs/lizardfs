@@ -30,13 +30,13 @@
 #include "common/metadataserver_list_entry.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
-#include "common/quota.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
 #include "common/tape_copy_location_info.h"
 #include "protocol/lock_info.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
+#include "protocol/quota.h"
 
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
@@ -134,7 +134,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetQuota, LIZ_MATOCL_FUSE_GET_QUOTA, kResponsePacketVersion,
 		uint32_t, messageId,
-		std::vector<QuotaOwnerAndLimits>, ownersAndLimits)
+		std::vector<QuotaEntry>, quotaEntries)
 
 // LIZ_MATOCL_IOLIMITS_STATUS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
