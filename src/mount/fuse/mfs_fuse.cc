@@ -538,7 +538,6 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 		}
 
 		lzfs_locks::FlockWrapper lzfslock = lzfs_locks::convertPLock(*lock, sleep);
-		short int l_type_holder = lock->l_type;
 		uint32_t reqid = LizardClient::setlk_send(get_context(req), ino, fuse_file_info_wrapper(fi),
 				lzfslock);
 
@@ -556,9 +555,6 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 		// since actual code requires setlk_send()
 		// to be executed by the same thread.
 		LizardClient::setlk_recv();
-
-		*lock = lzfs_locks::convertToFlock(lzfslock);
-		lock->l_type = l_type_holder;
 
 		// release the memory
 		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
