@@ -97,7 +97,7 @@ void LockRanges::insert(LockRange &range) {
 		if (range.start < other.start) {
 			LockRange tmp = range;
 			tmp.end = other.start;
-			range.start = other.end;
+			range.start = other.start;
 			it = insert(it, std::move(tmp), start, end);
 		} else if (range.start == other.start) {
 			if (range.end < other.end) {

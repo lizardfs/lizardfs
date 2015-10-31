@@ -4043,7 +4043,7 @@ void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, 
 	uint64_t start;
 	uint64_t end;
 	PacketVersion version;
-	uint8_t status;
+	uint8_t status = LIZARDFS_STATUS_OK;
 	std::vector<FileLocks::Owner> flocks_applied, posix_applied;
 
 	if (eptr->registered != ClientState::kAdmin) {
