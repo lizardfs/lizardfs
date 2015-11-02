@@ -1950,14 +1950,15 @@ void usage(int f) {
 		case MFSREPQUOTA:
 			fprintf(stderr, "summarize quotas for a user/group or all users and groups\n\n"
 					"usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
-					"       mfsrepquota [-nhH] -a <mountpoint-root-path>\n");
+					"       mfsrepquota [-nhH] -a <mountpoint-root-path>\n"
+					"       mfsrepquota [-nhH] -d <directory-path>\n");
 			print_numberformat_options();
 			break;
 		case MFSSETQUOTA:
 			fprintf(stderr, "set quotas\n\n"
-					"usage: mfssetquota (-u <uid>|-g <gid>) "
+					"usage: mfssetquota (-u <uid>|-g <gid> |-d) "
 					"<soft-limit-size> <hard-limit-size> "
-					"<soft-limit-inodes> <hard-limit-inodes> <mountpoint-root-path>\n"
+					"<soft-limit-inodes> <hard-limit-inodes> <directory-path>\n"
 				    " 0 deletes the limit\n");
 			break;
 	}
@@ -1975,30 +1976,34 @@ void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard
 }
 
 /*! \brief Print one quota entry.
+ * \param path Root inode local path.
+ * \param path_inode Path inode.
  * \param owner_type Quota entry owner type. If equals to -1 then do not print entry.
  * \param owner_id Quota entry owner id.
  * \param info Quota description.
  * \param limit Table (3x2) with quota limits. Each entry corresponds to specific
  *              quota type. (The function can only print known quota types that fit in table)
  */
-void quota_print_entry(int owner_type, uint32_t owner_id, const std::string& info,
+void quota_print_entry(const std::string &path, uint32_t path_inode, int owner_type,
+		uint32_t owner_id, const std::string& info,
 		const QuotaDatabase::Limits &limit) {
-	static const char *owner_type_name[3] = {"User ", "Group", "Unknown"};
+	static const char *owner_type_name[4] = {"User ", "Group", "Directory", "Unknown"};
 	std::string line;
 
 	if (owner_type < 0) {
 		return;
 	}
 
-	fputs(owner_type_name[std::min(owner_type, 2)], stdout);
-	if (!info.empty()) {
-		fputs(" '", stdout);
-		fputs(info.c_str(), stdout);
-		fputs("'", stdout);
-	}
-
+	fputs(owner_type_name[std::min(owner_type, 3)], stdout);
 	fputs(" ", stdout);
-	printf("%10" PRIu32, owner_id);
+	if (owner_type == (int)QuotaOwnerType::kInode) {
+		fputs(path.c_str(), stdout);
+		if (owner_id != path_inode) {
+			fputs(info.c_str(), stdout);
+		}
+	} else {
+		printf("%10" PRIu32, owner_id);
+	}
 	fputs(" ", stdout);
 
 	quota_putc_plus_or_minus(limit[(int)QuotaRigor::kUsed][(int)QuotaResource::kSize],
@@ -2017,7 +2022,9 @@ void quota_print_entry(int owner_type, uint32_t owner_id, const std::string& inf
 	puts("");
 }
 
-void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::vector<std::string> &quota_info) {
+void quota_print_rep(const std::string &path, uint32_t path_inode,
+		const std::vector<QuotaEntry> &quota_entries,
+		const std::vector<std::string> &quota_info) {
 	std::vector<std::size_t> ordering;
 
 	ordering.resize(quota_entries.size());
@@ -2027,13 +2034,22 @@ void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::ve
 		const QuotaEntry &e1 = quota_entries[i1];
 		const QuotaEntry &e2 = quota_entries[i2];
 		return std::make_tuple(e1.entryKey.owner.ownerType, e1.entryKey.owner.ownerId,
-		                       e1.entryKey.rigor) <
-		       std::make_tuple(e2.entryKey.owner.ownerType, e2.entryKey.owner.ownerId,
-		                       e2.entryKey.rigor);
+		                       e1.entryKey.rigor) < std::make_tuple(e2.entryKey.owner.ownerType,
+		                                                            e2.entryKey.owner.ownerId,
+		                                                            e2.entryKey.rigor);
 	});
 
-	puts("# User/Group ID; Bytes: current usage, soft limit, hard limit; "
-				"Inodes: current usage, soft limit, hard limit;");
+	char rpath[PATH_MAX + 1];
+	std::string real_path;
+	if (realpath(path.c_str(), rpath)) {
+		real_path = rpath;
+	} else {
+		real_path = path;
+	}
+
+	puts(
+	    "# User/Group ID/Directory; Bytes: current usage, soft limit, hard limit; "
+	    "Inodes: current usage, soft limit, hard limit;");
 
 	std::pair<int, uint32_t> prev_entry(-1, 0);
 	QuotaDatabase::Limits limits_value{{{{0}}}}; // workaround for a bug in gcc 4.6
@@ -2042,14 +2058,15 @@ void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::ve
 		const QuotaEntry &entry = quota_entries[index];
 		auto type_with_id = std::make_pair((int)entry.entryKey.owner.ownerType, entry.entryKey.owner.ownerId);
 
-		if (index < quota_info.size()) {
-			info = quota_info[index];
-		}
 		if (type_with_id != prev_entry) {
-			quota_print_entry(prev_entry.first, prev_entry.second, info, limits_value);
+			quota_print_entry(real_path, path_inode, prev_entry.first, prev_entry.second, info,
+			                  limits_value);
 			prev_entry = type_with_id;
 			limits_value = QuotaDatabase::Limits{{{{0}}}}; // workaround for a bug in gcc 4.6
 			info.clear();
+		}
+		if (index < quota_info.size()) {
+			info = quota_info[index];
 		}
 
 		// Store only known values in limit table that quota_print_entry function can print.
@@ -2059,18 +2076,30 @@ void quota_print_rep(const std::vector<QuotaEntry> &quota_entries, const std::ve
 		}
 	}
 	// print final entry
-	quota_print_entry(prev_entry.first, prev_entry.second, info, limits_value);
+	quota_print_entry(real_path, path_inode, prev_entry.first, prev_entry.second, info, limits_value);
 }
 
-int quota_rep(const std::string& mount_path, std::vector<int> requested_uids,
-		std::vector<int> requested_gid, bool report_all) {
+int quota_rep(const std::string &path, std::vector<int> requested_uids,
+		std::vector<int> requested_gid, bool report_all, bool per_directory_quota) {
 	std::vector<uint8_t> request;
 	uint32_t uid = getuid();
 	uint32_t gid = getgid();
-	uint32_t messageId = 0;
-	sassert((requested_uids.size() + requested_gid.size() > 0) ^ report_all);
+	uint32_t message_id = 0;
+
+	sassert((requested_uids.size() + requested_gid.size() > 0) ^
+	        (report_all || per_directory_quota));
+
+	uint32_t inode;
+	int fd = open_master_conn(path.c_str(), &inode, nullptr, 0, 0);
+	if (fd < 0) {
+		return -1;
+	}
+	if (!per_directory_quota) {
+		check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
+	}
+
 	if (report_all) {
-		request = cltoma::fuseGetQuota::build(messageId, uid, gid);
+		request = cltoma::fuseGetQuota::build(message_id, uid, gid);
 	} else {
 		std::vector<QuotaOwner> requested_entities;
 		for (auto uid : requested_uids) {
@@ -2079,14 +2108,12 @@ int quota_rep(const std::string& mount_path, std::vector<int> requested_uids,
 		for (auto gid : requested_gid) {
 			requested_entities.emplace_back(QuotaOwnerType::kGroup, gid);
 		}
-		request = cltoma::fuseGetQuota::build(messageId, uid, gid, requested_entities);
+		if (per_directory_quota) {
+			requested_entities.emplace_back(QuotaOwnerType::kInode, inode);
+		}
+		request = cltoma::fuseGetQuota::build(message_id, uid, gid, requested_entities);
 	}
-	uint32_t inode;
-	int fd = open_master_conn(mount_path.c_str(), &inode, nullptr, 0, 0);
-	if (fd < 0) {
-		return -1;
-	}
-	check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
+
 	try {
 		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_GET_QUOTA);
 		std::vector<QuotaEntry> quota_entries;
@@ -2095,13 +2122,13 @@ int quota_rep(const std::string& mount_path, std::vector<int> requested_uids,
 		deserializePacketVersionNoHeader(response, version);
 		if (version == matocl::fuseGetQuota::kStatusPacketVersion) {
 			uint8_t status;
-			matocl::fuseGetQuota::deserialize(response, messageId, status);
-			throw Exception(std::string(mount_path) + ": failed", status);
+			matocl::fuseGetQuota::deserialize(response, message_id, status);
+			throw Exception(std::string(path) + ": failed", status);
 		}
-		matocl::fuseGetQuota::deserialize(response, messageId, quota_entries, quota_info);
+		matocl::fuseGetQuota::deserialize(response, message_id, quota_entries, quota_info);
 
-		quota_print_rep(quota_entries, quota_info);
-	} catch (Exception& e) {
+		quota_print_rep(path, inode, quota_entries, quota_info);
+	} catch (Exception &e) {
 		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
@@ -2110,34 +2137,40 @@ int quota_rep(const std::string& mount_path, std::vector<int> requested_uids,
 	return 0;
 }
 
-int quota_set(const std::string& mountPath, QuotaOwner quotaOwner,
-		uint64_t quotaSoftInodes, uint64_t quotaHardInodes,
-		uint64_t quotaSoftSize, uint64_t quotaHardSize) {
-	uint32_t uid = getuid();
-	uint32_t gid = getgid();
-
-	std::vector<QuotaEntry> quotaEntries {
-		{QuotaEntryKey(quotaOwner, QuotaRigor::kSoft, QuotaResource::kInodes), quotaSoftInodes},
-		{QuotaEntryKey(quotaOwner, QuotaRigor::kHard, QuotaResource::kInodes), quotaHardInodes},
-		{QuotaEntryKey(quotaOwner, QuotaRigor::kSoft, QuotaResource::kSize),   quotaSoftSize},
-		{QuotaEntryKey(quotaOwner, QuotaRigor::kHard, QuotaResource::kSize),   quotaHardSize},
-	};
-	uint32_t messageId = 0;
-	auto request = cltoma::fuseSetQuota::build(messageId, uid, gid, quotaEntries);
+int quota_set(const std::string &path, QuotaOwner owner, uint64_t soft_inodes, uint64_t hard_inodes,
+		uint64_t soft_size, uint64_t hard_size) {
 	uint32_t inode;
-	int fd = open_master_conn(mountPath.c_str(), &inode, nullptr, 0, 1);
+	int fd = open_master_conn(path.c_str(), &inode, nullptr, 0, 1);
 	if (fd < 0) {
 		return -1;
 	}
-	check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
+
+	uint32_t uid = getuid();
+	uint32_t gid = getgid();
+
+	if (owner.ownerType == QuotaOwnerType::kInode) {
+		owner.ownerId = inode;
+	}
+
+	std::vector<QuotaEntry> quota_entries{
+	    {QuotaEntryKey(owner, QuotaRigor::kSoft, QuotaResource::kInodes), soft_inodes},
+	    {QuotaEntryKey(owner, QuotaRigor::kHard, QuotaResource::kInodes), hard_inodes},
+	    {QuotaEntryKey(owner, QuotaRigor::kSoft, QuotaResource::kSize), soft_size},
+	    {QuotaEntryKey(owner, QuotaRigor::kHard, QuotaResource::kSize), hard_size},
+	};
+	uint32_t message_id = 0;
+	auto request = cltoma::fuseSetQuota::build(message_id, uid, gid, quota_entries);
+	if (owner.ownerType != QuotaOwnerType::kInode) {
+		check_usage(MFSSETQUOTA, inode != 1, "Mount root path expected\n");
+	}
 	try {
 		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
 		uint8_t status;
-		matocl::fuseSetQuota::deserialize(response, messageId, status);
+		matocl::fuseSetQuota::deserialize(response, message_id, status);
 		if (status != LIZARDFS_STATUS_OK) {
-			throw Exception(std::string(mountPath) + ": failed", status);
+			throw Exception(std::string(path) + ": failed", status);
 		}
-	} catch (Exception& e) {
+	} catch (Exception &e) {
 		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
 		return -1;
@@ -2438,9 +2471,10 @@ int main(int argc,char **argv) {
 		std::vector<int> uid;
 		std::vector<int> gid;
 		bool reportAll = false;
+		bool per_directory_quota = false;
 		char* endptr = nullptr;
-		std::string mountPath;
-		const char* options = (f == MFSREPQUOTA) ? "nhHu:g:a" : "u:g:";
+		std::string dir_path;
+		const char* options = (f == MFSREPQUOTA) ? "nhHdu:g:a" : "du:g:";
 		while ((ch = getopt(argc, argv, options)) != -1) {
 			switch (ch) {
 				case 'n':
@@ -2460,6 +2494,9 @@ int main(int argc,char **argv) {
 					gid.push_back(strtol(optarg, &endptr, 10));
 					check_usage(f, *endptr, "invalid gid: %s\n", optarg);
 					break;
+				case 'd':
+					per_directory_quota = true;
+					break;
 				case 'a':
 					reportAll = true;
 					break;
@@ -2468,9 +2505,9 @@ int main(int argc,char **argv) {
 					usage(f);
 			}
 		}
-		check_usage(f, !((uid.size() + gid.size() != 0) ^ reportAll),
+		check_usage(f, !((uid.size() + gid.size() != 0) ^ (reportAll || per_directory_quota)),
 				"provide either -a flag or uid/gid\n");
-		check_usage(f, f == MFSSETQUOTA && uid.size() + gid.size() != 1,
+		check_usage(f, !per_directory_quota && (f == MFSSETQUOTA && uid.size() + gid.size() != 1),
 				"provide a single user/group id\n");
 
 		argc -= optind;
@@ -2490,18 +2527,23 @@ int main(int argc,char **argv) {
 			check_usage(f, my_get_number(argv[3], &quotaHardInodes, UINT64_MAX, 0) < 0,
 					"hard-limit-inodes bad value\n");
 
-			sassert(uid.size() + gid.size() == 1);
-			auto quotaOwner = ((uid.size() == 1)
+			QuotaOwner quotaOwner;
+			if(!per_directory_quota) {
+				sassert((uid.size() + gid.size() == 1));
+				quotaOwner = ((uid.size() == 1)
 					? QuotaOwner(QuotaOwnerType::kUser,  uid[0])
 					: QuotaOwner(QuotaOwnerType::kGroup, gid[0]));
+			} else {
+				quotaOwner = QuotaOwner(QuotaOwnerType::kInode,  0);
+			}
 
-			mountPath = argv[4];
-			return quota_set(mountPath, quotaOwner, quotaSoftInodes, quotaHardInodes,
+			dir_path = argv[4];
+			return quota_set(dir_path, quotaOwner, quotaSoftInodes, quotaHardInodes,
 					quotaSoftSize, quotaHardSize);
 		} else {
 			check_usage(f, argc != 1, "expected parameter: <mountpoint-root-path>\n");
-			mountPath = argv[0];
-			return quota_rep(mountPath, uid, gid, reportAll);
+			dir_path = argv[0];
+			return quota_rep(dir_path, uid, gid, reportAll, per_directory_quota);
 		}
 	}
 	default:

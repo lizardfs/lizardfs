@@ -7,3 +7,11 @@ function verify_quota {
 	assert_equals "$expected_limits" \
 		"$(mfsrepquota -g $gid . | trim_hard | grep "Group $gid")" > /dev/null
 }
+
+function verify_dir_quota {
+	local expected_limits=$1
+	local directory=$2
+	assert_equals "$expected_limits" \
+		"$(mfsrepquota -d $directory | trim_hard | grep "Directory $directory")" > /dev/null
+}
+
