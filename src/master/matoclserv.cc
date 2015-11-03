@@ -4201,6 +4201,7 @@ void matoclserv_fuse_setquota(matoclserventry *eptr, const uint8_t *data, uint32
 void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t version, messageId, uid, gid;
 	std::vector<QuotaEntry> results;
+	std::vector<std::string> info;
 	uint8_t status;
 	deserializePacketVersionNoHeader(data, length, version);
 	if (version == cltoma::fuseGetQuota::kAllLimits) {
@@ -4218,7 +4219,10 @@ void matoclserv_fuse_getquota(matoclserventry *eptr, const uint8_t *data, uint32
 	}
 	MessageBuffer reply;
 	if (status == LIZARDFS_STATUS_OK) {
-		matocl::fuseGetQuota::serialize(reply, messageId, results);
+		status = fs_quota_get_info(results, info);
+	}
+	if (status == LIZARDFS_STATUS_OK) {
+		matocl::fuseGetQuota::serialize(reply, messageId, results, info);
 	} else {
 		matocl::fuseGetQuota::serialize(reply, messageId, status);
 	}

@@ -134,7 +134,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetQuota, LIZ_MATOCL_FUSE_GET_QUOTA, kResponsePacketVersion,
 		uint32_t, messageId,
-		std::vector<QuotaEntry>, quotaEntries)
+		std::vector<QuotaEntry>, quotaEntries,
+		std::vector<std::string>, quotaInfo)
 
 // LIZ_MATOCL_IOLIMITS_STATUS
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2013-2016 Skytechnology sp. z o.o..
 
    This file is part of LizardFS.
 
@@ -81,6 +81,12 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		}
 	}
 	results.swap(tmp);
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_quota_get_info(const std::vector<QuotaEntry> &entries, std::vector<std::string> &result) {
+	// add empty description for each quota entry
+	result.assign(entries.size(), std::string());
 	return LIZARDFS_STATUS_OK;
 }
 

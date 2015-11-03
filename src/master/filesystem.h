@@ -183,6 +183,7 @@ uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t uid, std::vector<QuotaEntry>
 uint8_t fs_quota_get(uint8_t sesflags, uint32_t uid, uint32_t gid,
 		const std::vector<QuotaOwner> &owners, std::vector<QuotaEntry> &results);
 uint8_t fs_quota_set(uint8_t seslfags, uint32_t uid, const std::vector<QuotaEntry>& entries);
+uint8_t fs_quota_get_info(const std::vector<QuotaEntry>& entries, std::vector<std::string>& result);
 
 uint32_t fs_newsessionid(void);
 
