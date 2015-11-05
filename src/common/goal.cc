@@ -175,17 +175,16 @@ int Goal::Slice::labelsDistance(const Labels &first, const Labels &second) {
 
 /*! \brief Current goal becomes union of itself with otherGoal */
 void Goal::mergeIn(const Goal &otherGoal) {
-	for (const auto &element : otherGoal.goal_slices_) {
-		const Slice &other_slice = element.second;
+	for (const auto &other_slice : otherGoal.goal_slices_) {
 		assert(other_slice.isValid());
 
-		auto position = goal_slices_.find(other_slice.getType());
+		auto position = find(other_slice.getType());
 		// Check if there is no element of this type yet
 		if (position == goal_slices_.end()) {
 			// Union of A with empty set is A
-			goal_slices_.insert({other_slice.getType(), other_slice});
+			goal_slices_.insert(other_slice);
 		} else {
-			Slice &current_element = position->second;
+			Slice &current_element = *position;
 			// There should be same number of parts
 			assert(current_element.size() == other_slice.size());
 			current_element.mergeIn(other_slice);
@@ -196,7 +195,7 @@ void Goal::mergeIn(const Goal &otherGoal) {
 int Goal::getExpectedCopies() const {
 	int ret = 0;
 	for (const auto &element : goal_slices_) {
-		ret += element.second.getExpectedCopies();
+		ret += element.getExpectedCopies();
 	}
 	return ret;
 }

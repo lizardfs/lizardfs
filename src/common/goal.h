@@ -31,6 +31,8 @@
 #include <unordered_map>
 
 #include "common/media_label.h"
+#include "common/flat_set.h"
+#include "common/small_vector.h"
 
 /*!
  * \brief This file contains definitions of classes describing goals.
@@ -303,37 +305,24 @@ private:
 
 /*! \brief Class which represents a description of a goal. */
 class Goal {
+private:
+	struct SliceCompare {
+		bool operator()(const detail::Slice &a, const detail::Slice &b) const {
+			return a.getType() < b.getType();
+		}
+		bool operator()(const detail::Slice &a, const detail::SliceType &b) const {
+			return a.getType() < b;
+		}
+		bool operator()(const detail::SliceType &a, const detail::Slice &b) const {
+			return a < b.getType();
+		}
+	};
+
 public:
 	typedef detail::Slice Slice;
-	typedef std::unordered_map<Slice::Type, Slice, Slice::Type::hash> SliceContainer;
-
-	struct iterator : public SliceContainer::iterator {
-		iterator(SliceContainer::iterator it) :
-			SliceContainer::iterator(it) {
-		}
-		SliceContainer::value_type::second_type &operator*() {
-			return SliceContainer::iterator::operator*().second;
-		}
-		SliceContainer::value_type::second_type *operator->() {
-			return &(operator*());
-		}
-	};
-
-	struct const_iterator : public SliceContainer::const_iterator {
-		const_iterator(SliceContainer::const_iterator it) :
-			SliceContainer::const_iterator(it) {
-		}
-		const_iterator(SliceContainer::iterator it) :
-			SliceContainer::const_iterator(it) {
-		}
-
-		const SliceContainer::value_type::second_type &operator*() {
-			return SliceContainer::const_iterator::operator*().second;
-		}
-		const SliceContainer::value_type::second_type *operator->() {
-			return &(operator*());
-		}
-	};
+	typedef flat_set<Slice,small_vector<Slice, 3>, SliceCompare> SliceContainer;
+	typedef SliceContainer::iterator iterator;
+	typedef SliceContainer::const_iterator const_iterator;
 
 	/*! \brief  Maximum number of copies a goal can require. */
 	static constexpr uint32_t kMaxExpectedCopies = 30;
@@ -353,12 +342,11 @@ public:
 	/*! \brief Set specific slice of the Goal */
 	void setSlice(Slice slice) {
 		// slightly longer implementation to avoid unnecessary call to default constructor
-		auto it_slice = goal_slices_.find(slice.getType());
+		auto it_slice = find(slice.getType());
 		if (it_slice != goal_slices_.end()) {
-			it_slice->second = std::move(slice);
+			*it_slice = std::move(slice);
 		} else {
-			Slice::Type type = slice.getType();
-			goal_slices_.insert({std::move(type), std::move(slice)});
+			goal_slices_.insert(std::move(slice));
 		}
 	}
 
@@ -367,10 +355,10 @@ public:
 
 	/*! \brief Get iterator to slice regarding specific slice type of this goal object. */
 	iterator find(const Slice::Type &sliceType) {
-		return goal_slices_.find(sliceType);
+		return goal_slices_.find(sliceType, SliceCompare());
 	}
 	const_iterator find(const Slice::Type &sliceType) const {
-		return goal_slices_.find(sliceType);
+		return goal_slices_.find(sliceType, SliceCompare());
 	}
 
 	/*! \brief Verifies names of goals. */
@@ -382,19 +370,19 @@ public:
 	int getExpectedCopies() const;
 
 	Slice& operator[](const Slice::Type& type) {
-		auto it = goal_slices_.find(type);
+		auto it = find(type);
 		if (it == goal_slices_.end()) {
-			return goal_slices_.insert({type, Slice(type)}).first->second;
+			return *goal_slices_.insert(Slice(type)).first;
 		}
-		return it->second;
+		return *it;
 	}
 
 	const Slice &operator[](const Slice::Type &type) const {
-		auto it = goal_slices_.find(type);
+		auto it = find(type);
 		if (it == goal_slices_.end()) {
 			throw std::out_of_range("No such slice");
 		}
-		return it->second;
+		return *it;
 	}
 
 	int size() const {
@@ -450,4 +438,3 @@ inline std::string to_string(const Goal::Slice::Type& type) {
 std::string to_string(const Goal::Slice& slice);
 
 std::string to_string(const Goal& goal);
-
