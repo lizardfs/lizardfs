@@ -20,12 +20,12 @@
 
 #include "common/platform.h"
 
-#include <unordered_map>
 #include <vector>
 
 #include "common/chunk_part_type.h"
 #include "common/chunks_availability_state.h"
 #include "common/goal.h"
+#include "common/flat_map.h"
 #include "common/media_label.h"
 
 /*! \brief Class used to calculate required operations to achieve chunk goal.
@@ -39,10 +39,14 @@
  * 3. Query calculator to get information on required chunk operations to achieve target goal.
  */
 class ChunkCopiesCalculator {
-	typedef std::unordered_map<Goal::Slice::Type, std::vector<std::pair<int, int>>,
-	                           Goal::Slice::Type::hash> SliceOpCountContainer;
-	typedef std::unordered_map<Goal::Slice::Type, ChunksAvailabilityState::State,
-	                           Goal::Slice::Type::hash> SliceStateContainer;
+	typedef flat_map<
+	    Goal::Slice::Type, small_vector<std::pair<int, int>, Goal::Slice::kMaxPartsCount>,
+	    small_vector<std::pair<Goal::Slice::Type,
+	                           small_vector<std::pair<int, int>, Goal::Slice::kMaxPartsCount>>,
+	                 5>> SliceOpCountContainer;
+	typedef flat_map<Goal::Slice::Type, ChunksAvailabilityState::State,
+	                 small_vector<std::pair<Goal::Slice::Type, ChunksAvailabilityState::State>, 5>>
+	    SliceStateContainer;
 
 public:
 	/*! Default constructor. */
@@ -225,8 +229,8 @@ public:
 	}
 
 protected:
-	std::pair<int, int> operationCount(const Goal::Slice::Labels &src,
-	                                   const Goal::Slice::Labels &dst) const;
+	std::pair<int, int> operationCount(const Goal::Slice::ConstPartProxy &src,
+	                                   const Goal::Slice::ConstPartProxy &dst) const;
 
 	ChunksAvailabilityState::State evalSliceState(const Goal::Slice &slice) const;
 	bool removePartBasicTest(const Goal::Slice::Type &slice_type, bool &result) const;

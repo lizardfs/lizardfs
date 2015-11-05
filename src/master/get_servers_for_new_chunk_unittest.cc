@@ -24,6 +24,12 @@
 
 #include "master/goal_config_loader.h"
 
+Goal::Slice::ConstPartProxy createProxy(Goal::Slice::Labels &label) {
+	return Goal::Slice::ConstPartProxy(
+	    vector_range<const Goal::Slice::DataContainer, Goal::Slice::SizeContainer::value_type>(
+	        label.data(), 0, label.size()));
+}
+
 // FIXME
 // A base class for all tests
 class GetServersForNewChunkTests : public ::testing::Test {
@@ -91,7 +97,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers0) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "A2", "A3"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -108,7 +114,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers1) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -125,7 +131,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers2) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -142,7 +148,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers3) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "A2", "B1", "B2", "C1"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(2U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -160,7 +166,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers4) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);
@@ -179,7 +185,7 @@ TEST_F(GetServersForNewChunkTests, ChooseServers5) {
 		std::vector<matocsserventry *> used;
 		auto getter = createGetServersForNewChunk({"A1", "B1", "B2", "B3", "C1"});
 		getter.prepareData(history);
-		auto result = getter.chooseServersForLabels(history, labels, 0, used);
+		auto result = getter.chooseServersForLabels(history, createProxy(labels), 0, used);
 		ASSERT_EQ(3U, result.size());
 
 		auto labelCounts = countLabels(result);

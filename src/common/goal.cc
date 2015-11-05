@@ -20,13 +20,14 @@
 #include "common/goal.h"
 
 #include <limits>
+#include <iostream>
 
 #include "common/exceptions.h"
 #include "common/linear_assignment_optimizer.h"
 #include "common/massert.h"
 
 const int Goal::Slice::Type::kTypeParts[Goal::Slice::Type::kTypeCount] = {
-	1, 1, 3, 4,  5, 6, 7, 8, 9, 10};
+	1, 1, 3, 4, 5, 6, 7, 8, 9, 10};
 
 const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::kTypeNames = {{
 	"std",
@@ -42,11 +43,9 @@ const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::
 }};
 
 int Goal::Slice::getExpectedCopies() const {
-	int ret = 0;
-	for (const auto &labels : data_) {
-		ret += countLabels(labels);
-	}
-	return ret;
+	return std::accumulate(
+	    data_.begin(), data_.end(), 0,
+	    [](int value, const DataContainer::value_type &entry) { return value + entry.second; });
 }
 
 /*! \brief Merge in another Slice - they have to be of the same type and size
@@ -64,39 +63,50 @@ void Goal::Slice::mergeIn(const Slice &other) {
 	std::array<std::array<int, kMaxPartsCount>, kMaxPartsCount> cost;
 	std::array<int, kMaxPartsCount> assignment;
 
-	for (int i = 0; i < size(); i++) {
-		for (int j = 0; j < size(); j++) {
-			auto tmp_union = getLabelsUnion(data_[i], other.data_[j]);
-			cost[i][j] = 10 * Goal::kMaxExpectedCopies - labelsDistance(data_[i], tmp_union);
+	Labels tmp_union;
+
+	int i = 0;
+	for (const auto &local_part : static_cast<const Goal::Slice&>(*this)) {
+		int j = 0;
+		for (const auto &other_part : other) {
+			makeLabelsUnion(tmp_union, local_part, other_part);
+			cost[i][j] = 10 * Goal::kMaxExpectedCopies - labelsDistance(local_part, tmp_union);
+			++j;
 		}
+		++i;
 	}
 
 	linear_assignment::auctionOptimization(cost, assignment, size());
 
-	for (int i = 0; i < size(); i++) {
-		auto tmp_union = getLabelsUnion(data_[i], other.data_[assignment[i]]);
-		data_[i] = std::move(tmp_union);
+	DataContainer result;
+	SizeContainer result_size;
+
+	i = 0;
+	for (const auto &local_part : static_cast<const Goal::Slice&>(*this)) {
+		makeLabelsUnion(tmp_union, local_part, other[assignment[i]]);
+		result.insert(result.end(), tmp_union.begin(), tmp_union.end());
+		result_size[i] = tmp_union.size();
+		++i;
 	}
+
+	data_ = std::move(result);
+	part_size_ = std::move(result_size);
 }
 
 /*! \brief Slice is valid if size is as expected and there is at least one label for each part. */
-bool Goal::Slice::isValid() const {
-	if (!type_.isValid() || data_.size() != (std::size_t)type_.expectedParts()) {
+bool Goal::Slice::isValid() const noexcept {
+	if (!type_.isValid()) {
 		return false;
 	}
-	for (const auto &labels : data_) {
-		if (!std::any_of(labels.begin(), labels.end(),
-				[](const std::pair<MediaLabel, int> &label) {
-					return label.second > 0;
-				})) {
-			return false;
-		}
-	}
-	return true;
+	return std::all_of(data_.begin(), data_.end(), [](const DataContainer::value_type &entry) {
+		return entry.second > 0;
+	}) && std::all_of(begin(), end(), [](const ConstPartProxy &part) {
+		return part.size() > 0;
+	});
 }
 
-Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Labels &second) {
-	Labels merged_labels;
+void Goal::Slice::makeLabelsUnion(Labels &result, const ConstPartProxy &first, const ConstPartProxy &second) {
+	result.clear();
 
 	int first_sum = 0;
 	int second_sum = 0;
@@ -109,22 +119,20 @@ Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Label
 			break;
 		}
 
-		while (second_label_it != second.end() &&
-		       first_label.first > second_label_it->first) {
+		while (second_label_it != second.end() && first_label.first > second_label_it->first) {
 			assert(second_label_it->first != MediaLabel::kWildcard);
-			merged_labels.insert(merged_labels.end(), *second_label_it);
+			result.insert(result.end(), *second_label_it);
 			merged_sum += second_label_it->second;
 			second_sum += second_label_it->second;
 			++second_label_it;
 		}
 		if (second_label_it == second.end() || first_label.first < second_label_it->first) {
-			merged_labels.insert(merged_labels.end(), first_label);
+			result.insert(result.end(), first_label);
 			first_sum += first_label.second;
 			merged_sum += first_label.second;
 		} else {
-			merged_labels.insert(
-			        merged_labels.end(), {first_label.first,
-			        std::max(first_label.second, second_label_it->second)});
+			result.insert(result.end(), {first_label.first,
+			                             std::max(first_label.second, second_label_it->second)});
 			first_sum += first_label.second;
 			second_sum += second_label_it->second;
 			merged_sum += std::max(first_label.second, second_label_it->second);
@@ -133,7 +141,7 @@ Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Label
 	}
 	while (second_label_it != second.end()) {
 		if (second_label_it->first != MediaLabel::kWildcard) {
-			merged_labels.insert(merged_labels.end(), *second_label_it);
+			result.insert(result.end(), *second_label_it);
 			merged_sum += second_label_it->second;
 		}
 		second_sum += second_label_it->second;
@@ -142,19 +150,16 @@ Goal::Slice::Labels Goal::Slice::getLabelsUnion(const Labels &first, const Label
 
 	int wildcards = std::max(first_sum, second_sum) - merged_sum;
 	if (wildcards > 0) {
-		merged_labels[MediaLabel::kWildcard] = wildcards;
+		result[MediaLabel::kWildcard] = wildcards;
 	}
-
-	return merged_labels;
 }
 
 /*! \brief First norm of 'vectors' difference */
-int Goal::Slice::labelsDistance(const Labels &first, const Labels &second) {
+int Goal::Slice::labelsDistance(const ConstPartProxy &first, const Labels &second) noexcept {
 	int ret = 0;
 	auto second_label_it = second.begin();
 	for (const auto &first_label : first) {
-		while (second_label_it != second.end() &&
-		       first_label.first > second_label_it->first) {
+		while (second_label_it != second.end() && first_label.first > second_label_it->first) {
 			ret += second_label_it->second;
 			++second_label_it;
 		}
@@ -174,8 +179,8 @@ int Goal::Slice::labelsDistance(const Labels &first, const Labels &second) {
 }
 
 /*! \brief Current goal becomes union of itself with otherGoal */
-void Goal::mergeIn(const Goal &otherGoal) {
-	for (const auto &other_slice : otherGoal.goal_slices_) {
+void Goal::mergeIn(const Goal &other_goal) {
+	for (const auto &other_slice : other_goal.goal_slices_) {
 		assert(other_slice.isValid());
 
 		auto position = find(other_slice.getType());

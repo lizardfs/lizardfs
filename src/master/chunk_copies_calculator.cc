@@ -43,7 +43,7 @@ void ChunkCopiesCalculator::removePart(const Goal::Slice::Type &slice_type, int 
 		return;
 	}
 
-	Goal::Slice::Labels &labels(available_[slice_type][part]);
+	auto labels = available_[slice_type][part];
 
 	auto ilabel = labels.find(label);
 	if (ilabel == labels.end()) {
@@ -60,44 +60,42 @@ void ChunkCopiesCalculator::optimize() {
 	constexpr int max_slice_op = 10 * Goal::kMaxExpectedCopies;
 
 	for (auto &target_slice : target_) {
-		if (available_.find(target_slice.getType()) == available_.end() ||
-		    target_slice.size() < 2) {
+		auto slice_it = available_.find(target_slice.getType());
+		if (slice_it == available_.end() ||
+		    target_slice.size() <= 1) {
 			continue;
 		}
-		Goal::Slice &src_slice(available_[target_slice.getType()]);
+		const Goal::Slice &src_slice = *slice_it;
 
 		std::array<std::array<int, Goal::Slice::kMaxPartsCount>,
 		           Goal::Slice::kMaxPartsCount> cost;
 		std::array<int, Goal::Slice::kMaxPartsCount> assignment, object_assignment;
 
-		for (int i = 0; i < target_slice.size(); ++i) {
-			for (int j = 0; j < target_slice.size(); ++j) {
-				auto op_count = operationCount(src_slice[i], target_slice[j]);
+		int i = 0;
+		for(const auto &src_part : src_slice) {
+			int j = 0;
+			for(const auto &target_part : static_cast<const Goal::Slice&>(target_slice)) {
+				auto op_count = operationCount(src_part, target_part);
 				op_count =
 				        std::make_pair(std::min(op_count.first, max_slice_op - 1),
 				                       std::min(op_count.second, max_slice_op - 1));
 				cost[i][j] = max_slice_op * max_slice_op -
 				             (max_slice_op * op_count.first + op_count.second);
+				++j;
 			}
+			++i;
 		}
 
 		linear_assignment::auctionOptimization(cost, assignment, object_assignment,
 		                                       target_slice.size());
 
-		for (int i = 0; i < target_slice.size(); ++i) {
-			int k = assignment[i];
-
-			std::swap(target_slice[i], target_slice[k]);
-
-			// assignment that points to k should point to i
-			assignment[i] = i;
-
-			// assignment that points to i should point to k
-			assignment[object_assignment[i]] = k;
-
-			// swap 'objects'
-			std::swap(object_assignment[i], object_assignment[k]);
+		Goal::Slice result(target_slice.getType());
+		i = 0;
+		for (auto result_part : result) {
+			result_part = target_slice[assignment[i]];
+			++i;
 		}
+		target_slice = std::move(result);
 	}
 
 	evalOperationCount();
@@ -114,11 +112,13 @@ void ChunkCopiesCalculator::evalOperationCount() {
 			auto &slice_count(slice_operation_count_[slice.getType()]);
 			slice_count.resize(slice.size());
 
-			for (int i = 0; i < slice.size(); ++i) {
+			int i = 0;
+			for (const auto &slice_part : slice) {
 				auto op_count =
-				        std::make_pair(Goal::Slice::countLabels(slice[i]), 0);
+				        std::make_pair(Goal::Slice::countLabels(slice_part), 0);
 				slice_count[i] = op_count;
 				operation_count_.first += op_count.first;
+				++i;
 			}
 			continue;
 		}
@@ -128,11 +128,15 @@ void ChunkCopiesCalculator::evalOperationCount() {
 
 		slice_count.resize(slice.size());
 
-		for (int i = 0; i < slice.size(); ++i) {
-			auto op_count = operationCount(src_slice[i], slice[i]);
+		int i = 0;
+		auto src_slice_it = src_slice.cbegin();
+		for (const auto &slice_part : slice) {
+			auto op_count = operationCount(*src_slice_it, slice_part);
 			slice_count[i] = op_count;
 			operation_count_.first += op_count.first;
 			operation_count_.second += op_count.second;
+			++src_slice_it;
+			++i;
 		}
 	}
 
@@ -141,22 +145,23 @@ void ChunkCopiesCalculator::evalOperationCount() {
 			auto &slice_count(slice_operation_count_[slice.getType()]);
 			slice_count.resize(slice.size());
 
-			for (int i = 0; i < slice.size(); ++i) {
+			int i = 0;
+			for (const auto &slice_part : slice) {
 				auto op_count =
-				        std::make_pair(0, Goal::Slice::countLabels(slice[i]));
+				        std::make_pair(0, Goal::Slice::countLabels(slice_part));
 				slice_count[i] = op_count;
 				operation_count_.second += op_count.second;
+				++i;
 			}
 		}
 	}
 }
 
-std::pair<int, int> ChunkCopiesCalculator::operationCount(const Goal::Slice::Labels &src,
-							const Goal::Slice::Labels &dst) const {
+std::pair<int, int> ChunkCopiesCalculator::operationCount(const Goal::Slice::ConstPartProxy &src,
+							const Goal::Slice::ConstPartProxy &dst) const {
 	int wcount = 0; // number of wildcard servers
-	Goal::Slice::Labels::const_iterator ilabel;
 
-	ilabel = dst.find(MediaLabel::kWildcard);
+	auto ilabel = dst.find(MediaLabel::kWildcard);
 	if (ilabel != dst.end()) {
 		wcount = ilabel->second;
 	}
@@ -174,8 +179,8 @@ std::pair<int, int> ChunkCopiesCalculator::operationCount(const Goal::Slice::Lab
 		}
 
 		for (; isrc != src.end() && isrc->first < label.first; ++isrc) {
-			result.second += isrc->second - std::min(wcount, isrc->second);
-			wcount -= std::min(wcount, isrc->second);
+			result.second += isrc->second - std::min(wcount, (int)isrc->second);
+			wcount -= std::min(wcount, (int)isrc->second);
 		}
 
 		if (isrc != src.end() && isrc->first == label.first) {
@@ -192,8 +197,8 @@ std::pair<int, int> ChunkCopiesCalculator::operationCount(const Goal::Slice::Lab
 		result.first += label.second;
 	}
 	for (; isrc != src.end(); ++isrc) {
-		result.second += isrc->second - std::min(wcount, isrc->second);
-		wcount -= std::min(wcount, isrc->second);
+		result.second += isrc->second - std::min(wcount, (int)isrc->second);
+		wcount -= std::min(wcount, (int)isrc->second);
 	}
 	result.first += wcount;
 
@@ -295,13 +300,14 @@ bool ChunkCopiesCalculator::canRemovePart(const Goal::Slice::Type &slice_type, i
 	}
 
 	Goal::Slice slice(available_[slice_type]);
+	auto slice_part = slice[part];
 
-	Goal::Slice::Labels::iterator ilabel = slice[part].find(label);
-	if (ilabel != slice[part].end()) {
+	Goal::Slice::Labels::iterator ilabel = slice_part.find(label);
+	if (ilabel != slice_part.end()) {
 		--(ilabel->second);
 	}
 
-	Goal::const_iterator itarget_slice = target_.find(slice_type);
+	auto itarget_slice = target_.find(slice_type);
 	if (itarget_slice != target_.end()) {
 		if (itarget_slice->getExpectedCopies() == 1 && slice.getExpectedCopies() >= 1) {
 			return true;
@@ -384,14 +390,14 @@ bool ChunkCopiesCalculator::canMovePartToDifferentLabel(const Goal::Slice::Type 
 		return false;
 	}
 
-	const Goal::Slice::Labels &target_labels(target_[slice_type][part]);
-	Goal::Slice::Labels::const_iterator itarget = target_labels.find(label);
+	auto target_labels = target_[slice_type][part];
+	auto itarget = target_labels.find(label);
 	if (itarget == target_labels.end()) {
 		return true;
 	}
 
-	const Goal::Slice::Labels &avail_labels(available_[slice_type][part]);
-	Goal::Slice::Labels::const_iterator iavail = avail_labels.find(label);
+	auto avail_labels = available_[slice_type][part];
+	auto iavail = avail_labels.find(label);
 	if (iavail == avail_labels.end()) {
 		return false;
 	}
@@ -407,16 +413,16 @@ Goal::Slice::Labels ChunkCopiesCalculator::getLabelsToRecover(const Goal::Slice:
 		return Goal::Slice::Labels();
 	}
 	if (available_.find(slice_type) == available_.end()) {
-		return target_[slice_type][part];
+		auto data = target_[slice_type][part];
+		return Goal::Slice::Labels(data.begin(), data.end());
 	}
 
-	const Goal::Slice::Labels &available_labels = available_[slice_type][part];
-	const Goal::Slice::Labels &target_labels = target_[slice_type][part];
-	Goal::Slice::Labels::const_iterator ilabel;
+	auto available_labels = available_[slice_type][part];
+	auto target_labels = target_[slice_type][part];
 	Goal::Slice::Labels result;
 	int wcount = 0;
 
-	ilabel = target_labels.find(MediaLabel::kWildcard);
+	auto ilabel = target_labels.find(MediaLabel::kWildcard);
 	if (ilabel != target_labels.end()) {
 		wcount = ilabel->second;
 	}
@@ -428,7 +434,7 @@ Goal::Slice::Labels ChunkCopiesCalculator::getLabelsToRecover(const Goal::Slice:
 		}
 
 		for (; ilabel != available_labels.end() && ilabel->first < label.first; ++ilabel) {
-			wcount -= std::min(wcount, ilabel->second);
+			wcount -= std::min(wcount, (int)ilabel->second);
 		}
 
 		if (ilabel != available_labels.end() && ilabel->first == label.first) {
@@ -447,7 +453,7 @@ Goal::Slice::Labels ChunkCopiesCalculator::getLabelsToRecover(const Goal::Slice:
 		result[label.first] = label.second;
 	}
 	for (; ilabel != available_labels.end(); ++ilabel) {
-		wcount -= std::min(wcount, ilabel->second);
+		wcount -= std::min(wcount, (int)ilabel->second);
 	}
 
 	if (wcount > 0) {
@@ -465,16 +471,16 @@ Goal::Slice::Labels ChunkCopiesCalculator::getRemovePool(const Goal::Slice::Type
 		return Goal::Slice::Labels();
 	}
 	if (target_.find(slice_type) == target_.end()) {
-		return available_[slice_type][part];
+		auto data = available_[slice_type][part];
+		return Goal::Slice::Labels(data.begin(), data.end());
 	}
 
-	const Goal::Slice::Labels &available_labels = available_[slice_type][part];
-	const Goal::Slice::Labels &target_labels = target_[slice_type][part];
-	Goal::Slice::Labels::const_iterator ilabel;
+	auto available_labels = available_[slice_type][part];
+	auto target_labels = target_[slice_type][part];
 	Goal::Slice::Labels result;
 	int wcount = 0, wilcard_target_count = 0;
 
-	ilabel = available_labels.begin();
+	auto ilabel = available_labels.begin();
 	for (const auto &label : target_labels) {
 		if (label.first == MediaLabel::kWildcard) {
 			wilcard_target_count = label.second;

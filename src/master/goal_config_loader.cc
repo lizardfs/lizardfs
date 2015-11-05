@@ -171,7 +171,7 @@ Goal::Slice parseLabels(std::list<std::string> &tokens, Goal::Slice::Type slice_
 			tokens.pop_front();
 		}
 	} else {
-		for (auto &part : slice) {
+		for (auto part : slice) {
 			MediaLabel label = MediaLabel::kWildcard;
 			if (!tokens.empty()) {
 				if (!MediaLabelManager::isLabelValid(tokens.front())) {

@@ -87,7 +87,7 @@ public:
 	 * \param used vector with already used chunk servers.
 	 */
 	std::vector<matocsserventry *> chooseServersForLabels(ChunkCreationHistory &history,
-	                                                      const Goal::Slice::Labels &labels,
+	                                                      const Goal::Slice::ConstPartProxy &labels,
 	                                                      uint32_t min_version,
 	                                                      std::vector<matocsserventry *> &used);
 private:

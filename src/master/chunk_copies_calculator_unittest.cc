@@ -70,7 +70,7 @@ TEST(ChunkCopiesCalculator, removePart) {
 	ASSERT_TRUE(slice != cccp.getAvailable().end());
 
 	for (auto  it = slice->begin(); it != slice->end(); it++) {
-		ASSERT_EQ(it->size(), 0U);
+		ASSERT_EQ((*it).size(), 0U);
 	}
 }
 

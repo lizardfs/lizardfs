@@ -68,7 +68,7 @@ void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
 }
 
 std::vector<matocsserventry *> GetServersForNewChunk::chooseServersForLabels(
-	ChunkCreationHistory &history, const Goal::Slice::Labels &labels, uint32_t min_version,
+	ChunkCreationHistory &history, const Goal::Slice::ConstPartProxy &labels, uint32_t min_version,
 	std::vector<matocsserventry *> &used) {
 	std::vector<matocsserventry *> result;
 
