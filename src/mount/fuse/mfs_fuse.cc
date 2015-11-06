@@ -514,7 +514,7 @@ void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 			return;
 		}
 
-		lzfs_locks::FlockWrapper lzfslock = lzfs_locks::convertPLock(*lock, 0);
+		lzfs_locks::FlockWrapper lzfslock = lzfs_locks::convertPLock(*lock, 1);
 		LizardClient::getlk(get_context(req), ino, fuse_file_info_wrapper(fi), lzfslock);
 		struct flock retlock = lzfs_locks::convertToFlock(lzfslock);
 		fuse_reply_lock(req, &retlock);
