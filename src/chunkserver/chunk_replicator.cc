@@ -189,5 +189,12 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 			fileCreator.write(offsetInChunk, MFSBLOCKSIZE, crc, dataBlock);
 		}
 	}
+
 	fileCreator.commit();
+	incStats();
+}
+
+void ChunkReplicator::incStats() {
+	std::unique_lock<std::mutex> lock(mutex_);
+	stats_++;
 }

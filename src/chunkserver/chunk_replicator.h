@@ -52,6 +52,8 @@ private:
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 			const std::vector<ChunkTypeWithAddress>& sources);
+
+	void incStats();
 };
 
 extern ChunkReplicator gReplicator;

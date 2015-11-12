@@ -194,7 +194,7 @@ void chartsdata_refresh(void) {
 	data[CHARTS_DATABYTESW]=dbw;
 	data[CHARTS_DATALLOPR]=dopr;
 	data[CHARTS_DATALLOPW]=dopw;
-	replicator_stats(&repl);
+	legacy_replicator_stats(&repl);
 	data[CHARTS_REPL] = repl + gReplicator.getStats();
 	hdd_op_stats(&op_cr,&op_de,&op_ve,&op_du,&op_tr,&op_dt,&op_te);
 	data[CHARTS_CREATE]=op_cr;

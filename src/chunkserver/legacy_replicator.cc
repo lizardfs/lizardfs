@@ -80,7 +80,7 @@ typedef struct _replication {
 static uint32_t stats_repl=0;
 static pthread_mutex_t statslock = PTHREAD_MUTEX_INITIALIZER;
 
-void replicator_stats(uint32_t *repl) {
+void legacy_replicator_stats(uint32_t *repl) {
 	pthread_mutex_lock(&statslock);
 	*repl = stats_repl;
 	stats_repl=0;
