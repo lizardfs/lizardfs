@@ -333,7 +333,7 @@ bool ChunkCopiesCalculator::removePartBasicTest(const Goal::Slice::Type &slice_t
 		return true;
 	}
 
-	std::array<int, 3> state_count{0};
+	std::array<int, 3> state_count{{0}};
 
 	assert(ChunksAvailabilityState::kSafe == 0 && ChunksAvailabilityState::kEndangered == 1 &&
 	       ChunksAvailabilityState::kLost == 2);
