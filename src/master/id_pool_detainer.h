@@ -290,6 +290,7 @@ public:
 		}
 
 		const_iterator &operator++() {
+			assert(!i1_->data.empty());
 			++i2_;
 			if (i2_ == i1_->data.end()) {
 				++i1_;
@@ -314,7 +315,7 @@ public:
 		}
 
 		bool operator==(const const_iterator &it) {
-			return i1_ == it.i1_ && i2_ == it.i2_;
+			return i1_ == it.i1_ && (i1_ == i1e_ || i2_ == it.i2_);
 		}
 
 		bool operator!=(const const_iterator &it) {
