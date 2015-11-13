@@ -5,3 +5,23 @@
 	fun:nss_parse_service_list
 	fun:__nss_database_lookup
 }
+
+{
+   g++ std::string memory leak
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZNSs4_Rep9_S_createEmmRKSaIcE
+   fun:_ZNSs9_M_mutateEmmm
+   fun:_ZNSs15_M_replace_safeEmmPKcm
+   fun:main
+}
+
+{
+   g++ std::string memory leak
+   Memcheck:Leak
+   fun:_Znwm
+   fun:_ZNSs4_Rep9_S_createEmmRKSaIcE
+   ...
+   fun:_ZNSsC1EPKcRKSaIcE
+   fun:main
+}

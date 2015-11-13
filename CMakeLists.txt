@@ -75,7 +75,7 @@ option(ENABLE_EXIT_ON_USR1  "Enable handler for SIGUSR1 which calls exit()"     
 option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort"       OFF)
 option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                          OFF)
 option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                   OFF)
-option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  ON)
+option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  OFF)
 # end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)
 option(ENABLE_CRC           "Enable checksums"                                        ON)
