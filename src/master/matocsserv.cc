@@ -75,7 +75,7 @@ struct matocsserventry {
 	std::list<OutputPacket> outputPackets;
 	char *servstrip;                // human readable version of servip
 	uint32_t version;
-	uint32_t servip;                // ip to coonnect to
+	uint32_t servip;                // ip to connect to
 	uint16_t servport;              // port to connect to
 	uint32_t timeout;               // communication timeout
 	MediaLabel label;               // server label, empty if not set
@@ -450,7 +450,7 @@ std::vector<ServerWithUsage> matocsserv_getservers_sorted() {
 }
 
 std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_for_new_chunk(
-		uint8_t goal_id) {
+		uint8_t goal_id, uint32_t min_server_version) {
 	static std::array<ChunkCreationHistory, GoalId::kMax + 1> history;
 	GetServersForNewChunk getter;
 	const Goal &goal(fs_get_goal_definition(goal_id));
@@ -485,9 +485,13 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 
 		int count_full_parts = 0;
 		for (int i = 0; i < slice.size(); ++i) {
+			uint32_t min_version = std::max(
+				slice_traits::isXor(slice) ? kFirstXorVersion : 0,
+				min_server_version
+			);
 			servers = getter.chooseServersForLabels(
 			        history[goal_id], slice[shuffle[i]],
-			        slice_traits::isXor(slice) ? kFirstXorVersion : 0, used_servers);
+			        min_version, used_servers);
 			if (servers.empty()) {
 				continue;
 			}

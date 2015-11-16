@@ -2086,7 +2086,7 @@ uint8_t fs_readchunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t 
 
 uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, bool usedummylockid,
 		/* inout */ uint32_t *lockid, uint64_t *chunkid, uint8_t *opflag,
-		uint64_t *length) {
+		uint64_t *length, uint32_t min_server_version) {
 	ChecksumUpdater cu(context.ts());
 	uint32_t i;
 	uint64_t ochunkid, nchunkid;
@@ -2144,9 +2144,10 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 	if (context.isPersonalityMaster()) {
 #ifndef METARESTORE
 		status = chunk_multi_modify(ochunkid, lockid, p->goal, usedummylockid,
-		                            quota_exceeded, opflag, &nchunkid);
+		                            quota_exceeded, opflag, &nchunkid, min_server_version);
 #else
 		(void)usedummylockid;
+		(void)min_server_version;
 		// This will NEVER happen (metarestore doesn't call this in master context)
 		mabort("bad code path: fs_writechunk");
 #endif

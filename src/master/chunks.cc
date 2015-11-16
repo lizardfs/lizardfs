@@ -1138,13 +1138,14 @@ int chunk_get_partstomodify(uint64_t chunkid, int &recover, int &remove) {
 }
 
 uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
-		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid) {
+		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid,
+		uint32_t min_server_version = 0) {
 	chunk *c = NULL;
 	if (ochunkid == 0) { // new chunk
 		if (quota_exceeded) {
 			return LIZARDFS_ERROR_QUOTA;
 		}
-		auto serversWithChunkTypes = matocsserv_getservers_for_new_chunk(goal);
+		auto serversWithChunkTypes = matocsserv_getservers_for_new_chunk(goal, min_server_version);
 		if (serversWithChunkTypes.empty()) {
 			uint16_t uscount,tscount;
 			double minusage,maxusage;

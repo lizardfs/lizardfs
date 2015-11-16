@@ -95,7 +95,7 @@ uint8_t fs_symlink(const FsContext& context,
 uint8_t fs_undel(const FsContext& context, uint32_t inode);
 uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 		bool usedummylockid, /* inout */ uint32_t *lockid,
-		uint64_t *chunkid, uint8_t *opflag, uint64_t *length);
+		uint64_t *chunkid, uint8_t *opflag, uint64_t *length, uint32_t min_server_version = 0);
 uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore

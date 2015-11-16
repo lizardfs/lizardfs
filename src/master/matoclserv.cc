@@ -2970,10 +2970,13 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, PacketHeader header, con
 	std::vector<uint8_t> receivedData(data, data + header.length);
 	serializer->deserializeFuseWriteChunk(receivedData, messageId, inode, chunkIndex, lockId);
 
+	uint32_t min_server_version
+		= header.type == LIZ_CLTOMA_FUSE_WRITE_CHUNK ? kFirstXorVersion : 0;
+
 	// Original MooseFS (1.6.27) does not use lock ID's
 	bool useDummyLockId = (header.type == CLTOMA_FUSE_WRITE_CHUNK);
 	status = fs_writechunk(matoclserv_get_context(eptr), inode, chunkIndex, useDummyLockId,
-			&lockId, &chunkId, &opflag, &fileLength);
+			&lockId, &chunkId, &opflag, &fileLength, min_server_version);
 
 	if (status != LIZARDFS_STATUS_OK) {
 		serializer->serializeFuseWriteChunk(outMessage, messageId, status);

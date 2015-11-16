@@ -48,7 +48,8 @@ uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet);
 void chunk_dump(void);
 #else
 uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
-		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid);
+		bool usedummylockid, bool quota_exceeded, uint8_t *opflag, uint64_t *nchunkid,
+		uint32_t min_server_version);
 uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length,
 		uint8_t goal, bool denyTruncatingParityParts, bool quota_exceeded, uint64_t *nchunkid);
 void chunk_stats(uint32_t *del,uint32_t *repl);
