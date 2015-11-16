@@ -14,8 +14,9 @@ This file contains some important notes on upgrade process.
       ! $ lizardfs-admin save-metadata HOST PORT                                         !
       !!!!!!!!!! ATTENTION !!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!!!!!!! ATTENTION !!!!!!!!!!
     - Upgrade the master/shadow servers before any chunkserver or client.
-    - Clients and chunkservers can be updated in any order, but bear in mind that
-      old chunkservers would not be able to store XOR chunks.
+    - Chunkservers should be updated before clients, as they can still understand legacy
+      mount requests. Updating a client first will result in being unable to read from/write to
+      a 2.6.0 chunkserver.
     - Neither master servers nor chunkservers have hard coded connection limit anymore.
       The previous value were 5000 for master server and 10000 for chunkserver.
       It is advisable to check if system limits are high enough for proper work of LizardFS cluster.
