@@ -3428,13 +3428,14 @@ void *hdd_folder_scan(void *arg) {
 		lzfs_pretty_syslog(LOG_NOTICE, "scanning folder %s: complete (%" PRIu32 "s)", f->path,
 		                   (uint32_t)(time(NULL)) - begin_time);
 	}
-	f->scanstate = SCST_SCANFINISHED;
-	f->scanprogress = 100;
 
 	if (f->scanstate != SCST_SCANTERMINATE && f->migratestate == MGST_MIGRATEDONE) {
 		f->migratestate = MGST_MIGRATEINPROGRESS;
 		zassert(pthread_create(&(f->migratethread), &thattr, hdd_folder_migrate, f));
 	}
+
+	f->scanstate = SCST_SCANFINISHED;
+	f->scanprogress = 100;
 	zassert(pthread_mutex_unlock(&folderlock));
 
 	return NULL;
