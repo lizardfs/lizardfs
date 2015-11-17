@@ -750,6 +750,13 @@ static Chunk* hdd_chunk_get(
 			zassert(pthread_mutex_unlock(&hashlock));
 			if (c->validattr==0) {
 				if (hdd_chunk_getattr(c) == -1) {
+					if (cflag != CH_NEW_NONE) {
+						unlink(c->filename().c_str());
+						zassert(pthread_mutex_lock(&hashlock));
+						c = hdd_chunk_recreate(c, chunkid, chunkType, format);
+						zassert(pthread_mutex_unlock(&hashlock));
+						return c;
+					}
 					hdd_report_damaged_chunk(c->chunkid);
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
@@ -3155,6 +3162,10 @@ static inline void hdd_add_chunk(folder *f,
 	Chunk *c;
 
 	c = hdd_chunk_get(chunkId, chunkType, CH_NEW_AUTO, chunkFormat);
+	if (!c) {
+		lzfs_pretty_syslog(LOG_ERR, "Can't use file %s as chunk", fullname.c_str());
+		return;
+	}
 
 	bool new_chunk = c->filename().empty();
 
