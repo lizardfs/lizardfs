@@ -655,6 +655,63 @@ static Chunk* hdd_chunk_tryfind(uint64_t chunkid) {
 
 static void hdd_chunk_delete(Chunk *c);
 
+/*! \brief Remove old chunk c and create new one in its place.
+ *
+ * Before introduction of interleaved chunk format it was sufficient
+ * to clear chunk data and reuse object. Now with the change of chunk
+ * format we need to create new object with different size and different
+ * virtual table.
+ *
+ * We preserve chunk id and threads waiting for this object.
+ *
+ * \param c pointer to old object
+ * \param chunkid chunk id that will be reused
+ * \param type type of new chunk object
+ * \param format format of new chunk object
+ * \return address of new object
+ */
+static Chunk *hdd_chunk_recreate(Chunk *c, uint64_t chunkid, ChunkPartType type,
+		ChunkFormat format) {
+	uint32_t hashpos = HASHPOS(chunkid);
+	cntcond *waiting = nullptr;
+
+	if (c) {
+		assert(c->chunkid == chunkid);
+
+		if (c->state != CH_DELETED && c->owner) {
+			zassert(pthread_mutex_lock(&folderlock));
+			c->owner->chunkcount--;
+			c->owner->needrefresh = 1;
+			zassert(pthread_mutex_unlock(&folderlock));
+		}
+
+		waiting = c->ccond;
+
+		// It's possible to reuse object c
+		// if the format is the same,
+		// but it doesn't happen often enough
+		// to justify adding extra code.
+		hdd_chunk_remove(c);
+	}
+
+	if (format == ChunkFormat::MOOSEFS) {
+		c = new MooseFSChunk(chunkid, type, CH_LOCKED);
+	} else {
+		sassert(format == ChunkFormat::INTERLEAVED);
+		c = new InterleavedChunk(chunkid, type, CH_LOCKED);
+	}
+	passert(c);
+	c->next = hashtab[hashpos];
+	hashtab[hashpos] = c;
+
+	c->ccond = waiting;
+	if (waiting) {
+		waiting->owner = c;
+	}
+
+	return c;
+}
+
 static Chunk* hdd_chunk_get(
 		uint64_t chunkid,
 		ChunkPartType chunkType,
@@ -674,15 +731,7 @@ static Chunk* hdd_chunk_get(
 	}
 	if (c==NULL) {
 		if (cflag!=CH_NEW_NONE) {
-			if (format == ChunkFormat::MOOSEFS) {
-				c = new MooseFSChunk(chunkid, chunkType, CH_LOCKED);
-			} else {
-				sassert(format == ChunkFormat::INTERLEAVED);
-				c = new InterleavedChunk(chunkid, chunkType, CH_LOCKED);
-			}
-			passert(c);
-			c->next = hashtab[hashpos];
-			hashtab[hashpos] = c;
+			c = hdd_chunk_recreate(nullptr, chunkid, chunkType, format);
 		}
 		zassert(pthread_mutex_unlock(&hashlock));
 		return c;
@@ -700,7 +749,7 @@ static Chunk* hdd_chunk_get(
 //                      syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 			zassert(pthread_mutex_unlock(&hashlock));
 			if (c->validattr==0) {
-				if (hdd_chunk_getattr(c)) {
+				if (hdd_chunk_getattr(c) == -1) {
 					hdd_report_damaged_chunk(c->chunkid);
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
@@ -710,33 +759,7 @@ static Chunk* hdd_chunk_get(
 			return c;
 		case CH_DELETED:
 			if (cflag!=CH_NEW_NONE) {
-				if (c->fd>=0) {
-					close(c->fd);
-				}
-				IF_MOOSEFS_CHUNK(mc, c) {
-					mc->clearCrc();
-				}
-				zassert(pthread_mutex_lock(&testlock));
-				if (c->testnext) {
-					c->testnext->testprev = c->testprev;
-				} else {
-					c->owner->testtail = c->testprev;
-				}
-				*(c->testprev) = c->testnext;
-				c->testnext = NULL;
-				c->testprev = NULL;
-				zassert(pthread_mutex_unlock(&testlock));
-				c->version = 0;
-				c->owner = NULL;
-				c->blocks = 0;
-				c->refcount = 0;
-				c->wasChanged = false;
-				c->opensteps = 0;
-				c->fd = -1;
-				c->validattr = 0;
-				c->todel = 0;
-				c->state = CH_LOCKED;
-//                              syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
+				c = hdd_chunk_recreate(c, chunkid, chunkType, format);
 				zassert(pthread_mutex_unlock(&hashlock));
 				return c;
 			}
@@ -750,25 +773,31 @@ static Chunk* hdd_chunk_get(
 			return NULL;
 		case CH_TOBEDELETED:
 		case CH_LOCKED:
-			if (c->ccond==NULL) {
-				for (cc=cclist ; cc && cc->wcnt ; cc=cc->next) {}
-				if (cc==NULL) {
-					cc = (cntcond*) malloc(sizeof(cntcond));
+			cc = c->ccond;
+			if (cc == nullptr) {
+				for (cc = cclist; cc && cc->wcnt; cc = cc->next) {
+				}
+				if (cc == nullptr) {
+					cc = (cntcond *)malloc(sizeof(cntcond));
 					passert(cc);
-					zassert(pthread_cond_init(&(cc->cond),NULL));
+					zassert(pthread_cond_init(&(cc->cond), nullptr));
 					cc->wcnt = 0;
 					cc->next = cclist;
 					cclist = cc;
 				}
+				cc->owner = c;
 				c->ccond = cc;
 			}
-			c->ccond->wcnt++;
-//                      printf("wait for %s chunk: %" PRIu64 " on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":"TOBEDELETED",c->chunkid,c->ccond);
-			zassert(pthread_cond_wait(&(c->ccond->cond),&hashlock));
-//                      printf("%s chunk: %" PRIu64 " woke up on ccond:%p\n",(c->state==CH_LOCKED)?"LOCKED":(c->state==CH_DELETED)?"DELETED":(c->state==CH_AVAIL)?"AVAIL":"TOBEDELETED",c->chunkid,c->ccond);
-			c->ccond->wcnt--;
-			if (c->ccond->wcnt==0) {
-				c->ccond = NULL;
+			cc->wcnt++;
+			zassert(pthread_cond_wait(&(cc->cond), &hashlock));
+			// Chunk could be recreated (different address)
+			// so we need to get it's new address.
+			c = cc->owner;
+			assert(c);
+			cc->wcnt--;
+			if (cc->wcnt == 0) {
+				c->ccond = nullptr;
+				cc->owner = nullptr;
 			}
 		}
 	}
@@ -3123,61 +3152,51 @@ static inline void hdd_add_chunk(folder *f,
 		uint8_t todel,
 		int layout_version) {
 	TRACETHIS();
-	folder *prevf;
 	Chunk *c;
 
-	prevf = NULL;
 	c = hdd_chunk_get(chunkId, chunkType, CH_NEW_AUTO, chunkFormat);
-	if (!c->filename().empty()) {
+
+	bool new_chunk = c->filename().empty();
+
+	if (!new_chunk) {
 		// already have this chunk
 		if (version <= c->version) {
 			// current chunk is older
 			if (todel < 2) { // this is R/W fs?
-				unlink(fullname.c_str());
+				unlink(fullname.c_str()); // if yes then remove file
 			}
-		} else {
-			prevf = c->owner;
-			if (c->todel<2) { // current chunk is on R/W fs?
-				unlink(c->filename().c_str()); // if yes then remove file
-			}
-			c->version = version;
-			c->blocks = 0;
-			c->owner = f;
-			c->todel = todel;
-			c->setFilename(c->generateFilenameForVersion(version, layout_version));
-			zassert(pthread_mutex_lock(&testlock));
-			// remove from previous chain
-			*(c->testprev) = c->testnext;
-			if (c->testnext) {
-				c->testnext->testprev = c->testprev;
-			} else {
-				prevf->testtail = c->testprev;
-			}
-			// add to new one
-			c->testprev = f->testtail;
-			*(c->testprev) = c;
-			f->testtail = &(c->testnext);
-			zassert(pthread_mutex_unlock(&testlock));
+			hdd_chunk_release(c);
+			return;
 		}
-	} else {
-		c->version = version;
-		c->blocks = 0;
-		c->owner = f;
-		c->todel = todel;
-		c->setFilename(c->generateFilenameForVersion(version, layout_version));
-		sassert(c->filename() == fullname);
-		zassert(pthread_mutex_lock(&testlock));
-		c->testprev = f->testtail;
-		*(c->testprev) = c;
-		f->testtail = &(c->testnext);
-		zassert(pthread_mutex_unlock(&testlock));
-		hdd_report_new_chunk(c->chunkid, c->version|(todel?0x80000000:0), c->type());
+
+		if (c->todel < 2) { // current chunk is on R/W fs?
+			unlink(c->filename().c_str()); // if yes then remove file
+		}
 	}
+
+	if (c->chunkFormat() != chunkFormat || !new_chunk) {
+		zassert(pthread_mutex_lock(&hashlock));
+		c = hdd_chunk_recreate(c, chunkId, chunkType, chunkFormat);
+		zassert(pthread_mutex_unlock(&hashlock));
+	}
+
+	c->version = version;
+	c->blocks = 0;
+	c->owner = f;
+	c->todel = todel;
+	c->setFilename(c->generateFilenameForVersion(version, layout_version));
+	sassert(c->filename() == fullname);
+	zassert(pthread_mutex_lock(&testlock));
+	c->testprev = f->testtail;
+	*(c->testprev) = c;
+	f->testtail = &(c->testnext);
+	zassert(pthread_mutex_unlock(&testlock));
+	if (new_chunk) {
+		hdd_report_new_chunk(c->chunkid, c->version | (todel ? 0x80000000 : 0), c->type());
+	}
+
 	hdd_chunk_release(c);
 	zassert(pthread_mutex_lock(&folderlock));
-	if (prevf) {
-		prevf->chunkcount--;
-	}
 	f->chunkcount++;
 	zassert(pthread_mutex_unlock(&folderlock));
 }

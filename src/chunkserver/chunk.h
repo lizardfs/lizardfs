@@ -42,9 +42,12 @@ enum ChunkState {
 	CH_TOBEDELETED
 };
 
+class Chunk;
+
 struct cntcond {
 	pthread_cond_t cond;
 	uint32_t wcnt;
+	Chunk *owner;
 	struct cntcond *next;
 };
 
@@ -53,8 +56,6 @@ struct ioerror {
 	uint32_t timestamp;
 	int errornumber;
 };
-
-class Chunk;
 
 struct folder {
 	char *path;
