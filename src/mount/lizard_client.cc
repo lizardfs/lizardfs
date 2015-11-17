@@ -581,7 +581,7 @@ struct statvfs statfs(Context ctx, Inode ino) {
 	stfsbuf.f_bfree = availspace/bsize;
 	stfsbuf.f_bavail = availspace/bsize;
 #endif
-	stfsbuf.f_files = inodes;
+	stfsbuf.f_files = MAX_REGULAR_INODE;
 	stfsbuf.f_ffree = MAX_REGULAR_INODE - inodes;
 	stfsbuf.f_favail = MAX_REGULAR_INODE - inodes;
 	//stfsbuf.f_flag = ST_RDONLY;
