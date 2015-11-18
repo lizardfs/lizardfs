@@ -310,11 +310,8 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			forcePrepare = true;
 			if (tryCounter > maxRetries) {
 				return EIO;
-			} else if (tryCounter > 0) {
-				sleep (60);
-				tryCounter += 6;
 			} else {
-				sleep(1);
+				sleep(1 + ((tryCounter < 30) ? (tryCounter / 3) : 10));
 				tryCounter++;
 			}
 		} catch (ChunkCrcException& ex) {
