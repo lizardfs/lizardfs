@@ -25,3 +25,13 @@
    fun:_ZNSsC1EPKcRKSaIcE
    fun:main
 }
+
+{
+   pam library leaks
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:pam_open_session
+   ...
+   fun:main
+}
