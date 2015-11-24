@@ -35,3 +35,14 @@
    ...
    fun:main
 }
+
+{
+   fuse umount missing release calls
+   Memcheck:Leak
+   fun:malloc
+   fun:_ZN12LizardClientL14fs_newfileinfoEhj
+   ...
+   fun:start_thread
+   fun:clone
+}
+
