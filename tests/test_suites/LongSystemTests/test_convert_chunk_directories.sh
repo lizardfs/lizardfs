@@ -1,4 +1,4 @@
-timeout_set 40 minutes
+timeout_set 1 hour
 
 LIZARDFSXX_TAG=2.6.0
 
