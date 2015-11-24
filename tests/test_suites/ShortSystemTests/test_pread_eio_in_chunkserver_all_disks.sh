@@ -37,6 +37,7 @@ lizardfs_wait_for_all_ready_chunkservers
 for i in {1..50}; do
 	cd ${info[mount$((i % 2))]}
 	assert_success file-validate goal2/*[0124678]
+	sleep 0.2
 done
 
 # Assert that exactly disks marked "pread_EIO" are marked as damaged
