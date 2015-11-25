@@ -1,4 +1,4 @@
-timeout_set 1 hour
+timeout_set 2 hours
 assert_program_installed git
 assert_program_installed cmake
 assert_program_installed rsync
