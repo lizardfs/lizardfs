@@ -1,4 +1,4 @@
-timeout_set 1 hour
+timeout_set 2 hours
 
 LIZARDFSXX_TAG=2.6.0
 
@@ -17,8 +17,8 @@ assert_equals $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l) 1
 mkdir dir
 cd dir
 
-# Create 200K chunks
-for dname in dir{1..200}; do
+# Create 400K chunks
+for dname in dir{1..400}; do
 	echo Creating files in $dname
 	mkdir $dname
 	for fname in file{1..1000}; do
@@ -45,7 +45,7 @@ assert_eventually "grep 'scanning folder.*complete' $ERROR_DIR/syslog.log" "1 mi
 
 # Check if chunks are usable during migrate
 # Reverse order of the check guarantees that we will access some unmigrated chunks.
-for dname in dir{200..190}; do
+for dname in dir{400..390}; do
 	echo Testing files in $dname
 	for fname in file{1000..1}; do
 		assert_success file-validate $dname/$fname
@@ -58,14 +58,14 @@ lizardfs_chunkserver_daemon 0 stop
 assert_eventually "grep 'converting directories in folder.*interrupted' $ERROR_DIR/syslog.log" "1 minute"
 
 lizardfs_chunkserver_daemon 0 start
-for dname in dir{189..170}; do
+for dname in dir{389..370}; do
 	echo Testing files in $dname
 	for fname in file{1000..1}; do
 		assert_success file-validate $dname/$fname
 	done
 done
 
-assert_eventually "grep 'converting directories in folder.*complete' $ERROR_DIR/syslog.log" "5 minutes"
+assert_eventually "grep 'converting directories in folder.*complete' $ERROR_DIR/syslog.log" "8 minutes"
 
 # Make list of all chunks in new catalog layout
 NEW_CHUNK_LIST=$(find $RAMDISK_DIR/hdd_0_0/chunk* -type f -printf "%f\n" | sort)
