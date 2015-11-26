@@ -820,6 +820,62 @@ public:
 		OPERATION_EPILOG
 	}
 
+	/**
+	 * Implement Polonaise.getxattr method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
+	void getxattr(std::string& _return, const Context& context, const Inode inode,
+		      const std::string& name, const int64_t size) {
+		OPERATION_PROLOG
+		uint32_t position = 0;
+		auto a = LizardClient::getxattr(toLizardFsContext(context), toUint64(inode),
+						name.c_str(), size, position);
+		if (size == 0) {
+			a = LizardClient::getxattr(toLizardFsContext(context), toUint64(inode),
+						   name.c_str(),  a.valueLength, position);
+		}
+		_return.assign(a.valueBuffer.begin(), a.valueBuffer.end());
+		OPERATION_EPILOG
+	}
+
+	/**
+	 * Implement Polonaise.setxattr method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
+	void setxattr(const Context& context, const Inode inode, const std::string& name,
+		      const std::string& value, const int64_t size, const int32_t flags) {
+		OPERATION_PROLOG
+		uint32_t position = 0;
+		LizardClient::setxattr(toLizardFsContext(context), toUint64(inode), name.c_str(), value.c_str(),
+				       size, flags, position);
+		OPERATION_EPILOG
+	}
+
+	/**
+	 * Implement Polonaise.listxattr method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
+	void listxattr(std::string& _return, const Context& context, const Inode inode,
+		       const int64_t size) {
+		OPERATION_PROLOG
+		auto a = LizardClient::listxattr(toLizardFsContext(context), toUint64(inode), size);
+		if (size == 0) {
+			a = LizardClient::listxattr(toLizardFsContext(context), toUint64(inode), a.valueLength);
+		}
+		_return.assign(a.valueBuffer.begin(), a.valueBuffer.end());
+		OPERATION_EPILOG
+	}
+
+	/**
+	 * Implement Polonaise.removexattr method
+	 * \note for more information, see the protocol definition in Polonaise sources
+	 */
+	void removexattr(const Context& context, const Inode inode, const std::string& name) {
+		OPERATION_PROLOG
+		LizardClient::removexattr(toLizardFsContext(context), toUint64(inode), name.c_str());
+		OPERATION_EPILOG
+	}
+
 private:
 	/**
 	 * Create a new entry of opened file
