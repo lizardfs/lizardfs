@@ -1391,8 +1391,8 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lock
 }
 
 #ifndef METARESTORE
-int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
-	uint32_t bestversion;
+int chunk_repair(uint8_t goal, uint64_t ochunkid, uint32_t *nversion) {
+	uint32_t best_version;
 	chunk *c;
 	slist *s;
 
@@ -1408,28 +1408,46 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion) {
 	if (c->isLocked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
 		return 0;
 	}
-	bestversion = 0;
-	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->valid == VALID || s->valid == TDVALID || s->valid == BUSY || s->valid == TDBUSY) { // found chunk that is ok - so return
-			return 0;
-		}
-		if (s->valid == INVALID) {
-			if (s->version>=bestversion) {
-				bestversion = s->version;
-			}
+
+	// calculators will be sorted by decreasing keys, so highest version will be first.
+	std::map<uint32_t, ChunkCopiesCalculator, std::greater<uint32_t>> calculators;
+	best_version = 0;
+	for (s = c->slisthead; s ; s=s->next) {
+		// ignore chunks which are being deleted
+		if (s->valid != DEL) {
+			ChunkCopiesCalculator &calculator = calculators[s->version];
+			calculator.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 		}
 	}
-	if (bestversion==0) { // didn't find sensible chunk - so erase it
-		chunk_delete_file_int(c,goal);
+	// find best version which can be recovered
+	// calculators are sorted by decreasing keys, so highest version will be first.
+	for (auto &version_and_calculator : calculators) {
+		uint32_t version = version_and_calculator.first;
+		ChunkCopiesCalculator &calculator = version_and_calculator.second;
+		calculator.optimize();
+		// calculator.isRecoveryPossible() won't work below, because target goal is empty.
+		if (calculator.getFullCopiesCount() > 0) {
+			best_version = version;
+			break;
+		}
+	}
+	// current version is readable
+	if (best_version == c->version) {
+		return 0;
+	}
+	// didn't find sensible chunk - so erase it
+	if (best_version == 0) {
+		chunk_delete_file_int(c, goal);
 		return 1;
 	}
-	c->version = bestversion;
+	// found previous version which is readable
+	c->version = best_version;
 	for (s=c->slisthead ; s ; s=s->next) {
-		if (s->valid == INVALID && s->version==bestversion) {
+		if (s->valid == INVALID && s->version==best_version) {
 			s->valid = VALID;
 		}
 	}
-	*nversion = bestversion;
+	*nversion = best_version;
 	c->needverincrease=1;
 	c->updateStats();
 	chunk_update_checksum(c);
