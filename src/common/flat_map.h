@@ -233,27 +233,27 @@ public:
 		return container_.cend();
 	}
 
-	iterator rbegin() noexcept {
+	reverse_iterator rbegin() noexcept {
 		return container_.rbegin();
 	}
 
-	const_iterator rbegin() const noexcept {
+	const_reverse_iterator rbegin() const noexcept {
 		return container_.rbegin();
 	}
 
-	const_iterator crbegin() const noexcept {
+	const_reverse_iterator crbegin() const noexcept {
 		return container_.crbegin();
 	}
 
-	iterator rend() noexcept {
+	reverse_iterator rend() noexcept {
 		return container_.rend();
 	}
 
-	const_iterator rend() const noexcept {
+	const_reverse_iterator rend() const noexcept {
 		return container_.rend();
 	}
 
-	const_iterator crend() const noexcept {
+	const_reverse_iterator crend() const noexcept {
 		return container_.crend();
 	}
 

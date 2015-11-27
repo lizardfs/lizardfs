@@ -73,6 +73,46 @@ TEST(FlatMap, Swap) {
 	ASSERT_EQ(a.size(), 3U);
 }
 
+TEST(FlatMap, Iterators) {
+	std::vector<std::pair<int, int>> v = {{1, 1}, {2, 2}, {3, 3}, {4, 4}};
+
+	typedef flat_map<int, int> test_map;
+	test_map d(v.begin(), v.end(), true);
+
+	int i = 0;
+	for (const auto &el : d) {
+		ASSERT_EQ(el.first, ++i);
+	}
+
+	// forward iterators
+	i = 1;
+	for (test_map::iterator it  = d.begin(); it != d.end(); it++, i++) {
+		ASSERT_EQ(it->second, i);
+	}
+	i = 1;
+	for (test_map::const_iterator it  = d.begin(); it != d.end(); it++, i++) {
+		ASSERT_EQ(it->second, i);
+	}
+	i = 1;
+	for (test_map::const_iterator it  = d.cbegin(); it != d.cend(); it++, i++) {
+		ASSERT_EQ(it->second, i);
+	}
+
+	// reverse iterators
+	i = d.size();
+	for (test_map::reverse_iterator it  = d.rbegin(); it != d.rend(); it++, i--) {
+		ASSERT_EQ(it->second, i);
+	}
+	i = d.size();
+	for (test_map::const_reverse_iterator it  = d.rbegin(); it != d.rend(); it++, i--) {
+		ASSERT_EQ(it->second, i);
+	}
+	i = d.size();
+	for (test_map::const_reverse_iterator it  = d.crbegin(); it != d.crend(); it++, i--) {
+		ASSERT_EQ(it->second, i);
+	}
+}
+
 TEST(FlatMap, InsertErase) {
 	flat_map<int, int> m;
 	m.insert({1, 0});
