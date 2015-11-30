@@ -111,6 +111,7 @@ typedef std::vector<ChunkWithVersionAndType> NewChunks;
 
 typedef struct dopchunk {
 	uint64_t chunkid;
+	ChunkPartType type;
 	struct dopchunk *next;
 } dopchunk;
 
@@ -631,24 +632,24 @@ static int hdd_chunk_getattr(Chunk *c) {
 	return 0;
 }
 
-static Chunk* hdd_chunk_tryfind(uint64_t chunkid) {
+static Chunk* hdd_chunk_tryfind(uint64_t chunkid, ChunkPartType chunk_type) {
 	TRACETHIS1(chunkid);
 	uint32_t hashpos = HASHPOS(chunkid);
 	Chunk *c;
 	zassert(pthread_mutex_lock(&hashlock));
-	for (c=hashtab[hashpos] ; c && c->chunkid!=chunkid ; c=c->next) {}
-	if (c!=NULL) {
-		if (c->state==CH_LOCKED) {
-			c = (Chunk*) CHUNKLOCKED;
-		} else if (c->state!=CH_AVAIL) {
-			c = NULL;
+	c = hashtab[hashpos];
+	while (c && (c->chunkid != chunkid || c->type() != chunk_type)) {
+		c = c->next;
+	}
+	if (c != nullptr) {
+		if (c->state == CH_LOCKED) {
+			c = (Chunk *)CHUNKLOCKED;
+		} else if (c->state != CH_AVAIL) {
+			c = nullptr;
 		} else {
 			c->state = CH_LOCKED;
 		}
 	}
-//      if (c!=NULL && c!=CHUNKLOCKED) {
-//              syslog(LOG_WARNING,"hdd_chunk_tryfind returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
-//      }
 	zassert(pthread_mutex_unlock(&hashlock));
 	return c;
 }
@@ -1363,7 +1364,7 @@ void hdd_delayed_ops() {
 	cc = newdopchunks;
 	while (cc) {
 		dhashpos = DHASHPOS(cc->chunkid);
-		for (tcc=dophashtab[dhashpos] ; tcc && tcc->chunkid!=cc->chunkid ; tcc=tcc->next) {}
+		for (tcc = dophashtab[dhashpos]; tcc && (tcc->chunkid != cc->chunkid || tcc->type != cc->type); tcc = tcc->next) {}
 		if (tcc) {      // found - ignore
 			tcc = cc;
 			cc = cc->next;
@@ -1378,14 +1379,10 @@ void hdd_delayed_ops() {
 	newdopchunks = NULL;
 	zassert(pthread_mutex_unlock(&ndoplock));
 /* check all */
-	for (dhashpos=0 ; dhashpos<DHASHSIZE ; dhashpos++) {
-		ccp = dophashtab+dhashpos;
+	for (dhashpos=0; dhashpos < DHASHSIZE; dhashpos++) {
+		ccp = dophashtab + dhashpos;
 		while ((cc=*ccp)) {
-//                      printf("find chunk: %llu\n",cc->chunkid);
-			c = hdd_chunk_tryfind(cc->chunkid);
-//                      if (c!=NULL && c!=CHUNKLOCKED) {
-//                              printf("found chunk: %llu (c->state:%u c->crcrefcount:%u)\n",cc->chunkid,c->state,c->crcrefcount);
-//                      }
+			c = hdd_chunk_tryfind(cc->chunkid, cc->type);
 			if (c==NULL) {  // no chunk - delete entry
 				*ccp = cc->next;
 				free(cc);
@@ -1494,9 +1491,10 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 		}
 
 		if (add) {
-			cc = (dopchunk*) malloc(sizeof(dopchunk));
+			cc = (dopchunk *)malloc(sizeof(dopchunk));
 			passert(cc);
 			cc->chunkid = c->chunkid;
+			cc->type = c->type();
 			zassert(pthread_mutex_lock(&ndoplock));
 			cc->next = newdopchunks;
 			newdopchunks = cc;
@@ -3590,17 +3588,17 @@ void hdd_term(void) {
 		free(f->path);
 		free(f);
 	}
-	for (i=0 ; i<DHASHSIZE ; i++) {
-		for (dc=dophashtab[i] ; dc ; dc=dcn) {
+	for (i = 0; i<DHASHSIZE; i++) {
+		for (dc=dophashtab[i]; dc; dc = dcn) {
 			dcn = dc->next;
 			free(dc);
 		}
 	}
-	for (dc=newdopchunks ; dc ; dc=dcn) {
+	for (dc=newdopchunks; dc; dc = dcn) {
 		dcn = dc->next;
 		free(dc);
 	}
-	for (cc=cclist ; cc ; cc=ccn) {
+	for (cc=cclist; cc; cc = ccn) {
 		ccn = cc->next;
 		if (cc->wcnt) {
 			syslog(LOG_WARNING,"hddspacemgr (atexit): used cond !!!");
