@@ -27,14 +27,15 @@
 #include "chunkserver/output_buffers.h"
 #include "common/chunk_part_type.h"
 #include "common/chunk_with_version_and_type.h"
+#include "protocol/chunks_with_type.h"
 #include "protocol/MFSCommunication.h"
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime);
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test);
 uint32_t hdd_errorcounter(void);
 
-void hdd_get_damaged_chunks(std::vector<uint64_t>& chunks);
-void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit);
+void hdd_get_damaged_chunks(std::vector<ChunkWithType>& chunks, std::size_t limit);
+void hdd_get_lost_chunks(std::vector<ChunkWithType>& chunks, std::size_t limit);
 void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks);
 
 /* lock/unlock pair */

@@ -38,7 +38,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <atomic>
+#include <deque>
 #include <list>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -96,17 +98,6 @@
 
 #define CHUNKLOCKED ((void*)1)
 
-typedef struct damagedchunk {
-	uint64_t chunkid;
-	struct damagedchunk *next;
-} damagedchunk;
-
-typedef struct lostchunk {
-	uint64_t chunkidblock[LOSTCHUNKSBLOCKSIZE];
-	uint32_t chunksinblock;
-	struct lostchunk *next;
-} lostchunk;
-
 typedef std::vector<ChunkWithVersionAndType> NewChunks;
 
 typedef struct dopchunk {
@@ -142,8 +133,8 @@ static dopchunk *dophashtab[DHASHSIZE];
 static dopchunk *newdopchunks = NULL;
 
 // master reports
-static damagedchunk *damagedchunks = NULL;
-static lostchunk *lostchunks = NULL;
+static std::deque<ChunkWithType> gDamagedChunks;
+static std::deque<ChunkWithType> gLostChunks;
 static std::list<NewChunks> gNewChunks;
 static uint32_t errorcounter = 0;
 static int hddspacechanged = 0;
@@ -166,7 +157,7 @@ static pthread_mutex_t doplock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t ndoplock = PTHREAD_MUTEX_INITIALIZER;
 
 // master reports = damaged chunks, lost chunks, errorcounter, hddspacechanged
-static pthread_mutex_t dclock = PTHREAD_MUTEX_INITIALIZER;
+static std::mutex gMasterReportsLock;
 
 // hashtab - only hash tab, chunks have their own separate locks
 static pthread_mutex_t hashlock = PTHREAD_MUTEX_INITIALIZER;
@@ -202,118 +193,68 @@ static uint32_t stats_duplicate = 0;
 static uint32_t stats_truncate = 0;
 static uint32_t stats_duptrunc = 0;
 
-void hdd_report_damaged_chunk(uint64_t chunkid) {
+void hdd_report_damaged_chunk(uint64_t chunkid, ChunkPartType chunk_type) {
 	TRACETHIS1(chunkid);
-	damagedchunk *dc;
-	zassert(pthread_mutex_lock(&dclock));
-	dc = (damagedchunk*) malloc(sizeof(damagedchunk));
-	passert(dc);
-	dc->chunkid = chunkid;
-	dc->next = damagedchunks;
-	damagedchunks = dc;
-	zassert(pthread_mutex_unlock(&dclock));
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
+	gDamagedChunks.push_back({chunkid, chunk_type});
 }
 
-void hdd_get_damaged_chunks(std::vector<uint64_t>& buffer) {
+void hdd_get_damaged_chunks(std::vector<ChunkWithType>& buffer, std::size_t limit) {
 	TRACETHIS();
-	damagedchunk *dc,*ndc;
-	uint64_t chunkid;
-	sassert(buffer.empty());
-	zassert(pthread_mutex_lock(&dclock));
-	buffer.reserve(list_length(damagedchunks));
-	dc = damagedchunks;
-	while (dc) {
-		ndc = dc;
-		dc = dc->next;
-		chunkid = ndc->chunkid;
-		buffer.push_back(chunkid);
-		free(ndc);
-	}
-	damagedchunks = NULL;
-	zassert(pthread_mutex_unlock(&dclock));
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
+	std::size_t size = std::min(gDamagedChunks.size(), limit);
+	buffer.assign(gDamagedChunks.begin(), gDamagedChunks.begin() + size);
+	gDamagedChunks.erase(gDamagedChunks.begin(), gDamagedChunks.begin() + size);
 }
 
-void hdd_report_lost_chunk(uint64_t chunkid) {
-	TRACETHIS();
-	lostchunk *lc;
-	zassert(pthread_mutex_lock(&dclock));
-	if (lostchunks && lostchunks->chunksinblock<LOSTCHUNKSBLOCKSIZE) {
-		lostchunks->chunkidblock[lostchunks->chunksinblock++] = chunkid;
-	} else {
-		lc = (lostchunk*) malloc(sizeof(lostchunk));
-		passert(lc);
-		lc->chunkidblock[0] = chunkid;
-		lc->chunksinblock = 1;
-		lc->next = lostchunks;
-		lostchunks = lc;
-	}
-	zassert(pthread_mutex_unlock(&dclock));
+void hdd_report_lost_chunk(uint64_t chunkid, ChunkPartType chunk_type) {
+	TRACETHIS1(chunkid);
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
+	gLostChunks.push_back({chunkid, chunk_type});
 }
 
-void hdd_get_lost_chunks(std::vector<uint64_t>& chunks, uint32_t limit) {
+void hdd_get_lost_chunks(std::vector<ChunkWithType>& buffer, std::size_t limit) {
 	TRACETHIS();
-	lostchunk *lc,**lcptr;
-	uint64_t chunkid;
-	uint32_t i;
-	sassert(chunks.empty());
-	chunks.reserve(limit);
-	zassert(pthread_mutex_lock(&dclock));
-	lcptr = &lostchunks;
-	while ((lc=*lcptr)) {
-		if (limit>lc->chunksinblock) {
-			for (i=0 ; i<lc->chunksinblock ; i++) {
-				chunkid = lc->chunkidblock[i];
-				chunks.push_back(chunkid);
-			}
-			limit -= lc->chunksinblock;
-			*lcptr = lc->next;
-			free(lc);
-		} else {
-			lcptr = &(lc->next);
-		}
-	}
-	zassert(pthread_mutex_unlock(&dclock));
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
+	std::size_t size = std::min(gLostChunks.size(), limit);
+	buffer.assign(gLostChunks.begin(), gLostChunks.begin() + size);
+	gLostChunks.erase(gLostChunks.begin(), gLostChunks.begin() + size);
 }
 
 void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkPartType type) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&dclock));
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
 	if (gNewChunks.empty() || gNewChunks.back().size() >= NEWCHUNKSBLOCKSIZE) {
 		gNewChunks.push_back(NewChunks());
 		gNewChunks.back().reserve(NEWCHUNKSBLOCKSIZE);
 	}
 	gNewChunks.back().push_back(ChunkWithVersionAndType(chunkid, version, type));
-	zassert(pthread_mutex_unlock(&dclock));
 }
 
 void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks) {
 	TRACETHIS();
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
 	sassert(chunks.empty());
-	zassert(pthread_mutex_lock(&dclock));
 	if (!gNewChunks.empty()) {
 		chunks.swap(gNewChunks.front());
 		gNewChunks.pop_front();
 	}
-	zassert(pthread_mutex_unlock(&dclock));
 }
 
 uint32_t hdd_errorcounter(void) {
 	TRACETHIS();
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
 	uint32_t result;
-	zassert(pthread_mutex_lock(&dclock));
 	result = errorcounter;
 	errorcounter = 0;
-	zassert(pthread_mutex_unlock(&dclock));
 	return result;
 }
 
 int hdd_spacechanged(void) {
 	TRACETHIS();
-	uint32_t result;
-	zassert(pthread_mutex_lock(&dclock));
-	result = hddspacechanged;
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
+	uint32_t result = hddspacechanged;
 	hddspacechanged = 0;
-	zassert(pthread_mutex_unlock(&dclock));
 	return result;
 }
 
@@ -758,7 +699,7 @@ static Chunk* hdd_chunk_get(
 						zassert(pthread_mutex_unlock(&hashlock));
 						return c;
 					}
-					hdd_report_damaged_chunk(c->chunkid);
+					hdd_report_damaged_chunk(c->chunkid, c->type());
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
 					return NULL;
@@ -1013,7 +954,7 @@ void hdd_senddata(folder *f,int rmflag) {
 			if (c->owner==f) {
 				c->todel = todel;
 				if (rmflag) {
-					hdd_report_lost_chunk(c->chunkid);
+					hdd_report_lost_chunk(c->chunkid, c->type());
 					if (c->state==CH_AVAIL) {
 						*cptr = c->next;
 						if (c->fd>=0) {
@@ -1165,9 +1106,8 @@ void hdd_check_folders() {
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
 	if (changed) {
-		zassert(pthread_mutex_lock(&dclock));
+		std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
 		hddspacechanged = 1;
-		zassert(pthread_mutex_unlock(&dclock));
 	}
 }
 
@@ -1189,9 +1129,8 @@ static inline void hdd_error_occured(Chunk *c) {
 	f->lasterrindx = i;
 	zassert(pthread_mutex_unlock(&folderlock));
 
-	zassert(pthread_mutex_lock(&dclock));
+	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
 	errorcounter++;
-	zassert(pthread_mutex_unlock(&dclock));
 
 	errno = errmem;
 }
@@ -1403,7 +1342,7 @@ void hdd_delayed_ops() {
 					if (close(c->fd)<0) {
 						hdd_error_occured(c);   // uses and preserves errno !!!
 						lzfs_silent_errlog(LOG_WARNING,"hdd_delayed_ops: file:%s - close error", c->filename().c_str());
-						hdd_report_damaged_chunk(c->chunkid);
+						hdd_report_damaged_chunk(c->chunkid, c->type());
 					}
 					c->fd = -1;
 				}
@@ -1590,7 +1529,7 @@ int hdd_open(uint64_t chunkid, ChunkPartType chunkType) {
 	PRINTTHIS(status);
 	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
-		hdd_report_damaged_chunk(chunkid);
+		hdd_report_damaged_chunk(chunkid, chunkType);
 	}
 	hdd_chunk_release(c);
 //      if (status==LIZARDFS_STATUS_OK) {
@@ -1611,7 +1550,7 @@ int hdd_close(uint64_t chunkid, ChunkPartType chunkType) {
 	PRINTTHIS(status);
 	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
-		hdd_report_damaged_chunk(chunkid);
+		hdd_report_damaged_chunk(chunkid, chunkType);
 	}
 	hdd_chunk_release(c);
 //      if (status==LIZARDFS_STATUS_OK) {
@@ -1712,7 +1651,7 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"read_block_from_chunk: file:%s - read error", c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return LIZARDFS_ERROR_IO;
 		}
 	}
@@ -1868,7 +1807,7 @@ int hdd_int_read_block_and_crc(Chunk* c, uint8_t* blockBuffer, uint8_t* crcBuffe
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"%s: file:%s - read error", errorMsg, c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
 		return MFSBLOCKSIZE;
@@ -1879,7 +1818,7 @@ int hdd_int_read_block_and_crc(Chunk* c, uint8_t* blockBuffer, uint8_t* crcBuffe
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"%s: file:%s - read error", errorMsg, c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
 		memcpy(crcBuffer, blockBuffer, 4);
@@ -1908,7 +1847,7 @@ bool hdd_int_write_partial_block_and_crc(
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"%s: file:%s - write error", errorMsg, c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
 		memcpy(mc->getCrcBuffer(blockNum), crcBuff, crcSize);
@@ -1920,7 +1859,7 @@ bool hdd_int_write_partial_block_and_crc(
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"%s: file:%s - crc write error", errorMsg, c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
 		ret = pwrite(c->fd, buffer, size, c->getBlockOffset(blockNum) + offset + crcSize);
@@ -1928,7 +1867,7 @@ bool hdd_int_write_partial_block_and_crc(
 			hdd_error_occured(c);   // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"%s: file:%s - write error", errorMsg, c->filename().c_str());
-			hdd_report_damaged_chunk(c->chunkid);
+			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
 		return crcSize + size;
@@ -2034,7 +1973,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				syslog(LOG_WARNING,
 						"write_block_to_chunk: file:%s - crc error", c->filename().c_str());
-				hdd_report_damaged_chunk(chunkid);
+				hdd_report_damaged_chunk(chunkid, chunkType);
 				hdd_chunk_release(c);
 				return LIZARDFS_ERROR_CRC;
 			}
@@ -2043,7 +1982,7 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 				hdd_error_occured(c);   // uses and preserves errno !!!
 				lzfs_silent_errlog(LOG_WARNING,
 						"write_block_to_chunk: file:%s - ftruncate error", c->filename().c_str());
-				hdd_report_damaged_chunk(chunkid);
+				hdd_report_damaged_chunk(chunkid, chunkType);
 				hdd_chunk_release(c);
 				return LIZARDFS_ERROR_IO;
 			}
@@ -2317,7 +2256,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
-			hdd_report_damaged_chunk(chunkId);
+			hdd_report_damaged_chunk(chunkId, chunkType);
 			hdd_chunk_release(oc);
 			return status;
 		}
@@ -2363,7 +2302,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 			unlink(c->filename().c_str());
 			hdd_chunk_delete(c);
 			hdd_io_end(oc);
-			hdd_report_damaged_chunk(chunkId);
+			hdd_report_damaged_chunk(chunkId, chunkType);
 			hdd_chunk_release(oc);
 			return LIZARDFS_ERROR_IO;
 		}
@@ -2388,7 +2327,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
-		hdd_report_damaged_chunk(chunkId);
+		hdd_report_damaged_chunk(chunkId, chunkType);
 		hdd_chunk_release(oc);
 		return status;
 	}
@@ -2578,7 +2517,7 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkPartType chunkType, uint32_t 
 					hdd_error_occured(c);   // uses and preserves errno !!!
 					lzfs_silent_errlog(LOG_WARNING,
 							"truncate_chunk: file:%s - write crc error", c->filename().c_str());
-					hdd_report_damaged_chunk(chunkId);
+					hdd_report_damaged_chunk(chunkId, chunkType);
 					hdd_chunk_release(c);
 					return LIZARDFS_ERROR_IO;
 				}
@@ -2673,7 +2612,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
-			hdd_report_damaged_chunk(chunkId);
+			hdd_report_damaged_chunk(chunkId, chunkType);
 			hdd_chunk_release(oc);
 			return status;
 		}
@@ -2710,7 +2649,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				unlink(c->filename().c_str());
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
-				hdd_report_damaged_chunk(chunkId);
+				hdd_report_damaged_chunk(chunkId, chunkType);
 				hdd_chunk_release(oc);
 				return LIZARDFS_ERROR_IO;
 			}
@@ -2759,7 +2698,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
-					hdd_report_damaged_chunk(chunkId);
+					hdd_report_damaged_chunk(chunkId, chunkType);
 					hdd_chunk_release(oc);
 					return LIZARDFS_ERROR_IO;
 				}
@@ -2789,7 +2728,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 					unlink(c->filename().c_str());
 					hdd_chunk_delete(c);
 					hdd_io_end(oc);
-					hdd_report_damaged_chunk(chunkId);
+					hdd_report_damaged_chunk(chunkId, chunkType);
 					hdd_chunk_release(oc);
 					return LIZARDFS_ERROR_IO;
 				}
@@ -2819,7 +2758,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 				unlink(c->filename().c_str());
 				hdd_chunk_delete(c);
 				hdd_io_end(oc);
-				hdd_report_damaged_chunk(chunkId);
+				hdd_report_damaged_chunk(chunkId, chunkType);
 				hdd_chunk_release(oc);
 				return LIZARDFS_ERROR_IO;
 			}
@@ -2871,7 +2810,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 		hdd_io_end(c);
 		unlink(c->filename().c_str());
 		hdd_chunk_delete(c);
-		hdd_report_damaged_chunk(chunkId);
+		hdd_report_damaged_chunk(chunkId, chunkType);
 		hdd_chunk_release(oc);
 		return status;
 	}
@@ -3000,7 +2939,7 @@ static void hdd_test_chunk_thread() {
 			if (hdd_int_test(chunk.id, chunk.version, chunk.type) !=LIZARDFS_STATUS_OK) {
 				syslog(LOG_NOTICE, "Chunk %s corrupted (detected by a client)",
 						name.c_str());
-				hdd_report_damaged_chunk(chunk.id);
+				hdd_report_damaged_chunk(chunk.id, chunk.type);
 			} else {
 				syslog(LOG_NOTICE, "Chunk %s spuriously reported as corrupted",
 						name.c_str());
@@ -3081,7 +3020,7 @@ void* hdd_tester_thread(void* arg) {
 			stats_test++;
 			zassert(pthread_mutex_unlock(&statslock));
 			if (hdd_int_test(chunkid, version, chunkType) !=LIZARDFS_STATUS_OK) {
-				hdd_report_damaged_chunk(chunkid);
+				hdd_report_damaged_chunk(chunkid, chunkType);
 			}
 			path.clear();
 		}
@@ -3289,9 +3228,9 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 			zassert(pthread_mutex_lock(&folderlock));
 			f->scanprogress = currentperc;
 			zassert(pthread_mutex_unlock(&folderlock));
-			zassert(pthread_mutex_lock(&dclock));
+			gMasterReportsLock.lock();
 			hddspacechanged = 1;  // report chunk count to master
-			zassert(pthread_mutex_unlock(&dclock));
+			gMasterReportsLock.unlock();
 			lzfs_pretty_syslog(LOG_NOTICE, "scanning folder %s: %" PRIu8 "%% (%" PRIu32 "s)",
 			                   f->path, lastperc, currenttime - begin_time);
 		}
@@ -3432,9 +3371,9 @@ void *hdd_folder_scan(void *arg) {
 		mkdir(f->path, 0755);
 	}
 
-	zassert(pthread_mutex_lock(&dclock));
+	gMasterReportsLock.lock();
 	hddspacechanged = 1;
-	zassert(pthread_mutex_unlock(&dclock));
+	gMasterReportsLock.unlock();
 
 	if (todel == 0) {
 		for (unsigned subfolderNumber = 0; subfolderNumber < Chunk::kNumberOfSubfolders;
@@ -3506,8 +3445,6 @@ void hdd_term(void) {
 	Chunk *c,*cn;
 	dopchunk *dc,*dcn;
 	cntcond *cc,*ccn;
-	lostchunk *lc,*lcn;
-	damagedchunk *dmc,*dmcn;
 
 	zassert(pthread_attr_destroy(&thattr));
 	zassert(pthread_mutex_lock(&termlock));
@@ -3606,14 +3543,6 @@ void hdd_term(void) {
 			zassert(pthread_cond_destroy(&(cc->cond)));
 		}
 		free(cc);
-	}
-	for (lc=lostchunks ; lc ; lc=lcn) {
-		lcn = lc->next;
-		free(lc);
-	}
-	for (dmc=damagedchunks ; dmc ; dmc=dmcn) {
-		dmcn = dmc->next;
-		free(dmc);
 	}
 }
 

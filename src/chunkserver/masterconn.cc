@@ -195,18 +195,17 @@ void masterconn_check_hdd_reports() {
 			errorcounter--;
 		}
 
-		MooseFSVector<uint64_t> chunks;
-		hdd_get_damaged_chunks(chunks);
-		if (!chunks.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_DAMAGED, chunks);
+		std::vector<ChunkWithType> chunks_with_type;
+		hdd_get_damaged_chunks(chunks_with_type, 1000);
+		if (!chunks_with_type.empty()) {
+			masterconn_create_attached_packet(eptr, cstoma::chunkDamaged::build(chunks_with_type));
 		}
 
-		chunks.clear();
-		// FIXME use chunkIdWithType instead of chunkId for reporting lost chunks
-		hdd_get_lost_chunks(chunks, LOSTCHUNKLIMIT);
-		if (!chunks.empty()) {
-			masterconn_create_attached_moosefs_packet(eptr, CSTOMA_CHUNK_LOST, chunks);
+		hdd_get_lost_chunks(chunks_with_type, 1000);
+		if (!chunks_with_type.empty()) {
+			masterconn_create_attached_packet(eptr, cstoma::chunkLost::build(chunks_with_type));
 		}
+
 		std::vector<ChunkWithVersionAndType> chunksWithVersionAndType;
 		hdd_get_new_chunks(chunksWithVersionAndType);
 		size_t firstIndexToBeSent = 0;
