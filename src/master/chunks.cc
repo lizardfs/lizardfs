@@ -1686,18 +1686,18 @@ void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t ver
 	c->addCopy(ptr, state, new_version, chunkType);
 }
 
-void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
+void chunk_damaged(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunk_type) {
 	chunk *c;
 	c = chunk_find(chunkid);
-	if (c==NULL) {
+	if (c == NULL) {
 		// syslog(LOG_WARNING,"chunkserver has nonexistent chunk (%016" PRIX64 "), so create it for future deletion",chunkid);
-		if (chunkid>=gChunksMetadata->nextchunkid) {
-			gChunksMetadata->nextchunkid=chunkid+1;
+		if (chunkid >= gChunksMetadata->nextchunkid) {
+			gChunksMetadata->nextchunkid = chunkid + 1;
 		}
 		c = chunk_new(chunkid, 0);
 	}
 	for (slist *s=c->slisthead ; s ; s=s->next) {
-		if (s->ptr==ptr) {
+		if (s->ptr == ptr && s->chunkType == chunk_type) {
 			c->invalidateCopy(s);
 			c->needverincrease=1;
 			return;
@@ -1707,18 +1707,18 @@ void chunk_damaged(matocsserventry *ptr,uint64_t chunkid) {
 	c->needverincrease=1;
 }
 
-void chunk_lost(matocsserventry *ptr,uint64_t chunkid) {
+void chunk_lost(matocsserventry *ptr,uint64_t chunkid, ChunkPartType chunk_type) {
 	chunk *c;
 	slist **sptr,*s;
 	c = chunk_find(chunkid);
-	if (c==NULL) {
+	if (c == nullptr) {
 		return;
 	}
 	sptr=&(c->slisthead);
-	while ((s=*sptr)) {
-		if (s->ptr==ptr) {
+	while ((s = *sptr)) {
+		if (s->ptr == ptr && s->chunkType == chunk_type) {
 			c->unlinkCopy(s, sptr);
-			c->needverincrease=1;
+			c->needverincrease = 1;
 		} else {
 			sptr = &(s->next);
 		}

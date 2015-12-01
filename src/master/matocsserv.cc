@@ -1321,6 +1321,12 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 	uint64_t chunkid;
 	uint32_t i;
 
+	if (eptr->version >= kFirstXorVersion) {
+		lzfs_pretty_syslog(LOG_ERR, "Can't properly mark damaged chunks from chunkserver "
+		"(%s:%" PRIu16 "). Please upgrade it to latest version.", eptr->servstrip, eptr->servport);
+		return;
+	}
+
 	if (length%8!=0) {
 		syslog(LOG_NOTICE,"CSTOMA_CHUNK_DAMAGED - wrong size (%" PRIu32 "/N*8)",length);
 		eptr->mode=KILL;
@@ -1331,14 +1337,27 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " is damaged",eptr->servstrip,eptr->servport,chunkid);
-		chunk_damaged(eptr,chunkid);
+		chunk_damaged(eptr, chunkid, slice_traits::standard::ChunkPartType());
+	}
+}
+
+void matocsserv_liz_chunk_damaged(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	std::vector<ChunkWithType> chunks;
+	cstoma::chunkDamaged::deserialize(data, chunks);
+	for (const auto& chunk : chunks) {
+		chunk_damaged(eptr, chunk.id, chunk.type);
 	}
 }
 
 void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
 	uint32_t i;
+
+	if (eptr->version >= kFirstXorVersion) {
+		lzfs_pretty_syslog(LOG_ERR, "Can't properly mark lost chunks from chunkserver "
+		"(%s:%" PRIu16 "). Please upgrade it to latest version.", eptr->servstrip, eptr->servport);
+		return;
+	}
 
 	if (length%8!=0) {
 		syslog(LOG_NOTICE,"CSTOMA_CHUNK_LOST - wrong size (%" PRIu32 "/N*8)",length);
@@ -1350,8 +1369,15 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 	}
 	for (i=0 ; i<length/8 ; i++) {
 		chunkid = get64bit(&data);
-//              syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk lost: %016" PRIX64,eptr->servstrip,eptr->servport,chunkid);
-		chunk_lost(eptr,chunkid);
+		chunk_lost(eptr, chunkid, slice_traits::standard::ChunkPartType());
+	}
+}
+
+void matocsserv_liz_chunks_lost(matocsserventry *eptr, const std::vector<uint8_t>& data) {
+	std::vector<ChunkWithType> chunks;
+	cstoma::chunkLost::deserialize(data, chunks);
+	for (const auto& chunk : chunks) {
+		chunk_lost(eptr, chunk.id, chunk.type);
 	}
 }
 
@@ -1454,6 +1480,12 @@ void matocsserv_gotpacket(matocsserventry *eptr, PacketHeader header, const Mess
 			case CSTOMA_DUPTRUNC:
 			case LIZ_CSTOMA_DUPTRUNC_CHUNK:
 				matocsserv_got_duptruncchunk_status(eptr, data);
+				break;
+			case LIZ_CSTOMA_CHUNK_DAMAGED:
+				matocsserv_liz_chunk_damaged(eptr, data);
+				break;
+			case LIZ_CSTOMA_CHUNK_LOST:
+				matocsserv_liz_chunks_lost(eptr, data);
 				break;
 			case LIZ_CSTOMA_CHUNK_NEW:
 				matocsserv_liz_chunk_new(eptr, data);

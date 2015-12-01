@@ -25,8 +25,9 @@
 #include "common/chunk_part_type.h"
 #include "common/chunk_with_version.h"
 #include "common/chunk_with_version_and_type.h"
-#include "protocol/packet.h"
 #include "common/serialization_macros.h"
+#include "protocol/chunks_with_type.h"
+#include "protocol/packet.h"
 
 namespace cstoma {
 inline void overwriteStatusField(std::vector<uint8_t>& destination, uint8_t status) {
@@ -112,3 +113,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		ChunkPartType, chunkType,
 		uint8_t,   status, // status has to be third field to make overwriteStatusField work!!!
 		uint32_t,  chunkVersion)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, chunkDamaged, LIZ_CSTOMA_CHUNK_DAMAGED, 0,
+		std::vector<ChunkWithType>, chunks)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, chunkLost, LIZ_CSTOMA_CHUNK_LOST, 0,
+		std::vector<ChunkWithType>, chunks)

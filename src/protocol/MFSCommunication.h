@@ -501,10 +501,6 @@ enum class SugidClearMode {
 #define LIZ_CSTOMA_REGISTER_LABEL (1000U + 103U)
 /// label:STDSTRING
 
-// 0x0453
-#define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
-/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
-
 // 0x0065
 #define CSTOMA_SPACE (PROTO_BASE+101)
 /// usedspace:64 totalspace:64
@@ -514,6 +510,10 @@ enum class SugidClearMode {
 // 0x0066
 #define CSTOMA_CHUNK_DAMAGED (PROTO_BASE+102)
 /// chunks:(N * [chunkid:64])
+
+// 0x044E
+#define LIZ_CSTOMA_CHUNK_DAMAGED (1000U + 104U)
+/// chunks:(N * [chunkid:64 chunktype:8])
 
 // 0x0067
 // #define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
@@ -528,6 +528,10 @@ enum class SugidClearMode {
 #define CSTOMA_CHUNK_LOST (PROTO_BASE+105)
 /// chunks:(N * [chunkid:64])
 
+// 0x0451
+#define LIZ_CSTOMA_CHUNK_LOST (1000U + 105U)
+// chunks:(N * [chunkid:64 chunktype:8])
+
 // 0x006A
 #define CSTOMA_ERROR_OCCURRED (PROTO_BASE+106)
 /// -
@@ -535,6 +539,10 @@ enum class SugidClearMode {
 // 0x006B
 #define CSTOMA_CHUNK_NEW (PROTO_BASE+107)
 /// chunks:(N * [chunkid:64 chunkversion:32])
+
+// 0x0453
+#define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
+/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
 
 // 0x006E
 #define MATOCS_CREATE (PROTO_BASE+110)
