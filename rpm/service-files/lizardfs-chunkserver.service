@@ -1,6 +1,7 @@
 [Unit]
 Description=LizardFS chunkserver daemon
-After=syslog.target network.target
+Documentation=man:mfschunkserver
+After=network.target
 
 [Service]
 Type=forking
