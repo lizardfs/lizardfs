@@ -511,7 +511,7 @@ enum class SugidClearMode {
 #define CSTOMA_CHUNK_DAMAGED (PROTO_BASE+102)
 /// chunks:(N * [chunkid:64])
 
-// 0x044E
+// 0x0450
 #define LIZ_CSTOMA_CHUNK_DAMAGED (1000U + 104U)
 /// chunks:(N * [chunkid:64 chunktype:8])
 

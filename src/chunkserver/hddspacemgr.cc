@@ -98,8 +98,6 @@
 
 #define CHUNKLOCKED ((void*)1)
 
-typedef std::vector<ChunkWithVersionAndType> NewChunks;
-
 typedef struct dopchunk {
 	uint64_t chunkid;
 	ChunkPartType type;
@@ -135,7 +133,7 @@ static dopchunk *newdopchunks = NULL;
 // master reports
 static std::deque<ChunkWithType> gDamagedChunks;
 static std::deque<ChunkWithType> gLostChunks;
-static std::list<NewChunks> gNewChunks;
+static std::deque<ChunkWithVersionAndType> gNewChunks;
 static uint32_t errorcounter = 0;
 static int hddspacechanged = 0;
 
@@ -224,21 +222,15 @@ void hdd_get_lost_chunks(std::vector<ChunkWithType>& buffer, std::size_t limit) 
 void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkPartType type) {
 	TRACETHIS();
 	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
-	if (gNewChunks.empty() || gNewChunks.back().size() >= NEWCHUNKSBLOCKSIZE) {
-		gNewChunks.push_back(NewChunks());
-		gNewChunks.back().reserve(NEWCHUNKSBLOCKSIZE);
-	}
-	gNewChunks.back().push_back(ChunkWithVersionAndType(chunkid, version, type));
+	gNewChunks.push_back(ChunkWithVersionAndType(chunkid, version, type));
 }
 
-void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& chunks) {
+void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& buffer, std::size_t limit) {
 	TRACETHIS();
 	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
-	sassert(chunks.empty());
-	if (!gNewChunks.empty()) {
-		chunks.swap(gNewChunks.front());
-		gNewChunks.pop_front();
-	}
+	std::size_t size = std::min(gNewChunks.size(), limit);
+	buffer.assign(gNewChunks.begin(), gNewChunks.begin() + size);
+	gNewChunks.erase(gNewChunks.begin(), gNewChunks.begin() + size);
 }
 
 uint32_t hdd_errorcounter(void) {
