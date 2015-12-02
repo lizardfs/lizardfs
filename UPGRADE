@@ -1,5 +1,10 @@
 This file contains some important notes on upgrade process.
 
+* Upgrading to LizardFS 3.9.4:
+    Direct upgrade is possible from LizardFS 3.9.2 and LizardFS 2.6.0.
+    - 3.9.2 chunkservers need to be upgraded ASAP due to protocol changes
+    - See upgrade notes for LizardFS 3.9.2
+
 * Upgrading to LizardFS 3.9.2:
 
     Direct upgrade is possible from LizardFS 2.6.0.

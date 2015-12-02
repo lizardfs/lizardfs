@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        3.9.3
+Version:        3.9.4
 Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -450,8 +450,16 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Wed Oct 28 2015 Łukasz Pietrzak <contact@lizardfs.org> - 3.9.3
-- (none) None
+* Wed Dec 2 2015 Piotr Sarna <contact@lizardfs.org> - 3.9.4
+- (master) Removed master server overload on restarting chunkservers
+- (master) Improved global file locks engine
+- (chunkserver) Fixed leaking descriptors problem
+- (chunkserver) Improved mechanism of moving chunks to new directory layout
+- (chunkserver) Fixed issues related to scanning directories with new chunk format present
+- (mount) Removed hang in mount when chunkserver reported no valid copies of a file
+- (master) Changed handling of legacy (pre-3.9.2) chunkservers in new installations
+- (cgi) Added XOR replication to statistics
+- (all) Removed default linking to tcmalloc library due to performance drop
 
 * Fri Oct 23 2015 Piotr Sarna <contact@lizardfs.org> - 3.9.2
 - (all) Introduced XOR goal types

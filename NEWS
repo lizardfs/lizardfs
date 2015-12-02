@@ -1,5 +1,16 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.9.4) (2015-12-02)
+  - (master) Removed master server overload on restarting chunkservers
+  - (master) Improved global file locks engine
+  - (chunkserver) Fixed leaking descriptors problem
+  - (chunkserver) Improved mechanism of moving chunks to new directory layout
+  - (chunkserver) Fixed issues related to scanning directories with new chunk format present
+  - (mount) Removed hang in mount when chunkserver reported no valid copies of a file
+  - (master) Changed handling of legacy (pre-3.9.2) chunkservers in new installations
+  - (cgi) Added XOR replication to statistics
+  - (all) Removed default linking to tcmalloc library due to performance drop
+
  * Lizardfs (3.9.2) (2015-10-23)
 
   - (all) Introduced XOR goal types
