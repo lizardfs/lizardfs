@@ -2180,9 +2180,9 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 		}
 
 		// Get a list of possible destination servers
-		int total_matching, returned_matching;
+		int total_matching, returned_matching, temporarily_unavailable;
 		matocsserv_getservers_lessrepl(label_and_count.first, MaxWriteRepl, servers,
-		                               total_matching, returned_matching);
+		                               total_matching, returned_matching, temporarily_unavailable);
 
 		// Find a destination server for replication -- the first one without a copy of 'c'
 		matocsserventry *destination = nullptr;
@@ -2198,8 +2198,14 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 		}
 
 		// If destination was not found, use a backup one, i.e. server where
-		// there is a copy of this chunk, but from different slice
-		destination = destination ? destination : backup_destination;
+		// there is a copy of this chunk, but from different slice.
+		// Do it only if there are no available chunkservers in the system,
+		// not if they merely reached their replication limit.
+		if (destination == nullptr && temporarily_unavailable == 0) {
+			// there are no servers which are expected to be available soon,
+			// so backup server must be used
+			destination = backup_destination;
+		}
 
 		if (destination == nullptr) {
 			// there is no server suitable for replication to be written to

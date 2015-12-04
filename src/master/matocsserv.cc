@@ -513,10 +513,12 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 	return ret;
 }
 
-void matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicationWriteLimit,
-		std::vector<matocsserventry*>& servers, int& totalMatching, int& returnedMatching) {
-	totalMatching = 0;
-	returnedMatching = 0;
+void matocsserv_getservers_lessrepl(const MediaLabel &label, uint16_t replication_write_limit,
+		std::vector<matocsserventry*> &servers, int &total_matching, int &returned_matching,
+		int &temporarily_unavailable) {
+	total_matching = 0;
+	returned_matching = 0;
+	temporarily_unavailable = 0;
 	servers.clear();
 	for (matocsserventry* eptr = matocsservhead; eptr; eptr = eptr->next) {
 		if (eptr->mode == KILL
@@ -528,18 +530,20 @@ void matocsserv_getservers_lessrepl(const MediaLabel& label, uint16_t replicatio
 		}
 		bool matchesRequestedLabel = false;
 		if (label != MediaLabel::kWildcard && eptr->label == label) {
-			++totalMatching;
+			++total_matching;
 			matchesRequestedLabel = true;
 		}
-		if (eptr->wrepcounter < replicationWriteLimit) {
+		if (eptr->wrepcounter < replication_write_limit) {
 			servers.push_back(eptr);
 			if (matchesRequestedLabel) {
-				++returnedMatching;
+				++returned_matching;
 			}
+		} else {
+			temporarily_unavailable++;
 		}
 	}
 	std::random_shuffle(servers.begin(), servers.end());
-	if (returnedMatching > 0) {
+	if (returned_matching > 0) {
 		// Move servers matching the requested label to the front of the servers array
 		std::partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
 			return cs->label == label;
