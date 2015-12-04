@@ -2035,6 +2035,15 @@ void ChunkWorker::doEverySecondTasks() {
 	}
 }
 
+static bool chunkPresentOnServer(chunk *c, matocsserventry *server) {
+	for (slist *s = c->slisthead; s; s = s->next) {
+		if (s->ptr == server) {
+			return true;
+		}
+	}
+	return false;
+}
+
 static bool chunkPresentOnServer(chunk *c, Goal::Slice::Type slice_type, matocsserventry *server) {
 	for (slist *s = c->slisthead; s; s = s->next) {
 		if (s->ptr == server && s->chunkType.getSliceType() == slice_type) {
@@ -2177,12 +2186,20 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 
 		// Find a destination server for replication -- the first one without a copy of 'c'
 		matocsserventry *destination = nullptr;
+		matocsserventry *backup_destination = nullptr;
 		for (const auto &server : servers) {
-			if (!chunkPresentOnServer(c, slice_type, server)) {
+			if (!chunkPresentOnServer(c, server)) {
 				destination = server;
 				break;
 			}
+			if (backup_destination == nullptr && !chunkPresentOnServer(c, slice_type, server)) {
+				backup_destination = server;
+			}
 		}
+
+		// If destination was not found, use a backup one, i.e. server where
+		// there is a copy of this chunk, but from different slice
+		destination = destination ? destination : backup_destination;
 
 		if (destination == nullptr) {
 			// there is no server suitable for replication to be written to
