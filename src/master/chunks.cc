@@ -35,12 +35,14 @@
 #include "common/chunks_availability_state.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
+#include "common/flat_set.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/slice_traits.h"
+#include "common/small_vector.h"
 #include "protocol/MFSCommunication.h"
 #include "master/checksum.h"
 #include "master/chunk_copies_calculator.h"
@@ -2388,10 +2390,21 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 	int invalid_parts = 0;
 	ChunkCopiesCalculator calc(c->getGoal());
 
+	// Chunk is in degenerate state if it has more than 1 part
+	// on the same chunkserver (i.e. 1 std and 1 xor)
+	// TODO(sarna): this flat_set should be removed after
+	// 'slists' are rewritten to use sensible data structures
+	bool degenerate = false;
+	flat_set<matocsserventry *, small_vector<matocsserventry *, 64>> servers;
+
 	// step 1. calculate number of valid and invalid copies
 	for (slist *s = c->slisthead; s; s = s->next) {
 		if (s->is_valid()) {
 			calc.addPart(s->chunkType, matocsserv_get_label(s->ptr));
+			if (!degenerate) {
+				degenerate = servers.count(s->ptr) > 0;
+				servers.insert(s->ptr);
+			}
 		} else {
 			++invalid_parts;
 		}
@@ -2446,6 +2459,11 @@ void ChunkWorker::doChunkJobs(chunk *c, uint16_t serverCount) {
 				return;
 			}
 		}
+	}
+
+	// Do not remove any parts if more than 1 part resides on 1 chunkserver
+	if (degenerate && calc.countPartsToRecover() > 0) {
+		return;
 	}
 
 	// step 8. if chunk has too many copies then delete some of them
