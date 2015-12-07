@@ -83,8 +83,6 @@ void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkPartTy
 void chunk_got_replicate_status(matocsserventry *ptr, uint64_t chunkId, uint32_t chunkVersion,
 		ChunkPartType chunkType, uint8_t status);
 
-void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status);
-
 void chunk_got_create_status(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunkType, uint8_t status);
 void chunk_got_duplicate_status(matocsserventry *ptr, uint64_t chunkId, ChunkPartType chunkType, uint8_t status);
 void chunk_got_setversion_status(matocsserventry *ptr, uint64_t chunkId, ChunkPartType chunkType, uint8_t status);

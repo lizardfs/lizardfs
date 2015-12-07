@@ -26,32 +26,6 @@
 #include "common/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 
-namespace {
-
-class IsNotXorLevel {
-public:
-	IsNotXorLevel(int level, bool acceptParity = true)
-			: level_(level),
-			  acceptParity_(acceptParity) {
-	}
-
-	bool operator()(ChunkPartType part_type) {
-		if (!slice_traits::isXor(part_type) || slice_traits::xors::getXorLevel(part_type) != level_) {
-			return true;
-		}
-		if (!acceptParity_ && slice_traits::xors::isXorParity(part_type)) {
-			return true;
-		}
-		return false;
-	}
-
-private:
-	int  level_;
-	bool acceptParity_;
-};
-
-} // anonymous namespace
-
 class StandardChunkReadPlanner::StandardPlanBuilder : public StandardChunkReadPlanner::PlanBuilder {
 public:
 	StandardPlanBuilder(): PlanBuilder(BUILDER_STANDARD) {}

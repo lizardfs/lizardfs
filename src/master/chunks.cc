@@ -1505,28 +1505,6 @@ const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOn
 			chunk::allChunksAvailability;
 }
 
-typedef struct locsort {
-	uint32_t ip;
-	uint16_t port;
-	uint32_t dist;
-	uint32_t rnd;
-} locsort;
-
-int chunk_locsort_cmp(const void *aa,const void *bb) {
-	const locsort *a = (const locsort*)aa;
-	const locsort *b = (const locsort*)bb;
-	if (a->dist<b->dist) {
-		return -1;
-	} else if (a->dist>b->dist) {
-		return 1;
-	} else if (a->rnd<b->rnd) {
-		return -1;
-	} else if (a->rnd>b->rnd) {
-		return 1;
-	}
-	return 0;
-}
-
 struct ChunkLocation {
 	ChunkLocation() : chunkType(slice_traits::standard::ChunkPartType()),
 			distance(0), random(0) {
@@ -1878,16 +1856,6 @@ void chunk_operation_status(chunk *c, ChunkPartType chunkType, uint8_t status,ma
 			c->operation=NONE;
 		}
 	}
-}
-
-void chunk_got_chunkop_status(matocsserventry *ptr,uint64_t chunkid,uint8_t status) {
-	chunk *c;
-	c = chunk_find(chunkid);
-	if (c==NULL) {
-		return ;
-	}
-	// FIXME(Wajcha) We probably should taken into account more than standard slice type.
-	chunk_operation_status(c, slice_traits::standard::ChunkPartType(), status, ptr);
 }
 
 void chunk_got_create_status(matocsserventry *ptr,uint64_t chunkId, ChunkPartType chunkType, uint8_t status) {

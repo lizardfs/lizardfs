@@ -371,22 +371,6 @@ void matocsserv_replication_disconnected(matocsserventry *srv) {
 }
 
 /* replication DB END */
-
-struct servsort {
-  double space;
-  matocsserventry *ptr;
-};
-int matocsserv_space_compare(const void *a,const void *b) {
-  const servsort *aa=(const servsort*)a,*bb=(const servsort*)b;
-	if (aa->space > bb->space) {
-		return 1;
-	}
-	if (aa->space < bb->space) {
-		return -1;
-	}
-	return 0;
-}
-
 void matocsserv_usagedifference(double *minusage,double *maxusage,uint16_t *usablescount,uint16_t *totalscount) {
 	matocsserventry *eptr;
 	uint32_t j,k;
@@ -639,17 +623,6 @@ uint8_t* matocsserv_createpacket(matocsserventry *eptr,uint32_t type,uint32_t si
 	return eptr->outputPackets.back().packet.data() + PacketHeader::kSize;
 }
 
-/* for future use */
-int matocsserv_send_chunk_checksum(matocsserventry *eptr,uint64_t chunkid,uint32_t version) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,ANTOCS_CHUNK_CHECKSUM,8+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-	}
-	return 0;
-}
 /* for future use */
 void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint64_t chunkid;
@@ -981,49 +954,6 @@ void matocsserv_got_duptruncchunk_status(matocsserventry* eptr, const std::vecto
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %" PRIu8
 				" duplication with truncate status: %s", eptr->servstrip, eptr->servport,
 				chunkId, chunkType.getId(), mfsstrerr(status));
-	}
-}
-
-int matocsserv_send_chunkop(matocsserventry *eptr,uint64_t chunkid,uint32_t version,uint32_t newversion,uint64_t copychunkid,uint32_t copyversion,uint32_t leng) {
-	uint8_t *data;
-
-	if (eptr->mode!=KILL) {
-		data = matocsserv_createpacket(eptr,MATOCS_CHUNKOP,8+4+4+8+4+4);
-		put64bit(&data,chunkid);
-		put32bit(&data,version);
-		put32bit(&data,newversion);
-		put64bit(&data,copychunkid);
-		put32bit(&data,copyversion);
-		put32bit(&data,leng);
-	}
-	return 0;
-}
-
-void matocsserv_got_chunkop_status(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint64_t chunkid,copychunkid;
-	uint32_t version,newversion,copyversion,leng;
-	uint8_t status;
-	if (length!=8+4+4+8+4+4+1) {
-		syslog(LOG_NOTICE,"CSTOMA_CHUNKOP - wrong size (%" PRIu32 "/33)",length);
-		eptr->mode=KILL;
-		return;
-	}
-	passert(data);
-	chunkid = get64bit(&data);
-	version = get32bit(&data);
-	newversion = get32bit(&data);
-	copychunkid = get64bit(&data);
-	copyversion = get32bit(&data);
-	leng = get32bit(&data);
-	status = get8bit(&data);
-	if (newversion!=version) {
-		chunk_got_chunkop_status(eptr,chunkid,status);
-	}
-	if (copychunkid>0) {
-		chunk_got_chunkop_status(eptr,copychunkid,status);
-	}
-	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunkop(%016" PRIX64 ",%08" PRIX32 ",%08" PRIX32 ",%016" PRIX64 ",%08" PRIX32 ",%" PRIu32 ") status: %s",eptr->servstrip,eptr->servport,chunkid,version,newversion,copychunkid,copyversion,leng,mfsstrerr(status));
 	}
 }
 
