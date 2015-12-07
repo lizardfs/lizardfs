@@ -30,11 +30,12 @@
 #include "protocol/packet.h"
 
 namespace cstoma {
-inline void overwriteStatusField(std::vector<uint8_t>& destination, uint8_t status) {
+inline void overwriteStatusField(std::vector<uint8_t> &destination, uint8_t status) {
 	// 9 - sizeof chunkId + chunkType, 1 - sizeof status
-	uint32_t statusOffset = PacketHeader::kSize + serializedSize(PacketVersion()) + 9;
+	uint32_t statusOffset = PacketHeader::kSize + serializedSize(PacketVersion()) +
+	                        sizeof(uint64_t) + serializedSize(ChunkPartType());
 	sassert(destination.size() >= statusOffset + 1);
-	destination[PacketHeader::kSize + sizeof(PacketVersion) + 9] = status;
+	destination[statusOffset] = status;
 }
 } // namespace cstoma
 

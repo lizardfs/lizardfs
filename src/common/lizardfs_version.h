@@ -40,4 +40,4 @@ constexpr uint32_t kDisconnectedChunkserverVersion = lizardfsVersion(256, 0, 0);
 
 // Definitions of milestone LizardFS versions
 constexpr uint32_t kFirstXorVersion = lizardfsVersion(2, 9, 0);
-
+constexpr uint32_t kFirstECVersion = lizardfsVersion(3, 9, 5);

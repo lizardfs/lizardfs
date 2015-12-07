@@ -294,22 +294,22 @@ TEST(ChunkCopiesCalculator, getRemovePool) {
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
 	cccp.optimize();
-	// goalname: $xor4 {A B A B B}
+	// target: $xor4 {B A B A B}
 	Goal::Slice::Labels labels;
 
 	labels = cccp.getRemovePool(sneakyPartType(kXor4), 0);
-	ASSERT_EQ(labels.size(), 0U);
+	ASSERT_EQ(labels.size(), 1U);
+	ASSERT_EQ(labels[MediaLabel("A")], 1);
 
 	labels = cccp.getRemovePool(sneakyPartType(kXor4), 1);
-	ASSERT_EQ(labels.size(), 1U);
-	ASSERT_EQ(labels[MediaLabel("A")], 1);
-
-	labels = cccp.getRemovePool(sneakyPartType(kXor4), 2);
 	ASSERT_EQ(labels.size(), 0U);
 
-	labels = cccp.getRemovePool(sneakyPartType(kXor4), 3);
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 2);
 	ASSERT_EQ(labels.size(), 1U);
 	ASSERT_EQ(labels[MediaLabel("A")], 1);
+
+	labels = cccp.getRemovePool(sneakyPartType(kXor4), 3);
+	ASSERT_EQ(labels.size(), 0U);
 
 	labels = cccp.getRemovePool(sneakyPartType(kXor4), 4);
 	ASSERT_EQ(labels.size(), 2U);
@@ -338,11 +338,11 @@ TEST(ChunkCopiesCalculator, countPartsToMove) {
 	cccp.updateState(sneakyPartType(kXor4));
 
 	cccp.optimize();
-	// goalname = $xor5 {C B A B A}
+	// target: $xor4 {A B B C A}
 
-	ASSERT_EQ(std::make_pair(0, 0), cccp.countPartsToMove(sneakyPartType(kXor4), 0));
+	ASSERT_EQ(std::make_pair(1, 1), cccp.countPartsToMove(sneakyPartType(kXor4), 0));
 	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 1));
 	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 2));
-	ASSERT_EQ(std::make_pair(1, 1), cccp.countPartsToMove(sneakyPartType(kXor4), 3));
+	ASSERT_EQ(std::make_pair(0, 0), cccp.countPartsToMove(sneakyPartType(kXor4), 3));
 	ASSERT_EQ(std::make_pair(0, 2), cccp.countPartsToMove(sneakyPartType(kXor4), 4));
 }

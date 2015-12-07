@@ -26,10 +26,10 @@
 #include "common/linear_assignment_optimizer.h"
 #include "common/massert.h"
 
-const int Goal::Slice::Type::kTypeParts[Goal::Slice::Type::kTypeCount] = {
+const int Goal::Slice::Type::kTypeParts[Goal::Slice::Type::kECFirst] = {
 	1, 1, 3, 4, 5, 6, 7, 8, 9, 10};
 
-const std::array<std::string, Goal::Slice::Type::kTypeCount> Goal::Slice::Type::kTypeNames = {{
+const std::array<std::string, Goal::Slice::Type::kECFirst> Goal::Slice::Type::kTypeNames = {{
 	"std",
 	"tape",
 	"xor2",
@@ -85,7 +85,7 @@ void Goal::Slice::mergeIn(const Slice &other) {
 	for (const auto &local_part : static_cast<const Goal::Slice&>(*this)) {
 		makeLabelsUnion(tmp_union, local_part, other[assignment[i]]);
 		result.insert(result.end(), tmp_union.begin(), tmp_union.end());
-		result_size[i] = tmp_union.size();
+		result_size.push_back(tmp_union.size());
 		++i;
 	}
 

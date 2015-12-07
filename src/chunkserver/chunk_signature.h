@@ -33,6 +33,7 @@ public:
 	static const size_t kChunkIdOffset = kSignatureIdOffset + kSignatureIdSize;
 	static const size_t kVersionOffset = kChunkIdOffset + sizeof(uint64_t);
 	static const size_t kChunkTypeOffset = kVersionOffset + sizeof(uint32_t);
+	static const size_t kSignatureSize = kChunkTypeOffset + sizeof(ChunkPartType);
 
 	// Constructs a signature that can be initialized using readFromDescriptor
 	ChunkSignature();
@@ -71,6 +72,9 @@ public:
 	static const char kMfsSignatureId[];
 
 	// Signature ID of chunks created by LizardFS versions with xor support
+	static const char kLizSignatureId10[];
+
+	// Signature ID of chunks created by LizardFS versions with ec support
 	static const char kLizSignatureId[];
 
 private:

@@ -26,7 +26,8 @@
 #include "protocol/MFSCommunication.h"
 
 const char ChunkSignature::kMfsSignatureId[] = MFSSIGNATURE "C 1.0";
-const char ChunkSignature::kLizSignatureId[] = "LIZC 1.0";
+const char ChunkSignature::kLizSignatureId10[] = "LIZC 1.0";
+const char ChunkSignature::kLizSignatureId[] = "LIZC 1.1";
 
 ChunkSignature::ChunkSignature()
 		: chunkId_(0),
@@ -43,10 +44,9 @@ ChunkSignature::ChunkSignature(uint64_t chunkId, uint32_t chunkVersion, ChunkPar
 }
 
 bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
-	const ssize_t maxSignatureSize = kSignatureIdSize + 13;
-	uint8_t buffer[maxSignatureSize];
-	ssize_t ret = pread(fd, buffer, maxSignatureSize, offset);
-	if (ret != maxSignatureSize) {
+	uint8_t buffer[kSignatureSize];
+	ssize_t ret = pread(fd, buffer, kSignatureSize, offset);
+	if (ret != (ssize_t)kSignatureSize) {
 		return false;
 	}
 
@@ -58,11 +58,19 @@ bool ChunkSignature::readFromDescriptor(int fd, off_t offset) {
 	// Check if signature is equal to kMfsSignatureId or kLizSignatureId
 	if (memcmp(buffer, kMfsSignatureId, kSignatureIdSize) == 0) {
 		hasValidSignatureId_ = true;
+	} else if (memcmp(buffer, kLizSignatureId10, kSignatureIdSize) == 0) {
+		hasValidSignatureId_ = true;
+		legacy::ChunkPartType legacy_chunk_type;
+		try {
+			::deserialize(ptr, sizeof(legacy::ChunkPartType), legacy_chunk_type);
+			chunkType_ = legacy_chunk_type;
+		} catch (Exception& ex) {
+			return false;
+		}
 	} else if (memcmp(buffer, kLizSignatureId, kSignatureIdSize) == 0) {
 		hasValidSignatureId_ = true;
-		uint8_t chunkTypeId = get8bit(&ptr);
 		try {
-			::deserialize(&chunkTypeId, sizeof(chunkTypeId), chunkType_);
+			::deserialize(ptr, sizeof(ChunkPartType), chunkType_);
 		} catch (Exception& ex) {
 			return false;
 		}
@@ -81,4 +89,3 @@ void ChunkSignature::serialize(uint8_t **destination) const {
 	*destination += kSignatureIdSize;
 	::serialize(destination, chunkId_, chunkVersion_, chunkType_);
 }
-

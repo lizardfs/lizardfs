@@ -64,6 +64,19 @@ inline bool isXor(const ::Goal::Slice &slice) {
 	return isXor(slice.getType());
 }
 
+inline bool isEC(Goal::Slice::Type type) {
+	int value = (int)type;
+	return value >= Goal::Slice::Type::kECFirst && value <= Goal::Slice::Type::kECLast;
+}
+
+inline bool isEC(const ::ChunkPartType &cpt) {
+	return isEC(cpt.getSliceType());
+}
+
+inline bool isEC(const ::Goal::Slice &slice) {
+	return isEC(slice.getType());
+}
+
 namespace standard {
 
 inline ::ChunkPartType ChunkPartType() {
@@ -125,9 +138,72 @@ inline bool isXorLevelValid(int level) {
 
 } // xors
 
+namespace ec {
+
+constexpr int kMinDataCount = 2;
+constexpr int kMaxDataCount = 32;
+constexpr int kMinParityCount = 1;
+constexpr int kMaxParityCount = 32;
+
+inline Goal::Slice::Type getSliceType(int data_count, int parity_count) {
+	return Goal::Slice::Type(32 * (data_count - kMinDataCount) + (parity_count - kMinParityCount) +
+	                         Goal::Slice::Type::kECFirst);
+}
+
+inline ::ChunkPartType ChunkPartType(int data_count, int parity_count, int part) {
+	assert(data_count >= kMinDataCount && data_count <= kMaxDataCount);
+	assert(parity_count >= kMinParityCount && parity_count <= kMaxParityCount);
+	return ::ChunkPartType(getSliceType(data_count, parity_count), part);
+}
+
+inline int getNumberOfDataParts(Goal::Slice::Type type) {
+	return kMinDataCount + ((int)type - (int)Goal::Slice::Type::kECFirst) / 32;
+}
+
+inline int getNumberOfDataParts(const ::ChunkPartType &cpt) {
+	return getNumberOfDataParts(cpt.getSliceType());
+}
+
+inline int getNumberOfDataParts(const ::Goal::Slice &slice) {
+	return getNumberOfDataParts(slice.getType());
+}
+
+inline int getNumberOfParityParts(Goal::Slice::Type type) {
+	return kMinParityCount + ((int)type - (int)Goal::Slice::Type::kECFirst) % 32;
+}
+
+inline int getNumberOfParityParts(const ::ChunkPartType &cpt) {
+	return getNumberOfParityParts(cpt.getSliceType());
+}
+
+inline int getNumberOfParityParts(const ::Goal::Slice &slice) {
+	return getNumberOfParityParts(slice.getType());
+}
+
+inline int getDataPartIndex(const ::ChunkPartType &cpt) {
+	return cpt.getSlicePart();
+}
+
+inline int getParityPartIndex(const ::ChunkPartType &cpt) {
+	return cpt.getSlicePart() - getNumberOfDataParts(cpt);
+}
+
+inline bool isDataPart(const ::ChunkPartType &cpt) {
+	return cpt.getSlicePart() < getNumberOfDataParts(cpt);
+}
+
+inline bool isParityPart(const ::ChunkPartType &cpt) {
+	return cpt.getSlicePart() >= getNumberOfDataParts(cpt);
+}
+
+} // ec
+
 inline bool isParityPart(const ::ChunkPartType &cpt) {
 	if (isXor(cpt)) {
 		return xors::isXorParity(cpt);
+	}
+	if (isEC(cpt)) {
+		return ec::isParityPart(cpt);
 	}
 	return false;
 }
@@ -139,6 +215,9 @@ inline bool isDataPart(const ::ChunkPartType &cpt) {
 inline int getNumberOfDataParts(const ::Goal::Slice::Type &type) {
 	if (isXor(type)) {
 		return xors::getXorLevel(type);
+	}
+	if (isEC(type)) {
+		return ec::getNumberOfDataParts(type);
 	}
 	return 1;
 }
@@ -154,6 +233,9 @@ inline int getNumberOfDataParts(const Goal::Slice &slice) {
 inline int getNumberOfParityParts(const ::Goal::Slice::Type &type) {
 	if (isXor(type)) {
 		return 1;
+	}
+	if (isEC(type)) {
+		return ec::getNumberOfParityParts(type);
 	}
 	return 0;
 }
@@ -190,10 +272,13 @@ inline int getDataPartIndex(const ::ChunkPartType &cpt) {
 	if (isXor(cpt)) {
 		return cpt.getSlicePart() - 1;
 	}
-	return 0;
+	return cpt.getSlicePart();
 }
 
-inline int getParityPartIndex(const ::ChunkPartType &) {
+inline int getParityPartIndex(const ::ChunkPartType &cpt) {
+	if (isEC(cpt)) {
+		return ec::getParityPartIndex(cpt);
+	}
 	return 0;
 }
 

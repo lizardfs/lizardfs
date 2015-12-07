@@ -114,9 +114,12 @@ public:
 	       kXor6,
 	       kXor7,
 	       kXor8,
-	       kXor9 };
+	       kXor9,
+	       kECFirst = 10, // first erasure code slice type ($ec(2,1))
+	       kECLast = kECFirst + (31*32 - 1) // last erasure code type ($ec(32,32))
+	};
 
-	static const int kTypeCount = 10;
+	static const int kTypeCount = kECLast + 1;
 
 	explicit SliceType(int value) : value_(value) {
 	}
@@ -144,11 +147,17 @@ public:
 
 	int expectedParts() const {
 		assert(isValid());
-		return kTypeParts[value_];
+		return value_ < kECFirst ? kTypeParts[value_] : 3 + (value_ - kECFirst) / 32 +
+		                                                         (value_ - kECFirst) % 32;
 	}
 
 	std::string toString() const {
 		assert(isValid());
+		if (value_ >= kECFirst) {
+			int k = 2 + (value_ - kECFirst) / 32;
+			int m = 1 + (value_ - kECFirst) % 32;
+			return "ec(" + std::to_string(k) + "," + std::to_string(m) + ")";
+		}
 		return kTypeNames[value_];
 	}
 
@@ -161,8 +170,8 @@ private:
 		return value >= kStandard && value < kTypeCount;
 	}
 
-	static const int kTypeParts[kTypeCount];
-	static const std::array<std::string, kTypeCount> kTypeNames;
+	static const int kTypeParts[kECFirst];
+	static const std::array<std::string, kECFirst> kTypeNames;
 
 	int value_;
 };
@@ -282,12 +291,11 @@ protected:
  */
 class Slice {
 public:
-	// WARNING: Changing this value can cause a breakage of metadata backward compatibility.
-	static constexpr int kMaxPartsCount = 11;
+	static constexpr int kMaxPartsCount = 64;
 
 	typedef detail::SliceType Type;
-	typedef small_vector<std::pair<MediaLabel, uint16_t>, 12> DataContainer;
-	typedef std::array<uint16_t, kMaxPartsCount> SizeContainer;
+	typedef small_vector<std::pair<MediaLabel, uint16_t>, 32> DataContainer;
+	typedef small_vector<uint16_t, 32> SizeContainer;
 	typedef flat_map<MediaLabel, uint16_t, DataContainer> Labels;
 	typedef flat_map<MediaLabel, uint16_t,
 	                 vector_range<DataContainer, SizeContainer::value_type>> PartProxy;
@@ -297,7 +305,7 @@ public:
 	typedef SliceIterator<ConstPartProxy, const DataContainer, const SizeContainer> const_iterator;
 
 	/// Constructor based on type
-	explicit Slice(Type type) noexcept : type_(std::move(type)), part_size_(), data_() {
+	explicit Slice(Type type) noexcept : type_(type), part_size_(type.expectedParts(), 0), data_() {
 	}
 
 	Slice(const Slice &other)
@@ -472,7 +480,7 @@ public:
 	typedef SliceContainer::const_iterator const_iterator;
 
 	/*! \brief  Maximum number of copies a goal can require. */
-	static constexpr uint32_t kMaxExpectedCopies = 30;
+	static constexpr uint32_t kMaxExpectedCopies = 128;
 
 	Goal() = default;
 

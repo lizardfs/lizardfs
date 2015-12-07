@@ -47,7 +47,7 @@ TEST(ChunkTypeTests, SerializeDeserialize) {
 }
 
 TEST(ChunkTypeTests, validChunkTypeIDTest) {
-	std::vector<bool> chunkIDValidity(256, false);
+	std::vector<bool> chunkIDValidity(1 << 16, false);
 	chunkIDValidity[slice_traits::standard::ChunkPartType().getId()] = true;
 	chunkIDValidity[slice_traits::tape::ChunkPartType().getId()] = true;
 	for (int xorLevel = slice_traits::xors::kMinXorLevel;
@@ -60,14 +60,24 @@ TEST(ChunkTypeTests, validChunkTypeIDTest) {
 			                        .getId()] = true;
 		}
 	}
+	for (int ec_data_count = slice_traits::ec::kMinDataCount; ec_data_count <= slice_traits::ec::kMaxDataCount; ++ec_data_count) {
+	for (int ec_parity_count = slice_traits::ec::kMinParityCount; ec_parity_count <= slice_traits::ec::kMaxParityCount; ++ec_parity_count) {
+	for (int ec_part = 0; ec_part < (ec_data_count + ec_parity_count); ++ec_part) {
+		ChunkPartType test = slice_traits::ec::ChunkPartType(ec_data_count, ec_parity_count, ec_part);
+		EXPECT_EQ(test.getSliceType(), slice_traits::ec::getSliceType(ec_data_count, ec_parity_count));
+		EXPECT_EQ(test.getSlicePart(), ec_part);
+		chunkIDValidity[slice_traits::ec::ChunkPartType(ec_data_count, ec_parity_count, ec_part).getId()] = true;
+	}
+	}
+	}
 
-	for (uint32_t id = 0; id < 256; ++id) {
+	for (int id = 0; id < (1 << 16); ++id) {
 		SCOPED_TRACE("ID: " + std::to_string(id));
 
-		ChunkPartType ctp(id);
+		ChunkPartType cpt(id);
 
-		EXPECT_EQ(chunkIDValidity[id], ctp.isValid())
-		        << "invalid chunk id = " << (int)ctp.getId();
+		EXPECT_EQ(chunkIDValidity[id], cpt.isValid())
+		        << "invalid chunk id = " << (int)cpt.getId() << "(" << (int)cpt.getSliceType() << "," << cpt.getSlicePart() << ")";
 	}
 }
 

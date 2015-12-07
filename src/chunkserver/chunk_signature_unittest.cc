@@ -31,11 +31,11 @@
 #include "unittests/operators.h"
 #include "unittests/TemporaryDirectory.h"
 
-TEST(ChunkSignatureTests, ReadingFromFile) {
+TEST(ChunkSignatureTests, ReadingOldSignatureFromFile) {
 	const size_t signatureOffset = 5;
 	const uint64_t chunkId = 0x0102030405060708;
 	const uint32_t version = 0x04030201;
-	const uint8_t chunkTypeId = slice_traits::xors::ChunkPartType(3, 1).getId();
+	const uint8_t chunkTypeId = legacy::ChunkPartType(slice_traits::xors::getSliceType(4), 1).getId();
 
 	// For the data listed above the contents should look like this:
 	std::vector<uint8_t> chunkFileContents = {
@@ -43,7 +43,46 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 		'L', 'I', 'Z', 'C', ' ', '1', '.', '0', // signature = LIZC 1.0
 		1, 2, 3, 4, 5, 6, 7, 8,                 // id        = 0x0102030405060708
 		4, 3, 2, 1,                             // version   = 0x04030201
-		chunkTypeId,                            // type ID
+		chunkTypeId,                            // legacy type ID
+		0                                       // padding
+	};
+
+	// Create a file
+	TemporaryDirectory temp("/tmp", this->test_info_->name());
+	std::string chunkFileName(temp.name() + "/" + "chunk");
+	std::ofstream file(chunkFileName);
+	ASSERT_TRUE((bool)file) << "Cannot create a file " << chunkFileName;
+	file.write(reinterpret_cast<const char*>(chunkFileContents.data()), chunkFileContents.size());
+	file.close();
+	ASSERT_TRUE((bool)file) << "Cannot write data to file " << chunkFileName;
+
+	// Open file and read header contents
+	int fd = open(chunkFileName.c_str(), O_RDONLY);
+	ASSERT_NE(fd, -1) << "Cannot open file " << chunkFileName << " after creating it";
+
+	ChunkSignature chunkSignature;
+	ASSERT_TRUE(chunkSignature.readFromDescriptor(fd, signatureOffset)) << "Cannot read signature";
+	ASSERT_TRUE(chunkSignature.hasValidSignatureId());
+	ASSERT_EQ(chunkId, chunkSignature.chunkId());
+	ASSERT_EQ(version, chunkSignature.chunkVersion());
+	ASSERT_EQ(slice_traits::xors::ChunkPartType(4, 1), chunkSignature.chunkType());
+}
+
+
+TEST(ChunkSignatureTests, ReadingFromFile) {
+	const size_t signatureOffset = 5;
+	const uint64_t chunkId = 0x0102030405060708;
+	const uint32_t version = 0x04030201;
+	const uint16_t chunkTypeId = slice_traits::xors::ChunkPartType(3, 1).getId();
+
+	// For the data listed above the contents should look like this:
+	std::vector<uint8_t> chunkFileContents = {
+		0, 1, 2, 3, 4,                          // 5 (headerOffset) bytes of garbage
+		'L', 'I', 'Z', 'C', ' ', '1', '.', '1', // signature = LIZC 1.1
+		1, 2, 3, 4, 5, 6, 7, 8,                 // id        = 0x0102030405060708
+		4, 3, 2, 1,                             // version   = 0x04030201
+		(uint8_t)(chunkTypeId >> 8),            // type ID (hi byte)
+		(uint8_t)(chunkTypeId & 0xFF)           // type ID (lo byte)
 	};
 
 	// Create a file
@@ -70,7 +109,7 @@ TEST(ChunkSignatureTests, ReadingFromFile) {
 // This test verifies if signature has proper size, because existing chunks
 // created by previous versions of LizardFS have 21-byte signatures.
 TEST(ChunkSignatureTests, SerializedSize) {
-	ASSERT_EQ(21U, ChunkSignature(0x0102030405060708, 0x04030201, xor_1_of_3).serializedSize());
+	ASSERT_EQ(22U, ChunkSignature(0x0102030405060708, 0x04030201, xor_1_of_3).serializedSize());
 }
 
 // This test verifies if serialized signature has proper content, because existing chunks
@@ -82,10 +121,11 @@ TEST(ChunkSignatureTests, Serialize) {
 
 	// And test if it looks like it should look like
 	std::vector<uint8_t> expectedData = {
-			'L', 'I', 'Z', 'C', ' ', '1', '.', '0', // signature = LIZC 1.0
+			'L', 'I', 'Z', 'C', ' ', '1', '.', '1', // signature = LIZC 1.0
 			1, 2, 3, 4, 5, 6, 7, 8,                 // id        = 0x0102030405060708
 			4, 3, 2, 1,                             // version   = 0x04030201
-			xor_1_of_3.getId(),                     // type ID
+			(uint8_t)(xor_1_of_3.getId() >> 8),     // type ID (hi byte)
+			(uint8_t)(xor_1_of_3.getId() & 0xFF)    // type ID (lo byte)
 	};
 	ASSERT_EQ(expectedData, data);
 }
