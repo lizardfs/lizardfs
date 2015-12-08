@@ -160,15 +160,24 @@ void masterconn_sendregister(masterconn *eptr) {
 	myip = mainNetworkThreadGetListenIp();
 	myport = mainNetworkThreadGetListenPort();
 	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
-	hdd_get_chunks_begin();
+
 	std::vector<ChunkWithVersionAndType> chunks;
-	hdd_get_chunks_next_list_data(chunks);
+	std::vector<ChunkWithType> recheck_list;
+
+	hdd_get_chunks_begin();
+	hdd_get_chunks_next_list_data(chunks, recheck_list);
 	while (!chunks.empty()) {
 		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
-		chunks.resize(0);
-		hdd_get_chunks_next_list_data(chunks);
+		hdd_get_chunks_next_list_data(chunks, recheck_list);
 	}
 	hdd_get_chunks_end();
+
+	hdd_get_chunks_next_list_data_recheck(chunks, recheck_list);
+	while (!chunks.empty()) {
+		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
+		hdd_get_chunks_next_list_data_recheck(chunks, recheck_list);
+	}
+
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
 	auto registerSpace = cstoma::registerSpace::build(
 			usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);

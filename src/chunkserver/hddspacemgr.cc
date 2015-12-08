@@ -1144,37 +1144,43 @@ void hdd_get_chunks_end() {
 	zassert(pthread_mutex_unlock(&hashlock));
 }
 
-static uint32_t hdd_internal_get_chunks_next_list_count() {
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType> &chunks,
+		std::vector<ChunkWithType> &recheck_list) {
 	TRACETHIS();
-	uint32_t res = 0;
-	uint32_t i = 0;
-	Chunk *c;
-	while (res<CHUNKS_CUT_COUNT && hdd_get_chunks_pos+i<HASHSIZE) {
-		for (c=hashtab[hdd_get_chunks_pos+i] ; c ; c=c->next) {
-			res++;
-		}
-		i++;
-	}
-	return res;
-}
-
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks) {
-	TRACETHIS();
-	uint32_t res = 0;
-	uint32_t v;
-	Chunk *c;
-	sassert(chunks.empty());
-	chunks.reserve(hdd_internal_get_chunks_next_list_count());
-	while (res<CHUNKS_CUT_COUNT && hdd_get_chunks_pos<HASHSIZE) {
-		for (c=hashtab[hdd_get_chunks_pos] ; c ; c=c->next) {
-			v = c->version;
+	chunks.clear();
+	chunks.reserve(CHUNKS_CUT_COUNT);
+	while (chunks.size() < CHUNKS_CUT_COUNT && hdd_get_chunks_pos < HASHSIZE) {
+		for (Chunk *c = hashtab[hdd_get_chunks_pos]; c; c = c->next) {
+			if (c->state != CH_AVAIL) {
+				recheck_list.push_back(ChunkWithType(c->chunkid, c->type()));
+				continue;
+			}
+			uint32_t v = c->version;
 			if (c->todel) {
 				v |= 0x80000000;
 			}
 			chunks.push_back(ChunkWithVersionAndType(c->chunkid, v, c->type()));
-			res++;
 		}
 		hdd_get_chunks_pos++;
+	}
+}
+
+void hdd_get_chunks_next_list_data_recheck(std::vector<ChunkWithVersionAndType> &chunks,
+		std::vector<ChunkWithType> &recheck_list) {
+	TRACETHIS();
+	chunks.clear();
+	chunks.reserve(CHUNKS_CUT_COUNT);
+	while (chunks.size() < CHUNKS_CUT_COUNT && !recheck_list.empty()) {
+		Chunk *c = hdd_chunk_find(recheck_list.back().id, recheck_list.back().type);
+		if (c) {
+			uint32_t v = c->version;
+			if (c->todel) {
+				v |= 0x80000000;
+			}
+			chunks.push_back(ChunkWithVersionAndType(c->chunkid, v, c->type()));
+			hdd_chunk_release(c);
+		}
+		recheck_list.pop_back();
 	}
 }
 

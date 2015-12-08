@@ -43,11 +43,12 @@ uint32_t hdd_diskinfo_v1_size();
 void hdd_diskinfo_v1_data(uint8_t *buff);
 uint32_t hdd_diskinfo_v2_size();
 void hdd_diskinfo_v2_data(uint8_t *buff);
+
 /* lock/unlock pair */
 void hdd_get_chunks_begin();
 void hdd_get_chunks_end();
-
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks);
+void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks, std::vector<ChunkWithType>& recheck_list);
+void hdd_get_chunks_next_list_data_recheck(std::vector<ChunkWithVersionAndType>& chunks, std::vector<ChunkWithType>& recheck_list);
 
 int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
