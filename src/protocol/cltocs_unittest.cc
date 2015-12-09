@@ -24,7 +24,6 @@
 #include "common/lizardfs_version.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
-#include "unittests/operators.h"
 #include "unittests/packet.h"
 
 TEST(CltocsCommunicationTests, Read) {

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -62,14 +62,14 @@ void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 	std::vector<uint8_t> message;
 	if (server_version_ >= kFirstECVersion) {
 		cltocs::read::serialize(message, chunkId_, chunkVersion_, chunkType_,
-			readOperation_.requestOffset, readOperation_.requestSize);
+			readOperation_.request_offset, readOperation_.request_size);
 	} else if (server_version_ >= kFirstXorVersion) {
 		cltocs::read::serialize(message, chunkId_, chunkVersion_, (legacy::ChunkPartType)chunkType_,
-			readOperation_.requestOffset, readOperation_.requestSize);
+			readOperation_.request_offset, readOperation_.request_size);
 	} else {
 		serializeMooseFsPacket(message, CLTOCS_READ,
-			chunkId_, chunkVersion_, readOperation_.requestOffset,
-			readOperation_.requestSize);
+			chunkId_, chunkVersion_, readOperation_.request_offset,
+			readOperation_.request_size);
 	}
 
 	int32_t ret = tcptowrite(fd_,
@@ -205,7 +205,7 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
-	uint32_t expectedOffset = readOperation_.requestOffset + dataBlocksCompleted_ * MFSBLOCKSIZE;
+	uint32_t expectedOffset = readOperation_.request_offset + dataBlocksCompleted_ * MFSBLOCKSIZE;
 	if (readOffset != expectedOffset) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
@@ -242,8 +242,8 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 
-	uint32_t totalDataBytesReceived = dataBlocksCompleted_ * MFSBLOCKSIZE;
-	if (totalDataBytesReceived != readOperation_.requestSize) {
+	int totalDataBytesReceived = dataBlocksCompleted_ * MFSBLOCKSIZE;
+	if (totalDataBytesReceived != readOperation_.request_size) {
 		throw ChunkserverConnectionException(
 				"READ_STATUS from chunkserver received too early", server_);
 	}
@@ -270,35 +270,35 @@ void ReadOperationExecutor::setState(ReadOperationState newState) {
 	sassert(state_ != kFinished);
 	sassert(bytesLeft_ == 0);
 	switch (newState) {
-		case kReceivingHeader:
-			sassert(state_ == kSendingRequest || state_ == kReceivingDataBlock);
-			messageBuffer_.resize(PacketHeader::kSize);
-			destination_ = messageBuffer_.data();
-			bytesLeft_ = messageBuffer_.size();
-			break;
-		case kReceivingReadStatusMessage:
-			sassert(state_ == kReceivingHeader);
-			messageBuffer_.resize(packetHeader_.length);
-			destination_ = messageBuffer_.data();
-			bytesLeft_ = messageBuffer_.size();
-			break;
-		case kReceivingReadDataMessage:
-			sassert(state_ == kReceivingHeader);
-			messageBuffer_.resize(cstocl::readData::kPrefixSize);
-			destination_ = messageBuffer_.data();
-			bytesLeft_ = messageBuffer_.size();
-			break;
-		case kReceivingDataBlock:
-			sassert(state_ == kReceivingReadDataMessage);
-			sassert(readOperation_.readDataOffsets.size() > dataBlocksCompleted_);
-			destination_ = dataBuffer_ + readOperation_.readDataOffsets[dataBlocksCompleted_];
-			bytesLeft_ = MFSBLOCKSIZE;
-			break;
-		case kFinished:
-			break;
-		default:
-			massert(false, "Unknown state in ReadOperationExecutor::setState");
-			break;
+	case kReceivingHeader:
+		sassert(state_ == kSendingRequest || state_ == kReceivingDataBlock);
+		messageBuffer_.resize(PacketHeader::kSize);
+		destination_ = messageBuffer_.data();
+		bytesLeft_ = messageBuffer_.size();
+		break;
+	case kReceivingReadStatusMessage:
+		sassert(state_ == kReceivingHeader);
+		messageBuffer_.resize(packetHeader_.length);
+		destination_ = messageBuffer_.data();
+		bytesLeft_ = messageBuffer_.size();
+		break;
+	case kReceivingReadDataMessage:
+		sassert(state_ == kReceivingHeader);
+		messageBuffer_.resize(cstocl::readData::kPrefixSize);
+		destination_ = messageBuffer_.data();
+		bytesLeft_ = messageBuffer_.size();
+		break;
+	case kReceivingDataBlock:
+		sassert(state_ == kReceivingReadDataMessage);
+		destination_ =
+		    dataBuffer_ + (readOperation_.buffer_offset + dataBlocksCompleted_ * MFSBLOCKSIZE);
+		bytesLeft_ = MFSBLOCKSIZE;
+		break;
+	case kFinished:
+		break;
+	default:
+		massert(false, "Unknown state in ReadOperationExecutor::setState");
+		break;
 	}
 	state_ = newState;
 }

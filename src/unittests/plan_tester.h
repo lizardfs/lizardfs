@@ -24,54 +24,95 @@
 #include <ostream>
 #include <set>
 
-#include "common/read_planner.h"
+#include "common/read_plan.h"
+#include "common/slice_traits.h"
 
 namespace unittests {
 
-class Block {
+/*! \brief Class designed for testing read plan. */
+class ReadPlanTester {
 public:
-	Block() : isInitialized_(false) {}
-	Block(ChunkPartType chunkType, uint32_t blocknum);
-	bool isInitialized() const { return isInitialized_; }
-	void xorWith(const Block& block);
-	bool operator==(const Block& block) const;
-	friend std::ostream& operator<<(std::ostream& out, const Block& block);
+	/*! \brief Execute read plan.
+	 *
+	 * \param plan Pointer to read plan.
+	 * \param available_data Map with data vector for each chunk type
+	 * \return number of executed waves.
+	 */
+	int executePlan(std::unique_ptr<ReadPlan> plan,
+	                const std::map<ChunkPartType, std::vector<uint8_t>> &available_data);
 
-private:
-	bool isInitialized_;
-	std::set<uint32_t> xoredBlocks_;
+	/*! \brief Helper function for building chunk data.
+	 *
+	 * This function creates chunk data split into specified chunk parts.
+	 *
+	 * Generated chunk's data have following form:
+	 *
+	 * 00000000 - (uint32_t)0
+	 * 04000000 - (uint32_t)4
+	 * 08000000 - (uint32_t)8
+	 * ...
+	 * ...
+	 * 3FFFFFFC - (uint32_t)MFSCHUNKSIZE - 4
+	 *
+	 * \param plan Pointer to read plan.
+	 * \param result Output map storing generated chunk part data.
+	 * \param available_data Container with chunk part types that should be created.
+	 */
+	template<class V = std::vector<ChunkPartType>>
+	static void buildData(std::map<ChunkPartType, std::vector<uint8_t>> &result,
+						  const V &available_parts);
 
-	void toggle(uint32_t blocknum);
+	/*! \brief Helper function for comparing chunk data.
+	 * \param a Vector with first data to compare.
+	 * \param a_offset Offset in vector \param a where comparison should start.
+	 * \param b Second vector with data to compare.
+	 * \param b_offset Offset in vector \param b to data that should be compared.
+	 * \param block_count number of blocks to compare (each block have MFSBLOCKSIZE bytes)
+	 * \return true both vectors are the same.
+	 *         false data are not the same.
+	 */
+	static bool compareBlocks(const std::vector<uint8_t> &a, int a_offset,
+	                          const std::vector<uint8_t> &b, int b_offset, int block_count);
+
+protected:
+	void checkPlan(const std::unique_ptr<ReadPlan> &plan, uint8_t *buffer_start);
+
+	int readDataFromChunkServer(std::vector<uint8_t> &output, int output_offset,
+	                            const std::vector<uint8_t> &data, int offset, int size);
+
+	int startReadOperation(int write_buffer_offset,
+	                       const std::map<ChunkPartType, std::vector<uint8_t>> &available_data,
+	                       ChunkPartType chunk_type, const ReadPlan::ReadOperation &op);
+	void startReadsForWave(const std::unique_ptr<ReadPlan> &plan,
+	                       const std::map<ChunkPartType, std::vector<uint8_t>> &available_data,
+	                       int wave);
+
+	static void buildXorData(std::map<ChunkPartType, std::vector<uint8_t>> &result, int level);
+	static void buildStdData(std::map<ChunkPartType, std::vector<uint8_t>> &result);
+
+public:
+	ReadPlan::PartsContainer available_parts_;
+	ReadPlan::PartsContainer networking_failures_;
+	std::vector<uint8_t> output_buffer_;
 };
 
-class PlanTester {
-public:
-	/**
-	 * Executes a plan.
-	 * If there no parts from \p basicReadOperations are included in \p failingParts, it will
-	 * execute only the basic variant of the plan. If any reading fail, it will execute
-	 * \p additionalReadOperations as well.
-	 * \param plan            plan to be executed
-	 * \param availableParts  list of parts that can be used when executing the plan
-	 * \param blockCount      number of blocks that should be returned
-	 * \param failingParts    list of parts from which reading will not be done
-	 */
-	static std::vector<Block> executePlan(
-			const ReadPlan& plan,
-			const std::vector<ChunkPartType>& availableParts,
-			uint32_t blockCount,
-			const std::set<ChunkPartType>& failingParts = std::set<ChunkPartType>());
+template<class V>
+void ReadPlanTester::buildData(std::map<ChunkPartType, std::vector<uint8_t>> &result,
+		const V &available_parts) {
+	std::set<Goal::Slice::Type> used_type;
 
-	/**
-	 * Returns list of blocks from a given part.
-	 * This is the expected result of executing a plan which was built using
-	 * \code buildPlan(firstBlock, blockCount) \endcode on a planner which plans reading
-	 * blocks of \p chunkType.
-	 */
-	static std::vector<Block> expectedAnswer(
-			ChunkPartType chunkType,
-			uint32_t firstBlock,
-			uint32_t blockCount);
-};
+	for (const auto &part : available_parts) {
+		used_type.insert(part.getSliceType());
+	}
 
-} // namespace unittests
+	for (const auto &type : used_type) {
+		if (slice_traits::isStandard(type)) {
+			buildStdData(result);
+		}
+		if (slice_traits::isXor(type)) {
+			buildXorData(result, slice_traits::xors::getXorLevel(type));
+		}
+	}
+}
+
+}  // namespace unittests

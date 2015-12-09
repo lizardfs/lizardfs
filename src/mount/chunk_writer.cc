@@ -503,9 +503,9 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkPartType& readF
 		stripe /= slice_traits::xors::getXorLevel(sourceChunkType);
 	}
 	ReadPlan::ReadOperation readOperation;
-	readOperation.requestOffset = stripe * MFSBLOCKSIZE;
-	readOperation.requestSize = MFSBLOCKSIZE;
-	readOperation.readDataOffsets.push_back(0);
+	readOperation.request_offset = stripe * MFSBLOCKSIZE;
+	readOperation.request_size = MFSBLOCKSIZE;
+	readOperation.buffer_offset = 0;
 
 	// Connect to the chunkserver and execute the read operation
 	int fd = connector_.startUsingConnection(source_type_with_address.address, timeout);

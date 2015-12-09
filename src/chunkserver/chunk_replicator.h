@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -44,8 +44,9 @@ private:
 	uint32_t stats_;
 	std::mutex mutex_;
 
-	std::unique_ptr<ReadPlanner> getPlanner(ChunkPartType chunkType,
-			const std::vector<ChunkTypeWithAddress>& sources);
+	//FIXME(hazeman)
+	//std::unique_ptr<ReadPlanner> getPlanner(ChunkPartType chunkType,
+	//		const std::vector<ChunkTypeWithAddress>& sources);
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 			ChunkTypeWithAddress type_with_address) throw (Exception);

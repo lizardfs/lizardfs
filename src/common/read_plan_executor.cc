@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -25,299 +25,412 @@
 
 #include "common/block_xor.h"
 #include "common/chunkserver_stats.h"
-#include "protocol/cltocs.h"
 #include "common/exceptions.h"
 #include "common/lambda_guard.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
 #include "common/read_operation_executor.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
+#include "protocol/cltocs.h"
 
-ReadPlanExecutor::ReadPlanExecutor(
-		ChunkserverStats& chunkserverStats,
-		uint64_t chunkId, uint32_t chunkVersion,
-		std::unique_ptr<ReadPlan> plan)
-		: chunkserverStats_(chunkserverStats),
-		  chunkId_(chunkId),
-		  chunkVersion_(chunkVersion),
-		  plan_(std::move(plan)) {
+std::atomic<uint64_t> ReadPlanExecutor::executions_total_;
+std::atomic<uint64_t> ReadPlanExecutor::executions_with_additional_operations_;
+std::atomic<uint64_t> ReadPlanExecutor::executions_finished_by_additional_operations_;
+
+ReadPlanExecutor::ReadPlanExecutor(ChunkserverStats &chunkserver_stats, uint64_t chunk_id,
+		uint32_t chunk_version, std::unique_ptr<ReadPlan> plan)
+	: stats_(chunkserver_stats),
+	  chunk_id_(chunk_id),
+	  chunk_version_(chunk_version),
+	  plan_(std::move(plan)) {
 }
 
-void ReadPlanExecutor::executePlan(
-		std::vector<uint8_t>& buffer,
-		const ChunkTypeLocations& locations,
-		ChunkConnector& connector,
-		const Timeouts& timeouts,
-		const Timeout& totalTimeout) {
-	const size_t initialSizeOfTheBuffer = buffer.size();
-	buffer.resize(initialSizeOfTheBuffer + plan_->requiredBufferSize);
+/*! \brief A function which starts single read operation from chunkserver.
+ *
+ * \param params Execution parameters pack.
+ * \param chunk_type Chunk part type to start read read operation for.
+ * \param op Structure describing read operation.
+ *
+ * \return true on success.
+ *         false on failure.
+ */
+bool ReadPlanExecutor::startReadOperation(ExecuteParams &params, ChunkPartType chunk_type,
+		const ReadPlan::ReadOperation &op) {
+#ifndef NDEBUG
+	auto it = std::find(networking_failures_.begin(), networking_failures_.end(), chunk_type);
+	assert(it == networking_failures_.end());
+	assert(params.locations.count(chunk_type));
+#endif
+
+	if (op.request_size <= 0) {
+		available_parts_.push_back(chunk_type);
+		return true;
+	}
+
+	const ChunkTypeWithAddress &ctwa = params.locations.at(chunk_type);
+	stats_.registerReadOperation(ctwa.address);
+
 	try {
-		uint8_t* dataBufferAddress = buffer.data() + initialSizeOfTheBuffer;
-		auto postProcessOperations = executeReadOperations(
-				dataBufferAddress, locations, connector, timeouts, totalTimeout);
-		executePostProcessing(postProcessOperations, dataBufferAddress);
-	} catch (Exception&) {
-		buffer.resize(initialSizeOfTheBuffer);
-		throw;
+		Timeout connect_timeout(std::chrono::milliseconds(params.connect_timeout));
+		int fd = params.connector.startUsingConnection(ctwa.address, connect_timeout);
+		try {
+			if (params.total_timeout.expired()) {
+				// totalTimeout might expire during establishing the connection
+				throw RecoverableReadException("Chunkserver communication timed out");
+			}
+			ReadOperationExecutor executor(op, chunk_id_, chunk_version_, chunk_type, ctwa.address,
+			                               ctwa.chunkserver_version, fd, params.buffer);
+			executor.sendReadRequest(connect_timeout);
+			executors_.insert(std::make_pair(fd, std::move(executor)));
+		} catch (...) {
+			tcpclose(fd);
+			throw;
+		}
+		return true;
+	} catch (ChunkserverConnectionException &ex) {
+		last_connection_failure_ = ctwa.address;
+		stats_.markDefective(ctwa.address);
+		networking_failures_.push_back(chunk_type);
+		return false;
 	}
 }
 
-std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperations(
-		uint8_t* buffer,
-		const ChunkTypeLocations& locations,
-		ChunkConnector& connector,
-		const Timeouts& timeouts,
-		const Timeout& totalTimeout) {
-	++executionsTotal;
+/*! \brief A function which starts a new prefetch operation.
+ *
+ * \param params Execution parameters pack.
+ * \param chunk_type Chunk part type to start prefetch read operation for.
+ * \param op Structure describing prefetch operation.
+ */
+void ReadPlanExecutor::startPrefetchOperation(ExecuteParams &params, ChunkPartType chunk_type,
+		const ReadPlan::ReadOperation &op) {
+	assert(params.locations.count(chunk_type));
 
-	// Proxy used to update statistics in a RAII manner
-	ChunkserverStatsProxy statsProxy(chunkserverStats_);
+	if (op.request_size <= 0) {
+		return;
+	}
 
-	// A map fd -> ReadOperationExecutor. Executors are used to read data from chunkservers.
-	std::map<int, ReadOperationExecutor> executors;
+	const ChunkTypeWithAddress &ctwa = params.locations.at(chunk_type);
 
-	// Set of descriptors of sockets which are used by executors for basic read operations.
-	// When this set becomes empty we know that all the basic read operations are finished.
-	std::set<int> descriptorsForBasicReadOperations;
-
-	// A set of chunk types from which we don't read data because of a networking problem
-	std::set<ChunkPartType> networkingFailures;
-	NetworkAddress lastConnectionFailure;  // last server to which we weren't able to connect
-
-	const int kInvalidDescriptor = -1;
-
-	// This closes all the opened TCP connections when this function returns or throws
-	auto disconnector = makeLambdaGuard([&]() {
-		for (const auto& fdAndExecutor : executors) {
-			tcpclose(fdAndExecutor.first);
-		}
-	});
-
-	// A function which starts a new operation. Returns a file descriptor of the created socket.
-	auto startReadOperation = [&](ChunkPartType chunkType, const ReadPlan::ReadOperation& op) -> int {
-		if (networkingFailures.count(chunkType) != 0) {
-			// Don't even try to start any additional operations from a chunkserver that
-			// already failed before, because we won't be able to use the downloaded data.
-			return kInvalidDescriptor;
-		}
-		sassert(locations.count(chunkType) == 1);
-		const ChunkTypeWithAddress& chunk_type_with_address = locations.at(chunkType);
-		statsProxy.registerReadOperation(chunk_type_with_address.address);
+	try {
+		Timeout connect_timeout(std::chrono::milliseconds(params.connect_timeout));
+		int fd = params.connector.startUsingConnection(ctwa.address, connect_timeout);
 		try {
-			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
-			int fd = connector.startUsingConnection(chunk_type_with_address.address, connectTimeout);
-			try {
-				if (totalTimeout.expired()) {
-					// totalTimeout might expire during establishing the connection
-					throw RecoverableReadException("Chunkserver communication timed out");
-				}
-				ReadOperationExecutor executor(op,
-					chunkId_, chunkVersion_, chunkType, chunk_type_with_address.address,
-					chunk_type_with_address.chunkserver_version, fd, buffer);
-				executor.sendReadRequest(connectTimeout);
-				executors.insert(std::make_pair(fd, std::move(executor)));
-			} catch (...) {
-				tcpclose(fd);
-				throw;
+			if (params.total_timeout.expired()) {
+				// totalTimeout might expire during establishing the connection
+				throw RecoverableReadException("Chunkserver communication timed out");
 			}
-			return fd;
-		} catch (ChunkserverConnectionException& ex) {
-			lastConnectionFailure = chunk_type_with_address.address;
-			statsProxy.markDefective(chunk_type_with_address.address);
-			networkingFailures.insert(chunkType);
-			return kInvalidDescriptor;
-		}
-	};
-
-	// A function which starts a new prefetch operation. Does not return a status.
-	auto startPrefetchOperation = [&](ChunkPartType chunkType, const ReadPlan::PrefetchOperation& op)
-			-> void {
-		sassert(locations.count(chunkType) == 1);
-		const NetworkAddress& server = locations.at(chunkType).address;
-		try {
-			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
-			int fd = connector.startUsingConnection(server, connectTimeout);
-			try {
-				if (totalTimeout.expired()) {
-					// totalTimeout might expire during establishing the connection
-					throw RecoverableReadException("Chunkserver communication timed out");
-				}
-				std::vector<uint8_t> message;
-				cltocs::prefetch::serialize(message, chunkId_, chunkVersion_, chunkType,
-						op.requestOffset, op.requestSize);
-				int32_t ret = tcptowrite(fd, message.data(), message.size(),
-						connectTimeout.remaining_ms());
+			std::vector<uint8_t> message;
+			if (ctwa.chunkserver_version >= kFirstECVersion) {
+				cltocs::prefetch::serialize(message, chunk_id_, chunk_version_, chunk_type,
+				                            op.request_offset, op.request_size);
+			} else if (ctwa.chunkserver_version >= kFirstXorVersion) {
+				assert((int)chunk_type.getSliceType() < Goal::Slice::Type::kECFirst);
+				cltocs::prefetch::serialize(message, chunk_id_, chunk_version_,
+				                            (legacy::ChunkPartType)chunk_type, op.request_offset,
+				                            op.request_size);
+			}
+			if (message.size() > 0) {
+				int32_t ret =
+				    tcptowrite(fd, message.data(), message.size(), connect_timeout.remaining_ms());
 				if (ret != (int32_t)message.size()) {
 					throw ChunkserverConnectionException(
-							"Cannot send PREFETCH request to the chunkserver: "
-									+ std::string(strerr(tcpgetlasterror())),
-							server);
+					    "Cannot send PREFETCH request to the chunkserver: " +
+					        std::string(strerr(tcpgetlasterror())),
+					    ctwa.address);
 				}
-			} catch (...) {
-				tcpclose(fd);
-				throw;
 			}
-			connector.endUsingConnection(fd, server);
-		} catch (ChunkserverConnectionException& ex) {
-			// That's a pity
+		} catch (...) {
+			tcpclose(fd);
+			throw;
 		}
-	};
+		params.connector.endUsingConnection(fd, ctwa.address);
+	} catch (ChunkserverConnectionException &ex) {
+		// That's a pity
+	}
+}
 
-	// A function which verifies if we are able to finish executing
-	// the plan if there were any networking failures
-	auto isFinishingPossible = [&]() -> bool {
-		if (networkingFailures.empty()) {
-			return true;
+/*! \brief A function that starts all read operations for a wave.
+ *
+ * \param params Execution parameters pack.
+ * \param wave Wave index.
+ *
+ * \return Number of failed read operations.
+ */
+int ReadPlanExecutor::startReadsForWave(ExecuteParams &params, int wave) {
+	int failed_reads = 0;
+	for (const auto &read_operation : plan_->read_operations) {
+		if (read_operation.second.wave == wave) {
+			if (!startReadOperation(params, read_operation.first, read_operation.second)) {
+				++failed_reads;
+			}
 		}
-		bool anyBasicOperationFailed = descriptorsForBasicReadOperations.count(kInvalidDescriptor);
-		return !anyBasicOperationFailed || plan_->isReadingFinished(networkingFailures);
-	};
+	}
+	if (!plan_->isFinishingPossible(networking_failures_)) {
+		throw RecoverableReadException("Can't connect to " + last_connection_failure_.toString());
+	}
 
-	// Connect to all needed chunkservers from basicReadOperations
-	for (const auto& chunkTypeReadInfo : plan_->basicReadOperations) {
-		int fd = startReadOperation(chunkTypeReadInfo.first, chunkTypeReadInfo.second);
-		// fd may be equal to kInvalidDescriptor in case of a failure, but we will insert it to
-		// the set anyway to remember that some basic operation is unfinished all the time
-		descriptorsForBasicReadOperations.insert(fd);
+	return failed_reads;
+}
+
+/*! \brief A function that starts all prefetch operations for a wave.
+ *
+ * \param params Execution parameters pack.
+ * \param wave Wave index.
+ */
+void ReadPlanExecutor::startPrefetchForWave(ExecuteParams &params, int wave) {
+	if (plan_->block_prefetch) {
+		return;
 	}
-	if (!isFinishingPossible()) {
-		throw RecoverableReadException("Can't connect to " + lastConnectionFailure.toString());
+
+	for (const auto &prefetch_operation : plan_->read_operations) {
+		if (prefetch_operation.second.wave == wave) {
+			startPrefetchOperation(params, prefetch_operation.first, prefetch_operation.second);
+		}
 	}
-	// Send prefetch request for data that is expected to be needed soon (but not now)
-	for (const auto& prefetchOperation : plan_->prefetchOperations) {
-		startPrefetchOperation(prefetchOperation.first, prefetchOperation.second);
+}
+
+/*! \brief Function waits for data from chunkservers.
+ *
+ * \param params Execution parameters pack.
+ * \param wave_timeout Timeout class keeping time to end of current wave.
+ * \param poll_fds Vector with pollfds structures resulting from call to poll system function.
+ * \return true on success
+ *         false EINTR occured (call to waitForData should be repeated)
+ */
+bool ReadPlanExecutor::waitForData(ExecuteParams &params, Timeout &wave_timeout,
+		std::vector<pollfd> &poll_fds) {
+	// Prepare for poll
+	poll_fds.clear();
+	for (const auto &fd_and_executor : executors_) {
+		poll_fds.push_back({fd_and_executor.first, POLLIN, 0});
 	}
+
+	if (poll_fds.empty()) {
+		return true;
+	}
+
+	// Call poll
+	int poll_timeout = std::max(
+	    0, (int)std::min(params.total_timeout.remaining_ms(), wave_timeout.remaining_ms()));
+	int status = tcppoll(poll_fds, poll_timeout);
+	if (status < 0) {
+#ifdef _WIN32
+		throw RecoverableReadException("Poll error: " + std::string(strerr(tcpgetlasterror())));
+#else
+		if (errno == EINTR) {
+			return false;
+		} else {
+			throw RecoverableReadException("Poll error: " + std::string(strerr(tcpgetlasterror())));
+		}
+#endif
+	}
+
+	return true;
+}
+
+/*! \brief Read data from chunkserver.
+ *
+ * \param params Execution parameters pack.
+ * \param poll_fd pollfd structure with the IO events.
+ * \param executor Executor for which some data are available.
+ */
+bool ReadPlanExecutor::readSomeData(ExecuteParams &params, const pollfd &poll_fd,
+		ReadOperationExecutor &executor) {
+	const NetworkAddress &server = executor.server();
+
+	try {
+		if (poll_fd.revents & POLLIN) {
+			executor.continueReading();
+		} else if (poll_fd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
+			throw ChunkserverConnectionException("Read from chunkserver (poll) error", server);
+		}
+	} catch (ChunkserverConnectionException &ex) {
+		stats_.markDefective(server);
+		networking_failures_.push_back(executor.chunkType());
+		tcpclose(poll_fd.fd);
+		executors_.erase(poll_fd.fd);
+		if (!plan_->isFinishingPossible(networking_failures_)) {
+			throw;
+		}
+		return false;
+	}
+
+	if (executor.isFinished()) {
+		stats_.unregisterReadOperation(server);
+		stats_.markWorking(server);
+		params.connector.endUsingConnection(poll_fd.fd, server);
+		available_parts_.push_back(executor.chunkType());
+		executors_.erase(poll_fd.fd);
+	}
+
+	return true;
+}
+
+/*! \brief Execute read operation (without post-process). */
+void ReadPlanExecutor::executeReadOperations(ExecuteParams &params) {
+	assert(!plan_->read_operations.empty());
+
+	int failed_reads;
+	int wave = 0;
+
+	// start reads for first wave (index 0)
+	failed_reads = startReadsForWave(params, wave);
+	startPrefetchForWave(params, wave + 1);
+
+	assert((executors_.size() + networking_failures_.size()) > 0);
 
 	// Receive responses
 	LOG_AVG_TILL_END_OF_SCOPE0("ReadPlanExecutor::executeReadOperations#recv");
-	Timeout basicTimeout(std::chrono::milliseconds(timeouts.basicTimeout_ms));
-	bool additionalOperationsStarted = false;
+
+	Timeout wave_timeout(std::chrono::milliseconds(params.wave_timeout));
+	std::vector<pollfd> poll_fds;
+
 	while (true) {
-		if (!additionalOperationsStarted
-				&& (basicTimeout.expired()
-						|| descriptorsForBasicReadOperations.count(kInvalidDescriptor) != 0)
-				&& !totalTimeout.expired()) {
-			// We have to start additionalReadOperations now
-			for (const auto& chunkTypeReadInfo : plan_->additionalReadOperations) {
-				startReadOperation(chunkTypeReadInfo.first, chunkTypeReadInfo.second);
+		if (params.total_timeout.expired()) {
+			if (!executors_.empty()) {
+				NetworkAddress offender = executors_.begin()->second.server();
+				throw RecoverableReadException("Chunkserver communication timed out: " +
+				                               offender.toString());
 			}
-			if (!isFinishingPossible()) {
-				throw RecoverableReadException("Can't connect to " +
-						lastConnectionFailure.toString());
-			}
-			additionalOperationsStarted = true;
-			++executionsWithAdditionalOperations;
+			throw RecoverableReadException("Chunkservers communication timed out");
 		}
 
-		// Prepare for poll
-		std::vector<pollfd> pollFds;
-		for (const auto& fdAndExecutor : executors) {
-			pollFds.push_back(pollfd());
-			pollFds.back().fd = fdAndExecutor.first;
-			pollFds.back().events = POLLIN;
-			pollFds.back().revents = 0;
+		if (wave_timeout.expired() || failed_reads) {
+			// start next wave
+			executions_with_additional_operations_ += wave == 0;
+			++wave;
+			wave_timeout.reset();
+			failed_reads = startReadsForWave(params, wave);
+			startPrefetchForWave(params, wave + 1);
 		}
 
-		// Call poll
-		int pollTimeout = (basicTimeout.expired()
-				? totalTimeout.remaining_ms()
-				: basicTimeout.remaining_ms());
-		int status = tcppoll(pollFds, pollTimeout);
-		if (status < 0) {
-#ifdef _WIN32
-			throw RecoverableReadException(
-					"Poll error: " + std::string(strerr(tcpgetlasterror())));
-#else
-			if (errno == EINTR) {
-				continue;
-			} else {
-				throw RecoverableReadException(
-						"Poll error: " + std::string(strerr(tcpgetlasterror())));
-			}
-#endif
-		} else if (status == 0 && totalTimeout.expired()) {
-			// The time is out, our chunkservers appear to be completely unresponsive.
-			statsProxy.allPendingDefective();
-			NetworkAddress offender = executors.begin()->second.server();
-			throw RecoverableReadException(
-					"Chunkserver communication timed out: " + offender.toString());
+		if (!waitForData(params, wave_timeout, poll_fds)) {
+			// EINTR occured - we need to restart poll
+			continue;
+		}
+
+		if (poll_fds.empty()) {
+			// no more executors available, so it is best to start next wave
+			assert(plan_->isFinishingPossible(networking_failures_));
+			++failed_reads;
+			continue;
 		}
 
 		// Process poll's output -- read from chunkservers
-		std::set<ChunkPartType> unfinishedOperations = networkingFailures;
-		for (pollfd& pollFd : pollFds) {
-			int fd = pollFd.fd;
-			ReadOperationExecutor& executor = executors.at(fd);
-			const NetworkAddress& server = executor.server();
-			try {
-				if (pollFd.revents & POLLIN) {
-					executor.continueReading();
-				} else if (pollFd.revents & (POLLHUP | POLLERR | POLLNVAL)) {
-					throw ChunkserverConnectionException(
-							"Read from chunkserver (poll) error", server);
-				}
-			} catch (ChunkserverConnectionException& ex) {
-				statsProxy.markDefective(server);
-				networkingFailures.insert(executor.chunkType());
-				if (descriptorsForBasicReadOperations.count(fd) != 0) {
-					descriptorsForBasicReadOperations.erase(fd);
-					descriptorsForBasicReadOperations.insert(kInvalidDescriptor);
-				}
-				tcpclose(fd);
-				executors.erase(fd);
-				if (!isFinishingPossible()) {
-					throw;
-				}
+		for (pollfd &poll_fd : poll_fds) {
+			if (poll_fd.revents == 0) {
 				continue;
 			}
-			if (executor.isFinished()) {
-				statsProxy.unregisterReadOperation(server);
-				statsProxy.markWorking(server);
-				connector.endUsingConnection(fd, server);
-				executors.erase(fd);
-				descriptorsForBasicReadOperations.erase(fd);
-				if (descriptorsForBasicReadOperations.empty()) {
-					// All the basic operations are now finished. This condition will always
-					// be false in kInvalidDescriptor is in descriptorsForBasicReadOperations.
-					partsOmitted_ = networkingFailures;
-					return plan_->getPostProcessOperationsForBasicPlan();
-				}
-			} else {
-				unfinishedOperations.insert(executor.chunkType());
+
+			ReadOperationExecutor &executor = executors_.at(poll_fd.fd);
+
+			if (!readSomeData(params, poll_fd, executor)) {
+				++failed_reads;
 			}
 		}
 
 		// Check if we are finished now
-		if (additionalOperationsStarted && plan_->isReadingFinished(unfinishedOperations)) {
-			++executionsFinishedByAdditionalOperations;
-			partsOmitted_ = networkingFailures;
-			for (const auto& fdAndExecutor : executors) {
-				partsOmitted_.insert(fdAndExecutor.second.chunkType());
+		if (plan_->isReadingFinished(available_parts_)) {
+			executions_finished_by_additional_operations_ += wave > 0;
+			break;
+		}
+	}
+}
+
+/*! \brief Debug function for checking if plan is valid. */
+void ReadPlanExecutor::checkPlan(uint8_t *buffer_start) {
+	(void)buffer_start;
+#ifndef NDEBUG
+	for (const auto &type_and_op : plan_->read_operations) {
+		assert(type_and_op.first.isValid());
+		const ReadPlan::ReadOperation &op(type_and_op.second);
+		assert(op.request_offset >= 0 && op.request_size >= 0);
+		assert((op.request_offset + op.request_size) <= MFSCHUNKSIZE);
+		assert(op.buffer_offset >= 0 &&
+		       (op.buffer_offset + op.request_size) <= plan_->read_buffer_size);
+
+		if (op.request_size <= 0) {
+			continue;
+		}
+
+		for (const auto &type_and_op2 : plan_->read_operations) {
+			if (&type_and_op == &type_and_op2) {
+				continue;
 			}
-			return plan_->getPostProcessOperationsForExtendedPlan(unfinishedOperations);
+			const ReadPlan::ReadOperation &op2(type_and_op2.second);
+			bool overlap = true;
+
+			if (op2.request_size <= 0) {
+				continue;
+			}
+
+			if (op.buffer_offset >= op2.buffer_offset &&
+			    op.buffer_offset < (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
+			if ((op.buffer_offset + op.request_size - 1) >= op2.buffer_offset &&
+			    (op.buffer_offset + op.request_size - 1) <
+			        (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
+			if (op.buffer_offset < op2.buffer_offset &&
+			    (op.buffer_offset + op.request_size) >= (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
 		}
 	}
-	mabort("Bad code path; reached an unreachable code in ReadPlanExecutor::executeReadOperations");
+
+	int post_size = 0;
+	for (const auto &post : plan_->postprocess_operations) {
+		assert(post.first >= 0);
+		post_size += post.first;
+	}
+
+	plan_->buffer_start = buffer_start;
+	plan_->buffer_read = buffer_start + plan_->readOffset();
+	plan_->buffer_end = buffer_start + plan_->fullBufferSize();
+
+	assert(plan_->buffer_read >= plan_->buffer_start && plan_->buffer_read < plan_->buffer_end);
+	assert(plan_->buffer_start < plan_->buffer_end);
+#endif
 }
 
-void ReadPlanExecutor::executePostProcessing(
-		const std::vector<ReadPlan::PostProcessOperation> operations,
-		uint8_t* buffer) {
-	for (const auto& operation : operations) {
-		uint8_t* destination = buffer + operation.destinationOffset;
-		if (operation.sourceOffset != operation.destinationOffset) {
-			uint8_t* source = buffer + operation.sourceOffset;
-			memcpy(destination, source, MFSBLOCKSIZE);
+void ReadPlanExecutor::executePlan(std::vector<uint8_t> &buffer,
+		const ChunkTypeLocations &locations, ChunkConnector &connector,
+		int connect_timeout, int level_timeout,
+		const Timeout &total_timeout) {
+	executors_.clear();
+	networking_failures_.clear();
+	available_parts_.clear();
+	++executions_total_;
+
+	std::size_t initial_size_of_buffer = buffer.size();
+	buffer.resize(initial_size_of_buffer + plan_->fullBufferSize());
+
+	checkPlan(buffer.data() + initial_size_of_buffer);
+
+	ExecuteParams params{buffer.data() + initial_size_of_buffer + plan_->readOffset(), locations,
+	                     connector, connect_timeout, level_timeout, total_timeout};
+
+	try {
+		executeReadOperations(params);
+		int result_size =
+		    plan_->postProcessData(buffer.data() + initial_size_of_buffer, available_parts_);
+		buffer.resize(initial_size_of_buffer + result_size);
+	} catch (Exception &) {
+		for (const auto &fd_and_executor : executors_) {
+			tcpclose(fd_and_executor.first);
+			stats_.unregisterReadOperation(fd_and_executor.second.server());
 		}
-		for (uint32_t sourceBlockOffset : operation.blocksToXorOffsets) {
-			const uint8_t* source = buffer + sourceBlockOffset;
-			blockXor(destination, source, MFSBLOCKSIZE);
-		}
+		buffer.resize(initial_size_of_buffer);
+		throw;
+	}
+
+	for (const auto &fd_and_executor : executors_) {
+		tcpclose(fd_and_executor.first);
+		stats_.unregisterReadOperation(fd_and_executor.second.server());
 	}
 }
-
-std::atomic<uint64_t> ReadPlanExecutor::executionsTotal;
-std::atomic<uint64_t> ReadPlanExecutor::executionsWithAdditionalOperations;
-std::atomic<uint64_t> ReadPlanExecutor::executionsFinishedByAdditionalOperations;

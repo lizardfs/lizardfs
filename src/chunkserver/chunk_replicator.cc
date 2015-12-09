@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -50,6 +50,7 @@ uint32_t ChunkReplicator::getStats() {
 	return ret;
 }
 
+/*
 std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkPartType chunkType,
 		const std::vector<ChunkTypeWithAddress>& sources) {
 	std::unique_ptr<ReadPlanner> planner;
@@ -66,6 +67,7 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkPartType chunkType
 	planner->prepare(availableParts);
 	return planner;
 }
+*/
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 		ChunkTypeWithAddress type_with_address) throw (Exception) {
@@ -168,6 +170,9 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 
 void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		const std::vector<ChunkTypeWithAddress>& sources) {
+	(void)fileCreator;
+	(void)sources;
+	/*
 	// Create planner
 	std::unique_ptr<ReadPlanner> planner = getPlanner(fileCreator.chunkType(), sources);
 	if (!planner->isReadingPossible()) {
@@ -200,13 +205,14 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		std::vector<uint8_t> buffer;
 		ReadPlanExecutor::ChunkTypeLocations locations;
 		for (const auto& source : sources) {
+			// FIXME: use first address instead of last
 			locations[source.chunk_type] = source;
 		}
-		ReadPlanExecutor::Timeouts timeouts(timeout.remaining_ms(), timeout.remaining_ms());
+
 		ReadPlanExecutor executor(chunkserverStats_,
 				fileCreator.chunkId(), fileCreator.chunkVersion(),
 				planner->buildPlanFor(firstBlock, nrOfBlocks));
-		executor.executePlan(buffer, locations, connector_, timeouts, timeout);
+		executor.executePlan(buffer, locations, connector_, timeout.remaining_ms(), 300, timeout);
 
 		for (uint32_t i = 0; i < nrOfBlocks; ++i) {
 			uint32_t offset = i * MFSBLOCKSIZE;
@@ -219,6 +225,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 
 	fileCreator.commit();
 	incStats();
+	*/
 }
 
 void ChunkReplicator::incStats() {

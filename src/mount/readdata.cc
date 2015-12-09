@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2016 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -169,9 +169,9 @@ void read_data_init(uint32_t retries,
 	gTweaks.registerVariable("ReadBasicTimeout", gChunkserverBasicReadTimeout_ms);
 	gTweaks.registerVariable("ReadTotalTimeout", gChunkserverTotalReadTimeout_ms);
 	gTweaks.registerVariable("ReadChunkPrepare", ChunkReader::preparations);
-	gTweaks.registerVariable("ReqExecutedTotal", ReadPlanExecutor::executionsTotal);
-	gTweaks.registerVariable("ReqExecutedUsingAll", ReadPlanExecutor::executionsWithAdditionalOperations);
-	gTweaks.registerVariable("ReqFinishedUsingAll", ReadPlanExecutor::executionsFinishedByAdditionalOperations);
+	gTweaks.registerVariable("ReqExecutedTotal", ReadPlanExecutor::executions_total_);
+	gTweaks.registerVariable("ReqExecutedUsingAll", ReadPlanExecutor::executions_with_additional_operations_);
+	gTweaks.registerVariable("ReqFinishedUsingAll", ReadPlanExecutor::executions_finished_by_additional_operations_);
 }
 
 void read_data_term(void) {

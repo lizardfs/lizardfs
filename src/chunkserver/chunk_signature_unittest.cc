@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -28,7 +28,6 @@
 #include "common/chunk_part_type.h"
 #include "common/slice_traits.h"
 #include "unittests/chunk_type_constants.h"
-#include "unittests/operators.h"
 #include "unittests/TemporaryDirectory.h"
 
 TEST(ChunkSignatureTests, ReadingOldSignatureFromFile) {

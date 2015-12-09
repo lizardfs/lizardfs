@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,7 +22,6 @@
 
 #include <gtest/gtest.h>
 
-#include "unittests/operators.h"
 
 TEST(ChunkFilenameParser, ParseStandardChunkFilename) {
 	ChunkFilenameParser filenameParser("chunk_0000000000550A00_00000001.liz");

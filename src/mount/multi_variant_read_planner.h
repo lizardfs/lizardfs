@@ -20,21 +20,21 @@
 
 #include "common/platform.h"
 
-#include "common/read_planner.h"
+#include "common/read_plan.h"
 #include "common/standard_chunk_read_planner.h"
 
 /**
  * A class which generates plans with multiple variants, eg. reading from all xor parts
  * and discarding the slowest one.
  */
-class MultiVariantReadPlanner : public ReadPlanner {
+class MultiVariantReadPlanner {
 public:
 	// Derived methods
-	void prepare(const std::vector<ChunkPartType>& availableParts) override;
-	std::vector<ChunkPartType> partsToUse() const override;
-	bool isReadingPossible() const override;
+	void prepare(const std::vector<ChunkPartType>& availableParts);
+	std::vector<ChunkPartType> partsToUse() const;
+	bool isReadingPossible() const;
 	std::unique_ptr<ReadPlan> buildPlanFor(
-			uint32_t firstBlock, uint32_t blockCount) const override;
+			uint32_t firstBlock, uint32_t blockCount);
 
 	/**
 	 * Set scores of chunk types.

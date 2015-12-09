@@ -20,157 +20,255 @@
 #include "unittests/plan_tester.h"
 
 #include <algorithm>
-#include <boost/format.hpp>
+#include <iostream>
 
+#include "common/block_xor.h"
 #include "common/massert.h"
 #include "common/slice_traits.h"
-#include "unittests/operators.h"
 
 namespace unittests {
 
-Block::Block(ChunkPartType chunkType, uint32_t blocknum) : isInitialized_(true) {
-	if (slice_traits::isStandard(chunkType)) {
-		sassert(blocknum < MFSBLOCKSINCHUNK);
-		toggle(blocknum);
-	} else {
-		int level = slice_traits::xors::getXorLevel(chunkType);
-		if (slice_traits::xors::isXorParity(chunkType)) {
-			uint32_t blocksInParityPart = slice_traits::getNumberOfBlocks(chunkType, MFSBLOCKSINCHUNK);
-			sassert(blocknum < blocksInParityPart);
-			for (int i = 0; i < level; ++i) {
-				if (blocknum * level + i < MFSBLOCKSINCHUNK) {
-					toggle(blocknum * level + i);
-				}
+/*! \brief Simulate read from chunkserver.
+ * \param output Vector for storing data from simulated chunkserver.
+ * \param output_offset Offset where data should be stored in output vector.
+ * \param data Vector with chunkserver data.
+ * \param offset Offset with position of data in \param data vector that should be read.
+ * \param size Size of data to read.
+ * \return 0 on succes
+ *         -1 on failure
+ */
+int ReadPlanTester::readDataFromChunkServer(std::vector<uint8_t> &output, int output_offset,
+		const std::vector<uint8_t> &data, int offset, int size) {
+	for (int i = 0; i < size; ++i) {
+		assert(output_offset < (int)output.size());
+		if (offset >= MFSCHUNKSIZE) {
+			return -1;
+		}
+
+		output[output_offset++] = offset < (int)data.size() ? data[offset++] : 0;
+	}
+
+	return 0;
+}
+
+
+/*! \brief Start read operation.
+ *
+ * \param write_buffer_offset Offset where data should be stored in output_buffer_ vector.
+ * \param available_data Map with data for each chunk part type.
+ * \param op Structure describing requested read operation.
+ * \return 0 on succes
+ *         -1 on failure
+ */
+int ReadPlanTester::startReadOperation(int write_buffer_offset,
+		const std::map<ChunkPartType, std::vector<uint8_t>> &available_data,
+		ChunkPartType chunk_type, const ReadPlan::ReadOperation &op) {
+	assert(std::find(networking_failures_.begin(), networking_failures_.end(), chunk_type) ==
+	       networking_failures_.end());
+
+	auto it = available_data.find(chunk_type);
+	if (it == available_data.end()) {
+		return -1;
+	}
+
+	return readDataFromChunkServer(output_buffer_, write_buffer_offset + op.buffer_offset,
+	                               it->second, op.request_offset, op.request_size);
+}
+
+/*! \brief Start reads for specified wave. */
+void ReadPlanTester::startReadsForWave(
+		const std::unique_ptr<ReadPlan> &plan,
+		const std::map<ChunkPartType, std::vector<uint8_t>> &available_data, int wave) {
+	int write_buffer_offset = plan->readOffset();
+
+	for (const auto &read_operation : plan->read_operations) {
+		if (read_operation.second.wave == wave) {
+			if (startReadOperation(write_buffer_offset, available_data, read_operation.first,
+			                       read_operation.second) < 0) {
+				networking_failures_.push_back(read_operation.first);
+			} else {
+				available_parts_.push_back(read_operation.first);
 			}
-		} else {
-			uint32_t blocksInPart = slice_traits::getNumberOfBlocks(chunkType, MFSBLOCKSINCHUNK);
-			massert(blocknum < blocksInPart, boost::str(boost::format(
-					"Requested block %1% from %2%") % blocknum % chunkType).c_str());
-			toggle(blocknum * level + slice_traits::xors::getXorPart(chunkType) - 1);
 		}
 	}
 }
 
-void Block::xorWith(const Block& block) {
-	if (!block.isInitialized()) {
-		isInitialized_ = false;
+/*! \brief Debug function for testing if plan is correct. */
+void ReadPlanTester::checkPlan(const std::unique_ptr<ReadPlan> &plan, uint8_t *buffer_start) {
+	(void)plan;
+	(void)buffer_start;
+#ifndef NDEBUG
+	for (const auto &type_and_op : plan->read_operations) {
+		assert(type_and_op.first.isValid());
+		const ReadPlan::ReadOperation &op(type_and_op.second);
+		assert(op.request_offset >= 0 && op.request_size >= 0);
+		assert((op.request_offset + op.request_size) <= MFSCHUNKSIZE);
+		assert(op.buffer_offset >= 0 &&
+		       (op.buffer_offset + op.request_size) <= plan->read_buffer_size);
+
+		if (op.request_size <= 0) {
+			continue;
+		}
+
+		for (const auto &type_and_op2 : plan->read_operations) {
+			if (&type_and_op == &type_and_op2) {
+				continue;
+			}
+			const ReadPlan::ReadOperation &op2(type_and_op2.second);
+			bool overlap = true;
+
+			if (op2.request_size <= 0) {
+				continue;
+			}
+
+			if (op.buffer_offset >= op2.buffer_offset &&
+			    op.buffer_offset < (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
+			if ((op.buffer_offset + op.request_size - 1) >= op2.buffer_offset &&
+			    (op.buffer_offset + op.request_size - 1) <
+			        (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
+			if (op.buffer_offset < op2.buffer_offset &&
+			    (op.buffer_offset + op.request_size) >= (op2.buffer_offset + op2.request_size)) {
+				assert(!overlap);
+			}
+		}
 	}
-	for (uint32_t blocknum : block.xoredBlocks_) {
-		toggle(blocknum);
+
+	int post_size = 0;
+	for (const auto &post : plan->postprocess_operations) {
+		assert(post.first >= 0);
+		post_size += post.first;
 	}
+
+	plan->buffer_start = buffer_start;
+	plan->buffer_read = buffer_start + plan->readOffset();
+	plan->buffer_end = buffer_start + plan->fullBufferSize();
+
+	assert(plan->buffer_read >= plan->buffer_start && plan->buffer_read < plan->buffer_end);
+	assert(plan->buffer_start < plan->buffer_end);
+#endif
 }
 
-bool Block::operator==(const Block& block) const {
-	return (xoredBlocks_ == block.xoredBlocks_) && block.isInitialized() && isInitialized();
+int ReadPlanTester::executePlan(
+		std::unique_ptr<ReadPlan> plan,
+		const std::map<ChunkPartType, std::vector<uint8_t>> &available_data) {
+	int wave;
+
+	output_buffer_.resize(plan->fullBufferSize());
+	networking_failures_.clear();
+	available_parts_.clear();
+
+	checkPlan(plan, output_buffer_.data());
+
+	for (wave = 0; wave < 10; ++wave) {
+		startReadsForWave(plan, available_data, wave);
+
+		if (!plan->isFinishingPossible(networking_failures_)) {
+			return -1;
+		}
+
+		if (plan->isReadingFinished(available_parts_)) {
+			break;
+		}
+	}
+
+	int result_size = plan->postProcessData(output_buffer_.data(), available_parts_);
+	output_buffer_.resize(result_size);
+
+	return wave;
 }
 
-void Block::toggle(uint32_t blocknum) {
-	if (!isInitialized_) {
+/*! \brief Build data for xor chunk part type. */
+void ReadPlanTester::buildXorData(std::map<ChunkPartType, std::vector<uint8_t>> &result,
+		int level) {
+	std::vector<uint8_t> buffer;
+
+	for (int part = 1; part <= level; ++part) {
+		if (result.count(slice_traits::xors::ChunkPartType(level, part))) {
+			continue;
+		}
+
+		int block_count = slice_traits::getNumberOfBlocks(
+		    slice_traits::xors::ChunkPartType(level, part), MFSBLOCKSINCHUNK);
+
+		buffer.clear();
+		for (int block = 0; block < block_count; ++block) {
+			for (int offset = 0; offset < MFSBLOCKSIZE; offset += 4) {
+				union conv {
+					int32_t value;
+					uint8_t data[4];
+				} c;
+				c.value = (block * level + part - 1) * MFSBLOCKSIZE + offset;
+				buffer.insert(buffer.end(), c.data, c.data + 4);
+			}
+		}
+		result.insert({slice_traits::xors::ChunkPartType(level, part), std::move(buffer)});
+	}
+
+	if (result.count(slice_traits::xors::ChunkPartType(level, 0))) {
 		return;
 	}
-	if (xoredBlocks_.count(blocknum) == 0) {
-		xoredBlocks_.insert(blocknum);
-	} else {
-		xoredBlocks_.erase(blocknum);
+
+	// compute parity block
+	int block_count = slice_traits::getNumberOfBlocks(slice_traits::xors::ChunkPartType(level, 0),
+	                                                  MFSBLOCKSINCHUNK);
+	buffer.resize(block_count * MFSBLOCKSIZE, 0);
+	for (int part = 1; part <= level; ++part) {
+		int size =
+		    std::min(buffer.size(), result[slice_traits::xors::ChunkPartType(level, part)].size());
+		blockXor(buffer.data(), result[slice_traits::xors::ChunkPartType(level, part)].data(),
+		         size);
 	}
+	result.insert(std::make_pair(slice_traits::xors::ChunkPartType(level, 0), std::move(buffer)));
 }
 
-std::ostream& operator<<(std::ostream& out, const Block& block) {
-	if (!block.isInitialized()) {
-		out << "<garbage>";
-	} else if (block.xoredBlocks_.empty()) {
-		out << "<empty>";
-	} else {
-		bool putCross = false;
-		for (uint32_t blocknum : block.xoredBlocks_) {
-			if (putCross) {
-				out << "*";
+/*! \brief Build data for standard chunk part type. */
+void ReadPlanTester::buildStdData(std::map<ChunkPartType, std::vector<uint8_t>> &result) {
+	std::vector<uint8_t> buffer;
+
+	if (result.count(slice_traits::standard::ChunkPartType())) {
+		return;
+	}
+
+	for (int block = 0; block < MFSBLOCKSINCHUNK; ++block) {
+		for (int offset = 0; offset < MFSBLOCKSIZE; offset += 4) {
+			union conv {
+				int32_t value;
+				uint8_t data[4];
+			} c;
+			c.value = block * MFSBLOCKSIZE + offset;
+			buffer.insert(buffer.end(), c.data, c.data + 4);
+		}
+	}
+	result.insert({slice_traits::standard::ChunkPartType(), std::move(buffer)});
+}
+
+bool ReadPlanTester::compareBlocks(const std::vector<uint8_t> &a, int a_offset,
+		const std::vector<uint8_t> &b, int b_offset, int block_count) {
+	for (int block = 0; block < block_count; ++block) {
+		for (int offset = 0; offset < MFSBLOCKSIZE; offset += 4) {
+			union conv {
+				int32_t value;
+				uint8_t data[4];
+			} c1, c2;
+
+			for (int k = 0; k < 4; ++k) {
+				assert(a_offset < (int)a.size());
+				c1.data[k] = a[a_offset++];
+				c2.data[k] = b_offset < (int)b.size() ? b[b_offset++] : 0;
 			}
-			out << blocknum;
-			putCross = true;
-		}
-	}
-	return out;
-}
 
-std::vector<Block> PlanTester::executePlan(
-		const ReadPlan& plan,
-		const std::vector<ChunkPartType>& availableParts,
-		uint32_t blockCount,
-		const std::set<ChunkPartType>& failingParts) {
-	sassert(plan.requiredBufferSize % MFSBLOCKSIZE == 0);
-	std::vector<Block> blocks(plan.requiredBufferSize / MFSBLOCKSIZE);
-	sassert(blocks.size() >= blockCount);
-
-	// This helper function applies the 'operation' on 'chunkType' to the 'blocks' vector
-	auto doReadOperation = [&](ChunkPartType chunkType, const ReadPlan::ReadOperation& operation) {
-		sassert(std::count(availableParts.begin(), availableParts.end(), chunkType) > 0);
-		sassert(operation.readDataOffsets.size() * MFSBLOCKSIZE == operation.requestSize);
-		sassert(operation.requestOffset % MFSBLOCKSIZE == 0);
-		uint32_t firstBlock = operation.requestOffset / MFSBLOCKSIZE;
-		for (uint32_t i = 0; i < operation.requestSize / MFSBLOCKSIZE; ++i) {
-			sassert(operation.readDataOffsets[i] % MFSBLOCKSIZE == 0);
-			uint32_t blockInBuffer = operation.readDataOffsets[i] / MFSBLOCKSIZE;
-			blocks[blockInBuffer] = Block(chunkType, firstBlock + i);
-		}
-	};
-
-	// Perform read operations
-	bool additionalReadOperationsExecuted = false;
-	std::set<ChunkPartType> unfinishedOperations;
-	for (const auto& chunkTypeAndOperation : plan.basicReadOperations) {
-		if (failingParts.count(chunkTypeAndOperation.first) == 0) {
-			doReadOperation(chunkTypeAndOperation.first, chunkTypeAndOperation.second);
-		} else {
-			unfinishedOperations.insert(chunkTypeAndOperation.first);
-		}
-	}
-	if (!unfinishedOperations.empty()) {
-		// perform additionalReadOperations only when some basic already operation failed
-		for (const auto& chunkTypeAndOperation : plan.additionalReadOperations) {
-			if (failingParts.count(chunkTypeAndOperation.first) == 0) {
-				doReadOperation(chunkTypeAndOperation.first, chunkTypeAndOperation.second);
-			} else {
-				unfinishedOperations.insert(chunkTypeAndOperation.first);
+			if (c1.value != c2.value) {
+				std::cout << "failure at block " << block << " offset " << offset << " ("
+				          << c1.value << "," << c2.value << ")\n";
+				return false;
 			}
 		}
-		additionalReadOperationsExecuted = true;
 	}
-
-	// Choose post-processing operations (if we managed to finish reading)
-	std::vector<ReadPlan::PostProcessOperation> postProcessing;
-	if (!additionalReadOperationsExecuted) {
-		postProcessing = plan.getPostProcessOperationsForBasicPlan();
-	} else if (plan.isReadingFinished(unfinishedOperations)) {
-		postProcessing = plan.getPostProcessOperationsForExtendedPlan(unfinishedOperations);
-	}
-
-	// Do the post-processing
-	for (const auto& operation : postProcessing) {
-		sassert(operation.destinationOffset % MFSBLOCKSIZE == 0);
-		uint32_t destBlock = operation.destinationOffset / MFSBLOCKSIZE;
-		sassert(destBlock < blocks.size());
-		blocks[destBlock] = blocks[operation.sourceOffset / MFSBLOCKSIZE]; // simulate memcpy
-		for (uint32_t srcOffset : operation.blocksToXorOffsets) {
-			sassert(srcOffset % MFSBLOCKSIZE == 0);
-			uint32_t srcBlock = srcOffset / MFSBLOCKSIZE;
-			sassert(srcBlock < blocks.size());
-			blocks[destBlock].xorWith(blocks[srcBlock]); // simulate blockXor
-		}
-	}
-
-	// Remove blocks that are not part of the answer and return them
-	blocks.resize(blockCount);
-	return blocks;
+	return true;
 }
 
-std::vector<Block> PlanTester::expectedAnswer(ChunkPartType chunkType,
-		uint32_t firstBlock, uint32_t blockCount) {
-	std::vector<Block> blocks;
-	for (uint32_t i = 0; i < blockCount; ++i) {
-		blocks.push_back(Block(chunkType, firstBlock + i));
-	}
-	return blocks;
-}
-
-} // namespace unittests
+}  // namespace unittests

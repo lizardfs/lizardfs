@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -24,28 +24,31 @@
 
 #include "common/network_address.h"
 #include "protocol/packet.h"
-#include "common/read_planner.h"
+#include "common/read_plan.h"
 #include "common/time_utils.h"
 
 class ReadOperationExecutor {
 public:
 	ReadOperationExecutor(
-			const ReadPlan::ReadOperation& readOperation,
+			const ReadPlan::ReadOperation &readOperation,
 			uint64_t chunkId,
 			uint32_t chunkVersion,
-			const ChunkPartType& chunkType,
-			const NetworkAddress& server,
+			const ChunkPartType &chunkType,
+			const NetworkAddress &server,
 			uint32_t server_version,
 			int fd,
-			uint8_t* buffer);
+			uint8_t *buffer);
 
 	ReadOperationExecutor(const ReadOperationExecutor&) = delete;
 	ReadOperationExecutor(ReadOperationExecutor&&) = default;
 
+	ReadOperationExecutor &operator=(const ReadOperationExecutor &) = delete;
+	ReadOperationExecutor &operator=(ReadOperationExecutor &&) = default;
+
 	/*
 	 * Prepares (LIZ_)CLTOCS_READ message and sends it to the chunkserver
 	 */
-	void sendReadRequest(const Timeout& timeout);
+	void sendReadRequest(const Timeout &timeout);
 
 	/*
 	 * Executes read operation on the socket and processes the received data.
@@ -58,7 +61,7 @@ public:
 	/*
 	 * Executes continueReading() until the operation is finished
 	 */
-	void readAll(const Timeout& timeout);
+	void readAll(const Timeout &timeout);
 
 	/**
 	 * Checks if the read operation is finished.
@@ -77,8 +80,12 @@ public:
 	/**
 	 * A getter.
 	 */
-	const NetworkAddress& server() const {
+	const NetworkAddress &server() const {
 		return server_;
+	}
+
+	int getWave() const {
+		return readOperation_.wave;
 	}
 
 private:
@@ -101,23 +108,23 @@ private:
 	ReadPlan::ReadOperation readOperation_;
 
 	/* The buffer, where the data will be placed according to readOperation_.offsetsOfBlocks */
-	uint8_t* const dataBuffer_;
+	uint8_t *dataBuffer_;
 
-	/* Information about the chunk, that will be used to execute the red operation */
-	const uint64_t chunkId_;
-	const uint32_t chunkVersion_;
-	const ChunkPartType chunkType_;
+	/* Information about the chunk, that will be used to execute the read operation */
+	uint64_t chunkId_;
+	uint32_t chunkVersion_;
+	ChunkPartType chunkType_;
 
 	/*Information about the server, that will be used to execute the read operation */
-	const NetworkAddress server_;
-	const uint32_t server_version_;
-	const int fd_;
+	NetworkAddress server_;
+	uint32_t server_version_;
+	int fd_;
 
 	/* Current state of the operation */
 	ReadOperationState state_;
 
 	/* The address when the next data read from the socket should be placed */
-	uint8_t* destination_;
+	uint8_t *destination_;
 
 	/* The amount of bytes which should be placed at destination_ in the current state */
 	uint32_t bytesLeft_;

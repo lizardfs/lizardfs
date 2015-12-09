@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -117,7 +117,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 			// - it was disabled with a config option
 			// - all chunk parts were read before (in this case we rely on pagecache)
 			// - we're reading the end of a chunk (there is no point in prefetching anything)
-			plan->prefetchOperations.clear();
+			plan->block_prefetch = true;
 		}
 		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version,
 				std::move(plan));
@@ -125,10 +125,10 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		try {
 			chunkAlreadyRead = true;
 			executor.executePlan(buffer, chunkTypeLocations_, connector_,
-					ReadPlanExecutor::Timeouts(connectTimeout_ms, basicTimeout_ms),
+					connectTimeout_ms, basicTimeout_ms,
 					communicationTimeout);
 			// After executing the plan we want use the feedback to modify our planer a bit
-			for (auto partOmited : executor.partsOmitted()) {
+			for (auto partOmited : executor.partsFailed()) {
 				planner_.startAvoidingPart(partOmited);
 			}
 		} catch (ChunkCrcException &err) {

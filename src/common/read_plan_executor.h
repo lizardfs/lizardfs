@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -28,98 +28,97 @@
 #include "common/chunk_type_with_address.h"
 #include "common/chunkserver_stats.h"
 #include "common/connection_pool.h"
-#include "protocol/MFSCommunication.h"
 #include "common/network_address.h"
-#include "protocol/packet.h"
-#include "common/read_planner.h"
+#include "common/read_plan.h"
+#include "common/read_operation_executor.h"
 #include "common/time_utils.h"
+#include "common/flat_map.h"
+#include "protocol/packet.h"
+#include "protocol/MFSCommunication.h"
 
+/*! \brief Class responsible for executing read plan */
 class ReadPlanExecutor {
 public:
-	typedef std::map<ChunkPartType, ChunkTypeWithAddress> ChunkTypeLocations;
+	typedef flat_map<ChunkPartType, ChunkTypeWithAddress> ChunkTypeLocations;
 
-	/// Timeouts for ReadPlanExecutor::executePlan.
-	struct Timeouts {
-		/// Timeout for creating TCP connections and rending requests.
-		uint32_t connectTimeout_ms;
-
-		/// Timeout after which additional read operations will be started.
-		uint32_t basicTimeout_ms;
-
-		Timeouts(uint32_t connectTimeout_ms, uint32_t basicTimeout_ms)
-				: connectTimeout_ms(connectTimeout_ms),
-				  basicTimeout_ms(basicTimeout_ms) {
-		}
-	};
-
+	/*! \brief Constructor.
+	 *
+	 * \param chunkserverStats Reference to class storing chunkserver statistics.
+	 * \param chunkId Id of the chunk to read.
+	 * \param chunkVersion Version of the chunk to read.
+	 * \param plan Plan to execute.
+	 */
 	ReadPlanExecutor(
 			ChunkserverStats& chunkserverStats,
 			uint64_t chunkId, uint32_t chunkVersion,
 			std::unique_ptr<ReadPlan> plan);
 
-	/**
-	 * Executes the plan.
+	/*! \brief Execute the plan.
+	 *
 	 * The data will be appended to the buffer.
-	 * \param buffer       buffer, where the data will be stored (>= plan_.requiredBufferSize)
-	 * \param locations    locations of all the chunkTypes that exist in the plan
-	 * \param connector    object which will be used to obtain connections to chunkservers
-	 * \param timeouts     settings of timeouts which influence how the executor works
+	 *
+	 * \param buffer buffer, where the data will be stored
+	 * \param locations locations of all the ChunkPartTypes that exist in the plan
+	 * \param connector object which will be used to obtain connections to chunkservers
+	 * \param connect_timeout connection timeout
+	 * \param wave_timeout wave timeout
 	 * \param totalTimeout timeout of the whole operation
 	 */
 	void executePlan(std::vector<uint8_t>& buffer,
 			const ChunkTypeLocations& locations,
 			ChunkConnector& connector,
-			const Timeouts& timeouts,
-			const Timeout& totalTimeout);
+			int connect_timeout,
+			int wave_timeout,
+			const Timeout& total_timeout);
 
-	/**
-	 * Gets feedback from the execution phase.
-	 * \return set of parts from which reading data was abandoned
-	 *         during the last successful call to executePlan
+	/*! \brief Function Return parts that couldn't be read in execution phase.
+	 *
+	 * \return set of parts that couldn't be read during the last call to executePlan
 	 */
-	const std::set<ChunkPartType>& partsOmitted() const {
-		return partsOmitted_;
+	const ReadPlan::PartsContainer& partsFailed() const {
+		return networking_failures_;
 	}
 
 	/// Counter for the .lizardfds_tweaks file.
-	static std::atomic<uint64_t> executionsTotal;
+	static std::atomic<uint64_t> executions_total_;
 
 	/// Counter for the .lizardfds_tweaks file.
-	static std::atomic<uint64_t> executionsWithAdditionalOperations;
+	static std::atomic<uint64_t> executions_with_additional_operations_;
 
 	/// Counter for the .lizardfds_tweaks file.
-	static std::atomic<uint64_t> executionsFinishedByAdditionalOperations;
+	static std::atomic<uint64_t> executions_finished_by_additional_operations_;
+
+protected:
+	struct ExecuteParams {
+		uint8_t *buffer;
+		const ChunkTypeLocations &locations;
+		ChunkConnector &connector;
+		int connect_timeout;
+		int wave_timeout;
+		const Timeout &total_timeout;
+	};
+
+	void checkPlan(uint8_t *buffer_start);
+
+	bool startReadOperation(ExecuteParams &params, ChunkPartType chunk_type,
+	                        const ReadPlan::ReadOperation &op);
+	void startPrefetchOperation(ExecuteParams &params, ChunkPartType chunk_type,
+	                            const ReadPlan::ReadOperation &op);
+	int startReadsForWave(ExecuteParams &params, int wave);
+	void startPrefetchForWave(ExecuteParams &params, int wave);
+	bool waitForData(ExecuteParams &params, Timeout &wave_timeout, std::vector<pollfd> &poll_fds);
+	bool readSomeData(ExecuteParams &params, const pollfd &poll_fd,
+	                  ReadOperationExecutor &executor);
+	void executeReadOperations(ExecuteParams &params);
 
 private:
-	ChunkserverStats& chunkserverStats_;
-	const uint64_t chunkId_;
-	const uint32_t chunkVersion_;
-	std::unique_ptr<const ReadPlan> plan_;
-	std::set<ChunkPartType> partsOmitted_;
+	ChunkserverStats& stats_;
+	const uint64_t chunk_id_;
+	const uint32_t chunk_version_;
+	std::unique_ptr<ReadPlan> plan_;
 
-	/**
-	 * Executes read operations from plan_.
-	 * Starts with basicReadOperations and (if basicTimeout expires) starts
-	 * additionalReadOperations.
-	 * \param buffer     buffer, where the data will be stored (>= plan_.requiredBufferSize)
-	 * \param locations  locations of all the chunkTypes that exist in the plan
-	 * \param connector  object which will be used to obtain connections to chunkservers
-	 * \param timeouts   a set of timeouts for the execution
-	 * \return list of post-process operations that need to be done
-	 */
-	std::vector<ReadPlan::PostProcessOperation> executeReadOperations(
-			uint8_t* buffer,
-			const ChunkTypeLocations& locations,
-			ChunkConnector& connector,
-			const Timeouts& timeouts,
-			const Timeout& totalTimeout);
-
-	/**
-	 * Executes given post-processing operations
-	 * \param operations  list of operations to execute
-	 * \param buffer      buffer to post-process
-	 */
-	void executePostProcessing(
-			const std::vector<ReadPlan::PostProcessOperation> operations,
-			uint8_t* buffer);
+	flat_map<int, ReadOperationExecutor> executors_;
+	ReadPlan::PartsContainer available_parts_;
+	ReadPlan::PartsContainer networking_failures_;
+	NetworkAddress last_connection_failure_;
 };

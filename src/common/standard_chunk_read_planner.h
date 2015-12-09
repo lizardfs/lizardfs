@@ -20,41 +20,13 @@
 
 #include "common/platform.h"
 
-#include "common/read_planner.h"
+#include "common/read_plan.h"
 
-class StandardChunkReadPlanner : public ReadPlanner {
+class StandardChunkReadPlanner {
 public:
-	virtual void prepare(const std::vector<ChunkPartType>& availableParts) override;
-	virtual std::vector<ChunkPartType> partsToUse() const override;
-	virtual bool isReadingPossible() const override;
+	virtual void prepare(const std::vector<ChunkPartType>& availableParts);
+	virtual std::vector<ChunkPartType> partsToUse() const;
+	virtual bool isReadingPossible() const;
 	virtual std::unique_ptr<ReadPlan> buildPlanFor(
-			uint32_t firstBlock, uint32_t blockCount) const override;
-
-private:
-	enum PlanBuilderType {
-		BUILDER_NONE,
-		BUILDER_STANDARD,
-		BUILDER_XOR
-	};
-
-	class PlanBuilder {
-	public:
-		PlanBuilder(PlanBuilderType type) : type_(type) {}
-		virtual ~PlanBuilder() {}
-		virtual std::unique_ptr<ReadPlan> buildPlan(
-				uint32_t firstBlock, uint32_t blockCount) const = 0;
-		PlanBuilderType type() const { return type_; }
-
-	private:
-		const PlanBuilderType type_;
-	};
-
-	class StandardPlanBuilder;
-	class XorPlanBuilder;
-
-	std::map<PlanBuilderType, std::unique_ptr<PlanBuilder>> planBuilders_;
-	PlanBuilder* currentBuilder_;
-
-	void setCurrentBuilderToStandard();
-	void setCurrentBuilderToXor(int level, int missingPart);
+			uint32_t firstBlock, uint32_t blockCount);
 };

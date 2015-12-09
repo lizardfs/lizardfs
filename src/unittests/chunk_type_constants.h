@@ -21,7 +21,6 @@
 #include "common/platform.h"
 
 #include "common/chunk_part_type.h"
-#include "unittests/operators.h"
 
 extern const ChunkPartType standard;
 extern const ChunkPartType xor_1_of_2;

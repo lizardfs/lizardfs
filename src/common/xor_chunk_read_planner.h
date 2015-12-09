@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -20,25 +20,16 @@
 
 #include "common/platform.h"
 
-#include "common/read_planner.h"
+#include "common/read_plan.h"
 
-class XorChunkReadPlanner : public ReadPlanner {
+class XorChunkReadPlanner {
 public:
 	XorChunkReadPlanner(ChunkPartType readChunkType);
 	~XorChunkReadPlanner();
 
-	virtual void prepare(const std::vector<ChunkPartType>& availableParts) override;
-	virtual std::vector<ChunkPartType> partsToUse() const override;
-	virtual bool isReadingPossible() const override;
+	virtual void prepare(const std::vector<ChunkPartType>& availableParts);
+	virtual std::vector<ChunkPartType> partsToUse() const;
+	virtual bool isReadingPossible() const;
 	virtual std::unique_ptr<ReadPlan> buildPlanFor(
-			uint32_t firstBlock, uint32_t blockCount) const override;
-
-private:
-	class PlanBuilder;
-	class CopyPartPlanBuilder;
-	class XorPlanBuilder;
-
-	ChunkPartType chunkType_;
-	std::vector<ChunkPartType> partsToUse_;
-	std::unique_ptr<PlanBuilder> planBuilder_;
+			uint32_t firstBlock, uint32_t blockCount);
 };

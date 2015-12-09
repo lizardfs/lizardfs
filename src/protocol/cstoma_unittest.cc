@@ -25,7 +25,6 @@
 #include "common/mfserr.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
-#include "unittests/operators.h"
 #include "unittests/packet.h"
 
 TEST(CstomaCommunicationTests, OverwriteStatusField) {

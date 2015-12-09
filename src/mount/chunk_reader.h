@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -32,6 +32,7 @@
 #include "common/connection_pool.h"
 #include "common/massert.h"
 #include "common/network_address.h"
+#include "common/read_plan_executor.h"
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
 #include "mount/multi_variant_read_planner.h"
@@ -80,7 +81,7 @@ private:
 	uint32_t index_;
 	std::shared_ptr<const ChunkLocationInfo> location_;
 	MultiVariantReadPlanner planner_;
-	std::map<ChunkPartType, ChunkTypeWithAddress> chunkTypeLocations_;
+	ReadPlanExecutor::ChunkTypeLocations chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
 	bool chunkAlreadyRead;
 };
