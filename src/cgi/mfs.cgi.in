@@ -958,7 +958,7 @@ if "IN" in sectionset:
 					else:
 						out.append("""	<tr><th colspan="8">Important messages:</th></tr>""")
 					out.append("""	<tr>""")
-					out.append("""		<td colspan="8" align="left"><pre>%s</pre></td>""" % (urllib.unquote(data[36:]).replace("&","&amp;").replace(">","&gt;").replace("<","&lt;")))
+					out.append("""		<td colspan="8" align="left"><small><pre>%s</pre></small></td>""" % (urllib.unquote(data[36:]).replace("&","&amp;").replace(">","&gt;").replace("<","&lt;")))
 					out.append("""	</tr>""")
 			else:
 				out.append("""	<tr>""")
