@@ -53,7 +53,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 	}
 	chunkTypeLocations_.clear();
 	std::vector<ChunkPartType> availableChunkTypes;
-	std::map<ChunkPartType, float> bestScores;
+	flat_map<ChunkPartType, float> bestScores;
 
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
 		const ChunkPartType& type = chunkTypeWithAddress.chunk_type;

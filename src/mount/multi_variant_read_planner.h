@@ -20,6 +20,7 @@
 
 #include "common/platform.h"
 
+#include "common/flat_map.h"
 #include "common/read_plan.h"
 #include "common/standard_chunk_read_planner.h"
 
@@ -40,7 +41,7 @@ public:
 	 * Set scores of chunk types.
 	 * The scores will be used to choose which variant should be the basic one.
 	 */
-	void setScores(std::map<ChunkPartType, float> scores);
+	void setScores(flat_map<ChunkPartType, float> scores);
 
 	/// Modifies the planner to avoid using the given part in basic operations in the future.
 	void startAvoidingPart(ChunkPartType part);

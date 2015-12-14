@@ -23,7 +23,7 @@
 #include <iterator>
 #include <limits>
 
-#include "common/massert.h"
+#include "common/flat_map.h"
 #include "common/slice_traits.h"
 
 void MultiVariantReadPlanner::prepare(const std::vector<ChunkPartType>&) {
@@ -41,7 +41,7 @@ std::unique_ptr<ReadPlan> MultiVariantReadPlanner::buildPlanFor(uint32_t, uint32
 	return std::unique_ptr<ReadPlan>();
 }
 
-void MultiVariantReadPlanner::setScores(std::map<ChunkPartType, float>) {
+void MultiVariantReadPlanner::setScores(flat_map<ChunkPartType, float>) {
 }
 
 void MultiVariantReadPlanner::startAvoidingPart(ChunkPartType) {
