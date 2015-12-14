@@ -25,12 +25,11 @@
 #include <mutex>
 
 #include "chunkserver/chunk_file_creator.h"
+#include "chunkserver/slice_recovery_planner.h"
 #include "common/chunk_connector.h"
 #include "common/chunk_type_with_address.h"
 #include "common/chunkserver_stats.h"
 #include "common/exception.h"
-#include "common/standard_chunk_read_planner.h"
-#include "common/xor_chunk_read_planner.h"
 
 class ChunkReplicator {
 public:
@@ -43,10 +42,6 @@ private:
 	ChunkConnector& connector_;
 	uint32_t stats_;
 	std::mutex mutex_;
-
-	//FIXME(hazeman)
-	//std::unique_ptr<ReadPlanner> getPlanner(ChunkPartType chunkType,
-	//		const std::vector<ChunkTypeWithAddress>& sources);
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 			ChunkTypeWithAddress type_with_address) throw (Exception);
