@@ -56,6 +56,7 @@ enum {
 	KEY_VERSION
 };
 
+#define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO 500
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO 2000
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO 5000
 #define LIZARDFS_MOUNT_DEFAULT_RTT 200
@@ -103,7 +104,7 @@ struct mfsopts_ {
 	char *iolimits;
 	int chunkserverrtt;
 	int chunkserverconnectreadto;
-	int chunkserverbasicreadto;
+	int chunkserverwavereadto;
 	int chunkservertotalreadto;
 	int prefetchxorstripes;
 	int chunkserverwriteto;
@@ -156,7 +157,7 @@ struct mfsopts_ {
 			iolimits(NULL),
 			chunkserverrtt(LIZARDFS_MOUNT_DEFAULT_RTT),
 			chunkserverconnectreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
-			chunkserverbasicreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
+			chunkserverwavereadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO),
 			chunkservertotalreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			prefetchxorstripes(0),
 			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO),

@@ -34,11 +34,11 @@ ChunkReader::ChunkReader(ChunkConnector& connector)
 		  chunkAlreadyRead(false) {
 }
 
-void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool forcePrepare) {
+void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force_prepare) {
 	if (inode != inode_ || index != index_) {
 		// we moved to a new chunk
 		crcErrors_.clear();
-	} else if (!forcePrepare) {
+	} else if (!force_prepare) {
 		// we didn't change chunk and aren't forced to prepare again
 		return;
 	}
@@ -51,41 +51,38 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 	if (location_->isEmptyChunk()) {
 		return;
 	}
-	chunkTypeLocations_.clear();
-	std::vector<ChunkPartType> availableChunkTypes;
-	flat_map<ChunkPartType, float> bestScores;
+	chunk_type_locations_.clear();
 
-	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
-		const ChunkPartType& type = chunkTypeWithAddress.chunk_type;
+	ChunkReadPlanner::ScoreContainer best_scores;
 
-		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
+	available_parts_.clear();
+	for (const ChunkTypeWithAddress& chunk_type_with_address : location_->locations) {
+		const ChunkPartType& type = chunk_type_with_address.chunk_type;
+
+		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunk_type_with_address) > 0) {
 			continue;
 		}
 
-		float score = globalChunkserverStats.getStatisticsFor(chunkTypeWithAddress.address).score();
-		if (chunkTypeLocations_.count(type) == 0) {
+		float score = globalChunkserverStats.getStatisticsFor(chunk_type_with_address.address).score();
+		if (chunk_type_locations_.count(type) == 0) {
 			// first location of this type, choose it (for now)
-			chunkTypeLocations_[type] = chunkTypeWithAddress;
-			bestScores[type] = score;
-			availableChunkTypes.push_back(type);
+			chunk_type_locations_[type] = chunk_type_with_address;
+			best_scores[type] = score;
+			available_parts_.push_back(type);
 		} else {
 			// we already know other locations
-			if (score > bestScores[type]) {
+			if (score > best_scores[type]) {
 				// this location is better, switch to it
-				chunkTypeLocations_[type] = chunkTypeWithAddress;
-				bestScores[type] = score;
+				chunk_type_locations_[type] = chunk_type_with_address;
+				best_scores[type] = score;
 			}
 		}
 	}
-	planner_.setScores(std::move(bestScores));
-	planner_.prepare(availableChunkTypes);
-	if (!planner_.isReadingPossible()) {
-		throw NoValidCopiesReadException("no valid copies");
-	}
+	planner_.setScores(std::move(best_scores));
 }
 
 uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
-		uint32_t connectTimeout_ms, uint32_t basicTimeout_ms, const Timeout& communicationTimeout,
+		uint32_t connectTimeout_ms, uint32_t wave_timeout_ms, const Timeout& communicationTimeout,
 		bool prefetchXorStripes) {
 	if (size == 0) {
 		return 0;
@@ -111,7 +108,13 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		// We have to request for availableSize rounded up to MFSBLOCKSIZE
 		uint32_t firstBlockToRead = offset / MFSBLOCKSIZE;
 		uint32_t blockToReadCount = (availableSize + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE;
-		auto plan = planner_.buildPlanFor(firstBlockToRead, blockToReadCount);
+
+		planner_.prepare(firstBlockToRead, blockToReadCount, available_parts_);
+		if (!planner_.isReadingPossible()) {
+			throw NoValidCopiesReadException("no valid copies");
+		}
+
+		auto plan = planner_.buildPlan();
 		if (!prefetchXorStripes || chunkAlreadyRead || size != availableSize) {
 			// Disable prefetching if:
 			// - it was disabled with a config option
@@ -124,13 +127,10 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 		uint32_t initialBufferSize = buffer.size();
 		try {
 			chunkAlreadyRead = true;
-			executor.executePlan(buffer, chunkTypeLocations_, connector_,
-					connectTimeout_ms, basicTimeout_ms,
+			executor.executePlan(buffer, chunk_type_locations_, connector_,
+					connectTimeout_ms, wave_timeout_ms,
 					communicationTimeout);
-			// After executing the plan we want use the feedback to modify our planer a bit
-			for (auto partOmited : executor.partsFailed()) {
-				planner_.startAvoidingPart(partOmited);
-			}
+			//TODO(haze): Improve scoring system so it can deal with disconnected chunkservers.
 		} catch (ChunkCrcException &err) {
 			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType(), 0));
 			throw;

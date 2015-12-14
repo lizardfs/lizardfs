@@ -301,7 +301,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		read_data_init(gMountOptions.ioretries,
 				gMountOptions.chunkserverrtt,
 				gMountOptions.chunkserverconnectreadto,
-				gMountOptions.chunkserverbasicreadto,
+				gMountOptions.chunkserverwavereadto,
 				gMountOptions.chunkservertotalreadto,
 				gMountOptions.prefetchxorstripes);
 		write_data_init(gMountOptions.writecachesize,

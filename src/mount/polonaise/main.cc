@@ -1024,7 +1024,7 @@ int main (int argc, char **argv) {
 	auto writewindowsize = 15;
 	auto chunkserverrtt = 200;
 	auto chunkserverconnectreadto = 2000;
-	auto chunkserverbasicreadto = 2000;
+	auto chunkserverwavereadto = 500;
 	auto chunkservertotalreadto = 2000;
 	bool prefetchFullXorStripes = true;
 	auto chunkserverwriteto = 5000;
@@ -1076,7 +1076,7 @@ int main (int argc, char **argv) {
 	read_data_init(gSetup.io_retries,
 			chunkserverrtt,
 			chunkserverconnectreadto,
-			chunkserverbasicreadto,
+			chunkserverwavereadto,
 			chunkservertotalreadto,
 			prefetchFullXorStripes);
 	write_data_init(gSetup.write_buffer_size, gSetup.io_retries, writeworkers,

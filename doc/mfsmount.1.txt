@@ -139,8 +139,8 @@ set timeout after which SYN packet is considered lost during the first retry of 
 *-o mfschunkserverconnectreadto=*'MSEC'::
 set timeout for connecting with chunkservers during read operation in milliseconds (default: 2000)
 
-*-o mfschunkserverbasicreadto=*'MSEC'::
-set timeout for executing the basic variant of a read operation in milliseconds (default: 2000)
+*-o mfschunkserverwavereadto=*'MSEC'::
+set timeout for executing each wave of a read operation in milliseconds (default: 500)
 
 *-o mfschunkservertotalreadto=*'MSEC'::
 set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: 2000)

@@ -72,7 +72,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsiolimits=%s", iolimits, 0),
 	MFS_OPT("mfschunkserverrtt=%d", chunkserverrtt, 0),
 	MFS_OPT("mfschunkserverconnectreadto=%d", chunkserverconnectreadto, 0),
-	MFS_OPT("mfschunkserverbasicreadto=%d", chunkserverbasicreadto, 0),
+	MFS_OPT("mfschunkserverwavereadto=%d", chunkserverwavereadto, 0),
 	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
@@ -151,7 +151,7 @@ void usage(const char *progname) {
 "    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfschunkserverrtt=MSEC   set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver (default: " STR(LIZARDFS_MOUNT_DEFAULT_RTT) ")\n"
 "    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
-"    -o mfschunkserverbasicreadto=MSEC   set timeout for executing the basic variant of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o mfschunkserverwavereadto=MSEC   set timeout for executing each wave of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO) ")\n"
 "    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfsprefetchxorstripes    prefetch full xor stripe on every first read of a xor chunk\n"
 "    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"

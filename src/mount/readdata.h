@@ -32,7 +32,7 @@ void read_data_freebuff(void *rr);
 void read_data_init(uint32_t retries,
 		uint32_t chunkserverRoundTripTime_ms,
 		uint32_t chunkserverConnectTimeout_ms,
-		uint32_t chunkServerBasicReadTimeout_ms,
+		uint32_t chunkServerWaveReadTimeout_ms,
 		uint32_t chunkserverTotalReadTimeout_ms,
 		bool prefetchXorStripes);
 void read_data_term(void);

@@ -80,7 +80,7 @@ static readrec *rdinodemap[MAPSIZE];
 static readrec *rdhead=NULL;
 static pthread_t delayedOpsThread;
 static std::atomic<uint32_t> gChunkserverConnectTimeout_ms;
-static std::atomic<uint32_t> gChunkserverBasicReadTimeout_ms;
+static std::atomic<uint32_t> gChunkserverWaveReadTimeout_ms;
 static std::atomic<uint32_t> gChunkserverTotalReadTimeout_ms;
 static std::atomic<bool> gPrefetchXorStripes;
 static bool readDataTerminate;
@@ -141,7 +141,7 @@ void read_data_end(void* rr) {
 void read_data_init(uint32_t retries,
 		uint32_t chunkserverRoundTripTime_ms,
 		uint32_t chunkserverConnectTimeout_ms,
-		uint32_t chunkServerBasicReadTimeout_ms,
+		uint32_t chunkServerWaveReadTimeout_ms,
 		uint32_t chunkserverTotalReadTimeout_ms,
 		bool prefetchXorStripes) {
 	uint32_t i;
@@ -153,7 +153,7 @@ void read_data_init(uint32_t retries,
 	}
 	maxRetries=retries;
 	gChunkserverConnectTimeout_ms = chunkserverConnectTimeout_ms;
-	gChunkserverBasicReadTimeout_ms = chunkServerBasicReadTimeout_ms;
+	gChunkserverWaveReadTimeout_ms = chunkServerWaveReadTimeout_ms;
 	gChunkserverTotalReadTimeout_ms = chunkserverTotalReadTimeout_ms;
 	gPrefetchXorStripes = prefetchXorStripes;
 	gTweaks.registerVariable("PrefetchXorStripes", gPrefetchXorStripes);
@@ -166,7 +166,7 @@ void read_data_init(uint32_t retries,
 
 	gTweaks.registerVariable("ReadMaxRetries", maxRetries);
 	gTweaks.registerVariable("ReadConnectTimeout", gChunkserverConnectTimeout_ms);
-	gTweaks.registerVariable("ReadBasicTimeout", gChunkserverBasicReadTimeout_ms);
+	gTweaks.registerVariable("ReadWaveTimeout", gChunkserverWaveReadTimeout_ms);
 	gTweaks.registerVariable("ReadTotalTimeout", gChunkserverTotalReadTimeout_ms);
 	gTweaks.registerVariable("ReadChunkPrepare", ChunkReader::preparations);
 	gTweaks.registerVariable("ReqExecutedTotal", ReadPlanExecutor::executions_total_);
@@ -294,7 +294,7 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 			}
 			uint32_t bytesReadFromChunk = rrec->reader.readData(
 					rrec->readBufer, offsetInChunk, sizeInChunk,
-					gChunkserverConnectTimeout_ms, gChunkserverBasicReadTimeout_ms,
+					gChunkserverConnectTimeout_ms, gChunkserverWaveReadTimeout_ms,
 					communicationTimeout, gPrefetchXorStripes);
 			// No exceptions thrown. We can increase the counters and go to the next chunk
 			bytesRead += bytesReadFromChunk;

@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "common/chunk_connector.h"
+#include "common/chunk_read_planner.h"
 #include "common/chunk_type_with_address.h"
 #include "common/connection_pool.h"
 #include "common/massert.h"
@@ -35,7 +36,6 @@
 #include "common/read_plan_executor.h"
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
-#include "mount/multi_variant_read_planner.h"
 
 class ChunkReader {
 public:
@@ -52,7 +52,7 @@ public:
 	 * Reads data from the previously located chunk and appends it to the buffer
 	 */
 	uint32_t readData(std::vector<uint8_t>& buffer, uint32_t offset, uint32_t size,
-			uint32_t connectTimeout_ms, uint32_t basicTimeout_ms,
+			uint32_t connectTimeout_ms, uint32_t wave_timeout_ms,
 			const Timeout& communicationTimeout, bool prefetchXorStripes);
 
 	bool isChunkLocated() const {
@@ -80,8 +80,9 @@ private:
 	uint32_t inode_;
 	uint32_t index_;
 	std::shared_ptr<const ChunkLocationInfo> location_;
-	MultiVariantReadPlanner planner_;
-	ReadPlanExecutor::ChunkTypeLocations chunkTypeLocations_;
+	ChunkReadPlanner planner_;
+	ReadPlan::PartsContainer available_parts_;
+	ReadPlanExecutor::ChunkTypeLocations chunk_type_locations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
 	bool chunkAlreadyRead;
 };
