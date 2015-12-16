@@ -20,6 +20,7 @@
 
 #include "common/platform.h"
 
+#include <cassert>
 #include <exception>
 #include <string>
 
@@ -28,13 +29,12 @@
 
 class Exception : public std::exception {
 public:
-	Exception(const std::string& message) : message_(message), status_(LIZARDFS_STATUS_OK) {
+	Exception(const std::string& message) : message_(message), status_(LIZARDFS_ERROR_UNKNOWN) {
 	}
 
 	Exception(const std::string& message, uint8_t status) : message_(message), status_(status) {
-		if (status != LIZARDFS_STATUS_OK) {
-			message_ += " (" + std::string(mfsstrerr(status)) + ")";
-		}
+		assert(status != LIZARDFS_STATUS_OK);
+		message_ += " (" + std::string(mfsstrerr(status)) + ")";
 	}
 
 	~Exception() throw() {}
