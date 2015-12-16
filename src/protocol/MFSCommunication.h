@@ -137,7 +137,7 @@
 #define LIZARDFS_ERROR_NOTPOSSIBLE             48    // It's not possible to perform operation in this way
 #define LIZARDFS_ERROR_TEMP_NOTPOSSIBLE        49    // Operation temporarily not possible
 #define LIZARDFS_ERROR_WAITING                 50    // Waiting for operation completion
-#define LIZARDFS_ERROR_RESERVED4               51
+#define LIZARDFS_ERROR_UNKNOWN                 51    // Unknown error
 
 #define LIZARDFS_ERROR_MAX                     52
 
@@ -192,9 +192,9 @@
 	"Wrong lock id", \
 	"Operation not possible", \
 	"Operation temporarily not possible", \
-	"Unknown MFS error", \
-	"Unknown MFS error", \
-	"Unknown MFS error"
+	"Waiting for operation completion", \
+	"Unknown LizardFS error", \
+	"Unknown LizardFS error"
 
 /// field values: nodetype
 #define TYPE_FILE             'f'
