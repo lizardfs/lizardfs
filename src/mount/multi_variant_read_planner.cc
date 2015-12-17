@@ -336,7 +336,7 @@ std::unique_ptr<ReadPlan> MultiVariantReadPlanner::buildPlanFor(
 	for (const auto& part : partsToUse_) {
 		ReadPlan::ReadOperation op;
 		uint32_t blocksToReadFromPart = stripes;
-		if (firstStripe + blocksToReadFromPart > slice_traits::getNumberOfBlocks(part, MFSBLOCKSINCHUNK)) {
+		if (firstStripe + blocksToReadFromPart > (uint32_t)slice_traits::getNumberOfBlocks(part, MFSBLOCKSINCHUNK)) {
 			// some parts don't contain blocks from the last stripe, so don't read them
 			blocksToReadFromPart = slice_traits::getNumberOfBlocks(part, MFSBLOCKSINCHUNK) - firstStripe;
 		}

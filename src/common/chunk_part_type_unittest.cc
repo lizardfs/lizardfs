@@ -76,47 +76,47 @@ TEST(ChunkTypeTests, validChunkTypeIDTest) {
 			slice_traits::chunkLengthToChunkPartLength(chunkType, wholeChunkLen))
 
 TEST(ChunkTypeTests, chunkTypeLengthTest) {
-	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 2U * MFSBLOCKSIZE    , 4U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 2U * MFSBLOCKSIZE + 1, 4U * MFSBLOCKSIZE + 1);
-	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 3U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 3U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 2 * MFSBLOCKSIZE + 1, 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_p_of_2, 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE + 1);
 
-	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 2U * MFSBLOCKSIZE    , 4U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 2U * MFSBLOCKSIZE + 1, 4U * MFSBLOCKSIZE + 1);
-	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 3U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 3U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 2 * MFSBLOCKSIZE + 1, 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_1_of_2, 3 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE + 1);
 
-	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2U * MFSBLOCKSIZE    , 4U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2U * MFSBLOCKSIZE    , 4U * MFSBLOCKSIZE + 1);
-	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2U * MFSBLOCKSIZE + 1, 5U * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(xor_2_of_2, 2 * MFSBLOCKSIZE + 1, 5 * MFSBLOCKSIZE + 1);
 
-	CHECK_CHUNK_TYPE_LENGTH(standard,   4U * MFSBLOCKSIZE    , 4U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(standard,   4U * MFSBLOCKSIZE + 1, 4U * MFSBLOCKSIZE + 1);
-	CHECK_CHUNK_TYPE_LENGTH(standard,   5U * MFSBLOCKSIZE    , 5U * MFSBLOCKSIZE);
-	CHECK_CHUNK_TYPE_LENGTH(standard,   5U * MFSBLOCKSIZE + 1, 5U * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(standard,   4 * MFSBLOCKSIZE    , 4 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(standard,   4 * MFSBLOCKSIZE + 1, 4 * MFSBLOCKSIZE + 1);
+	CHECK_CHUNK_TYPE_LENGTH(standard,   5 * MFSBLOCKSIZE    , 5 * MFSBLOCKSIZE);
+	CHECK_CHUNK_TYPE_LENGTH(standard,   5 * MFSBLOCKSIZE + 1, 5 * MFSBLOCKSIZE + 1);
 }
 
 TEST(ChunkTypeTests, GetNumberOfBlocks) {
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(standard, 1));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(standard, 1));
 
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(xor_1_of_2, 1));
-	ASSERT_EQ(0U, slice_traits::getNumberOfBlocks(xor_2_of_2, 1));
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(xor_p_of_2, 1));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(xor_1_of_2, 1));
+	ASSERT_EQ(0, slice_traits::getNumberOfBlocks(xor_2_of_2, 1));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(xor_p_of_2, 1));
 
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(xor_1_of_2, 2));
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(xor_2_of_2, 2));
-	ASSERT_EQ(1U, slice_traits::getNumberOfBlocks(xor_p_of_2, 2));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(xor_1_of_2, 2));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(xor_2_of_2, 2));
+	ASSERT_EQ(1, slice_traits::getNumberOfBlocks(xor_p_of_2, 2));
 
-	ASSERT_EQ(3U, slice_traits::getNumberOfBlocks(xor_1_of_3, 8));
-	ASSERT_EQ(3U, slice_traits::getNumberOfBlocks(xor_2_of_3, 8));
-	ASSERT_EQ(2U, slice_traits::getNumberOfBlocks(xor_3_of_3, 8));
-	ASSERT_EQ(3U, slice_traits::getNumberOfBlocks(xor_p_of_3, 8));
+	ASSERT_EQ(3, slice_traits::getNumberOfBlocks(xor_1_of_3, 8));
+	ASSERT_EQ(3, slice_traits::getNumberOfBlocks(xor_2_of_3, 8));
+	ASSERT_EQ(2, slice_traits::getNumberOfBlocks(xor_3_of_3, 8));
+	ASSERT_EQ(3, slice_traits::getNumberOfBlocks(xor_p_of_3, 8));
 
-	ASSERT_EQ(4U, slice_traits::getNumberOfBlocks(xor_1_of_3, 12));
-	ASSERT_EQ(4U, slice_traits::getNumberOfBlocks(xor_2_of_3, 12));
-	ASSERT_EQ(4U, slice_traits::getNumberOfBlocks(xor_3_of_3, 12));
-	ASSERT_EQ(4U, slice_traits::getNumberOfBlocks(xor_p_of_3, 12));
+	ASSERT_EQ(4, slice_traits::getNumberOfBlocks(xor_1_of_3, 12));
+	ASSERT_EQ(4, slice_traits::getNumberOfBlocks(xor_2_of_3, 12));
+	ASSERT_EQ(4, slice_traits::getNumberOfBlocks(xor_3_of_3, 12));
+	ASSERT_EQ(4, slice_traits::getNumberOfBlocks(xor_p_of_3, 12));
 
 
 	ASSERT_EQ(MFSBLOCKSINCHUNK / 1, int(slice_traits::getNumberOfBlocks(standard, MFSBLOCKSINCHUNK)));

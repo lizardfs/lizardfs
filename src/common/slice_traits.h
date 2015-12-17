@@ -86,6 +86,11 @@ constexpr int kXorParityPart = 0;
 constexpr int kMinXorLevel   = 2;
 constexpr int kMaxXorLevel   = 9;
 
+inline Goal::Slice::Type getSliceType(int level) {
+	assert(level >= kMinXorLevel && level <= kMaxXorLevel);
+	return Goal::Slice::Type((level - kMinXorLevel) + Goal::Slice::Type::kXor2);
+}
+
 inline ::ChunkPartType ChunkPartType(int level, int part) {
 	assert(level >= kMinXorLevel && level <= kMaxXorLevel);
 	assert(part <= level);
@@ -120,48 +125,130 @@ inline bool isXorLevelValid(int level) {
 
 } // xors
 
-inline int getStripeSize(const ::ChunkPartType &cpt) {
-	return isXor(cpt) ? xors::getXorLevel(cpt) : 1;
-}
-
-// Returns number of blocks of chunk that are stored in this
-// part if the chunk has blockInChunk blocks
-inline uint32_t getNumberOfBlocks(const ::ChunkPartType &cpt, uint32_t block_in_chunk) {
-	if (isStandard(cpt)) {
-		return block_in_chunk;
-	} else {
-		assert(isXor(cpt));
-		uint32_t position_in_stripe =
-		        (xors::isXorParity(cpt) ? xors::getXorLevel(cpt) - 1
-		                                : xors::getXorLevel(cpt) - xors::getXorPart(cpt));
-		return (block_in_chunk + position_in_stripe) / xors::getXorLevel(cpt);
+inline bool isParityPart(const ::ChunkPartType &cpt) {
+	if (isXor(cpt)) {
+		return xors::isXorParity(cpt);
 	}
+	return false;
 }
 
-inline uint32_t chunkLengthToChunkPartLength(const ChunkPartType &cpt, uint32_t chunk_length) {
-	if (isStandard(cpt)) {
+inline bool isDataPart(const ::ChunkPartType &cpt) {
+	return !isParityPart(cpt);
+}
+
+inline int getNumberOfDataParts(const ::Goal::Slice::Type &type) {
+	if (isXor(type)) {
+		return xors::getXorLevel(type);
+	}
+	return 1;
+}
+
+inline int getNumberOfDataParts(const ::ChunkPartType &cpt) {
+	return getNumberOfDataParts(cpt.getSliceType());
+}
+
+inline int getNumberOfDataParts(const Goal::Slice &slice) {
+	return getNumberOfDataParts(slice.getType());
+}
+
+inline int getNumberOfParityParts(const ::Goal::Slice::Type &type) {
+	if (isXor(type)) {
+		return 1;
+	}
+	return 0;
+}
+
+inline int getNumberOfParityParts(const ::ChunkPartType &cpt) {
+	return getNumberOfParityParts(cpt.getSliceType());
+}
+
+inline int getNumberOfParityParts(const Goal::Slice &slice) {
+	return getNumberOfParityParts(slice.getType());
+}
+
+inline int getNumberOfParts(const Goal::Slice::Type &type) {
+	return type.expectedParts();
+}
+
+inline int getNumberOfParts(const Goal::Slice &slice) {
+	return slice.size();
+}
+
+inline int getNumberOfParts(const ::ChunkPartType &cpt) {
+	return cpt.getSliceType().expectedParts();
+}
+
+inline int requiredPartsToRecover(const ::Goal::Slice::Type &type) {
+	return getNumberOfDataParts(type);
+}
+
+inline int requiredPartsToRecover(const ::ChunkPartType &cpt) {
+	return requiredPartsToRecover(cpt.getSliceType());
+}
+
+inline int getDataPartIndex(const ::ChunkPartType &cpt) {
+	if (isXor(cpt)) {
+		return cpt.getSlicePart() - 1;
+	}
+	return 0;
+}
+
+inline int getParityPartIndex(const ::ChunkPartType &) {
+	return 0;
+}
+
+inline int getStripeSize(const ::ChunkPartType &cpt) {
+	return getNumberOfDataParts(cpt);
+}
+
+/*!
+ * \brief Calculates number of blocks stored in chunk part.
+ *
+ * This function calculates the number of blocks stored in given chunk part
+ * based on total number of blocks in chunk.
+ *
+ * \param cpt - chunk part for which calculations are done
+ * \param blocks_in_chunk - total blocks count in chunk
+ * \return number of blocks stored in given part
+ */
+inline int getNumberOfBlocks(const ::ChunkPartType &cpt, uint32_t blocks_in_chunk) {
+	int data_part_index = isDataPart(cpt) ? getDataPartIndex(cpt) : 0;
+
+	return (blocks_in_chunk + (getNumberOfDataParts(cpt) - data_part_index - 1)) /
+	       getNumberOfDataParts(cpt);
+}
+
+inline int getNumberOfBlocks(const ::ChunkPartType &cpt) {
+	return getNumberOfBlocks(cpt, MFSBLOCKSINCHUNK);
+}
+
+/*!
+ * \brief Calculates byte length of chunk part.
+ *
+ * This function calculate byte length of given chunk part
+ * based on total length of chunk.
+ *
+ * \param cpt - chunk part type for which calculations are done
+ * \param chunk_length - total byte length of chunk
+ * \return byte length of chunk part
+ */
+inline int chunkLengthToChunkPartLength(const ChunkPartType &cpt, int chunk_length) {
+	// 'if' is only needed to make it easier for compiler to optimize out this function
+	if(getNumberOfDataParts(cpt) == 1) {
 		return chunk_length;
 	}
-	assert(isXor(cpt));
 
-	uint32_t full_stripe = chunk_length / (xors::getXorLevel(cpt) * MFSBLOCKSIZE);
-	uint32_t base_len = full_stripe * MFSBLOCKSIZE;
-	uint32_t base = base_len * xors::getXorLevel(cpt);
-	uint32_t rest = chunk_length - base;
+	int full_stripe = chunk_length / (getNumberOfDataParts(cpt) * MFSBLOCKSIZE);
+	int base_len = full_stripe * MFSBLOCKSIZE;
+	int base = base_len * getNumberOfDataParts(cpt);
+	int rest = chunk_length - base;
 
-	uint32_t tmp = 0;
-	if (!xors::isXorParity(cpt)) {
-		tmp = xors::getXorPart(cpt) - 1;
-	}
+	int data_part_index = isDataPart(cpt) ? getDataPartIndex(cpt) : 0;
 
-	int32_t rest_len = rest - tmp * MFSBLOCKSIZE;
-	if (rest_len < 0) {
-		rest_len = 0;
-	} else if (rest_len > MFSBLOCKSIZE) {
-		rest_len = MFSBLOCKSIZE;
-	}
+	int part_rest_len = std::max(rest - data_part_index * MFSBLOCKSIZE, 0);
+	part_rest_len = std::min(part_rest_len, MFSBLOCKSIZE);
 
-	return base_len + rest_len;
+	return base_len + part_rest_len;
 }
 
 } // slice_traits
