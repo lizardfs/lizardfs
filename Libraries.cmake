@@ -75,6 +75,16 @@ else()
   message(STATUS "   to point this path (cmake -DZLIB_ROOT=...)")
 endif()
 
+# Find Systemd
+INCLUDE(FindPkgConfig)
+pkg_check_modules(SYSTEMD libsystemd)
+if(SYSTEMD_FOUND)
+  check_include_files(systemd/sd-daemon.h LIZARDFS_HAVE_SYSTEMD_SD_DAEMON_H)
+  message(STATUS "Found Systemd ${SYSTEMD_VERSION_STRING}")
+else()
+  message(STATUS "Could not find Systemd (but it is not required)")
+endif()
+
 # Find Boost
 set(BOOST_MIN_VERSION "1.48.0")
 find_package(Boost ${BOOST_MIN_VERSION} COMPONENTS filesystem iostreams program_options system)

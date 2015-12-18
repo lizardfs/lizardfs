@@ -10,4 +10,7 @@ add_tests(metalogger ${METALOGGER_TESTS})
 
 add_executable(mfsmetalogger ${MAIN_SRC})
 target_link_libraries(mfsmetalogger metalogger ${PAM_LIBRARIES})
+if(SYSTEMD_FOUND)
+  target_link_libraries(mfsmetalogger ${SYSTEMD_LIBRARIES})
+endif()
 install(TARGETS mfsmetalogger RUNTIME DESTINATION ${SBIN_SUBDIR})
