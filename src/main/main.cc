@@ -75,6 +75,10 @@
 #  define LIZARDFS_MAX_FILES 5000
 #endif
 
+#if defined(LIZARDFS_HAVE_SYSTEMD_SD_DAEMON_H)
+#include <systemd/sd-daemon.h>
+#endif
+
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
@@ -1393,6 +1397,9 @@ int main(int argc,char **argv) {
 			lzfs_pretty_syslog(LOG_NOTICE,"open files limit: %lu",(unsigned long)(rls.rlim_cur));
 		}
 		lzfs_pretty_syslog(LOG_NOTICE, STR(APPNAME)" daemon initialized properly");
+#ifdef LIZARDFS_HAVE_SYSTEMD_SD_DAEMON_H
+		sd_notify(0, "READY=1\nSTATUS=" STR(APPNAME) " daemon initialized properly.\n");
+#endif
 		set_syslog_ident();
 		if (gRunAsDaemon) {
 			close_msg_channel();

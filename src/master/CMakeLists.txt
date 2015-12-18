@@ -12,6 +12,9 @@ add_tests(master ${MASTER_TESTS})
 
 add_executable(mfsmaster ${MAIN_SRC})
 target_link_libraries(mfsmaster master ${PAM_LIBRARIES})
+if(SYSTEMD_FOUND)
+  target_link_libraries(mfsmaster ${SYSTEMD_LIBRARIES})
+endif()
 install(TARGETS mfsmaster RUNTIME DESTINATION ${SBIN_SUBDIR})
 
 configure_file(mfsrestoremaster.in mfsrestoremaster @ONLY)
