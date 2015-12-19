@@ -21,6 +21,7 @@
 
 #include <inttypes.h>
 #include <stdlib.h>
+#include <cstring>
 
 #include "protocol/MFSCommunication.h"
 
