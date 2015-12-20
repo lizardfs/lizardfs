@@ -40,6 +40,8 @@ if(ENABLE_TESTS)
   endif()
 endif()
 
+include(CheckIncludeFiles)
+
 # Find standard libraries
 find_package(Socket REQUIRED)
 find_package(Threads REQUIRED)
