@@ -1,3 +1,5 @@
+include(CheckIncludeFiles)
+
 function(check_includes INCLUDES)
   set(INCLUDE_MISSING FALSE)
   foreach(INCLUDE_FILE ${INCLUDES})
