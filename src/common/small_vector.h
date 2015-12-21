@@ -178,6 +178,11 @@ public:
 		operator=(std::move(other));
 	}
 
+	small_vector(std::initializer_list<T> il) {
+		reserve(std::max(N, il.size()));
+		insert(end(), il);
+	}
+
 	small_vector(size_type count, const value_type &value = value_type()) : base() {
 		reserve(N);
 		insert(end(), count, value);

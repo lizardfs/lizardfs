@@ -133,3 +133,17 @@ TEST(SmallVectorTest, IteratorTest) {
 	EXPECT_EQ(it, cit);
 	EXPECT_EQ(*it, *cit);
 }
+
+TEST(SmallVectorTest, InitializerList) {
+	small_vector<double, 16> vec{1.0, 2.0, 4.0, 8.0};
+
+	for (int i = 0; i < (int)vec.size(); i++) {
+		EXPECT_EQ(1 << i, (int)vec[i]);
+	}
+
+	small_vector<small_vector<double, 16>, 24> vecvec{vec, vec, vec, vec, vec};
+
+	for (int i = 0; i < (int)vecvec.size(); ++i) {
+		EXPECT_EQ(vec, vecvec[i]);
+	}
+}
