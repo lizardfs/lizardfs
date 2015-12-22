@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -24,6 +24,7 @@
 
 #include "common/block_xor.h"
 #include "common/massert.h"
+#include "common/reed_solomon.h"
 #include "common/slice_traits.h"
 
 namespace unittests {
@@ -246,6 +247,63 @@ void ReadPlanTester::buildStdData(std::map<ChunkPartType, std::vector<uint8_t>> 
 	result.insert({slice_traits::standard::ChunkPartType(), std::move(buffer)});
 }
 
+/*! \brief Build data for erasure code chunk part type. */
+void ReadPlanTester::buildECData(std::map<ChunkPartType, std::vector<uint8_t>> &result, int k,
+		int m) {
+	std::vector<uint8_t> buffer;
+
+	for (int part = 0; part <= k; ++part) {
+		if (result.count(slice_traits::ec::ChunkPartType(k, m, part))) {
+			continue;
+		}
+
+		int block_count = slice_traits::getNumberOfBlocks(
+		    slice_traits::ec::ChunkPartType(k, m, part), MFSBLOCKSINCHUNK);
+
+		buffer.clear();
+		for (int block = 0; block < block_count; ++block) {
+			for (int offset = 0; offset < MFSBLOCKSIZE; offset += 4) {
+				union conv {
+					int32_t value;
+					uint8_t data[4];
+				} c;
+				c.value = (block * k + part) * MFSBLOCKSIZE + offset;
+				buffer.insert(buffer.end(), c.data, c.data + 4);
+			}
+		}
+		if (block_count <
+		    (int)slice_traits::getNumberOfBlocks(slice_traits::ec::ChunkPartType(k, m, 0))) {
+			buffer.insert(buffer.end(), MFSBLOCKSIZE, 0);
+		}
+		result.insert({slice_traits::ec::ChunkPartType(k, m, part), std::move(buffer)});
+	}
+
+	int block_count =
+	    slice_traits::getNumberOfBlocks(slice_traits::ec::ChunkPartType(k, m, k), MFSBLOCKSINCHUNK);
+
+	typedef ReedSolomon<slice_traits::ec::kMaxDataCount, slice_traits::ec::kMaxParityCount> RS;
+	std::vector<std::vector<uint8_t>> parity_buffers;
+	RS::ConstFragmentMap data_parts{{}};
+	RS::FragmentMap parity_parts{{}};
+	RS rs(k, m);
+
+	parity_buffers.resize(m);
+
+	for (int i = 0; i < m; ++i) {
+		parity_buffers[i].resize(block_count * MFSBLOCKSIZE, 0);
+		parity_parts[i] = parity_buffers[i].data();
+	}
+	for (int i = 0; i < k; ++i) {
+		data_parts[i] = result[slice_traits::ec::ChunkPartType(k, m, i)].data();
+	}
+
+	rs.encode(data_parts, parity_parts, block_count * MFSBLOCKSIZE);
+
+	for (int i = 0; i < m; ++i) {
+		result[slice_traits::ec::ChunkPartType(k, m, k + i)] = std::move(parity_buffers[i]);
+	}
+}
+
 bool ReadPlanTester::compareBlocks(const std::vector<uint8_t> &a, int a_offset,
 		const std::vector<uint8_t> &b, int b_offset, int block_count) {
 	for (int block = 0; block < block_count; ++block) {
@@ -271,4 +329,4 @@ bool ReadPlanTester::compareBlocks(const std::vector<uint8_t> &a, int a_offset,
 	return true;
 }
 
-}  // namespace unittests
+}  // unittests

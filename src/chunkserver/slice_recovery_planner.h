@@ -1,5 +1,5 @@
 /*
- Copyright 2015 Skytechnology sp. z o.o.
+ Copyright 2016 Skytechnology sp. z o.o.
 
  This file is part of LizardFS.
 
@@ -151,7 +151,7 @@ public:
 			BlockConverter conv;
 			conv.part_block_count = block_count_;
 			conv.data_part_count =
-			    slice_traits::getNumberOfDataParts(recovering_part_.getSliceType());
+			    slice_traits::getNumberOfDataParts(recovering_part_);
 #ifndef NDEBUG
 			conv.plan = plan.get();
 #endif
@@ -164,19 +164,35 @@ public:
 		case kRecoverParityPart: {
 			std::unique_ptr<ReadPlan> plan = chunk_planner_.buildPlan();
 
-			assert(slice_traits::isXor(recovering_part_) &&
-			       slice_traits::xors::isXorParity(recovering_part_));
-			XorReadPlan::RecoverParity conv;
+			if (slice_traits::isXor(recovering_part_)) {
+				assert(slice_traits::xors::isXorParity(recovering_part_));
+				XorReadPlan::RecoverParity conv;
 
-			conv.part_block_count = block_count_;
-			conv.data_part_count =
-			    slice_traits::requiredPartsToRecover(recovering_part_.getSliceType());
+				conv.part_block_count = block_count_;
+				conv.data_part_count = slice_traits::getNumberOfDataParts(recovering_part_);
 #ifndef NDEBUG
-			conv.plan = plan.get();
+				conv.plan = plan.get();
 #endif
 
-			plan->postprocess_operations.push_back(
-			    std::make_pair(block_count_ * MFSBLOCKSIZE, std::move(conv)));
+				plan->postprocess_operations.push_back(
+				    std::make_pair(block_count_ * MFSBLOCKSIZE, std::move(conv)));
+			} else if (slice_traits::isEC(recovering_part_)) {
+				assert(slice_traits::ec::isParityPart(recovering_part_));
+				ECReadPlan::RecoverParity conv;
+
+				conv.part_block_count = block_count_;
+				conv.data_part_count = slice_traits::ec::getNumberOfDataParts(recovering_part_);
+				conv.parity_part_count = slice_traits::ec::getNumberOfParityParts(recovering_part_);
+				conv.parity_part_index = slice_traits::ec::getParityPartIndex(recovering_part_);
+#ifndef NDEBUG
+				conv.plan = plan.get();
+#endif
+
+				plan->postprocess_operations.push_back(
+				    std::make_pair(block_count_ * MFSBLOCKSIZE, std::move(conv)));
+			} else {
+				assert(!"SliceRecoveryPlanner::buildPlan::It shouldn't happen.");
+			}
 
 			return plan;
 		}

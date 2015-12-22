@@ -29,6 +29,7 @@
 #include "common/slice_read_plan.h"
 #include "common/small_vector.h"
 #include "common/xor_read_plan.h"
+#include "common/ec_read_plan.h"
 
 /*!
  * Class responsible for creating a plan for reading selected parts from a slice.
@@ -124,6 +125,9 @@ private:
 	std::unique_ptr<SliceReadPlan> getPlan() const {
 		if (slice_traits::isXor(slice_type_)) {
 			return std::unique_ptr<SliceReadPlan>{new XorReadPlan(slice_type_)};
+		}
+		if (slice_traits::isEC(slice_type_)) {
+			return std::unique_ptr<SliceReadPlan>{new ECReadPlan(slice_type_)};
 		}
 		return std::unique_ptr<SliceReadPlan>{new SliceReadPlan(slice_type_)};
 	}

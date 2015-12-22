@@ -1,5 +1,5 @@
 /*
- Copyright 2015 Skytechnology sp. z o.o.
+ Copyright 2016 Skytechnology sp. z o.o.
 
  This file is part of LizardFS.
 
@@ -21,7 +21,6 @@
 #include "common/platform.h"
 
 #include <cassert>
-#include <boost/concept_check.hpp>
 #include "common/slice_read_planner.h"
 
 #include <iostream>

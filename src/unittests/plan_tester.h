@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -89,6 +89,7 @@ protected:
 
 	static void buildXorData(std::map<ChunkPartType, std::vector<uint8_t>> &result, int level);
 	static void buildStdData(std::map<ChunkPartType, std::vector<uint8_t>> &result);
+	static void buildECData(std::map<ChunkPartType, std::vector<uint8_t>> &result, int k, int m);
 
 public:
 	ReadPlan::PartsContainer available_parts_;
@@ -96,7 +97,7 @@ public:
 	std::vector<uint8_t> output_buffer_;
 };
 
-template<class V>
+template <class V>
 void ReadPlanTester::buildData(std::map<ChunkPartType, std::vector<uint8_t>> &result,
 		const V &available_parts) {
 	std::set<Goal::Slice::Type> used_type;
@@ -111,6 +112,10 @@ void ReadPlanTester::buildData(std::map<ChunkPartType, std::vector<uint8_t>> &re
 		}
 		if (slice_traits::isXor(type)) {
 			buildXorData(result, slice_traits::xors::getXorLevel(type));
+		}
+		if (slice_traits::isEC(type)) {
+			buildECData(result, slice_traits::ec::getNumberOfDataParts(type),
+			            slice_traits::ec::getNumberOfParityParts(type));
 		}
 	}
 }
