@@ -60,6 +60,11 @@ std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_versi
 		}
 		ss << (unsigned)slice_traits::xors::getXorLevel(type_) << "_";
 	}
+	if (slice_traits::isEC(type_)) {
+		ss << "ec_" << (type_.getSlicePart() + 1) << "_of_"
+		   << slice_traits::ec::getNumberOfDataParts(type_) << "_"
+		   << slice_traits::ec::getNumberOfParityParts(type_) << "_";
+	}
 	sprintf(buffer, "%016" PRIX64 "_%08" PRIX32 ".mfs", chunkid, version);
 	if (chunkFormat() == ChunkFormat::INTERLEAVED) {
 		memcpy(buffer + 26, "liz", 3);
@@ -69,13 +74,8 @@ std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_versi
 }
 
 uint32_t Chunk::maxBlocksInFile() const {
-	sassert(slice_traits::isStandard(type_) || slice_traits::isXor(type_));
-	if (slice_traits::isStandard(type_)) {
-		return MFSBLOCKSINCHUNK;
-	} else {
-		uint32_t xorLevel = slice_traits::xors::getXorLevel(type_);
-		return (MFSBLOCKSINCHUNK + xorLevel - 1) / xorLevel;
-	}
+	int data_part_count = slice_traits::getNumberOfDataParts(type_);
+	return (MFSBLOCKSINCHUNK + data_part_count - 1) / data_part_count;
 }
 
 int Chunk::renameChunkFile(const std::string& newFilename) {
@@ -158,10 +158,11 @@ void MooseFSChunk::readaheadHeader() const {
 }
 
 size_t MooseFSChunk::getHeaderSize() const {
-	sassert(slice_traits::isStandard(type_) || slice_traits::isXor(type_));
 	if (slice_traits::isStandard(type_)) {
 		return kMaxSignatureBlockSize + serializedSize(uint32_t()) * maxBlocksInFile();
 	} else {
+		assert(slice_traits::isXor(type_) || slice_traits::isEC(type_));
+
 		uint32_t requiredHeaderSize = kMaxSignatureBlockSize + serializedSize(uint32_t()) * maxBlocksInFile();
 		// header size is equal to the requiredHeaderSize rounded up to typical disk block size
 		uint32_t diskBlockSize = kDiskBlockSize;

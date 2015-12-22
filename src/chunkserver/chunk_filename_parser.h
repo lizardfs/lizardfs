@@ -39,8 +39,6 @@ public:
 	ChunkPartType chunkType() const;
 	uint32_t chunkVersion() const;
 	uint64_t chunkId() const;
-	int xorPart() const;
-	int xorLevel() const;
 
 private:
 	static const size_t kChunkVersionStringSize = 8;
@@ -51,8 +49,8 @@ private:
 	ChunkPartType chunkType_;
 	uint32_t chunkVersion_;
 	uint64_t chunkId_;
-	int xorPart_;
-	int xorLevel_;
 
+	Status parseXorChunkType();
+	Status parseECChunkType();
 	Status parseChunkType();
 };

@@ -30,18 +30,76 @@ ChunkFilenameParser::ChunkFilenameParser(const std::string& filename)
 	  chunkFormat_(),
 	  chunkType_(),
 	  chunkVersion_(0),
-	  chunkId_(0),
-	  xorPart_(0),
-	  xorLevel_(0) {
+	  chunkId_(0) {
 }
 
 static int isUpperCaseHexDigit(int c) {
 	return isdigit(c) || (isxdigit(c) && isupper(c));
 }
 
-ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() try {
-	bool isParityChunk = (consume("xor_parity_of_") == Parser::OK);
-	if (isParityChunk) {
+ChunkFilenameParser::Status ChunkFilenameParser::parseECChunkType() {
+	int data_part_count, parity_part_count, part_index;
+
+	if (consume("0") == Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume(isdigit) == Parser::OK) {
+		part_index = getDecValue<int>() - 1;
+	} else {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (consume("_of_") != Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (consume("0") == Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume(isdigit) == Parser::OK) {
+		data_part_count = getDecValue<int>();
+		if (data_part_count < slice_traits::ec::kMinDataCount ||
+		    data_part_count > slice_traits::ec::kMaxDataCount) {
+			return ERROR_INVALID_FILENAME;
+		}
+	} else {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (consume("_") != Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (consume("0") == Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume(isdigit) == Parser::OK) {
+		parity_part_count = getDecValue<int>();
+		if (parity_part_count < slice_traits::ec::kMinParityCount ||
+		    parity_part_count > slice_traits::ec::kMaxParityCount) {
+			return ERROR_INVALID_FILENAME;
+		}
+	} else {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (consume("_") != Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	if (part_index >= (data_part_count + parity_part_count)) {
+		return ERROR_INVALID_FILENAME;
+	}
+
+	chunkType_ = slice_traits::ec::ChunkPartType(data_part_count, parity_part_count, part_index);
+	return ChunkFilenameParser::OK;
+}
+
+ChunkFilenameParser::Status ChunkFilenameParser::parseXorChunkType() {
+	int xor_level, xor_part;
+
+	bool is_parity = (consume("parity_of_") == Parser::OK);
+	if (is_parity) {
 		if (consume("0") == Parser::OK) {
 			return ERROR_INVALID_FILENAME;
 		}
@@ -49,61 +107,70 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() try {
 			if (getLastConsumedCharacterCount() > 2) {
 				return ERROR_INVALID_FILENAME;
 			}
-			xorLevel_ = getDecValue<int>();
+			xor_level = getDecValue<int>();
 		} else {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorLevel_ < slice_traits::xors::kMinXorLevel
-				|| xorLevel_ > slice_traits::xors::kMaxXorLevel) {
+		if (xor_level < slice_traits::xors::kMinXorLevel ||
+		    xor_level > slice_traits::xors::kMaxXorLevel) {
 			return ERROR_INVALID_FILENAME;
 		}
 		if (consume("_") != Parser::OK) {
 			return ERROR_INVALID_FILENAME;
 		}
-		chunkType_ = slice_traits::xors::ChunkPartType(xorLevel_, slice_traits::xors::kXorParityPart);
+		chunkType_ =
+		    slice_traits::xors::ChunkPartType(xor_level, slice_traits::xors::kXorParityPart);
 		return ChunkFilenameParser::OK;
 	}
 
-	bool isXorChunk = (consume("xor_") == Parser::OK);
-	if (isXorChunk) {
-		if (consume("0") == Parser::OK) {
+	if (consume("0") == Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume(isdigit) == Parser::OK) {
+		if (getLastConsumedCharacterCount() > 2) {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (consume(isdigit) == Parser::OK) {
-			if (getLastConsumedCharacterCount() > 2) {
-				return ERROR_INVALID_FILENAME;
-			}
-			xorPart_ = getDecValue<int>();
-		} else {
+		xor_part = getDecValue<int>();
+	} else {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (xor_part < 1) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume("_of_") != Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume("0") == Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume(isdigit) == Parser::OK) {
+		if (getLastConsumedCharacterCount() > 2) {
 			return ERROR_INVALID_FILENAME;
 		}
-		if (xorPart_ < 1) {
-			return ERROR_INVALID_FILENAME;
-		}
-		if (consume("_of_") != Parser::OK) {
-			return ERROR_INVALID_FILENAME;
-		}
-		if (consume("0") == Parser::OK) {
-			return ERROR_INVALID_FILENAME;
-		}
-		if (consume(isdigit) == Parser::OK) {
-			if (getLastConsumedCharacterCount() > 2) {
-				return ERROR_INVALID_FILENAME;
-			}
-			xorLevel_ = getDecValue<int>();
-		} else {
-			return ERROR_INVALID_FILENAME;
-		}
-		if (xorLevel_ < slice_traits::xors::kMinXorLevel
-				|| xorLevel_ > slice_traits::xors::kMaxXorLevel
-				|| xorPart_ > xorLevel_) {
-			return ERROR_INVALID_FILENAME;
-		}
-		if (consume("_") != Parser::OK) {
-			return ERROR_INVALID_FILENAME;
-		}
-		chunkType_ = slice_traits::xors::ChunkPartType(xorLevel_, xorPart_);
-		return ChunkFilenameParser::OK;
+		xor_level = getDecValue<int>();
+	} else {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (xor_level < slice_traits::xors::kMinXorLevel ||
+	    xor_level > slice_traits::xors::kMaxXorLevel || xor_part > xor_level) {
+		return ERROR_INVALID_FILENAME;
+	}
+	if (consume("_") != Parser::OK) {
+		return ERROR_INVALID_FILENAME;
+	}
+	chunkType_ = slice_traits::xors::ChunkPartType(xor_level, xor_part);
+	return ChunkFilenameParser::OK;
+}
+
+ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() try {
+	bool is_ec = (consume("ec_") == Parser::OK);
+	if (is_ec) {
+		return parseECChunkType();
+	}
+
+	bool is_xor_type = (consume("xor_") == Parser::OK);
+	if (is_xor_type) {
+		return parseXorChunkType();
 	}
 
 	chunkType_ = slice_traits::standard::ChunkPartType();
@@ -181,12 +248,4 @@ uint32_t ChunkFilenameParser::chunkVersion() const {
 
 uint64_t ChunkFilenameParser::chunkId() const {
 	return chunkId_;
-}
-
-int ChunkFilenameParser::xorPart() const {
-	return xorPart_;
-}
-
-int ChunkFilenameParser::xorLevel() const {
-	return xorLevel_;
 }
