@@ -39,7 +39,7 @@ inline bool isTokenBreaker(char c) {
 }
 
 inline bool isCharAllowed(char c) {
-	return isTokenBreaker(c) || std::isalnum(c) || c == '_';
+	return isTokenBreaker(c) || std::isalnum(c) || std::strchr("_(),", c);
 }
 
 std::list<std::string> tokenizeLine(const std::string &str) {
@@ -113,6 +113,24 @@ std::string parseGoalName(std::list<std::string> &tokens) {
 	return goal_name;
 }
 
+Goal::Slice::Type parseErasureCodeType(const std::string &token) {
+	static const char *pattern = "ec(%d,%d)";
+	int k, m;
+	int parsed = std::sscanf(token.c_str(), pattern, &k, &m);
+
+	if (parsed != 2) {
+		throw ParseException("Unknown goal type '" + token + "'");
+	}
+
+	Goal::Slice::Type slice_type = slice_traits::ec::getSliceType(k, m);
+
+	if (!slice_type.isValid()) {
+		throw ParseException("Wrong erasure code type '" + token + "'");
+	}
+
+	return slice_type;
+}
+
 Goal::Slice::Type parseSliceType(std::list<std::string> &tokens) {
 	static const std::unordered_map<std::string, Goal::Slice::Type> kSliceTypes ({
 		{"std", Goal::Slice::Type(Goal::Slice::Type::kStandard)},
@@ -137,9 +155,10 @@ Goal::Slice::Type parseSliceType(std::list<std::string> &tokens) {
 		}
 		auto it = kSliceTypes.find(tokens.front());
 		if (it == kSliceTypes.end()) {
-			throw ParseException("Unknown goal type '" + tokens.front() + "'");
+			slice_type = parseErasureCodeType(tokens.front());
+		} else {
+			slice_type = it->second;
 		}
-		slice_type = it->second;
 		tokens.pop_front();
 
 		if (!tokens.empty()) {

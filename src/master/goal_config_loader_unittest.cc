@@ -23,6 +23,7 @@
 
 #include "common/exceptions.h"
 #include "common/media_label.h"
+#include "common/slice_traits.h"
 
 // Helper macros to test the loader
 #define LABELS(...) (std::vector<std::string>({__VA_ARGS__}))
@@ -108,7 +109,9 @@ TEST(GoalConfigTests, NewFormat) {
 			"15 xor2: $xor2\n"
 			"16 x5: $xor5 { A B C }\n"
 			"17 AAABB: $ xor4 {A B B A A}\n"
-			"18 3: $xor3 {_ _ _}"
+			"18 3: $xor3 {_ _ _}\n"
+			"19 erasure1: $ec(3,4) {A A A C C}\n"
+			"20 erasure2: $ec(2,2)\n"
 
 	);
 	Goals goals;
@@ -139,6 +142,19 @@ TEST(GoalConfigTests, NewFormat) {
 			{{"A", 1}},
 			{{"A", 1}}}));
 	EXPECT_GOAL(goals, 18, "3",      createSlice(Goal::Slice::Type::kXor3, {
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}},
+			{{"_", 1}}}));
+	EXPECT_GOAL(goals, 19, "erasure1", createSlice(int(slice_traits::ec::getSliceType(3, 4)), {
+			{{"A", 1}},
+			{{"A", 1}},
+			{{"A", 1}},
+			{{"C", 1}},
+			{{"C", 1}},
+			{{"_", 1}},
+			{{"_", 1}}}));
+	EXPECT_GOAL(goals, 20, "erasure2", createSlice(int(slice_traits::ec::getSliceType(2, 2)), {
 			{{"_", 1}},
 			{{"_", 1}},
 			{{"_", 1}},
@@ -175,7 +191,16 @@ TEST(GoalConfigTests, IncorrectLines) {
 	EXPECT_THROW(TRY_PARSE("1 1 : @"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 1 : @@"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 1 : aaa@aa@"), ParseException);
-
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(34,19)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(19)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(1,1) {A B C D E F}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(3,2) {A B C D E F}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec (3,2)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec() {A B C}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ex(2,2) {A B C}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ex(2,2) {A B C}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : (4,3) {A B C}"), ParseException);
 	// duplicates
 	EXPECT_THROW(TRY_PARSE("1 1: _\n2 2: _ _\n2: 3 _ _"), ParseException);
 
