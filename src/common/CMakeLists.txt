@@ -30,5 +30,8 @@ endif()
 if(MINGW)
   target_link_libraries(mfscommon ${MINGW_MSVCRT})
 endif()
+if(ISAL_LIBRARY)
+  target_link_libraries(mfscommon ${ISAL_LIBRARY})
+endif()
 
 add_tests(mfscommon ${COMMON_TESTS})

@@ -157,3 +157,8 @@ endif()
 
 # Find BerkeleyDB
 find_package(DB 11.2.5.2)
+
+# Find Intel Storage Acceleration library
+find_library(ISAL_LIBRARY isal)
+message(STATUS "ISAL(Intel Storage Acceleration) LIBRARY: ${ISAL_LIBRARY}")
+
