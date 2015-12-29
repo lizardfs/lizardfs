@@ -176,6 +176,8 @@ create_mfsexports_cfg_() {
 }
 
 create_mfsgoals_cfg_() {
+	local goal_name
+
 	for i in {1..5}; do
 		echo "${MASTER_CUSTOM_GOALS:-}" | tr '|' '\n' | grep "^$i " | cat
 	done
@@ -188,8 +190,12 @@ create_mfsgoals_cfg_() {
 	done;
 	if [[ $use_new_format == "true" ]]; then
 		for i in {2..9}; do
-			echo "$((30 + $i)) xor$i: \$xor$i"
+			echo "$((21 + $i)) xor$i: \$xor$i"
 		done;
+		for i in {2..4}; do
+			echo "$((31 + 2*(i - 2) + 0)) ec$i$((i - 1)): \$ec($i,$((i - 1)))"
+			echo "$((31 + 2*(i - 2) + 1)) ec$i$i: \$ec($i,$i)"
+		done
 	fi;
 }
 
