@@ -63,63 +63,63 @@ public:
 	 */
 	void init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_ms);
 
-	/*
-	 * Returns minimum number of blocks which will be written to chunkservers by
+	/*!
+	 * \return minimum number of blocks which will be written to chunkservers by
 	 * the ChunkWriter if the flush mode is off.
 	 */
 	uint32_t getMinimumBlockCountWorthWriting();
 
-	/*
+	/*!
 	 * Adds a new write operation.
 	 */
 	void addOperation(WriteCacheBlock&& block);
 
-	/*
+	/*!
 	 * Starts these added operations, which are worth starting right now.
 	 * Returns number of operations started.
 	 */
 	uint32_t startNewOperations(bool can_expect_next_block);
 
-	/*
+	/*!
 	 * Processes all started operations for at most specified time (0 - asap)
 	 */
 	void processOperations(uint32_t msTimeout);
 
-	/*
-	 * Returns number of new and pending write operations.
+	/*!
+	 * \return number of new and pending write operations.
 	 */
 	uint32_t getUnfinishedOperationsCount();
 
-	/*
-	 * Returns number of pending write operations.
+	/*!
+	 * \return number of pending write operations.
 	 */
 	uint32_t getPendingOperationsCount();
 
-	/*
+	/*!
 	 * Tells ChunkWriter that no more operations will be added and it can flush all the data
 	 * to chunkservers. No new operations can be started after calling this method.
 	 */
 	void startFlushMode();
 
-	/*
+	/*!
 	 * Tells ChunkWriter, that it may not start any operation, that did't start yet, because writing
 	 * this chunk will be finished later and any then data left in the journal will be written.
 	 * No new operations can be started after calling this method.
 	 */
 	void dropNewOperations();
 
-	/*
+	/*!
 	 * Closes connection chain, releases all the acquired locks.
 	 * This method can be called when all the write operations have been finished.
 	 */
 	void finish(uint32_t msTimeout);
 
-	/*
+	/*!
 	 * Immediately closes write operations and connection chains.
 	 */
 	void abortOperations();
 
-	/*
+	/*!
 	 * Removes writer's journal and returns it
 	 */
 	std::list<WriteCacheBlock> releaseJournal();
@@ -172,7 +172,7 @@ private:
 	WriteChunkLocator* locator_;
 	uint32_t idCounter_;
 	bool acceptsNewOperations_;
-	uint32_t combinedStripeSize_;
+	int combinedStripeSize_;
 	int dataChainFd_;
 
 	std::map<int, std::unique_ptr<WriteExecutor>> executors_;
@@ -183,7 +183,14 @@ private:
 
 	bool canStartOperation(const Operation& operation);
 	void startOperation(Operation operation);
-	WriteCacheBlock readBlock(uint32_t blockIndex, ChunkPartType& readFromChunkType);
+	void fillOperation(Operation &operation, int first_block, int first_index, int size,
+			std::vector<uint8_t *> &stripe_element);
+	void fillStripe(Operation &operation, int first_block, std::vector<uint8_t *> &stripe_element);
+	void readBlocks(int block_index, int size, int block_from, int block_to,
+			std::vector<WriteCacheBlock> &blocks);
+	void computeParityBlock(const ChunkPartType &chunk_type, uint8_t *parity_block,
+			const std::vector<uint8_t *> &data_blocks, int offset, int size);
+
 	void processStatus(const WriteExecutor& executor, const WriteExecutor::Status& status);
 	uint32_t allocateId() {
 		// we never return id=0 because it's reserved for WRITE_INIT

@@ -34,6 +34,7 @@
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
+#include "mount/readdata.h"
 #include "mount/write_executor.h"
 
 static uint32_t gcd(uint32_t a, uint32_t b) {
@@ -351,181 +352,262 @@ bool ChunkWriter::canStartOperation(const Operation& operation) {
 	return true;
 }
 
+/*!
+ * Computes parity block value and writes it to memory pointed by parity_block.
+ * \param chunk_type type of the chunk
+ * \param parity_block address of output buffer
+ * \param data_blocks array of pointers to data blocks
+ * \param offset index of first block to be computed
+ * \param size size of data to be computed
+ */
+void ChunkWriter::computeParityBlock(const ChunkPartType &chunk_type, uint8_t *parity_block,
+		const std::vector<uint8_t *> &data_blocks, int offset, int size) {
+	int data_part_count = slice_traits::getNumberOfDataParts(chunk_type);
+	int parity_part_count = slice_traits::getNumberOfParityParts(chunk_type);
+
+	assert(slice_traits::isParityPart(chunk_type));
+	assert(parity_block);
+
+	if (slice_traits::isXor(chunk_type)) {
+		assert(data_blocks[offset]);
+		std::memcpy(parity_block, data_blocks[offset], size);
+		for (int i = 1; i < data_part_count; ++i) {
+			if(data_blocks[offset + i]) {
+				blockXor(parity_block, data_blocks[offset + i], size);
+			}
+		}
+		return;
+	}
+
+	assert(slice_traits::isEC(chunk_type));
+
+	typedef ReedSolomon<slice_traits::ec::kMaxDataCount, slice_traits::ec::kMaxParityCount> RS;
+	RS rs(data_part_count, parity_part_count);
+	RS::ErasedMap erased;
+	RS::ConstFragmentMap data_parts{{0}};
+	RS::FragmentMap result_parts{{0}};
+
+	for (int i = 0; i < parity_part_count; ++i) {
+		erased.set(data_part_count + i);
+	}
+	for (int i = 0; i < data_part_count; ++i) {
+		data_parts[i] = data_blocks[offset + i];
+	}
+	result_parts[chunk_type.getSlicePart()] = parity_block;
+
+	rs.recover(data_parts, erased, result_parts, size);
+}
+
+/*!
+ * Fills given operation with a range of blocks required to be read.
+ * \param operation operation to be filled
+ * \param first_block first block of the operation
+ * \param first_index index of the first block required to be read
+ * \param size number of required blocks
+ * \param stripe_element map of blocks in a stripe
+ */
+void ChunkWriter::fillOperation(Operation &operation, int first_block, int first_index, int size,
+		std::vector<uint8_t *> &stripe_element) {
+	assert(size >= 0);
+	if (size == 0) {
+		return;
+	}
+	int block_from = operation.journalPositions.front()->from;
+	int block_to = operation.journalPositions.front()->to;
+
+	std::vector<WriteCacheBlock> blocks;
+	blocks.reserve(size);
+	readBlocks(first_block + first_index, size, block_from, block_to, blocks);
+	assert(blocks.size() == (size_t)size);
+
+	for (int index = 0; index < size; ++index) {
+		// Insert the new block into the journal just after the last block of the operation
+		auto position = journal_.insert(operation.journalPositions.back(), std::move(blocks[index]));
+		operation.journalPositions.push_back(position);
+
+		stripe_element[first_index + index] = position->data();
+	}
+}
+
+/*!
+ * Fills given operation with blocks required to be read.
+ * \param operation operation to be filled
+ * \param first_block first block of the operation
+ * \param stripe_element map of blocks in a stripe
+ */
+void ChunkWriter::fillStripe(Operation &operation, int first_block, std::vector<uint8_t *> &stripe_element) {
+	int block_from = operation.journalPositions.front()->from;
+	int block_to = operation.journalPositions.front()->to;
+
+	for (const auto &position : operation.journalPositions) {
+		assert((position->blockIndex % combinedStripeSize_) == (position->blockIndex - first_block));
+		assert(((int)position->blockIndex - first_block) < combinedStripeSize_);
+		assert((int)position->to == block_to);
+		assert((int)position->from == block_from);
+		stripe_element[position->blockIndex - first_block] = position->data();
+	}
+
+	int hole_start = 0;
+	int hole_size = 0;
+	int range_end = std::min(combinedStripeSize_, MFSBLOCKSINCHUNK - first_block);
+	for (int i = 0; i < range_end; ++i) {
+		if (stripe_element[i] == nullptr) {
+			if (hole_size == 0) {
+				hole_start = i;
+			}
+			hole_size++;
+		} else if (hole_size > 0) {
+			fillOperation(operation, first_block, hole_start, hole_size, stripe_element);
+			hole_size = 0;
+		}
+	}
+	if (hole_size > 0) {
+		fillOperation(operation, first_block, hole_start, hole_size, stripe_element);
+	}
+}
+
+/*!
+ * Starts the write operation.
+ * Firstly, function checks if any blocks need to be read (which may be the case with xor/ec goal).
+ * If so, they are fetched from chunkservers and used for computing parity blocks.
+ * Afterwards, data is sent to selected chunkservers.
+ * \param operation operation to be started
+ */
 void ChunkWriter::startOperation(Operation operation) {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation");
-	uint32_t combinedStripe = operation.journalPositions.front()->blockIndex / combinedStripeSize_;
-	uint32_t size = operation.journalPositions.front()->size();
-
 	// If the operation is a partial-stripe write, read all the missing blocks first
-	std::vector<bool> stripeElementsPresent(combinedStripeSize_);
-	for (const auto& position : operation.journalPositions) {
-		stripeElementsPresent[position->blockIndex % combinedStripeSize_] = true;
-	}
-	for (uint32_t indexInStripe = 0; indexInStripe < combinedStripeSize_; ++indexInStripe) {
-		LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::fillStripe");
-		if (stripeElementsPresent[indexInStripe]) {
-			continue;
-		}
-		uint32_t blockIndex = combinedStripe * combinedStripeSize_ + indexInStripe;
-		if (blockIndex >= MFSBLOCKSINCHUNK) {
-			break;
-		}
-		ChunkPartType newBlockChunkType = slice_traits::standard::ChunkPartType();
-		WriteCacheBlock newBlock = readBlock(blockIndex, newBlockChunkType);
-		if (slice_traits::xors::isXorParity(newBlockChunkType)) {
-			// Recover data if a parity was read
-			uint32_t stripeSize = slice_traits::getStripeSize(newBlockChunkType);
-			uint32_t firstBlockInStripe = (blockIndex / stripeSize) * stripeSize;
-			for (uint32_t i = firstBlockInStripe; i < firstBlockInStripe + stripeSize; ++i) {
-				if (i == newBlock.blockIndex || i >= MFSBLOCKSINCHUNK) {
-					continue;
-				}
-				// Unxor data
-				ChunkPartType chunkTypeToXor = slice_traits::standard::ChunkPartType();
-				WriteCacheBlock blockToXor = readBlock(i, chunkTypeToXor);
-				if (slice_traits::xors::isXorParity(chunkTypeToXor)) {
-					throw RecoverableWriteException("Can't recover missing data from parity part");
-				}
-				blockXor(newBlock.data(), blockToXor.data(), newBlock.size());
-			}
-		}
-		newBlock.from = operation.journalPositions.front()->from;
-		newBlock.to = operation.journalPositions.front()->to;
-		// Insert the new block into the journal just after the last block of the operation
-		auto position = journal_.insert(operation.journalPositions.back(), std::move(newBlock));
-		operation.journalPositions.push_back(position);
-	}
+	int first_block = combinedStripeSize_ * (operation.journalPositions.front()->blockIndex / combinedStripeSize_);
+	int block_size = operation.journalPositions.front()->size();
+	int block_from = operation.journalPositions.front()->from;
+	int block_to = operation.journalPositions.front()->to;
+
+	std::vector<uint8_t *> stripe_element(combinedStripeSize_, nullptr);
+	fillStripe(operation, first_block, stripe_element);
 
 	// Now operation.journalElements is a complete stripe.
-	sassert(operation.isFullStripe(combinedStripeSize_));
+	assert(operation.isFullStripe(combinedStripeSize_));
 
 	// Send all the data
-	OperationId operationId = allocateId();
-	for (auto& fdAndExecutor : executors_) {
-		WriteExecutor& executor = *fdAndExecutor.second;
-		ChunkPartType chunkType = executor.chunkType();
-		uint32_t stripeSize = slice_traits::getStripeSize(chunkType);
-		sassert(combinedStripeSize_ % stripeSize == 0);
-		std::vector<WriteCacheBlock*> blocksToWrite;
+	std::vector<WriteCacheBlock *> blocks_to_write;
+	std::vector<WriteCacheBlock *> parity_blocks;
 
-		if (slice_traits::isStandard(chunkType)) {
-			for (const JournalPosition& position : operation.journalPositions) {
-				if (position->type != WriteCacheBlock::kReadBlock) {
-					blocksToWrite.push_back(&(*position));
-				}
-			}
-		} else if (slice_traits::xors::isXorParity(chunkType)) {
-			LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::calculateParity");
-			uint32_t substripeCount = combinedStripeSize_ / stripeSize;
-			std::vector<WriteCacheBlock*> parityBlocks;
-			for (uint32_t i = 0; i < substripeCount; ++i) {
-				// Block index will be added later
-				operation.parityBuffers.push_back(WriteCacheBlock(
-						locator_->chunkIndex(), 0, WriteCacheBlock::kParityBlock));
-				parityBlocks.push_back(&operation.parityBuffers.back());
-				blocksToWrite.push_back(&operation.parityBuffers.back());
-			}
-			for (const JournalPosition& position : operation.journalPositions) {
-				sassert(position->size() == size);
-				uint32_t currentParityBlock =
-						(position->blockIndex - combinedStripe * combinedStripeSize_) / stripeSize;
-				if (parityBlocks[currentParityBlock]->size() == 0) {
-					// We need a block index in ordinary chunk
-					//  - it'll be converted to a block index in xor parity later
-					parityBlocks[currentParityBlock]->blockIndex = position->blockIndex;
-					bool expanded = parityBlocks[currentParityBlock]->expand(
-							position->from, position->to, position->data());
-					sassert(expanded);
-				} else {
-					blockXor(parityBlocks[currentParityBlock]->data(), position->data(), size);
+	OperationId operationId = allocateId();
+	for (auto &fdAndExecutor : executors_) {
+		WriteExecutor &executor = *fdAndExecutor.second;
+		ChunkPartType chunk_type = executor.chunkType();
+		int data_part_count = slice_traits::getNumberOfDataParts(chunk_type);
+
+		blocks_to_write.clear();
+
+		if (slice_traits::isDataPart(chunk_type)) {
+			unsigned part_index = slice_traits::getDataPartIndex(chunk_type);
+
+			for (const JournalPosition &position : operation.journalPositions) {
+				if ((position->blockIndex % data_part_count) == part_index &&
+				    position->type != WriteCacheBlock::kReadBlock) {
+					blocks_to_write.push_back(&(*position));
 				}
 			}
 		} else {
-			for (const JournalPosition& position : operation.journalPositions) {
-				if (position->type != WriteCacheBlock::kReadBlock &&
-						(position->blockIndex % stripeSize) + 1 == (unsigned)slice_traits::xors::getXorPart(chunkType)) {
-					blocksToWrite.push_back(&(*position));
+			// How many stripes of that type fit to combined stripe size
+			int stripe_count = combinedStripeSize_ / data_part_count;
+
+			parity_blocks.clear();
+			for (int i = 0; i < stripe_count; ++i) {
+				// Check if any data for computing this parity is available
+				if (!stripe_element[i * data_part_count]) {
+					continue;
 				}
+
+				operation.parityBuffers.push_back(
+					WriteCacheBlock(locator_->chunkIndex(), 0, WriteCacheBlock::kParityBlock));
+				WriteCacheBlock &block = operation.parityBuffers.back();
+				parity_blocks.push_back(&block);
+				blocks_to_write.push_back(&block);
+				block.blockIndex = first_block + i * data_part_count;
+				block.from = block_from;
+				block.to = block_to;
+			}
+
+			for (int i = 0; i < (int)parity_blocks.size(); ++i) {
+				computeParityBlock(chunk_type, parity_blocks[i]->data(), stripe_element,
+				                   i * data_part_count, block_size);
 			}
 		}
 
-		for (const WriteCacheBlock* block : blocksToWrite) {
+		for (const WriteCacheBlock *block : blocks_to_write) {
 			LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startOperation::addDataPackets");
 			WriteId writeId = allocateId();
 			writeIdToOperationId_[writeId] = operationId;
-			executor.addDataPacket(writeId,
-					block->blockIndex / stripeSize, block->from, block->size(), block->data());
+			executor.addDataPacket(writeId, block->blockIndex / data_part_count, block->from,
+			                       block->size(), block->data());
 			++operation.unfinishedWrites;
 		}
 	}
 	pendingOperations_[operationId] = std::move(operation);
 }
 
-WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkPartType& readFromChunkType) {
-	Timeout timeout{std::chrono::seconds(1)};
+/*!
+ * Reads blocks from chunkservers into output buffer.
+ * \param block_index first block to be read
+ * \param size number of blocks to be read
+ * \param block_from internal offset of data to be read from block
+ * \param block_to internal end of data to be read from block
+ * \param blocks output buffer
+ */
+void ChunkWriter::readBlocks(int block_index, int size, int block_from, int block_to,
+		std::vector<WriteCacheBlock> &blocks) {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::readBlock");
 
-	// Find a server from which we will be able to read the block
-	ChunkTypeWithAddress source_type_with_address;
-	ChunkPartType sourceChunkType = slice_traits::standard::ChunkPartType();
-	for (const auto& fdAndExecutor : executors_) {
-		const auto& executor = *fdAndExecutor.second;
-		ChunkPartType chunkType = executor.chunkType();
-		if (slice_traits::isStandard(chunkType)) {
-			source_type_with_address = executor.chunkTypeWithAddress();
-			sourceChunkType = chunkType;
-			break;
-		} else {
-			sassert(slice_traits::isXor(chunkType));
-			if (slice_traits::xors::isXorParity(chunkType)) {
-				if (source_type_with_address == ChunkTypeWithAddress() ||
-						(slice_traits::xors::isXorParity(sourceChunkType)
-						&& slice_traits::xors::getXorLevel(chunkType) < slice_traits::xors::getXorLevel(sourceChunkType))) {
-					// Find a parity with the smallest XOR level
-					source_type_with_address = executor.chunkTypeWithAddress();
-					sourceChunkType = chunkType;
-				} else {
-					continue;
-				}
-			} else if (blockIndex % slice_traits::xors::getXorLevel(chunkType) + 1 == (unsigned)slice_traits::xors::getXorPart(chunkType)) {
-				source_type_with_address = executor.chunkTypeWithAddress();
-				sourceChunkType = chunkType;
-				break;
-			}
+	ChunkReadPlanner::PartsContainer available_parts;
+	ChunkReadPlanner::ScoreContainer best_scores;
+	ReadPlanExecutor::ChunkTypeLocations chunk_type_locations;
+	ChunkReadPlanner planner;
+	std::vector<uint8_t> buffer;
+
+	for (const ChunkTypeWithAddress& chunk_type_with_address : locator_->locationInfo().locations) {
+		const ChunkPartType& type = chunk_type_with_address.chunk_type;
+		const NetworkAddress& address = chunk_type_with_address.address;
+
+		float score = globalChunkserverStats.getStatisticsFor(address).score();
+
+		if (chunk_type_locations.count(type) == 0) {
+			// first location of this type, choose it (for now)
+			chunk_type_locations[type] = chunk_type_with_address;
+			best_scores[type] = score;
+			available_parts.push_back(type);
+			// we already know other locations
+		} else if (score > best_scores[type]) {
+			// this location is better, switch to it
+			chunk_type_locations[type] = chunk_type_with_address;
+			best_scores[type] = score;
 		}
 	}
-	if (source_type_with_address == ChunkTypeWithAddress()) {
-		throw RecoverableWriteException("No server to read block " + std::to_string(blockIndex));
+	planner.setScores(std::move(best_scores));
+	planner.prepare(block_index, size, available_parts);
+	if (!planner.isReadingPossible()) {
+		throw RecoverableWriteException("Not enough chunkservers to read full data");
 	}
 
-	// Prepare the read operation
-	uint32_t stripe = blockIndex;
-	if (slice_traits::isXor(sourceChunkType)) {
-		stripe /= slice_traits::xors::getXorLevel(sourceChunkType);
-	}
-	ReadPlan::ReadOperation readOperation;
-	readOperation.request_offset = stripe * MFSBLOCKSIZE;
-	readOperation.request_size = MFSBLOCKSIZE;
-	readOperation.buffer_offset = 0;
+	auto plan = planner.buildPlan();
+	ReadPlanExecutor executor(globalChunkserverStats,
+	locator_->locationInfo().chunkId, locator_->locationInfo().version, std::move(plan));
 
-	// Connect to the chunkserver and execute the read operation
-	int fd = connector_.startUsingConnection(source_type_with_address.address, timeout);
-	try {
-		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kReadBlock);
-		block.from = 0;
-		block.to = MFSBLOCKSIZE;
-		ReadOperationExecutor readExecutor(readOperation,
-				locator_->locationInfo().chunkId, locator_->locationInfo().version,
-				sourceChunkType, source_type_with_address.address,
-				source_type_with_address.chunkserver_version, fd, block.data());
-		readExecutor.sendReadRequest(timeout);
-		readExecutor.readAll(timeout);
-		connector_.endUsingConnection(fd, source_type_with_address.address);
-		readFromChunkType = sourceChunkType;
-		return block;
-	} catch (...) {
-		tcpclose(fd);
-		throw;
+	assert(buffer.size() == 0);
+	executor.executePlan(buffer, chunk_type_locations, connector_,
+			read_data_get_connect_timeout_ms(), read_data_get_wave_read_timeout_ms(),
+			Timeout{std::chrono::milliseconds(read_data_get_wave_read_timeout_ms())});
+
+	int offset = 0;
+	for (int index = block_index; index < block_index + size; ++index) {
+		assert(index < MFSBLOCKSINCHUNK);
+
+		WriteCacheBlock block(locator_->chunkIndex(), index, WriteCacheBlock::kReadBlock);
+		memcpy(block.data(), buffer.data() + offset, MFSBLOCKSIZE);
+		block.from = block_from;
+		block.to = block_to;
+		blocks.push_back(std::move(block));
+		offset += MFSBLOCKSIZE;
 	}
 }
 

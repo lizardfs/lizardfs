@@ -34,14 +34,26 @@ WriteCacheBlock::WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex, Type 
 	blockData = new uint8_t[MFSBLOCKSIZE];
 }
 
-WriteCacheBlock::WriteCacheBlock(WriteCacheBlock&& block) {
+WriteCacheBlock::WriteCacheBlock(WriteCacheBlock&& block) noexcept {
 	blockData = block.blockData;
+	block.blockData = nullptr;
 	chunkIndex = block.chunkIndex;
 	blockIndex = block.blockIndex;
 	from = block.from;
+	block.from = 0;
 	to = block.to;
+	block.to = 0;
 	type = block.type;
-	block.blockData = nullptr;
+}
+
+WriteCacheBlock &WriteCacheBlock::operator=(WriteCacheBlock &&block) {
+	std::swap(blockData, block.blockData);
+	std::swap(chunkIndex, block.chunkIndex);
+	std::swap(blockIndex, block.blockIndex);
+	std::swap(from, block.from);
+	std::swap(to, block.to);
+	std::swap(type, block.type);
+	return *this;
 }
 
 WriteCacheBlock::~WriteCacheBlock() {

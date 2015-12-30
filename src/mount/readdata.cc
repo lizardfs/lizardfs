@@ -87,6 +87,18 @@ static bool readDataTerminate;
 static std::atomic<uint32_t> maxRetries;
 static double gBandwidthOveruse;
 
+uint32_t read_data_get_wave_read_timeout_ms() {
+	return gChunkserverWaveReadTimeout_ms;
+}
+
+uint32_t read_data_get_connect_timeout_ms() {
+	return gChunkserverConnectTimeout_ms;
+}
+
+uint32_t read_data_get_total_read_timeout_ms() {
+	return gChunkserverTotalReadTimeout_ms;
+}
+
 void* read_data_delayed_ops(void *arg) {
 	readrec *rrec,**rrecp;
 	readrec **rrecmap;

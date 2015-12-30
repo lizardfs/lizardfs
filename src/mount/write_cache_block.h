@@ -40,10 +40,10 @@ public:
 
 	WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex, Type type);
 	WriteCacheBlock(const WriteCacheBlock&) = delete;
-	WriteCacheBlock(WriteCacheBlock&& block);
+	WriteCacheBlock(WriteCacheBlock&& block) noexcept;
 	~WriteCacheBlock();
 	WriteCacheBlock& operator=(const WriteCacheBlock&) = delete;
-	WriteCacheBlock& operator=(WriteCacheBlock&&) = delete;
+	WriteCacheBlock& operator=(WriteCacheBlock&&);
 	bool expand(uint32_t from, uint32_t to, const uint8_t *buffer);
 	uint64_t offsetInFile() const;
 	uint32_t offsetInChunk() const;
