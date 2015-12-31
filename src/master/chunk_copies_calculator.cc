@@ -245,10 +245,10 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::evalSliceState(
 		} else if (copies == 1) {
 			return ChunksAvailabilityState::kEndangered;
 		}
-	} else if (slice_traits::isXor(slice)) {
-		if (type_count >= slice.size()) {
+	} else if (slice_traits::isXor(slice) || slice_traits::isEC(slice)) {
+		if (type_count > slice_traits::getNumberOfDataParts(slice)) {
 			return ChunksAvailabilityState::kSafe;
-		} else if (type_count >= (slice.size() - 1)) {
+		} else if (type_count >= slice_traits::getNumberOfDataParts(slice)) {
 			return ChunksAvailabilityState::kEndangered;
 		}
 	}
@@ -519,9 +519,7 @@ int ChunkCopiesCalculator::getFullCopiesCount(const Goal& goal) {
 	for (const auto &slice : goal) {
 		if (slice_traits::isStandard(slice)) {
 			count += slice.getExpectedCopies();
-			continue;
-		}
-		if (slice_traits::isXor(slice)) {
+		} else if (slice_traits::isXor(slice)) {
 			int l1 = std::numeric_limits<int>::max(); // lowest number of copies
 			int l2 = std::numeric_limits<int>::max(); // second lowest value of
 			for (const auto &part : slice) {
@@ -537,6 +535,21 @@ int ChunkCopiesCalculator::getFullCopiesCount(const Goal& goal) {
 
 			// if slice is in lost state then l2 == 0
 			count += l2;
+		} else if (slice_traits::isEC(slice)) {
+			std::array<int, Goal::Slice::kMaxPartsCount> part_copies;
+
+			int i = 0;
+			for (const auto &part : slice) {
+				part_copies[i++] = Goal::Slice::countLabels(part);
+			}
+
+			int data_part_count = slice_traits::getNumberOfDataParts(slice);
+
+			std::nth_element(part_copies.begin(), part_copies.begin() + (data_part_count - 1),
+			                 part_copies.begin() + i, [](int a, int b) { return a > b; });
+
+			// if slice is in lost state then part_copies[data_part_count - 1] == 0
+			count += part_copies[data_part_count - 1];
 		}
 	}
 

@@ -1285,7 +1285,7 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length
 	}
 	if (denyTruncatingParityParts) {
 		for (slist *s = oc->slisthead; s; s = s->next) {
-			if (slice_traits::xors::isXorParity(s->chunkType)) {
+			if (slice_traits::isParityPart(s->chunkType)) {
 				return LIZARDFS_ERROR_NOTPOSSIBLE;
 			}
 		}
@@ -1937,6 +1937,7 @@ public:
 private:
 	typedef std::vector<ServerWithUsage> ServersWithUsage;
 
+	uint32_t getMinChunkserverVersion(chunk *c, ChunkPartType type);
 	bool tryReplication(chunk *c, ChunkPartType type, matocsserventry *destinationServer);
 
 	void deleteInvalidChunkParts(chunk *c);
@@ -2025,48 +2026,70 @@ static bool chunkPresentOnServer(chunk *c, Goal::Slice::Type slice_type, matocss
 	return false;
 }
 
+uint32_t ChunkWorker::getMinChunkserverVersion(chunk */*c*/, ChunkPartType /*type*/) {
+	return kFirstECVersion;
+}
+
 bool ChunkWorker::tryReplication(chunk *c, ChunkPartType part_to_recover,
-				matocsserventry *destinationServer) {
+				matocsserventry *destination_server) {
 	// TODO(msulikowski) Prefer VALID over TDVALID copies.
-	// NOTE: we don't allow replicating xor chunks from pre-xor chunkservers
 	std::vector<matocsserventry *> standard_servers;
-	std::vector<matocsserventry *> xor_capable_servers;
-	std::vector<ChunkPartType> xor_capable_parts;
-	ChunkCopiesCalculator xor_capable_calc(c->getGoal());
+	std::vector<matocsserventry *> all_servers;
+	std::vector<ChunkPartType> all_parts;
+	ChunkCopiesCalculator calc(c->getGoal());
+
+	uint32_t destination_version = matocsserv_get_version(destination_server);
+
+	assert(destination_version >= getMinChunkserverVersion(c, part_to_recover));
 
 	for (slist *s = c->slisthead; s; s = s->next) {
-		if (s->is_valid() && !s->is_busy() && matocsserv_replication_read_counter(s->ptr) < MaxReadRepl) {
-			if (matocsserv_get_version(s->ptr) >= kFirstXorVersion) {
-				xor_capable_servers.push_back(s->ptr);
-				xor_capable_parts.push_back(s->chunkType);
-				xor_capable_calc.addPart(s->chunkType,
-				                         matocsserv_get_label(s->ptr));
-			}
-			if (slice_traits::isStandard(s->chunkType)) {
-				standard_servers.push_back(s->ptr);
-			}
+		if (!s->is_valid() || s->is_busy() || matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+			continue;
 		}
+
+		if (slice_traits::isStandard(s->chunkType)) {
+			standard_servers.push_back(s->ptr);
+		}
+
+		if (destination_version >= kFirstXorVersion && destination_version < kFirstECVersion
+			&& slice_traits::isXor(part_to_recover) && matocsserv_get_version(s->ptr) < kFirstXorVersion) {
+			continue;
+		}
+
+		if (destination_version < kFirstXorVersion && !slice_traits::isStandard(s->chunkType)) {
+			continue;
+		}
+
+		all_servers.push_back(s->ptr);
+		all_parts.push_back(s->chunkType);
+		calc.addPart(s->chunkType, matocsserv_get_label(s->ptr));
 	}
 
-	// we calculate only chunk state here
-	// target optimization is not required
-	xor_capable_calc.evalState();
-
-	if (xor_capable_calc.isRecoveryPossible() &&
-	    matocsserv_get_version(destinationServer) >= kFirstXorVersion) {
-		// new replication possible - use it
-		matocsserv_send_liz_replicatechunk(destinationServer, c->chunkid, c->version,
-		                                   part_to_recover, xor_capable_servers,
-		                                   xor_capable_parts);
-	} else if (slice_traits::isStandard(part_to_recover) && !standard_servers.empty()) {
-		// fall back to legacy replication
-		matocsserv_send_replicatechunk(
-		        destinationServer, c->chunkid, c->version,
-		        standard_servers[rnd_ranged<uint32_t>(standard_servers.size())]);
-	} else {
-		// no replication possible
+	calc.evalState();
+	if (!calc.isRecoveryPossible()) {
 		return false;
 	}
+
+	if (destination_version >= kFirstECVersion ||
+	    (destination_version >= kFirstXorVersion && slice_traits::isXor(part_to_recover))) {
+		matocsserv_send_liz_replicatechunk(destination_server, c->chunkid, c->version,
+		                                   part_to_recover, all_servers,
+		                                   all_parts);
+		stats_replications++;
+		c->needverincrease = 1;
+		return true;
+	}
+
+	// fall back to legacy replication
+	assert(slice_traits::isStandard(part_to_recover));
+
+	if (standard_servers.empty()) {
+		return false;
+	}
+
+	matocsserv_send_replicatechunk(destination_server, c->chunkid, c->version,
+	                               standard_servers[rnd_ranged<uint32_t>(standard_servers.size())]);
+
 	stats_replications++;
 	c->needverincrease = 1;
 	return true;
@@ -2133,6 +2156,8 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 
 	expected_copies = Goal::Slice::countLabels(calc.getTarget()[slice_type][slice_part]);
 
+	uint32_t min_chunkserver_version = getMinChunkserverVersion(c, ChunkPartType(slice_type, slice_part));
+
 	for (const auto &label_and_count : replicate_labels) {
 		tried_to_replicate = true;
 
@@ -2153,8 +2178,9 @@ bool ChunkWorker::replicateChunkPart(chunk *c, Goal::Slice::Type slice_type, int
 
 		// Get a list of possible destination servers
 		int total_matching, returned_matching, temporarily_unavailable;
-		matocsserv_getservers_lessrepl(label_and_count.first, MaxWriteRepl, servers,
-		                               total_matching, returned_matching, temporarily_unavailable);
+		matocsserv_getservers_lessrepl(label_and_count.first, min_chunkserver_version, MaxWriteRepl,
+		                               servers, total_matching, returned_matching,
+		                               temporarily_unavailable);
 
 		// Find a destination server for replication -- the first one without a copy of 'c'
 		matocsserventry *destination = nullptr;
@@ -2318,6 +2344,8 @@ bool ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc, boo
 		                                          s->chunkType.getSlicePart(),
 		                                          current_copy_label));
 
+		uint32_t min_chunkserver_version = getMinChunkserverVersion(c, s->chunkType);
+
 		const ServersWithUsage &sorted_servers =
 		        multi_label_rebalance ? sortedServers_
 		                              : labeledSortedServers_[current_copy_label];
@@ -2327,9 +2355,8 @@ bool ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc, boo
 				break;  // No more suitable destination servers (next servers have
 				        // higher usage)
 			}
-			if (slice_traits::isXor(s->chunkType) &&
-			    matocsserv_get_version(empty_server.server) < kFirstXorVersion) {
-				continue;  // We can't place xor chunks on old servers
+			if (matocsserv_get_version(empty_server.server) < min_chunkserver_version) {
+				continue;
 			}
 			if (chunkPresentOnServer(c, s->chunkType.getSliceType(), empty_server.server)) {
 				continue;  // A copy is already here

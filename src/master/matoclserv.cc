@@ -1832,10 +1832,12 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		rptr = data+64;
 		rcode = get8bit(&rptr);
 
-		if ((eptr->registered == ClientState::kUnregistered && rcode==REGISTER_CLOSESESSION)
-				|| (eptr->registered != ClientState::kUnregistered
-						&& rcode!=REGISTER_CLOSESESSION)) {
-			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)",rcode,eptr->registered);
+		if ((eptr->registered == ClientState::kUnregistered && rcode == REGISTER_CLOSESESSION) ||
+		    (eptr->registered != ClientState::kUnregistered && rcode != REGISTER_CLOSESESSION)) {
+			lzfs_pretty_syslog(
+			    LOG_NOTICE,
+			    "CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%d) for registered status (%d)", rcode,
+			    (int)eptr->registered);
 			eptr->mode = KILL;
 			return;
 		}
@@ -3906,7 +3908,7 @@ static void matoclserv_lock_wake_up(uint32_t sessionid, uint32_t messageId,
 		matocl::fuseSetlk::serialize(reply, messageId, LIZARDFS_STATUS_OK);
 		break;
 	default:
-		lzfs_pretty_syslog(LOG_ERR, "Incorrect lock type passed for lock wakeup: %u", type);
+		lzfs_pretty_syslog(LOG_ERR, "Incorrect lock type passed for lock wakeup: %u", (unsigned)type);
 		return;
 	}
 

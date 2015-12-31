@@ -94,12 +94,12 @@ static uint64_t file_size(fsnode *node, uint32_t nonzero_chunks) {
 }
 
 #ifndef METARESTORE
-// compute the disk space cost of all parts of a xor chunk of given size
-static uint32_t xor_chunk_realsize(uint32_t blocks, uint32_t level) {
-	const uint32_t stripes = (blocks + level - 1) / level;
-	uint32_t size = blocks * MFSBLOCKSIZE;  // file data
-	size += stripes * MFSBLOCKSIZE;         // parity data
-	size += 4096 * (level + 1);             // headers of data and parity parts
+// compute the disk space cost of all parts of a xor/ec chunk of given size
+static uint32_t ec_chunk_realsize(uint32_t blocks, uint32_t data_part_count, uint32_t parity_part_count) {
+	const uint32_t stripes = (blocks + data_part_count - 1) / data_part_count;
+	uint32_t size = blocks * MFSBLOCKSIZE;                 // file data
+	size += parity_part_count * stripes * MFSBLOCKSIZE;     // parity data
+	size += 4096 * (data_part_count + parity_part_count);  // headers of data and parity parts
 	return size;
 }
 #endif
@@ -119,19 +119,22 @@ static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t fi
 	for (const auto &slice : goal) {
 		if (slice_traits::isStandard(slice) || slice_traits::isTape(slice)) {
 			full_size += file_size * slice.getExpectedCopies();
-		} else if (slice_traits::isXor(slice)) {
-			int level = slice_traits::xors::getXorLevel(slice);
-			uint32_t full_chunk_realsize = xor_chunk_realsize(MFSBLOCKSINCHUNK, level);
+		} else if (slice_traits::isXor(slice) || slice_traits::isEC(slice)) {
+			int data_part_count = slice_traits::getNumberOfDataParts(slice);
+			int parity_part_count = slice_traits::getNumberOfParityParts(slice);
+
+			uint32_t full_chunk_realsize =
+			    ec_chunk_realsize(MFSBLOCKSINCHUNK, data_part_count, parity_part_count);
 			uint64_t size = (uint64_t)nonzero_chunks * full_chunk_realsize;
 			if (last_chunk_nonempty(node)) {
 				size -= full_chunk_realsize;
-				size += xor_chunk_realsize(last_chunk_blocks(node), level);
+				size +=
+				    ec_chunk_realsize(last_chunk_blocks(node), data_part_count, parity_part_count);
 			}
 			full_size += size;
 		} else {
-			syslog(LOG_ERR,
-			       "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8,
-			       node->id, node->goal);
+			syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id,
+			       node->goal);
 			return 0;
 		}
 	}

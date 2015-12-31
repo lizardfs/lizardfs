@@ -57,15 +57,16 @@ struct ServerWithUsage {
  * list and \p returnedMatching would be set to the number of them.
  *
  * \param label - the requested label.
+ * \param min_chunkserver_version - return only chunkservers with higher (or equal) version.
  * \param replicationWriteLimit - return only chunkservers with fewer ongoing replicatons.
  * \param servers[out] - list of chunkservers for replication.
  * \param totalMatching[out] - number of existing chunkservers that matched the requested label.
  * \param returnedMatching[out] - number of returned chunkservers that matched the requested label.
  * \return Number of valid entries in \p servers.
  */
-void matocsserv_getservers_lessrepl(const MediaLabel &label, uint16_t replication_write_limit,
-		std::vector<matocsserventry*> &servers, int &total_matching, int &returned_matching,
-		int &temporarily_unavailable);
+void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunkserver_version,
+		uint16_t replication_write_limit, std::vector<matocsserventry*> &servers,
+		int &total_matching, int &returned_matching, int &temporarily_unavailable);
 
 /*! \brief Get chunkserver's label. */
 const MediaLabel& matocsserv_get_label(matocsserventry* e);

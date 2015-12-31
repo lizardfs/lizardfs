@@ -467,12 +467,14 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 		std::iota(shuffle.begin(), shuffle.begin() + slice.size(), 0);
 		std::random_shuffle(shuffle.begin(), shuffle.begin() + slice.size());
 
+		uint32_t min_version = std::max({
+			slice_traits::isXor(slice) ? kFirstXorVersion : 0,
+			slice_traits::isEC(slice) ? kFirstECVersion : 0,
+			min_server_version
+		});
+
 		int count_full_parts = 0;
 		for (int i = 0; i < slice.size(); ++i) {
-			uint32_t min_version = std::max(
-				slice_traits::isXor(slice) ? kFirstXorVersion : 0,
-				min_server_version
-			);
 			servers = getter.chooseServersForLabels(
 			        history[goal_id], slice[shuffle[i]],
 			        min_version, used_servers);
@@ -486,8 +488,7 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 			}
 		}
 
-		if (slice_traits::isXor(slice) &&
-		    count_full_parts < slice_traits::xors::getXorLevel(slice)) {
+		if (count_full_parts < slice_traits::getNumberOfDataParts(slice.getType())) {
 			continue; // do not create any parts if servers are missing
 		}
 
@@ -497,9 +498,9 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 	return ret;
 }
 
-void matocsserv_getservers_lessrepl(const MediaLabel &label, uint16_t replication_write_limit,
-		std::vector<matocsserventry*> &servers, int &total_matching, int &returned_matching,
-		int &temporarily_unavailable) {
+void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunkserver_version,
+		uint16_t replication_write_limit, std::vector<matocsserventry *> &servers,
+		int &total_matching, int &returned_matching, int &temporarily_unavailable) {
 	total_matching = 0;
 	returned_matching = 0;
 	temporarily_unavailable = 0;
@@ -510,6 +511,9 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint16_t replicatio
 				|| eptr->usedspace > eptr->totalspace
 				|| (eptr->totalspace - eptr->usedspace) <= (eptr->totalspace / 100)) {
 			// Skip full and disconnected chunkservers
+			continue;
+		}
+		if (eptr->version < min_chunkserver_version) {
 			continue;
 		}
 		bool matchesRequestedLabel = false;
