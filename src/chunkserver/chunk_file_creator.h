@@ -20,27 +20,37 @@
 
 #include "common/platform.h"
 
-#include <cstdint>
-
 #include "common/chunk_part_type.h"
+#include "chunkserver/chunk.h"
 
+/**
+ * @brief Helper class to create chunk with data.
+ *
+ * This class is used to safely create chunk with data.
+ * If data isn't written or committed before d-tor,
+ * chunk will be deleted.
+ */
 class ChunkFileCreator {
 public:
-	ChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
-			: chunkId_(chunkId),
-			  chunkVersion_(chunkVersion),
-			  chunkType_(chunkType) {
-	}
-	virtual ~ChunkFileCreator() {}
-	virtual void create() = 0;
-	virtual void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) = 0;
-	virtual void commit() = 0;
-	uint64_t chunkId() const { return chunkId_; }
-	uint32_t chunkVersion() const { return chunkVersion_; }
-	ChunkPartType chunkType() const { return chunkType_; }
+	ChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
+	~ChunkFileCreator();
 
-private:
-	uint64_t chunkId_;
-	uint32_t chunkVersion_;
-	ChunkPartType chunkType_;
+	void create();
+	void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
+	void commit();
+
+	uint64_t chunkId() const { return chunk_id_; }
+	uint32_t chunkVersion() const { return chunk_version_; }
+	ChunkPartType chunkType() const { return chunk_type_; }
+
+protected:
+	uint64_t chunk_id_;
+	uint32_t chunk_version_;
+	ChunkPartType chunk_type_;
+
+	Chunk *chunk_;
+
+	bool is_created_;
+	bool is_open_;
+	bool is_commited_;
 };

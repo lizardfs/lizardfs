@@ -321,7 +321,7 @@ void* job_worker(void *th_arg) {
 					try {
 						std::vector<ChunkTypeWithAddress> sources;
 						deserialize(rpargs->sourcesBuffer, rpargs->sourcesBufferSize, sources);
-						HddspacemgrChunkFileCreator creator(
+						ChunkFileCreator creator(
 								rpargs->chunkId, rpargs->chunkVersion, rpargs->chunkType);
 						gReplicator.replicate(creator, sources);
 						status = LIZARDFS_STATUS_OK;

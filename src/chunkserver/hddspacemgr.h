@@ -54,6 +54,7 @@ int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
 
 /* I/O operations */
+void hdd_chunk_release(Chunk *c);
 int hdd_open(uint64_t chunkid, ChunkPartType chunkType);
 int hdd_close(uint64_t chunkid, ChunkPartType chunkType);
 int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firstBlock,
@@ -61,8 +62,12 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firs
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint32_t offset, uint32_t size, uint32_t maxBlocksToBeReadBehind,
 		uint32_t blocksToBeReadAhead, OutputBuffer* outputBuffer);
+int hdd_write(Chunk* chunk, uint32_t version,
+		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
 int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
+int hdd_open(Chunk *chunk);
+int hdd_close(Chunk *chunk);
 
 /* chunk info */
 int hdd_check_version(uint64_t chunkid,uint32_t version);
@@ -124,16 +129,30 @@ void hdd_test_chunk(ChunkWithVersionAndType chunk);
 int hdd_late_init(void);
 int hdd_init(void);
 
-class HddspacemgrChunkFileCreator : public ChunkFileCreator {
-public:
-	HddspacemgrChunkFileCreator(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
-	~HddspacemgrChunkFileCreator();
-	virtual void create();
-	virtual void write(uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer);
-	virtual void commit();
+/**
+ * Chunk low-level operations
+ *
+ * These functions shouldn't be used, unless for specific implementation
+ * i.e.
+ * \see ChunkFileCreator
+ *
+ * In most cases functions above are prefered.
+*/
 
-private:
-	bool isCreated_;
-	bool isOpen_;
-	bool isCommited_;
-};
+/**
+ * \brief Create new chunk on disk
+ *
+ * \param chunkid - id of created chunk
+ * \param version - version of created chunk
+ * \param chunkType - type of created chunk
+ * \return On success returns pair of LIZARDFS_STATUS_OK and created chunk in locked state.
+ *         On failure returns pair of code of error and nullptr.
+ */
+std::pair<int, Chunk *> hdd_int_create_chunk(uint64_t chunkid, uint32_t version,
+		ChunkPartType chunkType);
+int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkPartType chunkType);
+int hdd_int_delete(Chunk *chunk, uint32_t version);
+int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkPartType chunkType);
+int hdd_int_version(Chunk *chunk, uint32_t version, uint32_t newversion);
+int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversion,
+		ChunkPartType chunkType);
