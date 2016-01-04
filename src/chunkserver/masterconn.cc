@@ -395,12 +395,19 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	matocs::replicateChunk::deserializePartial(data,
 			chunkId, chunkVersion, chunkType, sourcesBuffer);
 	sourcesBufferSize = data.size() - (sourcesBuffer - data.data());
+
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::replicateChunk::serialize(outputPacket->packet,
 			chunkId, chunkType, LIZARDFS_STATUS_OK, chunkVersion);
 	DEBUG_LOG("cs.matocs.replicate") << chunkId;
-	job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
-			chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
+	if (hdd_scans_in_progress()) {
+		// Folder scan in progress - replication is not possible
+		masterconn_lizjobfinished(LIZARDFS_ERROR_WAITING, outputPacket);
+	} else {
+		job_replicate(jpool, masterconn_lizjobfinished, outputPacket,
+				chunkId, chunkVersion, chunkType, sourcesBufferSize, sourcesBuffer);
+	}
+
 }
 
 void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t length) {
@@ -423,7 +430,10 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
 	put32bit(&ptr,version);
-	if (length==8+4+4+2) {
+
+	if (hdd_scans_in_progress()) {
+		masterconn_replicationfinished(LIZARDFS_ERROR_WAITING, packet);
+	} else if (length==8+4+4+2) {
 		ip = get32bit(&data);
 		port = get16bit(&data);
 //              syslog(LOG_NOTICE,"start job replication (%08" PRIX64 ":%04" PRIX32 ":%04" PRIX32 ":%02" PRIX16 ")",chunkid,version,ip,port);

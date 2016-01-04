@@ -122,6 +122,11 @@ static std::atomic<bool> PerformFsync;
 /* folders data */
 static folder *folderhead = NULL;
 
+/// Active folder scans in progress
+/* theoretically it would return a false positive if scans haven't started yet,
+ * but it's a _very_ unlikely situation */
+static std::atomic_int gScansInProgress(0);
+
 /* chunk hash */
 static Chunk* hashtab[HASHSIZE];
 
@@ -3360,6 +3365,8 @@ void *hdd_folder_scan(void *arg) {
 
 	uint32_t begin_time = time(NULL);
 
+	gScansInProgress++;
+
 	zassert(pthread_mutex_lock(&folderlock));
 	unsigned todel = f->todel;
 	hdd_refresh_usage(f);
@@ -3385,6 +3392,7 @@ void *hdd_folder_scan(void *arg) {
 	hdd_folder_scan_layout(f, begin_time, 1);
 	hdd_folder_scan_layout(f, begin_time, 0);
 	hdd_testshuffle(f);
+	gScansInProgress--;
 
 	zassert(pthread_mutex_lock(&folderlock));
 	if (f->scanstate == SCST_SCANTERMINATE) {
@@ -3404,6 +3412,10 @@ void *hdd_folder_scan(void *arg) {
 	zassert(pthread_mutex_unlock(&folderlock));
 
 	return NULL;
+}
+
+bool hdd_scans_in_progress() {
+	return gScansInProgress != 0;
 }
 
 void* hdd_folders_thread(void *arg) {

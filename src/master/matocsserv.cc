@@ -786,7 +786,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 
 	matocsserv_replication_end(chunkId, chunkVersion, chunkType, eptr);
 	chunk_got_replicate_status(eptr, chunkId, chunkVersion, chunkType, status);
-	if (status != 0) {
+	if (status != 0 && status != LIZARDFS_ERROR_WAITING) {
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",
 				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
 	}

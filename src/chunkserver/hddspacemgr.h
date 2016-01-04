@@ -68,6 +68,8 @@ int hdd_write(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 int hdd_check_version(uint64_t chunkid,uint32_t version);
 int hdd_get_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t version, uint16_t *blocks);
 
+bool hdd_scans_in_progress();
+
 /* chunk operations */
 
 /* all chunk operations in one call */
