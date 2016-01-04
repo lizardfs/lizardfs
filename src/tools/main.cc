@@ -1175,13 +1175,10 @@ int ip_port_cmp(const void*a,const void*b) {
 }
 
 std::string chunkTypeToString(ChunkPartType type) {
-	if (slice_traits::isXor(type)) {
+	if (slice_traits::isXor(type) || slice_traits::isEC(type)) {
 		std::stringstream ss;
-		if (slice_traits::xors::isXorParity(type)) {
-			ss << " parity " << slice_traits::xors::getXorLevel(type);
-		} else {
-			ss << " part " << slice_traits::xors::getXorPart(type) << "/" << slice_traits::xors::getXorLevel(type);
-		}
+		ss << " part " << type.getSlicePart() + 1 << "/" << slice_traits::getNumberOfParts(type)
+				<< " of " << to_string(type.getSliceType());
 		return ss.str();
 	}
 	return "";
