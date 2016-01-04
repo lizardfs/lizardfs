@@ -7,7 +7,7 @@ CHUNKSERVERS=4 \
 cd "${info[mount0]}"
 block=$LIZARDFS_BLOCK_SIZE
 chunk=$LIZARDFS_CHUNK_SIZE
-goals="1 xor2 xor3"
+goals="1 xor2 xor3 ec21 ec22"
 
 # Create the same files on LizardFS (in many goals) and in a temporary directory.
 # The test will do the same operations (truncate, write) on all the files and compare

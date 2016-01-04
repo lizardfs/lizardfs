@@ -363,6 +363,8 @@ void ReadPlanExecutor::checkPlan(uint8_t *buffer_start) {
 			const ReadPlan::ReadOperation &op2(type_and_op2.second);
 			bool overlap = true;
 
+			assert(type_and_op.first != type_and_op2.first);
+
 			if (op2.request_size <= 0) {
 				continue;
 			}
