@@ -17,7 +17,8 @@ FILE_SIZE=1k file-generate dir_9/file
 
 chunks=$(mfsfileinfo */* | grep copy)
 expect_equals 5 $(grep -v part <<< "$chunks" | grep -v parity | wc -l)
-for part in "part 1/5" "part 2/5" "part 3/5" "part 4/5" "part 5/5" "parity 5"; do
+
+for part in "part "{1..6}"/6 of xor5"; do
 	count=$(grep -c "$part" <<< "$chunks")
 	MESSAGE="There should be at least 30 '$part'" expect_less_or_equal 30 $count
 done;

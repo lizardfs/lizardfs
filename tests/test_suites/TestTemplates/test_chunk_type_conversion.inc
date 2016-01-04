@@ -13,14 +13,10 @@ verify_file_goal() {
 
 	if [[ $goal =~ xor([2-9]|10) ]]; then
 		level=${BASH_REMATCH[1]}
-
-		# Check if the parity is present:
-		mfsfileinfo "$file" | grep "parity $level$" > /dev/null \
-				|| { echo "$file: missing parity"; return; };
 		# Check if all parts are present:
-		for i in $(seq $level); do
-			mfsfileinfo "$file" | grep "part $i/$level$" > /dev/null \
-					|| { echo "$file: missing part $i/$level"; return; };
+		for i in $(seq $((level+1))); do
+			mfsfileinfo "$file" | grep "part $i/$((level+1)) of $goal$" > /dev/null \
+					|| { echo "$file: missing part $i of $goal"; return; };
 		done
 	elif [[ $goal =~ ([1-9]) ]]; then
 		level=${BASH_REMATCH[1]}

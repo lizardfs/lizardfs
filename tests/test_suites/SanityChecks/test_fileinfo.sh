@@ -10,15 +10,21 @@ awkscript='
 	printf("UNKNOWN LINE: %s\n", $0)
 	exit
 }
-/parity/ {
+/part 1\/[1-9] of xor/ {
 	split($3, server, ":")
-	printf "CS%s/chunks%s/chunk_xor_parity_of_%s_%s.liz\n", server[2], dir, $5, chunkid
+	sub(/xor/, "", $7)
+	printf "CS%s/chunks%s/chunk_xor_parity_of_%s_%s.liz\n", server[2], dir, $7, chunkid
 	next
 }
-/part/ {
+/part [2-9]\/[2-9] of xor/ {
 	split($3, server, ":")
-	split($5, part, "/")
-	printf "CS%s/chunks%s/chunk_xor_%s_of_%s_%s.liz\n", server[2], dir, part[1], part[2], chunkid
+	sub(/xor/, "", $7)
+	printf "CS%s/chunks%s/chunk_xor_%d_of_%d_%s.liz\n", server[2], dir, $5-1, $7, chunkid
+	next
+}
+/part [1-9]\/[2-9] of ec\(3\,2\)/ {
+	split($3, server, ":")
+	printf "CS%s/chunks%s/chunk_ec_%d_of_3_2_%s.liz\n", server[2], dir, $5, chunkid
 	next
 }
 {
@@ -28,7 +34,7 @@ awkscript='
 }
 '
 
-CHUNKSERVERS=4 \
+CHUNKSERVERS=5 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	CHUNKSERVER_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT=0" \
 	USE_RAMDISK=YES \
@@ -37,7 +43,7 @@ CHUNKSERVERS=4 \
 cd "${info[mount0]}"
 
 files=()
-for goal in 1 2 3 xor2 xor3; do
+for goal in 1 2 3 xor2 xor3 ec32; do
 	file="file_goal_$goal"
 	touch "$file"
 	mfssetgoal "$goal" "$file"
@@ -52,6 +58,7 @@ chunks_info=$(mfsfileinfo "${files[@]}" \
 		| sed -e "s|CS${info[chunkserver1_port]}|$(cat ${info[chunkserver1_hdd]})|" \
 		| sed -e "s|CS${info[chunkserver2_port]}|$(cat ${info[chunkserver2_hdd]})|" \
 		| sed -e "s|CS${info[chunkserver3_port]}|$(cat ${info[chunkserver3_hdd]})|" \
+		| sed -e "s|CS${info[chunkserver4_port]}|$(cat ${info[chunkserver4_hdd]})|" \
 		| sort)
 
 chunks_real=$(find_all_chunks | sort)
