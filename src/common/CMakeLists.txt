@@ -8,6 +8,11 @@ list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/metadata.cc")
 list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/setup.cc")
 endif()
 
+if(ISAL_LIBRARY)
+  list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/galois_field_isal.cc")
+  list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/galois_field_encode.cc")
+endif()
+
 add_library(mfscommon ${COMMON_SOURCES})
 if (HAVE_CRCUTIL)
   # Use crcutil Library

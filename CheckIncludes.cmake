@@ -11,6 +11,7 @@ function(check_includes INCLUDES)
       # Auto '#cmakedefine' variable generation
       string(REPLACE "/" "_" INCLUDE_FILE_STR ${INCLUDE_FILE})
       string(REPLACE "." "_" INCLUDE_FILE_STR ${INCLUDE_FILE_STR})
+      string(REPLACE "-" "_" INCLUDE_FILE_STR ${INCLUDE_FILE_STR})
       string(TOUPPER "LIZARDFS_HAVE_${INCLUDE_FILE_STR}" VAR)
       set(${VAR} TRUE PARENT_SCOPE)
     endif()

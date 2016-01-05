@@ -26,7 +26,7 @@ include(TestBigEndian)
 set(INCLUDES arpa/inet.h endian.h fcntl.h inttypes.h limits.h netdb.h
     netinet/in.h stddef.h stdlib.h string.h sys/mman.h
     sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
-    syslog.h unistd.h stdbool.h Judy.h
+    syslog.h unistd.h stdbool.h Judy.h isa-l/erasure_code.h
 )
 
 
@@ -78,3 +78,10 @@ check_cxx_expression("sizeof(::std::allocator_traits<std::allocator<int*>>::poin
 unset(CMAKE_REQUIRED_FLAGS)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
+
+set(_CHECK_CXX_MULTIVERSION_CODE "
+__attribute__ ((target (\"default\"))) int test() { return 0; }
+__attribute__ ((target (\"sse\"))) int test() { return 1; }
+int main() { return test(); }
+")
+check_cxx_source_compiles("${_CHECK_CXX_MULTIVERSION_CODE}" LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)

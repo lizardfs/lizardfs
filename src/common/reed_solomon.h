@@ -20,10 +20,15 @@
 
 #include "common/platform.h"
 
-#include <isa-l/erasure_code.h>
 #include <array>
 #include <bitset>
 #include <cassert>
+
+#ifdef LIZARDFS_HAVE_ISA_L_ERASURE_CODE_H
+  #include <isa-l/erasure_code.h>
+#else
+  #include "common/galois_field.h"
+#endif
 
 /*! \brief Implementation of Reed-Solomon encoding/decoding.
  *
