@@ -79,6 +79,9 @@ struct ChunkWithVersionAndType {
 			  type(type) {
 	}
 
+	ChunkWithVersionAndType(const legacy::ChunkWithVersionAndType &other)
+	: id(other.id), version(other.version), type(other.type) {}
+
 	std::string toString() const {
 		std::stringstream ss;
 		ss << std::hex << std::setfill('0');

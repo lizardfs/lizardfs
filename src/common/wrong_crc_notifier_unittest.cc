@@ -31,8 +31,17 @@ TEST(WrongCrcNotifierTests, WrongCrcNotifier) {
 		void onIncomingMessage(uint32_t type, const std::vector<uint8_t>& message) {
 			ASSERT_EQ(LIZ_CLTOCS_TEST_CHUNK, type);
 			ChunkWithVersionAndType chunk;
-			cltocs::testChunk::deserialize(message.data(), message.size(),
+			PacketVersion v;
+			deserializePacketVersionNoHeader(message, v);
+			if (v == cltocs::testChunk::kECChunks) {
+				cltocs::testChunk::deserialize(message.data(), message.size(),
 					chunk.id, chunk.version, chunk.type);
+			} else {
+				legacy::ChunkPartType legacy_type;
+				cltocs::testChunk::deserialize(message.data(), message.size(),
+					chunk.id, chunk.version, legacy_type);
+				chunk.type = legacy_type;
+			}
 			EXPECT_EQ(2U, chunk.id);
 			EXPECT_EQ(3U, chunk.version);
 			EXPECT_EQ(xor_2_of_3, chunk.type);

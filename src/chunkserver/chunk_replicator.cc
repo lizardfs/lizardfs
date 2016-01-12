@@ -77,7 +77,8 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	std::vector<uint8_t> inputBuffer;
 	PacketHeader header;
 	receivePacket(header, inputBuffer, fd, 1000);
-	if (header.type != LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS) {
+	if (header.type != LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS
+			&& header.type != CSTOCS_GET_CHUNK_BLOCKS_STATUS) {
 		close(fd);
 		throw Exception("Unexpected response for chunk get blocks request");
 	}
@@ -88,8 +89,22 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	ChunkPartType rxChunkType = slice_traits::standard::ChunkPartType();
 	uint16_t nrOfBlocks;
 	uint8_t status;
-	cstocs::getChunkBlocksStatus::deserialize(inputBuffer, rxChunkId, rxChunkVersion, rxChunkType,
-			nrOfBlocks, status);
+	if (header.type == LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS) {
+		PacketVersion v;
+		deserializePacketVersionNoHeader(inputBuffer, v);
+		if (v == cstocs::getChunkBlocksStatus::kECChunks) {
+			cstocs::getChunkBlocksStatus::deserialize(inputBuffer, rxChunkId, rxChunkVersion, rxChunkType,
+				nrOfBlocks, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstocs::getChunkBlocksStatus::deserialize(inputBuffer, rxChunkId, rxChunkVersion, legacy_type,
+				nrOfBlocks, status);
+			rxChunkType = legacy_type;
+		}
+	} else {
+		deserializeAllMooseFsPacketDataNoHeader(inputBuffer.data(), inputBuffer.size(),
+				rxChunkId, rxChunkVersion, nrOfBlocks, status);
+	}
 	auto expected = std::make_tuple(chunkId, chunkVersion, chunkType, uint8_t(LIZARDFS_STATUS_OK));
 	auto actual = std::make_tuple(rxChunkId, rxChunkVersion, rxChunkType, status);
 	if (actual != expected) {

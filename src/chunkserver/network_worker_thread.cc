@@ -45,6 +45,7 @@
 #include "protocol/cstocl.h"
 #include "protocol/cstocs.h"
 #include "common/datapack.h"
+#include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "protocol/MFSCommunication.h"
@@ -67,6 +68,8 @@ std::atomic<bool> NetworkWorkerThread::useSplice(true);
 
 class MessageSerializer {
 public:
+	static MessageSerializer* getSerializer(PacketHeader::Type type, uint32_t version);
+
 	virtual void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
 			uint64_t chunkId, uint32_t offset, uint32_t size) = 0;
 	virtual void serializeCstoclReadStatus(std::vector<uint8_t>& buffer,
@@ -81,11 +84,6 @@ public:
 
 class MooseFsMessageSerializer : public MessageSerializer {
 public:
-	static MooseFsMessageSerializer* getSingleton() {
-		static MooseFsMessageSerializer singleton;
-		return &singleton;
-	}
-
 	void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
 			uint64_t chunkId, uint32_t offset, uint32_t size) {
 		// This prefix requires CRC (uint32_t) and data (size * uint8_t) to be appended
@@ -114,11 +112,6 @@ public:
 
 class LizardFsMessageSerializer : public MessageSerializer {
 public:
-	static LizardFsMessageSerializer* getSingleton() {
-		static LizardFsMessageSerializer singleton;
-		return &singleton;
-	}
-
 	void serializePrefixOfCstoclReadData(std::vector<uint8_t>& buffer,
 			uint64_t chunkId, uint32_t offset, uint32_t size) {
 		cstocl::readData::serializePrefix(buffer, chunkId, offset, size);
@@ -140,6 +133,32 @@ public:
 		cstocl::writeStatus::serialize(buffer, chunkId, writeId, status);
 	}
 };
+
+class LizardFsStdXorMessageSerializer : public LizardFsMessageSerializer {
+public:
+	void serializeCltocsWriteInit(std::vector<uint8_t>& buffer,
+			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
+			const std::vector<NetworkAddress>& chain) {
+		cltocs::writeInit::serialize(buffer, chunkId, chunkVersion,
+				(legacy::ChunkPartType)chunkType, chain);
+	}
+};
+
+MessageSerializer* MessageSerializer::getSerializer(PacketHeader::Type type, uint32_t version) {
+	sassert((type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType)
+			|| type <= PacketHeader::kMaxOldPacketType);
+	if (type <= PacketHeader::kMaxOldPacketType) {
+		static MooseFsMessageSerializer singleton;
+		return &singleton;
+	} else {
+		static LizardFsMessageSerializer singleton;
+		if (version < kFirstECVersion) {
+			static LizardFsStdXorMessageSerializer singleton_stdxor;
+			return &singleton_stdxor;
+		}
+		return &singleton;
+	}
+}
 
 packetstruct* worker_create_detached_packet_with_output_buffer(
 		const std::vector<uint8_t>& packetPrefix) {
@@ -427,14 +446,28 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 	// Deserialize request
 	sassert(type == LIZ_CLTOCS_READ || type == CLTOCS_READ);
 	try {
+		uint32_t client_version = 0;
 		if (type == LIZ_CLTOCS_READ) {
-			cltocs::read::deserialize(data, length,
-					eptr->chunkid,
-					eptr->version,
-					eptr->chunkType,
-					eptr->offset,
-					eptr->size);
-			eptr->messageSerializer = LizardFsMessageSerializer::getSingleton();
+			PacketVersion v;
+			deserializePacketVersionNoHeader(data, length, v);
+			client_version = (v == cltocs::read::kECChunks) ? kFirstECVersion : kFirstXorVersion;
+			if (v == cltocs::read::kECChunks) {
+				cltocs::read::deserialize(data, length,
+						eptr->chunkid,
+						eptr->version,
+						eptr->chunkType,
+						eptr->offset,
+						eptr->size);
+			} else {
+				legacy::ChunkPartType legacy_type;
+				cltocs::read::deserialize(data, length,
+						eptr->chunkid,
+						eptr->version,
+						legacy_type,
+						eptr->offset,
+						eptr->size);
+				eptr->chunkType = legacy_type;
+			}
 		} else {
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
 					eptr->chunkid,
@@ -442,8 +475,8 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 					eptr->offset,
 					eptr->size);
 			eptr->chunkType = slice_traits::standard::ChunkPartType();
-			eptr->messageSerializer = MooseFsMessageSerializer::getSingleton();
 		}
+		eptr->messageSerializer = MessageSerializer::getSerializer(type, client_version);
 	} catch (IncorrectDeserializationException&) {
 		syslog(LOG_NOTICE, "read_init: Cannot deserialize READ message (type:%"
 				PRIX32 ", length:%" PRIu32 ")", type, length);
@@ -477,13 +510,26 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 
 void worker_prefetch(csserventry *eptr, const uint8_t *data, PacketHeader::Type type, PacketHeader::Length length) {
 	sassert(type == LIZ_CLTOCS_PREFETCH);
+	PacketVersion v;
 	try {
+		deserializePacketVersionNoHeader(data, length, v);
+		if (v == cltocs::prefetch::kECChunks) {
 			cltocs::prefetch::deserialize(data, length,
-					eptr->chunkid,
-					eptr->version,
-					eptr->chunkType,
-					eptr->offset,
-					eptr->size);
+				eptr->chunkid,
+				eptr->version,
+				eptr->chunkType,
+				eptr->offset,
+				eptr->size);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cltocs::prefetch::deserialize(data, length,
+				eptr->chunkid,
+				eptr->version,
+				legacy_type,
+				eptr->offset,
+				eptr->size);
+			eptr->chunkType = legacy_type;
+		}
 	} catch (IncorrectDeserializationException&) {
 		syslog(LOG_NOTICE, "prefetch: Cannot deserialize PREFETCH message (type:%"
 				PRIX32 ", length:%" PRIu32 ")", type, length);
@@ -548,18 +594,28 @@ void worker_write_init(csserventry *eptr,
 
 	sassert(type == LIZ_CLTOCS_WRITE_INIT || type == CLTOCS_WRITE);
 	try {
+		uint32_t client_version = 0;
 		if (type == LIZ_CLTOCS_WRITE_INIT) {
-			cltocs::writeInit::deserialize(data, length,
+			PacketVersion v;
+			deserializePacketVersionNoHeader(data, length, v);
+			client_version = (v == cltocs::read::kECChunks) ? kFirstECVersion : kFirstXorVersion;
+			if (v == cltocs::writeInit::kECChunks) {
+				cltocs::writeInit::deserialize(data, length,
 					eptr->chunkid, eptr->version, eptr->chunkType, chain);
-			eptr->messageSerializer = LizardFsMessageSerializer::getSingleton();
+			} else {
+				legacy::ChunkPartType legacy_type;
+				cltocs::writeInit::deserialize(data, length,
+					eptr->chunkid, eptr->version, legacy_type, chain);
+				eptr->chunkType = legacy_type;
+			}
 		} else {
 			MooseFSVector<NetworkAddress> mooseFSChain;
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
 				eptr->chunkid, eptr->version, mooseFSChain);
 			chain = std::move(mooseFSChain);
 			eptr->chunkType = slice_traits::standard::ChunkPartType();
-			eptr->messageSerializer = MooseFsMessageSerializer::getSingleton();
 		}
+		eptr->messageSerializer = MessageSerializer::getSerializer(type, client_version);
 	} catch (IncorrectDeserializationException& ex) {
 		syslog(LOG_NOTICE, "Received malformed WRITE_INIT message (length: %" PRIu32 ")", length);
 		eptr->state = CLOSE;
@@ -606,20 +662,10 @@ void worker_write_data(csserventry *eptr,
 	sassert(type == LIZ_CLTOCS_WRITE_DATA || type == CLTOCS_WRITE_DATA);
 	try {
 		if (type == LIZ_CLTOCS_WRITE_DATA) {
-			if (eptr->messageSerializer != LizardFsMessageSerializer::getSingleton()) {
-				syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
-				eptr->state = CLOSE;
-				return;
-			}
 			cltocs::writeData::deserializePrefix(data, length,
 					chunkId, writeId, blocknum, offset, size, crc);
 			dataToWrite = data + cltocs::writeData::kPrefixSize;
 		} else {
-			if (eptr->messageSerializer != MooseFsMessageSerializer::getSingleton()) {
-				syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
-				eptr->state = CLOSE;
-				return;
-			}
 			uint16_t offset16;
 			deserializeAllMooseFsPacketDataNoHeader(data, length,
 				chunkId, writeId, blocknum, offset16, size, crc, dataToWrite);
@@ -668,19 +714,9 @@ void worker_write_status(csserventry *eptr,
 	sassert(eptr->messageSerializer != NULL);
 	try {
 		if (type == LIZ_CSTOCL_WRITE_STATUS) {
-			if (eptr->messageSerializer != LizardFsMessageSerializer::getSingleton()) {
-				syslog(LOG_NOTICE, "Received WRITE_STATUS message incompatible with WRITE_INIT");
-				eptr->state = CLOSE;
-				return;
-			}
 			std::vector<uint8_t> message(data, data + length);
 			cstocl::writeStatus::deserialize(message, chunkId, writeId, status);
 		} else {
-			if (eptr->messageSerializer != MooseFsMessageSerializer::getSingleton()) {
-				syslog(LOG_NOTICE, "Received WRITE_STATUS message incompatible with the WRITE_INIT");
-				eptr->state = CLOSE;
-				return;
-			}
 			deserializeAllMooseFsPacketDataNoHeader(data, length, chunkId, writeId, status);
 			sassert(eptr->chunkType == slice_traits::standard::ChunkPartType());
 		}
@@ -758,13 +794,24 @@ void worker_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
 	eptr->state = IDLE;
 }
 
+void worker_liz_get_chunk_blocks_finished_legacy(uint8_t status, void *extra) {
+	TRACETHIS();
+	csserventry *eptr = (csserventry*) extra;
+	eptr->getBlocksJobId = 0;
+	std::vector<uint8_t> buffer;
+	cstocs::getChunkBlocksStatus::serialize(buffer, eptr->chunkid, eptr->version,
+		(legacy::ChunkPartType)eptr->chunkType, eptr->getBlocksJobResult, status);
+	worker_create_attached_packet(eptr, buffer);
+	eptr->state = IDLE;
+}
+
 void worker_liz_get_chunk_blocks_finished(uint8_t status, void *extra) {
 	TRACETHIS();
 	csserventry *eptr = (csserventry*) extra;
 	eptr->getBlocksJobId = 0;
 	std::vector<uint8_t> buffer;
-	cstocs::getChunkBlocksStatus::serialize(buffer, eptr->chunkid, eptr->version, eptr->chunkType,
-			eptr->getBlocksJobResult, status);
+	cstocs::getChunkBlocksStatus::serialize(buffer, eptr->chunkid, eptr->version,
+		eptr->chunkType, eptr->getBlocksJobResult, status);
 	worker_create_attached_packet(eptr, buffer);
 	eptr->state = IDLE;
 }
@@ -781,11 +828,26 @@ void worker_get_chunk_blocks_finished(uint8_t status, void *extra) {
 }
 
 void worker_liz_get_chunk_blocks(csserventry *eptr, const uint8_t *data, uint32_t length) {
-	cstocs::getChunkBlocks::deserialize(data, length,
-			eptr->chunkid, eptr->version, eptr->chunkType);
-	eptr->getBlocksJobId = job_get_blocks(eptr->workerJobPool,
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, length, v);
+	if (v == cstocs::getChunkBlocks::kECChunks) {
+		cstocs::getChunkBlocks::deserialize(data, length,
+				eptr->chunkid, eptr->version, eptr->chunkType);
+
+		eptr->getBlocksJobId = job_get_blocks(eptr->workerJobPool,
 			worker_liz_get_chunk_blocks_finished, eptr, eptr->chunkid, eptr->version,
 			eptr->chunkType, &(eptr->getBlocksJobResult));
+
+	} else {
+		legacy::ChunkPartType legacy_type;
+		cstocs::getChunkBlocks::deserialize(data, length,
+				eptr->chunkid, eptr->version, legacy_type);
+		eptr->chunkType = legacy_type;
+
+		eptr->getBlocksJobId = job_get_blocks(eptr->workerJobPool,
+			worker_liz_get_chunk_blocks_finished_legacy, eptr, eptr->chunkid, eptr->version,
+			eptr->chunkType, &(eptr->getBlocksJobResult));
+	}
 	eptr->state = GET_BLOCK;
 }
 
@@ -883,8 +945,16 @@ void worker_chart_data(csserventry *eptr, const uint8_t *data, uint32_t length) 
 
 void worker_test_chunk(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	try {
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, length, v);
 		ChunkWithVersionAndType chunk;
-		cltocs::testChunk::deserialize(data, length, chunk.id, chunk.version, chunk.type);
+		if (v == cltocs::testChunk::kECChunks) {
+			cltocs::testChunk::deserialize(data, length, chunk.id, chunk.version, chunk.type);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cltocs::testChunk::deserialize(data, length, chunk.id, chunk.version, legacy_type);
+			chunk.type = legacy_type;
+		}
 		hdd_test_chunk(chunk);
 	} catch (IncorrectDeserializationException &e) {
 		syslog(LOG_NOTICE, "LIZ_CLTOCS_TEST_CHUNK - bad packet: %s (length: %" PRIu32 ")",
