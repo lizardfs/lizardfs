@@ -249,7 +249,7 @@ static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allC
 
 class PacketSerializer {
 public:
-	static const PacketSerializer* getSerializer(PacketHeader::Type type);
+	static const PacketSerializer* getSerializer(PacketHeader::Type type, uint32_t version);
 	virtual ~PacketSerializer() {}
 
 	virtual bool isLizardFsPacketSerializer() const = 0;
@@ -464,7 +464,40 @@ public:
 	}
 };
 
-const PacketSerializer* PacketSerializer::getSerializer(PacketHeader::Type type) {
+class LizardFsStdXorPacketSerializer : public LizardFsPacketSerializer {
+public:
+	virtual void serializeFuseReadChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		std::vector<legacy::ChunkTypeWithAddress> chunk_copies;
+		for (const auto &part : chunkCopies) {
+			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
+				continue;
+			}
+			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunkType));
+		}
+		matocl::fuseReadChunk::serialize(packetBuffer, messageId, fileLength, chunkId, chunkVersion,
+				chunk_copies);
+	}
+
+	virtual void serializeFuseWriteChunk(std::vector<uint8_t>& packetBuffer,
+			uint32_t messageId, uint64_t fileLength,
+			uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
+			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
+		std::vector<legacy::ChunkTypeWithAddress> chunk_copies;
+		for (const auto &part : chunkCopies) {
+			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
+				continue;
+			}
+			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunkType));
+		}
+		matocl::fuseWriteChunk::serialize(packetBuffer, messageId,
+				fileLength, chunkId, chunkVersion, lockId, chunk_copies);
+	}
+};
+
+
+const PacketSerializer* PacketSerializer::getSerializer(PacketHeader::Type type, uint32_t version) {
 	sassert((type >= PacketHeader::kMinLizPacketType && type <= PacketHeader::kMaxLizPacketType)
 			|| type <= PacketHeader::kMaxOldPacketType);
 	if (type <= PacketHeader::kMaxOldPacketType) {
@@ -472,6 +505,10 @@ const PacketSerializer* PacketSerializer::getSerializer(PacketHeader::Type type)
 		return &singleton;
 	} else {
 		static LizardFsPacketSerializer singleton;
+		if (version < kFirstECVersion) {
+			static LizardFsStdXorPacketSerializer singleton_stdxor;
+			return &singleton_stdxor;
+		}
 		return &singleton;
 	}
 }
@@ -2302,7 +2339,7 @@ void matoclserv_fuse_truncate(matoclserventry *eptr, PacketHeader header, const 
 	uint32_t lockId = 0;
 	bool opened;
 	uint64_t chunkId, length;
-	const PacketSerializer *serializer = PacketSerializer::getSerializer(header.type);
+	const PacketSerializer *serializer = PacketSerializer::getSerializer(header.type, eptr->version);
 	if (header.type == LIZ_CLTOMA_FUSE_TRUNCATE_END) {
 		cltoma::fuseTruncateEnd::deserialize(request,
 				messageId, inode, uid, gid, length, lockId);
@@ -2869,7 +2906,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, PacketHeader header, cons
 	uint32_t inode;
 	uint32_t index;
 	std::vector<uint8_t> outMessage;
-	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type);
+	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type, eptr->version);
 
 	std::vector<uint8_t> receivedData(data, data + header.length);
 	serializer->deserializeFuseReadChunk(receivedData, messageId, inode, index);
@@ -2931,8 +2968,22 @@ void matoclserv_chunk_info(matoclserventry *eptr, const uint8_t *data, uint32_t 
 	}
 
 	dcm_access(inode, eptr->sesdata->sessionid);
-	matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, allChunkCopies);
-	matoclserv_createpacket(eptr, outMessage);
+	if (eptr->version < kFirstECVersion) {
+		std::vector<legacy::ChunkWithAddressAndLabel> chunk_copies;
+
+		for(const auto &part : allChunkCopies) {
+			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
+				continue;
+			}
+			chunk_copies.push_back(legacy::ChunkWithAddressAndLabel(part.address, part.label, (legacy::ChunkPartType)part.chunkType));
+		}
+
+		matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, chunk_copies);
+		matoclserv_createpacket(eptr, outMessage);
+	} else {
+		matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, allChunkCopies);
+		matoclserv_createpacket(eptr, outMessage);
+	}
 
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[14]++;
@@ -2965,7 +3016,7 @@ void matoclserv_fuse_write_chunk(matoclserventry *eptr, PacketHeader header, con
 	uint8_t opflag;
 	chunklist *cl;
 	std::vector<uint8_t> outMessage;
-	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type);
+	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type, eptr->version);
 
 	std::vector<uint8_t> receivedData(data, data + header.length);
 	serializer->deserializeFuseWriteChunk(receivedData, messageId, inode, chunkIndex, lockId);
@@ -3023,7 +3074,7 @@ void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,
 	std::vector<uint8_t> outMessage;
 
 	std::vector<uint8_t> request(data, data + header.length);
-	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type);
+	const PacketSerializer* serializer = PacketSerializer::getSerializer(header.type, eptr->version);
 	serializer->deserializeFuseWriteChunkEnd(request, messageId, chunkId, lockId, inode, fileLength);
 	if (lockId == 0) {
 		// this lock id passed to chunk_unlock would force chunk unlock

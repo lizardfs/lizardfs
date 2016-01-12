@@ -655,6 +655,10 @@ int matocsserv_send_createchunk(matocsserventry *eptr, uint64_t chunkId, ChunkPa
 			sassert(slice_traits::isStandard(chunkType));
 			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_CREATE, chunkId,
 					chunkVersion);
+		} else if (eptr->version < kFirstECVersion) {
+			sassert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+			matocs::createChunk::serialize(eptr->outputPackets.back().packet, chunkId, (legacy::ChunkPartType)chunkType,
+					chunkVersion);
 		} else {
 			matocs::createChunk::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
 					chunkVersion);
@@ -672,7 +676,15 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr, const std::vector<
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	}
 	else {
-		cstoma::createChunk::deserialize(data, chunkId, chunkType, status);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::createChunk::kECChunks) {
+			cstoma::createChunk::deserialize(data, chunkId, chunkType, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::createChunk::deserialize(data, chunkId, legacy_type, status);
+			chunkType = legacy_type;
+		}
 	}
 	chunk_got_create_status(eptr, chunkId, chunkType, status);
 	if (status != 0) {
@@ -691,7 +703,11 @@ int matocsserv_send_deletechunk(matocsserventry *eptr, uint64_t chunkId, uint32_
 			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_DELETE,
 					chunkId, chunkVersion);
 		}
-		else {
+		else if (eptr->version < kFirstECVersion) {
+			sassert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+			matocs::deleteChunk::serialize(eptr->outputPackets.back().packet,
+					chunkId, (legacy::ChunkPartType)chunkType, chunkVersion);
+		} else {
 			matocs::deleteChunk::serialize(eptr->outputPackets.back().packet,
 					chunkId, chunkType, chunkVersion);
 		}
@@ -708,7 +724,15 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr, const std::vector<
 	if (eptr->version < kFirstXorVersion) {
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	} else {
-		cstoma::deleteChunk::deserialize(data, chunkId, chunkType, status);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::deleteChunk::kECChunks) {
+			cstoma::deleteChunk::deserialize(data, chunkId, chunkType, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::deleteChunk::deserialize(data, chunkId, legacy_type, status);
+			chunkType = legacy_type;
+		}
 	}
 
 	chunk_got_delete_status(eptr, chunkId, chunkType, status);
@@ -756,15 +780,29 @@ int matocsserv_send_liz_replicatechunk(matocsserventry *eptr, uint64_t chunkid, 
 			return 0;
 		}
 	}
-	std::vector<ChunkTypeWithAddress> sources;
-	for (size_t i = 0; i < sourcePointers.size(); ++i) {
-		matocsserventry *src = sourcePointers[i];
-		sources.push_back(ChunkTypeWithAddress(
-				NetworkAddress(src->servip, src->servport), sourceTypes[i]));
+	if (eptr->version < kFirstECVersion) {
+		std::vector<legacy::ChunkTypeWithAddress> sources;
+		for (size_t i = 0; i < sourcePointers.size(); ++i) {
+			sassert((int)sourceTypes[i].getSliceType() < Goal::Slice::Type::kECFirst);
+
+			matocsserventry *src = sourcePointers[i];
+			sources.push_back(legacy::ChunkTypeWithAddress(
+			    NetworkAddress(src->servip, src->servport), (legacy::ChunkPartType)sourceTypes[i]));
+		}
+		eptr->outputPackets.push_back(OutputPacket());
+		matocs::replicateChunk::serialize(eptr->outputPackets.back().packet, chunkid, version,
+		                                  (legacy::ChunkPartType)type, sources);
+	} else {
+		std::vector<ChunkTypeWithAddress> sources;
+		for (size_t i = 0; i < sourcePointers.size(); ++i) {
+			matocsserventry *src = sourcePointers[i];
+			sources.push_back(
+			    ChunkTypeWithAddress(NetworkAddress(src->servip, src->servport), sourceTypes[i]));
+		}
+		eptr->outputPackets.push_back(OutputPacket());
+		matocs::replicateChunk::serialize(eptr->outputPackets.back().packet, chunkid, version, type,
+		                                  sources);
 	}
-	eptr->outputPackets.push_back(OutputPacket());
-	matocs::replicateChunk::serialize(eptr->outputPackets.back().packet,
-			chunkid, version, type, sources);
 	matocsserv_replication_begin(chunkid, version, type,
 			eptr, sourcePointers.size(), sourcePointers.data());
 	return 0;
@@ -778,7 +816,15 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 	uint8_t status;
 
 	if (packetType == LIZ_CSTOMA_REPLICATE_CHUNK) {
-		cstoma::replicateChunk::deserialize(data, chunkId, chunkType, status, chunkVersion);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::replicateChunk::kECChunks) {
+			cstoma::replicateChunk::deserialize(data, chunkId, chunkType, status, chunkVersion);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::replicateChunk::deserialize(data, chunkId, legacy_type, status, chunkVersion);
+			chunkType = legacy_type;
+		}
 	} else {
 		sassert(packetType == CSTOMA_REPLICATE);
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, chunkVersion, status);
@@ -801,8 +847,11 @@ int matocsserv_send_setchunkversion(matocsserventry *eptr, uint64_t chunkId, uin
 			sassert(chunkType == slice_traits::standard::ChunkPartType());
 			serializeMooseFsPacket(eptr->outputPackets.back().packet, MATOCS_SET_VERSION,
 					chunkId, newVersion, chunkVersion);
-		}
-		else {
+		} else if (eptr->version < kFirstECVersion) {
+			sassert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, (legacy::ChunkPartType)chunkType,
+					chunkVersion, newVersion);
+		} else {
 			matocs::setVersion::serialize(eptr->outputPackets.back().packet, chunkId, chunkType,
 					chunkVersion, newVersion);
 		}
@@ -819,7 +868,15 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,
 	if (eptr->version < kFirstXorVersion) {
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	} else {
-		cstoma::setVersion::deserialize(data, chunkId, chunkType, status);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::setVersion::kECChunks) {
+			cstoma::setVersion::deserialize(data, chunkId, chunkType, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::setVersion::deserialize(data, chunkId, legacy_type, status);
+			chunkType = legacy_type;
+		}
 	}
 
 	chunk_got_setversion_status(eptr, chunkId, chunkType, status);
@@ -836,10 +893,15 @@ int matocsserv_send_duplicatechunk(matocsserventry* eptr, uint64_t newChunkId, u
 	}
 
 	OutputPacket outPacket;
-	if (slice_traits::isStandard(chunkType) && eptr->version < kFirstXorVersion) {
+	if (eptr->version < kFirstXorVersion) {
+		sassert(slice_traits::isStandard(chunkType));
 		// Legacy support
 		serializeMooseFsPacket(outPacket.packet, MATOCS_DUPLICATE, newChunkId, newChunkVersion,
 				chunkId, chunkVersion);
+	} else if (eptr->version < kFirstECVersion) {
+		sassert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+		matocs::duplicateChunk::serialize(outPacket.packet, newChunkId, newChunkVersion,
+				(legacy::ChunkPartType)chunkType, chunkId, chunkVersion);
 	} else {
 		matocs::duplicateChunk::serialize(outPacket.packet, newChunkId, newChunkVersion,
 				chunkType, chunkId, chunkVersion);
@@ -855,7 +917,15 @@ void matocsserv_got_duplicatechunk_status(matocsserventry* eptr, const std::vect
 	if (eptr->version < kFirstXorVersion) {
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	} else {
-		cstoma::duplicateChunk::deserialize(data, chunkId, chunkType, status);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::duplicateChunk::kECChunks) {
+			cstoma::duplicateChunk::deserialize(data, chunkId, chunkType, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::duplicateChunk::deserialize(data, chunkId, legacy_type, status);
+			chunkType = legacy_type;
+		}
 	}
 
 	chunk_got_duplicate_status(eptr, chunkId, chunkType, status);
@@ -873,13 +943,19 @@ void matocsserv_send_truncatechunk(matocsserventry* eptr, uint64_t chunkid, Chun
 	if (eptr->mode == KILL) {
 		return;
 	}
-	if (slice_traits::isStandard(chunkType) && eptr->version < kFirstXorVersion) {
+	if (eptr->version < kFirstXorVersion) {
+		sassert(slice_traits::isStandard(chunkType));
 		// For MooseFS 1.6.27
 		data = matocsserv_createpacket(eptr,MATOCS_TRUNCATE,8+4+4+4);
 		put64bit(&data,chunkid);
 		put32bit(&data,length);
 		put32bit(&data,newVersion);
 		put32bit(&data,oldVersion);
+	} else if (eptr->version < kFirstECVersion) {
+		sassert((int)chunkType.getSliceType() < (int)kFirstECVersion);
+		eptr->outputPackets.push_back(OutputPacket());
+		matocs::truncateChunk::serialize(eptr->outputPackets.back().packet,
+				chunkid, (legacy::ChunkPartType)chunkType, length, newVersion, oldVersion);
 	} else {
 		eptr->outputPackets.push_back(OutputPacket());
 		matocs::truncateChunk::serialize(eptr->outputPackets.back().packet,
@@ -908,9 +984,18 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr, const uint8_t *d
 void matocsserv_got_liz_truncatechunk_status(matocsserventry *eptr,
 		const std::vector<uint8_t>& data) {
 	uint64_t chunkId;
-	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
+	ChunkPartType chunkType;
 	uint8_t status;
-	cstoma::truncate::deserialize(data, chunkId, chunkType, status);
+	PacketVersion v;
+
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::truncate::kECChunks) {
+		cstoma::truncate::deserialize(data, chunkId, chunkType, status);
+	} else {
+		legacy::ChunkPartType legacy_type;
+		cstoma::truncate::deserialize(data, chunkId, legacy_type, status);
+		chunkType = legacy_type;
+	}
 
 	chunk_got_truncate_status(eptr, chunkId, chunkType, status);
 	if (status!=0) {
@@ -927,10 +1012,15 @@ int matocsserv_send_duptruncchunk(matocsserventry* eptr, uint64_t newChunkId, ui
 	}
 
 	OutputPacket outPacket;
-	if (slice_traits::isStandard(chunkType) && eptr->version < kFirstXorVersion) {
+	if (eptr->version < kFirstXorVersion) {
+		sassert(slice_traits::isStandard(chunkType));
 		// Legacy support
 		serializeMooseFsPacket(outPacket.packet, MATOCS_DUPTRUNC, newChunkId, newChunkVersion,
 				chunkId, chunkVersion, newChunkLength);
+	} else if (eptr->version < kFirstECVersion) {
+		sassert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+		matocs::duptruncChunk::serialize(outPacket.packet, newChunkId,
+				newChunkVersion, (legacy::ChunkPartType)chunkType, chunkId, chunkVersion, newChunkLength);
 	} else {
 		matocs::duptruncChunk::serialize(outPacket.packet, newChunkId,
 				newChunkVersion, chunkType, chunkId, chunkVersion, newChunkLength);
@@ -946,7 +1036,15 @@ void matocsserv_got_duptruncchunk_status(matocsserventry* eptr, const std::vecto
 	if (eptr->version < kFirstXorVersion) {
 		deserializeAllMooseFsPacketDataNoHeader(data, chunkId, status);
 	} else {
-		cstoma::duptruncChunk::deserialize(data, chunkId, chunkType, status);
+		PacketVersion v;
+		deserializePacketVersionNoHeader(data, v);
+		if (v == cstoma::duptruncChunk::kECChunks) {
+			cstoma::duptruncChunk::deserialize(data, chunkId, chunkType, status);
+		} else {
+			legacy::ChunkPartType legacy_type;
+			cstoma::duptruncChunk::deserialize(data, chunkId, legacy_type, status);
+			chunkType = legacy_type;
+		}
 	}
 
 	chunk_got_duptrunc_status(eptr, chunkId, chunkType, status);
@@ -1210,8 +1308,14 @@ void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uin
 		throw (IncorrectDeserializationException) {
 	PacketVersion v;
 	deserializePacketVersionNoHeader(data, v);
-	if (v == cstoma::registerChunks::kStandardAndXorChunks) {
+	if (v == cstoma::registerChunks::kECChunks) {
 		std::vector<ChunkWithVersionAndType> chunks;
+		cstoma::registerChunks::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+		}
+	} else if (v == cstoma::registerChunks::kStandardAndXorChunks) {
+		std::vector<legacy::ChunkWithVersionAndType> chunks;
 		cstoma::registerChunks::deserialize(data, chunks);
 		for (auto& chunk : chunks) {
 			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
@@ -1276,10 +1380,20 @@ void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t
 }
 
 void matocsserv_liz_chunk_damaged(matocsserventry *eptr, const std::vector<uint8_t>& data) {
-	std::vector<ChunkWithType> chunks;
-	cstoma::chunkDamaged::deserialize(data, chunks);
-	for (const auto& chunk : chunks) {
-		chunk_damaged(eptr, chunk.id, chunk.type);
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::chunkDamaged::kECChunks) {
+		std::vector<ChunkWithType> chunks;
+		cstoma::chunkDamaged::deserialize(data, chunks);
+		for (const auto& chunk : chunks) {
+			chunk_damaged(eptr, chunk.id, chunk.type);
+		}
+	} else {
+		std::vector<legacy::ChunkWithType> chunks;
+		cstoma::chunkDamaged::deserialize(data, chunks);
+		for (const auto& chunk : chunks) {
+			chunk_damaged(eptr, chunk.id, chunk.type);
+		}
 	}
 }
 
@@ -1308,10 +1422,20 @@ void matocsserv_chunks_lost(matocsserventry *eptr,const uint8_t *data,uint32_t l
 }
 
 void matocsserv_liz_chunks_lost(matocsserventry *eptr, const std::vector<uint8_t>& data) {
-	std::vector<ChunkWithType> chunks;
-	cstoma::chunkLost::deserialize(data, chunks);
-	for (const auto& chunk : chunks) {
-		chunk_lost(eptr, chunk.id, chunk.type);
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::chunkLost::kECChunks) {
+		std::vector<ChunkWithType> chunks;
+		cstoma::chunkLost::deserialize(data, chunks);
+		for (const auto& chunk : chunks) {
+			chunk_lost(eptr, chunk.id, chunk.type);
+		}
+	} else {
+		std::vector<legacy::ChunkWithType> chunks;
+		cstoma::chunkLost::deserialize(data, chunks);
+		for (const auto& chunk : chunks) {
+			chunk_lost(eptr, chunk.id, chunk.type);
+		}
 	}
 }
 
@@ -1337,10 +1461,20 @@ void matocsserv_chunks_new(matocsserventry *eptr,const uint8_t *data,uint32_t le
 }
 
 void matocsserv_liz_chunk_new(matocsserventry *eptr, const std::vector<uint8_t>& data) {
-	std::vector<ChunkWithVersionAndType> chunks;
-	cstoma::chunkNew::deserialize(data, chunks);
-	for (auto& chunk : chunks) {
-		chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+	PacketVersion v;
+	deserializePacketVersionNoHeader(data, v);
+	if (v == cstoma::chunkNew::kECChunks) {
+		std::vector<ChunkWithVersionAndType> chunks;
+		cstoma::chunkNew::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+		}
+	} else {
+		std::vector<legacy::ChunkWithVersionAndType> chunks;
+		cstoma::chunkNew::deserialize(data, chunks);
+		for (auto& chunk : chunks) {
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+		}
 	}
 }
 
