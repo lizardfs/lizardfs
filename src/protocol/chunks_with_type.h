@@ -24,6 +24,14 @@
 #include "common/chunk_part_type.h"
 #include "common/serialization_macros.h"
 
+namespace legacy {
+
+LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ChunkWithType,
+	uint64_t, id,
+	ChunkPartType, type);
+
+} // legacy
+
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ChunkWithType,
 	uint64_t, id,
 	ChunkPartType, type);

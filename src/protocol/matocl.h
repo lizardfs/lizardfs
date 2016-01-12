@@ -214,6 +214,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 // LIZ_MATOCL_CHUNK_INFO
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kResponsePacketVersion, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kECChunks_ResponsePacketVersion, 2)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kStatusPacketVersion,
@@ -222,6 +223,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kResponsePacketVersion,
+		uint32_t, messageId,
+		uint64_t, fileLength,
+		uint64_t, chunkId,
+		uint32_t, chunkVersion,
+		std::vector<legacy::ChunkWithAddressAndLabel>, chunks)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kECChunks_ResponsePacketVersion,
 		uint32_t, messageId,
 		uint64_t, fileLength,
 		uint64_t, chunkId,
@@ -365,26 +374,11 @@ namespace fuseReadChunk {
 
 const PacketVersion kStatusPacketVersion = 0;
 const PacketVersion kResponsePacketVersion = 1;
+const PacketVersion kECChunks_ResponsePacketVersion = 2;
 
 inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
 	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kStatusPacketVersion,
 			messageId, status);
-}
-
-inline void serialize(std::vector<uint8_t>& destination,
-		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
-		const std::vector<ChunkTypeWithAddress>& serversList) {
-	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kResponsePacketVersion,
-			messageId, fileLength, chunkId, chunkVersion, serversList);
-}
-
-inline void deserialize(const std::vector<uint8_t>& source,
-		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion,
-		std::vector<ChunkTypeWithAddress>& serversList) {
-	uint32_t dummyMessageId;
-	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
-	deserializeAllPacketDataNoHeader(source, dummyMessageId,
-			fileLength, chunkId, chunkVersion, serversList);
 }
 
 inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
@@ -393,12 +387,45 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 	deserializeAllPacketDataNoHeader(source, dummyMessageId, status);
 }
 
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+		const std::vector<legacy::ChunkTypeWithAddress>& serversList) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kResponsePacketVersion,
+			messageId, fileLength, chunkId, chunkVersion, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion,
+		std::vector<legacy::ChunkTypeWithAddress>& serversList) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId,
+			fileLength, chunkId, chunkVersion, serversList);
+}
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength, uint64_t chunkId, uint32_t chunkVersion,
+		const std::vector<ChunkTypeWithAddress>& serversList) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_READ_CHUNK, kECChunks_ResponsePacketVersion,
+			messageId, fileLength, chunkId, chunkVersion, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion,
+		std::vector<ChunkTypeWithAddress>& serversList) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kECChunks_ResponsePacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId,
+			fileLength, chunkId, chunkVersion, serversList);
+}
+
 } // namespace fuseReadChunk
 
 namespace fuseWriteChunk {
 
 const PacketVersion kStatusPacketVersion = 0;
 const PacketVersion kResponsePacketVersion = 1;
+const PacketVersion kECChunks_ResponsePacketVersion = 2;
 
 inline void serialize(std::vector<uint8_t>& destination, uint32_t messageId, uint8_t status) {
 	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kStatusPacketVersion,
@@ -414,8 +441,25 @@ inline void deserialize(const std::vector<uint8_t>& source, uint8_t& status) {
 inline void serialize(std::vector<uint8_t>& destination,
 		uint32_t messageId, uint64_t fileLength,
 		uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
-		const std::vector<ChunkTypeWithAddress>& serversList) {
+		const std::vector<legacy::ChunkTypeWithAddress>& serversList) {
 	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kResponsePacketVersion,
+			messageId, fileLength, chunkId, chunkVersion, lockId, serversList);
+}
+
+inline void deserialize(const std::vector<uint8_t>& source,
+		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion, uint32_t& lockId,
+		std::vector<legacy::ChunkTypeWithAddress>& serversList) {
+	uint32_t dummyMessageId;
+	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
+	deserializeAllPacketDataNoHeader(source, dummyMessageId,
+			fileLength, chunkId, chunkVersion, lockId, serversList);
+}
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint32_t messageId, uint64_t fileLength,
+		uint64_t chunkId, uint32_t chunkVersion, uint32_t lockId,
+		const std::vector<ChunkTypeWithAddress>& serversList) {
+	serializePacket(destination, LIZ_MATOCL_FUSE_WRITE_CHUNK, kECChunks_ResponsePacketVersion,
 			messageId, fileLength, chunkId, chunkVersion, lockId, serversList);
 }
 
@@ -423,7 +467,7 @@ inline void deserialize(const std::vector<uint8_t>& source,
 		uint64_t& fileLength, uint64_t& chunkId, uint32_t& chunkVersion, uint32_t& lockId,
 		std::vector<ChunkTypeWithAddress>& serversList) {
 	uint32_t dummyMessageId;
-	verifyPacketVersionNoHeader(source, kResponsePacketVersion);
+	verifyPacketVersionNoHeader(source, kECChunks_ResponsePacketVersion);
 	deserializeAllPacketDataNoHeader(source, dummyMessageId,
 			fileLength, chunkId, chunkVersion, lockId, serversList);
 }

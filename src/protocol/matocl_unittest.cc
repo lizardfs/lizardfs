@@ -44,7 +44,7 @@ TEST(MatoclCommunicationTests, FuseReadChunkData) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_READ_CHUNK);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, matocl::fuseReadChunk::kResponsePacketVersion);
+	verifyVersion(buffer, matocl::fuseReadChunk::kECChunks_ResponsePacketVersion);
 	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
 	ASSERT_NO_THROW(matocl::fuseReadChunk::deserialize(buffer,
 			fileLengthOut, chunkIdOut, chunkVersionOut, serverListOut));
@@ -92,7 +92,7 @@ TEST(MatoclCommunicationTests, FuseWriteChunkData) {
 
 	verifyHeader(buffer, LIZ_MATOCL_FUSE_WRITE_CHUNK);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, matocl::fuseWriteChunk::kResponsePacketVersion);
+	verifyVersion(buffer, matocl::fuseWriteChunk::kECChunks_ResponsePacketVersion);
 	ASSERT_NO_THROW(deserializePacketDataNoHeader(buffer, messageIdOut));
 	ASSERT_NO_THROW(matocl::fuseWriteChunk::deserialize(buffer,
 			fileLengthOut, chunkIdOut, chunkVersionOut, lockIdOut, serverListOut));

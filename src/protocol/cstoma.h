@@ -39,8 +39,13 @@ inline void overwriteStatusField(std::vector<uint8_t> &destination, uint8_t stat
 }
 } // namespace cstoma
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkNew, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkNew, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, chunkNew, LIZ_CSTOMA_CHUNK_NEW, 0,
+		cstoma, chunkNew, LIZ_CSTOMA_CHUNK_NEW, kStandardAndXorChunks,
+		std::vector<legacy::ChunkWithVersionAndType>, chunks)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, chunkNew, LIZ_CSTOMA_CHUNK_NEW, kECChunks,
 		std::vector<ChunkWithVersionAndType>, chunks)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
@@ -52,12 +57,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 LIZARDFS_DEFINE_PACKET_VERSION(cstoma, registerChunks, kStandardAndXorChunks, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(cstoma, registerChunks, kStandardChunksOnly, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, registerChunks, kECChunks, 2)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, registerChunks, LIZ_CSTOMA_REGISTER_CHUNKS, 0,
-		std::vector<ChunkWithVersionAndType>, chunks)
+		cstoma, registerChunks, LIZ_CSTOMA_REGISTER_CHUNKS, kStandardAndXorChunks,
+		std::vector<legacy::ChunkWithVersionAndType>, chunks)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, registerChunks, LIZ_CSTOMA_REGISTER_CHUNKS, 1,
+		cstoma, registerChunks, LIZ_CSTOMA_REGISTER_CHUNKS, kStandardChunksOnly,
 		std::vector<ChunkWithVersion>, chunks)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, registerChunks, LIZ_CSTOMA_REGISTER_CHUNKS, kECChunks,
+		std::vector<ChunkWithVersionAndType>, chunks)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, registerSpace, LIZ_CSTOMA_REGISTER_SPACE, 0,
@@ -72,53 +81,113 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cstoma, registerLabel, LIZ_CSTOMA_REGISTER_LABEL, 0,
 		std::string, label)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, setVersion, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, setVersion, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, setVersion, LIZ_CSTOMA_SET_VERSION, 0,
+		cstoma, setVersion, LIZ_CSTOMA_SET_VERSION, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, setVersion, LIZ_CSTOMA_SET_VERSION, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, deleteChunk, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, deleteChunk, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, deleteChunk, LIZ_CSTOMA_DELETE_CHUNK, 0,
+		cstoma, deleteChunk, LIZ_CSTOMA_DELETE_CHUNK, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, deleteChunk, LIZ_CSTOMA_DELETE_CHUNK, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, createChunk, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, createChunk, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, createChunk, LIZ_CSTOMA_CREATE_CHUNK, 0,
+		cstoma, createChunk, LIZ_CSTOMA_CREATE_CHUNK, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, createChunk, LIZ_CSTOMA_CREATE_CHUNK, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, truncate, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, truncate, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, truncate, LIZ_CSTOMA_TRUNCATE, 0,
+		cstoma, truncate, LIZ_CSTOMA_TRUNCATE, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, truncate, LIZ_CSTOMA_TRUNCATE, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, duplicateChunk, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, duplicateChunk, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, duplicateChunk, LIZ_CSTOMA_DUPLICATE_CHUNK, 0,
+		cstoma, duplicateChunk, LIZ_CSTOMA_DUPLICATE_CHUNK, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, duplicateChunk, LIZ_CSTOMA_DUPLICATE_CHUNK, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, duptruncChunk, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, duptruncChunk, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, duptruncChunk, LIZ_CSTOMA_DUPTRUNC_CHUNK, 0,
+		cstoma, duptruncChunk, LIZ_CSTOMA_DUPTRUNC_CHUNK, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, duptruncChunk, LIZ_CSTOMA_DUPTRUNC_CHUNK, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, replicateChunk, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, replicateChunk, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, replicateChunk, LIZ_CSTOMA_REPLICATE_CHUNK, 0,
+		cstoma, replicateChunk, LIZ_CSTOMA_REPLICATE_CHUNK, kStandardAndXorChunks,
+		uint64_t,  chunkId,
+		legacy::ChunkPartType, chunkType,
+		uint8_t,   status, // status has to be third field to make overwriteStatusField work!!!
+		uint32_t,  chunkVersion)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, replicateChunk, LIZ_CSTOMA_REPLICATE_CHUNK, kECChunks,
 		uint64_t,  chunkId,
 		ChunkPartType, chunkType,
 		uint8_t,   status, // status has to be third field to make overwriteStatusField work!!!
 		uint32_t,  chunkVersion)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkDamaged, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkDamaged, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, chunkDamaged, LIZ_CSTOMA_CHUNK_DAMAGED, 0,
+		cstoma, chunkDamaged, LIZ_CSTOMA_CHUNK_DAMAGED, kStandardAndXorChunks,
+		std::vector<legacy::ChunkWithType>, chunks)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, chunkDamaged, LIZ_CSTOMA_CHUNK_DAMAGED, kECChunks,
 		std::vector<ChunkWithType>, chunks)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkLost, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cstoma, chunkLost, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cstoma, chunkLost, LIZ_CSTOMA_CHUNK_LOST, 0,
+		cstoma, chunkLost, LIZ_CSTOMA_CHUNK_LOST, kStandardAndXorChunks,
+		std::vector<legacy::ChunkWithType>, chunks)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cstoma, chunkLost, LIZ_CSTOMA_CHUNK_LOST, kECChunks,
 		std::vector<ChunkWithType>, chunks)

@@ -20,13 +20,19 @@
 
 #include "common/platform.h"
 
+#include "common/serialization_macros.h"
 #include "common/chunk_part_type.h"
 #include "common/network_address.h"
 #include "protocol/packet.h"
-#include "common/serialization_macros.h"
 
+LIZARDFS_DEFINE_PACKET_VERSION(cltocs, prefetch, kStandardAndXorChunks, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltocs, prefetch, kECChunks, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cltocs, prefetch, LIZ_CLTOCS_PREFETCH, 0,
+		cltocs, prefetch, LIZ_CLTOCS_PREFETCH, kStandardAndXorChunks,
+		uint64_t, chunkId, uint32_t, chunkVersion, legacy::ChunkPartType, chunkType,
+		uint32_t, readOffset, uint32_t, readSize)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltocs, prefetch, LIZ_CLTOCS_PREFETCH, kECChunks,
 		uint64_t, chunkId, uint32_t, chunkVersion, ChunkPartType, chunkType,
 		uint32_t, readOffset, uint32_t, readSize)
 
@@ -34,17 +40,35 @@ namespace cltocs {
 
 namespace read {
 
+const PacketVersion kStandardAndXorChunks = 0;
+const PacketVersion kECChunks = 1;
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, uint32_t chunkVersion, legacy::ChunkPartType chunkType,
+		uint32_t readOffset, uint32_t readSize) {
+	serializePacket(destination, LIZ_CLTOCS_READ, kStandardAndXorChunks,
+			chunkId, chunkVersion, chunkType, readOffset, readSize);
+}
+
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
+		uint64_t& chunkId, uint32_t& chunkVersion, legacy::ChunkPartType& chunkType,
+		uint32_t& readOffset, uint32_t& readSize) {
+	verifyPacketVersionNoHeader(source, sourceSize, kStandardAndXorChunks);
+	deserializeAllPacketDataNoHeader(source, sourceSize,
+			chunkId, chunkVersion, chunkType, readOffset, readSize);
+}
+
 inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		uint32_t readOffset, uint32_t readSize) {
-	serializePacket(destination, LIZ_CLTOCS_READ, 0,
+	serializePacket(destination, LIZ_CLTOCS_READ, kECChunks,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
 
 inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkPartType& chunkType,
 		uint32_t& readOffset, uint32_t& readSize) {
-	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	verifyPacketVersionNoHeader(source, sourceSize, kECChunks);
 	deserializeAllPacketDataNoHeader(source, sourceSize,
 			chunkId, chunkVersion, chunkType, readOffset, readSize);
 }
@@ -53,17 +77,35 @@ inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 
 namespace writeInit {
 
+const PacketVersion kStandardAndXorChunks = 0;
+const PacketVersion kECChunks = 1;
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, uint32_t chunkVersion, legacy::ChunkPartType chunkType,
+		const std::vector<NetworkAddress>& chain) {
+	serializePacket(destination, LIZ_CLTOCS_WRITE_INIT, kStandardAndXorChunks,
+			chunkId, chunkVersion, chunkType, chain);
+}
+
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
+		uint64_t& chunkId, uint32_t& chunkVersion, legacy::ChunkPartType& chunkType,
+		std::vector<NetworkAddress>& chain) {
+	verifyPacketVersionNoHeader(source, sourceSize, kStandardAndXorChunks);
+	deserializeAllPacketDataNoHeader(source, sourceSize,
+			chunkId, chunkVersion, chunkType, chain);
+}
+
 inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
 		const std::vector<NetworkAddress>& chain) {
-	serializePacket(destination, LIZ_CLTOCS_WRITE_INIT, 0,
+	serializePacket(destination, LIZ_CLTOCS_WRITE_INIT, kECChunks,
 			chunkId, chunkVersion, chunkType, chain);
 }
 
 inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkPartType& chunkType,
 		std::vector<NetworkAddress>& chain) {
-	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	verifyPacketVersionNoHeader(source, sourceSize, kECChunks);
 	deserializeAllPacketDataNoHeader(source, sourceSize,
 			chunkId, chunkVersion, chunkType, chain);
 }
@@ -108,14 +150,28 @@ inline void deserialize(const uint8_t* source, uint32_t sourceSize, uint64_t& ch
 
 namespace testChunk {
 
+const PacketVersion kStandardAndXorChunks = 0;
+const PacketVersion kECChunks = 1;
+
+inline void serialize(std::vector<uint8_t>& destination,
+		uint64_t chunkId, uint32_t chunkVersion, legacy::ChunkPartType chunkType) {
+	serializePacket(destination, LIZ_CLTOCS_TEST_CHUNK, kStandardAndXorChunks, chunkId, chunkVersion, chunkType);
+}
+
+inline void deserialize(const uint8_t* source, uint32_t sourceSize,
+		uint64_t& chunkId, uint32_t& chunkVersion, legacy::ChunkPartType& chunkType) {
+	verifyPacketVersionNoHeader(source, sourceSize, kStandardAndXorChunks);
+	deserializeAllPacketDataNoHeader(source, sourceSize, chunkId, chunkVersion, chunkType);
+}
+
 inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType) {
-	serializePacket(destination, LIZ_CLTOCS_TEST_CHUNK, 0, chunkId, chunkVersion, chunkType);
+	serializePacket(destination, LIZ_CLTOCS_TEST_CHUNK, kECChunks, chunkId, chunkVersion, chunkType);
 }
 
 inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkPartType& chunkType) {
-	verifyPacketVersionNoHeader(source, sourceSize, 0);
+	verifyPacketVersionNoHeader(source, sourceSize, kECChunks);
 	deserializeAllPacketDataNoHeader(source, sourceSize, chunkId, chunkVersion, chunkType);
 }
 

@@ -27,6 +27,27 @@
 #include "common/network_address.h"
 #include "common/serialization_macros.h"
 
+namespace legacy {
+
+SERIALIZABLE_CLASS_BEGIN(ChunkWithAddressAndLabel)
+SERIALIZABLE_CLASS_BODY(ChunkWithAddressAndLabel,
+		NetworkAddress, address,
+		std::string   , label,
+		ChunkPartType , chunkType)
+
+	bool operator==(const ChunkWithAddressAndLabel& other) const {
+		return std::make_tuple(address, label, chunkType)
+				== std::make_tuple(other.address, other.label, other.chunkType);
+	}
+
+	bool operator<(const ChunkWithAddressAndLabel& other) const {
+		return std::make_tuple(address, label, chunkType)
+				< std::make_tuple(other.address, other.label, other.chunkType);
+	}
+SERIALIZABLE_CLASS_END;
+
+} // legacy
+
 SERIALIZABLE_CLASS_BEGIN(ChunkWithAddressAndLabel)
 SERIALIZABLE_CLASS_BODY(ChunkWithAddressAndLabel,
 		NetworkAddress, address,

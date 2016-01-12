@@ -22,8 +22,10 @@
 
 #include "common/chunk_part_type.h"
 #include "common/network_address.h"
-#include "common/serialization.h"
+#include "common/serialization_macros.h"
 #include "common/slice_traits.h"
+
+namespace legacy {
 
 struct ChunkTypeWithAddress {
 	NetworkAddress address;
@@ -44,18 +46,31 @@ struct ChunkTypeWithAddress {
 	bool operator<(const ChunkTypeWithAddress& other) const {
 		return std::make_pair(address, chunkType) < std::make_pair(other.address, other.chunkType);
 	}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(address, chunkType);
 };
 
-inline uint32_t serializedSize(const ChunkTypeWithAddress& chunkTypeWithAddress) {
-	return serializedSize(chunkTypeWithAddress.address, chunkTypeWithAddress.chunkType);
-}
+} // legacy
 
-inline void serialize(uint8_t** destination, const ChunkTypeWithAddress& chunkTypeWithAddress) {
-	serialize(destination, chunkTypeWithAddress.address, chunkTypeWithAddress.chunkType);
-}
+struct ChunkTypeWithAddress {
+	NetworkAddress address;
+	ChunkPartType chunkType;
 
-inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
-		ChunkTypeWithAddress& chunkTypeWithAddress) {
-	deserialize(source, bytesLeftInBuffer, chunkTypeWithAddress.address,
-			chunkTypeWithAddress.chunkType);
-}
+	ChunkTypeWithAddress() :
+		chunkType() {
+	}
+
+	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkPartType& chunkType)
+		: address(address), chunkType(chunkType) {
+	}
+
+	bool operator==(const ChunkTypeWithAddress& other) const {
+		return std::make_pair(address, chunkType) == std::make_pair(other.address, other.chunkType);
+	}
+
+	bool operator<(const ChunkTypeWithAddress& other) const {
+		return std::make_pair(address, chunkType) < std::make_pair(other.address, other.chunkType);
+	}
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(address, chunkType);
+};

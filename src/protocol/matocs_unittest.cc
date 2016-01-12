@@ -38,7 +38,7 @@ TEST(MatocsCommunicationTests, SetVersion) {
 
 	verifyHeader(buffer, LIZ_MATOCS_SET_VERSION);
 	removeHeaderInPlace(buffer);
-	verifyVersion(buffer, 0U);
+	verifyVersion(buffer, matocs::setVersion::kECChunks);
 	ASSERT_NO_THROW(matocs::setVersion::deserialize(buffer,
 			chunkIdOut, chunkTypeOut, chunkVersionOut, newVersionOut));
 
