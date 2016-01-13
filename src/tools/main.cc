@@ -1327,7 +1327,7 @@ int file_info(const char *fileName) {
 			uint8_t status = LIZARDFS_STATUS_OK;
 			if (version == matocl::chunkInfo::kStatusPacketVersion) {
 				matocl::chunkInfo::deserialize(buffer, messageId, status);
-			} else if (version != matocl::chunkInfo::kResponsePacketVersion) {
+			} else if (version != matocl::chunkInfo::kECChunks_ResponsePacketVersion) {
 				printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n",
 						fileName, chunkIndex);
 				close_master_conn(1);
