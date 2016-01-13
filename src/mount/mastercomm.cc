@@ -1995,7 +1995,7 @@ uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chu
 	return ret;
 }
 
-uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t &chunkId,
+uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &chunkservers, uint64_t &chunkId,
 		uint32_t &chunkVersion, uint64_t &fileLength, uint32_t inode, uint32_t chunkIndex) {
 	threc *rec = fs_get_my_threc();
 
@@ -2016,9 +2016,17 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 			uint8_t status;
 			matocl::fuseReadChunk::deserialize(message, status);
 			return status;
-		} else if (packetVersion == matocl::fuseReadChunk::kResponsePacketVersion) {
+		} else if (packetVersion == matocl::fuseReadChunk::kECChunks_ResponsePacketVersion) {
 			matocl::fuseReadChunk::deserialize(message, fileLength,
-					chunkId, chunkVersion, serverList);
+					chunkId, chunkVersion, chunkservers);
+		} else if (packetVersion == matocl::fuseReadChunk::kResponsePacketVersion) {
+			std::vector<legacy::ChunkTypeWithAddress> legacy_chunkservers;
+			matocl::fuseReadChunk::deserialize(message, fileLength,
+					chunkId, chunkVersion, legacy_chunkservers);
+			chunkservers.clear();
+			for (const auto &part : legacy_chunkservers) {
+				chunkservers.push_back(ChunkTypeWithAddress(part.address, part.chunkType));
+			}
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
 			setDisconnect(true);
@@ -2100,9 +2108,17 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 				return LIZARDFS_ERROR_IO;
 			}
 			return status;
-		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
+		} else if (packetVersion == matocl::fuseWriteChunk::kECChunks_ResponsePacketVersion) {
 			matocl::fuseWriteChunk::deserialize(message,
 					fileLength, chunkId, chunkVersion, lockId, chunkservers);
+		} else if (packetVersion == matocl::fuseWriteChunk::kResponsePacketVersion) {
+			std::vector<legacy::ChunkTypeWithAddress> legacy_chunkservers;
+			matocl::fuseWriteChunk::deserialize(message,
+					fileLength, chunkId, chunkVersion, lockId, legacy_chunkservers);
+			chunkservers.clear();
+			for (const auto &part : legacy_chunkservers) {
+				chunkservers.push_back(ChunkTypeWithAddress(part.address, part.chunkType));
+			}
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
 			setDisconnect(true);
