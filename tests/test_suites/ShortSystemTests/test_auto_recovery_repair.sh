@@ -77,5 +77,5 @@ assert_equals "$metadata_version" "$(metadata_get_version "${info[master_data_pa
 
 # Restore the filesystem from changelog by starting master server and check it.
 assert_success lizardfs_master_daemon start
-lizardfs_wait_for_ready_chunkservers 1
+lizardfs_wait_for_ready_chunkservers 2
 assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"
