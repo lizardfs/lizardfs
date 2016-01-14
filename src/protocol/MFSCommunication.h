@@ -492,6 +492,7 @@ enum class SugidClearMode {
 #define LIZ_CSTOMA_REGISTER_CHUNKS (1000U + 101U)
 /// version==0 chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
 /// version==1 chunks:(N * [chunkid:64 chunkversion:32])
+/// version==2 chunks:(N * [chunkid:64 chunkversion:32 chunktype:16])
 
 // 0x044E
 #define LIZ_CSTOMA_REGISTER_SPACE (1000U + 102U)
@@ -513,7 +514,8 @@ enum class SugidClearMode {
 
 // 0x0450
 #define LIZ_CSTOMA_CHUNK_DAMAGED (1000U + 104U)
-/// chunks:(N * [chunkid:64 chunktype:8])
+/// version==0 chunks:(N * [chunkid:64 chunktype:8])
+/// version==1 chunks:(N * [chunkid:64 chunktype:16])
 
 // 0x0067
 // #define MATOCS_STRUCTURE_LOG (PROTO_BASE+103)
@@ -530,7 +532,8 @@ enum class SugidClearMode {
 
 // 0x0451
 #define LIZ_CSTOMA_CHUNK_LOST (1000U + 105U)
-// chunks:(N * [chunkid:64 chunktype:8])
+/// version==0 chunks:(N * [chunkid:64 chunktype:8])
+/// version==1 chunks:(N * [chunkid:64 chunktype:16])
 
 // 0x006A
 #define CSTOMA_ERROR_OCCURRED (PROTO_BASE+106)
@@ -542,7 +545,8 @@ enum class SugidClearMode {
 
 // 0x0453
 #define LIZ_CSTOMA_CHUNK_NEW (1000U + 107U)
-/// chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+/// version==0 chunks:(N * [chunkid:64 chunkversion:32 chunktype:8])
+/// version==1 chunks:(N * [chunkid:64 chunkversion:32 chunktype:16])
 
 // 0x006E
 #define MATOCS_CREATE (PROTO_BASE+110)
@@ -550,7 +554,8 @@ enum class SugidClearMode {
 
 // 0x0456
 #define LIZ_MATOCS_CREATE_CHUNK (1000U + 110U)
-/// chunkid:64 chunktype:8 chunkversion:32
+/// version==0 chunkid:64 chunktype:8 chunkversion:32
+/// version==1 chunkid:64 chunktype:16 chunkversion:32
 
 // 0x006F
 #define CSTOMA_CREATE (PROTO_BASE+111)
@@ -558,7 +563,8 @@ enum class SugidClearMode {
 
 // 0x0457
 #define LIZ_CSTOMA_CREATE_CHUNK (1000U + 111U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // 0x0078
 #define MATOCS_DELETE (PROTO_BASE+120)
@@ -566,7 +572,8 @@ enum class SugidClearMode {
 
 // 0x0460
 #define LIZ_MATOCS_DELETE_CHUNK (1000U + 120U)
-/// chunkid:64 chunkversion:32 chunktype:8
+/// version==0 chunkid:64 chunkversion:32 chunktype:8
+/// version==1 chunkid:64 chunkversion:32 chunktype:16
 
 // 0x0079
 #define CSTOMA_DELETE (PROTO_BASE+121)
@@ -574,7 +581,8 @@ enum class SugidClearMode {
 
 // 0x0461
 #define LIZ_CSTOMA_DELETE_CHUNK (1000U + 121U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // 0x0082
 #define MATOCS_DUPLICATE (PROTO_BASE+130)
@@ -582,7 +590,8 @@ enum class SugidClearMode {
 
 // 0x046A
 #define LIZ_MATOCS_DUPLICATE_CHUNK (1000U + 130U)
-/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 oldchunkid:64 oldchunkversion:32
 
 // 0x0083
 #define CSTOMA_DUPLICATE (PROTO_BASE+131)
@@ -590,7 +599,8 @@ enum class SugidClearMode {
 
 // 0x046B
 #define LIZ_CSTOMA_DUPLICATE_CHUNK (1000U + 131U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // 0x008C
 #define MATOCS_SET_VERSION (PROTO_BASE + 140)
@@ -598,7 +608,8 @@ enum class SugidClearMode {
 
 // 0x0474
 #define LIZ_MATOCS_SET_VERSION (1000U + 140U)
-/// chunkid:64 chunkversion:32 chunktype:8 newchunkversion:32
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 newchunkversion:32
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 newchunkversion:32
 
 // 0x008D
 #define CSTOMA_SET_VERSION (PROTO_BASE + 141)
@@ -606,7 +617,8 @@ enum class SugidClearMode {
 
 // 0x0475
 #define LIZ_CSTOMA_SET_VERSION (1000U + 141U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // 0x0096
 #define MATOCS_REPLICATE (PROTO_BASE+150)
@@ -614,7 +626,8 @@ enum class SugidClearMode {
 
 // 0x047e
 #define LIZ_MATOCS_REPLICATE_CHUNK (1000U + 150U)
-/// chunkid:64 chunkversion:32 chunktype:8 sources:(N * [ip:32 port:16 chunktype:8])
+/// version==0 chunkid:64 chunkversion:32 chunktype:16 sources:(N * [ip:32 port:16 chunktype:8])
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 sources:(N * [ip:32 port:16 chunktype:16])
 
 // 0x0097
 #define CSTOMA_REPLICATE (PROTO_BASE+151)
@@ -622,7 +635,8 @@ enum class SugidClearMode {
 
 // 0x047f
 #define LIZ_CSTOMA_REPLICATE_CHUNK (1000U + 151U)
-/// chunkid:64 chunktype:8 status:8 chunkversion:32
+/// version==0 chunkid:64 chunktype:8 status:8 chunkversion:32
+/// version==1 chunkid:64 chunktype:16 status:8 chunkversion:32
 
 // 0x0098
 #define MATOCS_CHUNKOP (PROTO_BASE+152)
@@ -650,11 +664,13 @@ enum class SugidClearMode {
 
 // 0x0488
 #define LIZ_MATOCS_TRUNCATE (PROTO_BASE + 1000U + 160U)
-/// chunkid:64 chunktype:8 chunklength:32 newchunkversion:32 chunkversion:32
+/// version==0 chunkid:64 chunktype:8 chunklength:32 newchunkversion:32 chunkversion:32
+/// version==1 chunkid:64 chunktype:16 chunklength:32 newchunkversion:32 chunkversion:32
 
 // 0x0489
 #define LIZ_CSTOMA_TRUNCATE (PROTO_BASE + 1000U + 161U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // 0x00AA
 #define MATOCS_DUPTRUNC (PROTO_BASE+170)
@@ -662,7 +678,8 @@ enum class SugidClearMode {
 
 // 0x0492
 #define LIZ_MATOCS_DUPTRUNC_CHUNK (1000U + 170U)
-/// chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32 chunklength:32
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 oldchunkid:64 oldchunkversion:32 chunklength:32
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 oldchunkid:64 oldchunkversion:32 chunklength:32
 
 // 0x00AB
 #define CSTOMA_DUPTRUNC (PROTO_BASE+171)
@@ -670,7 +687,8 @@ enum class SugidClearMode {
 
 // 0x0493
 #define LIZ_CSTOMA_DUPTRUNC_CHUNK (1000U + 171U)
-/// chunkid:64 chunktype:8 status:8
+/// version==0 chunkid:64 chunktype:8 status:8
+/// version==1 chunkid:64 chunktype:16 status:8
 
 // CHUNKSERVER <-> CLIENT/CHUNKSERVER
 
@@ -688,7 +706,8 @@ enum class SugidClearMode {
 
 // 0x04B0
 #define LIZ_CLTOCS_READ (1000U + 200U)
-/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 offset:32 size:32
 
 // 0x04B1
 #define LIZ_CSTOCL_READ_STATUS (1000U + 201U)
@@ -700,7 +719,8 @@ enum class SugidClearMode {
 
 // 0x04B3
 #define LIZ_CLTOCS_PREFETCH (1000U + 203U)
-/// chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 offset:32 size:32
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 offset:32 size:32
 
 // 0x00D2
 #define CLTOCS_WRITE (PROTO_BASE+210)
@@ -708,7 +728,8 @@ enum class SugidClearMode {
 
 // 0x04BA
 #define LIZ_CLTOCS_WRITE_INIT (1000U + 210U)
-/// chunkid:64 chunkversion:32 chunktype:8 chain:(N * [ip:32 port:16])
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 chain:(N * [ip:32 port:16])
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 chain:(N * [ip:32 port:16])
 
 // 0x00D3
 #define CSTOCL_WRITE_STATUS (PROTO_BASE+211)
@@ -736,7 +757,8 @@ enum class SugidClearMode {
 
 // 0x04BE
 #define LIZ_CLTOCS_TEST_CHUNK (1000U + 214U)
-/// chunkid:64 chunkversion:32 chunktype:8
+/// version==0 chunkid:64 chunkversion:32 chunktype:8
+/// version==1 chunkid:64 chunkversion:32 chunktype:16
 
 //CHUNKSERVER <-> CHUNKSERVER
 
@@ -750,11 +772,13 @@ enum class SugidClearMode {
 
 // 0x04E2
 #define LIZ_CSTOCS_GET_CHUNK_BLOCKS (1000U + 250U)
-/// chunkid:64 chunkversion:32 chunktype:8
+/// version==0 chunkid:64 chunkversion:32 chunktype:8
+/// version==1 chunkid:64 chunkversion:32 chunktype:16
 
 // 0x04E3
 #define LIZ_CSTOCS_GET_CHUNK_BLOCKS_STATUS (1000U + 251U)
-/// chunkid:64 chunkversion:32 chunktype:8 blocks:16 status:8
+/// version==0 chunkid:64 chunkversion:32 chunktype:8 blocks:16 status:8
+/// version==1 chunkid:64 chunkversion:32 chunktype:16 blocks:16 status:8
 
 //ANY <-> CHUNKSERVER
 
@@ -1064,6 +1088,7 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_FUSE_READ_CHUNK (1000U + 433U)
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:8])
+/// version==2 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 chunktype:16])
 
 // 0x01B2
 #define CLTOMA_FUSE_WRITE_CHUNK (PROTO_BASE+434) /* it creates, duplicates or sets new version of chunk if necessary */
@@ -1082,6 +1107,7 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_FUSE_WRITE_CHUNK (1000U + 435U)
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 lockid:32 locations:(N * [ip:32 port:16 chunktype:8])
+/// version==2 msgid:32 filelength:64 chunkid:64 chunkversion:32 lockid:32 locations:(N * [ip:32 port:16 chunktype:16])
 
 // 0x01B4
 #define CLTOMA_FUSE_WRITE_CHUNK_END (PROTO_BASE+436)
@@ -1334,6 +1360,7 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:STDSTRING chunktype:8])
+/// version==2 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:STDSTRING chunktype:16])
 
 // Abandoned sub-project - directory entries cached on client side
 // directory removed from cache
