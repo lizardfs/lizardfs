@@ -51,10 +51,6 @@ nice nice sudo -HEu lizardfstest bash -c "$test_script"
 status=$?
 stop_tests
 
-# Remove files left by tests
-nice nice sudo -HEu lizardfstest bash -c "source tools/test_main.sh; test_cleanup"
-stop_tests # Kill processes left by cleanup
-
 nice nice sudo -HEu lizardfstest sh -c "chmod -Rf a+rwX ${ERROR_DIR}"
 for log_file in "$ERROR_DIR"/* ; do
 	log_file_name=$(basename "$log_file")
