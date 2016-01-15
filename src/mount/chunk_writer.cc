@@ -134,7 +134,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		// If we have an executor writing the same chunkType, use it
 		bool addedToChain = false;
 		for (auto& fdAndExecutor : executors_) {
-			if (fdAndExecutor.second->chunkType() == location.chunkType) {
+			if (fdAndExecutor.second->chunkType() == location.chunk_type) {
 				fdAndExecutor.second->addChunkserverToChain(location.address);
 				addedToChain = true;
 			}
@@ -144,7 +144,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		}
 
 		// Update combinedStripeSize_
-		uint32_t stripeSize = slice_traits::getStripeSize(location.chunkType);
+		uint32_t stripeSize = slice_traits::getStripeSize(location.chunk_type);
 		if (combinedStripeSize_ == 0) {
 			combinedStripeSize_ = stripeSize;
 		} else {
@@ -157,7 +157,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		std::unique_ptr<WriteExecutor> executor(new WriteExecutor(
 				chunkserverStats_, location.address, fd, chunkserverTimeout_ms,
 				locator_->locationInfo().chunkId, locator_->locationInfo().version,
-				location.chunkType));
+				location.chunk_type));
 		executors_.insert(std::make_pair(fd, std::move(executor)));
 	}
 

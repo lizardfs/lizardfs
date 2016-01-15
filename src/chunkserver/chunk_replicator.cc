@@ -59,7 +59,7 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkPartType chunkType
 
 	std::vector<ChunkPartType> availableParts;
 	for (const auto& source : sources) {
-		availableParts.push_back(source.chunkType);
+		availableParts.push_back(source.chunk_type);
 	}
 	planner->prepare(availableParts);
 	return planner;
@@ -126,11 +126,11 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 		const std::vector<ChunkTypeWithAddress>& sources) {
 	auto isStandardChunkType = [](const ChunkTypeWithAddress& ctwa) {
-		return slice_traits::isStandard(ctwa.chunkType);
+		return slice_traits::isStandard(ctwa.chunk_type);
 	};
 	auto isParityOrXorFirstPart = [](const ChunkTypeWithAddress& ctwa) {
-		return slice_traits::isXor(ctwa.chunkType) &&
-				(slice_traits::xors::isXorParity(ctwa.chunkType) || slice_traits::xors::getXorPart(ctwa.chunkType) == 1);
+		return slice_traits::isXor(ctwa.chunk_type) &&
+				(slice_traits::xors::isXorParity(ctwa.chunk_type) || slice_traits::xors::getXorPart(ctwa.chunk_type) == 1);
 	};
 	auto standardOnes =
 			std::find_if(sources.begin(), sources.end(), isStandardChunkType);
@@ -141,7 +141,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	for (auto chunkTypesWithAdressesIterator : {standardOnes, parityAndFirstOnes}) {
 		for (auto it = chunkTypesWithAdressesIterator; it != sources.end(); ++it) {
 			try {
-				return getChunkBlocks(chunkId, chunkVersion, it->chunkType, it->address);
+				return getChunkBlocks(chunkId, chunkVersion, it->chunk_type, it->address);
 			} catch (Exception& e) {
 				syslog(LOG_WARNING, "%s", e.what());
 				// there might be some problems with this specific part/connection
@@ -188,7 +188,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		std::vector<uint8_t> buffer;
 		ReadPlanExecutor::ChunkTypeLocations locations;
 		for (const auto& source : sources) {
-			locations[source.chunkType] = source.address;
+			locations[source.chunk_type] = source.address;
 		}
 		ReadPlanExecutor::Timeouts timeouts(timeout.remaining_ms(), timeout.remaining_ms());
 		ReadPlanExecutor executor(chunkserverStats_,

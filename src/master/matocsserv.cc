@@ -796,8 +796,10 @@ int matocsserv_send_liz_replicatechunk(matocsserventry *eptr, uint64_t chunkid, 
 		std::vector<ChunkTypeWithAddress> sources;
 		for (size_t i = 0; i < sourcePointers.size(); ++i) {
 			matocsserventry *src = sourcePointers[i];
-			sources.push_back(
-			    ChunkTypeWithAddress(NetworkAddress(src->servip, src->servport), sourceTypes[i]));
+			sources.push_back(ChunkTypeWithAddress(
+				NetworkAddress(src->servip, src->servport),
+				sourceTypes[i],
+				src->version));
 		}
 		eptr->outputPackets.push_back(OutputPacket());
 		matocs::replicateChunk::serialize(eptr->outputPackets.back().packet, chunkid, version, type,

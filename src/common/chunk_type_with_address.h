@@ -54,23 +54,27 @@ struct ChunkTypeWithAddress {
 
 struct ChunkTypeWithAddress {
 	NetworkAddress address;
-	ChunkPartType chunkType;
+	ChunkPartType chunk_type;
+	uint32_t chunkserver_version;
 
 	ChunkTypeWithAddress() :
-		chunkType() {
+		address(), chunk_type(), chunkserver_version() {
 	}
 
-	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkPartType& chunkType)
-		: address(address), chunkType(chunkType) {
+	ChunkTypeWithAddress(const NetworkAddress& address, const ChunkPartType& chunk_type,
+			uint32_t chunkserver_version)
+		: address(address), chunk_type(chunk_type), chunkserver_version(chunkserver_version) {
 	}
 
 	bool operator==(const ChunkTypeWithAddress& other) const {
-		return std::make_pair(address, chunkType) == std::make_pair(other.address, other.chunkType);
+		return std::make_tuple(address, chunk_type, chunkserver_version)
+			== std::make_tuple(other.address, other.chunk_type, other.chunkserver_version);
 	}
 
 	bool operator<(const ChunkTypeWithAddress& other) const {
-		return std::make_pair(address, chunkType) < std::make_pair(other.address, other.chunkType);
+		return std::make_tuple(address, chunk_type, chunkserver_version)
+			< std::make_tuple(other.address, other.chunk_type, other.chunkserver_version);
 	}
 
-	LIZARDFS_DEFINE_SERIALIZE_METHODS(address, chunkType);
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(address, chunk_type, chunkserver_version);
 };

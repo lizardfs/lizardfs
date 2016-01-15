@@ -72,10 +72,10 @@ TEST(MatocsCommunicationTests, Replicate) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 52,  0);
 	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_3, standard);
 	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(ChunkTypeWithAddress, serverList) = {
-		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), standard),
-		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), xor_p_of_6),
-		ChunkTypeWithAddress(NetworkAddress(0xC0A80003, 8082), xor_1_of_6),
-		ChunkTypeWithAddress(NetworkAddress(0xC0A80004, 8084), xor_5_of_7),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80001, 8080), standard, LIZARDFS_VERSHEX),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80002, 8081), xor_p_of_6, LIZARDFS_VERSHEX),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80003, 8082), xor_1_of_6, LIZARDFS_VERSHEX),
+		ChunkTypeWithAddress(NetworkAddress(0xC0A80004, 8084), xor_5_of_7, LIZARDFS_VERSHEX),
 	};
 
 	std::vector<uint8_t> buffer;

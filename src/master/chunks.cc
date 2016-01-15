@@ -1507,10 +1507,11 @@ const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOn
 
 struct ChunkLocation {
 	ChunkLocation() : chunkType(slice_traits::standard::ChunkPartType()),
-			distance(0), random(0) {
+			chunkserver_version(0), distance(0), random(0) {
 	}
 	NetworkAddress address;
 	ChunkPartType chunkType;
+	uint32_t chunkserver_version;
 	uint32_t distance;
 	uint32_t random;
 	MediaLabel label;
@@ -1549,6 +1550,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 					&(chunkserverLocation.address.port),
 					&(chunkserverLocation.label)) == 0) {
 				chunkserverLocation.chunkType = s->chunkType;
+				chunkserverLocation.chunkserver_version = matocsserv_get_version(s->ptr);
 				chunkserverLocation.distance =
 						topology_distance(chunkserverLocation.address.ip, currentIp);
 						// in the future prepare more sophisticated distance function
@@ -1561,7 +1563,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	std::sort(chunkLocation.begin(), chunkLocation.end());
 	for (uint32_t i = 0; i < chunkLocation.size(); ++i) {
 		const ChunkLocation& loc = chunkLocation[i];
-		serversList.emplace_back(loc.address, loc.chunkType);
+		serversList.emplace_back(loc.address, loc.chunkType, loc.chunkserver_version);
 	}
 	return LIZARDFS_STATUS_OK;
 }

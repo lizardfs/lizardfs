@@ -471,10 +471,10 @@ public:
 			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
 		std::vector<legacy::ChunkTypeWithAddress> chunk_copies;
 		for (const auto &part : chunkCopies) {
-			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
+			if ((int)part.chunk_type.getSliceType() >= Goal::Slice::Type::kECFirst) {
 				continue;
 			}
-			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunkType));
+			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunk_type));
 		}
 		matocl::fuseReadChunk::serialize(packetBuffer, messageId, fileLength, chunkId, chunkVersion,
 				chunk_copies);
@@ -486,10 +486,10 @@ public:
 			const std::vector<ChunkTypeWithAddress>& chunkCopies) const {
 		std::vector<legacy::ChunkTypeWithAddress> chunk_copies;
 		for (const auto &part : chunkCopies) {
-			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
+			if ((int)part.chunk_type.getSliceType() >= Goal::Slice::Type::kECFirst) {
 				continue;
 			}
-			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunkType));
+			chunk_copies.push_back(legacy::ChunkTypeWithAddress(part.address, (legacy::ChunkPartType)part.chunk_type));
 		}
 		matocl::fuseWriteChunk::serialize(packetBuffer, messageId,
 				fileLength, chunkId, chunkVersion, lockId, chunk_copies);
@@ -1044,7 +1044,7 @@ static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allC
 		std::vector<NetworkAddress>& standardCopies) {
 	sassert(standardCopies.empty());
 	for (auto& chunkCopy : allCopies) {
-		if (slice_traits::isStandard(chunkCopy.chunkType)) {
+		if (slice_traits::isStandard(chunkCopy.chunk_type)) {
 			standardCopies.push_back(chunkCopy.address);
 		}
 	}
@@ -1061,7 +1061,7 @@ uint8_t matoclserv_fuse_write_chunk_respond(matoclserventry *eptr,
 	// don't allow old clients to modify standard copy of a xor chunk
 	if (status == LIZARDFS_STATUS_OK && !serializer->isLizardFsPacketSerializer()) {
 		for (const ChunkTypeWithAddress& chunkCopy : allChunkCopies) {
-			if (!slice_traits::isStandard(chunkCopy.chunkType)) {
+			if (!slice_traits::isStandard(chunkCopy.chunk_type)) {
 				status = LIZARDFS_ERROR_NOCHUNK;
 				break;
 			}

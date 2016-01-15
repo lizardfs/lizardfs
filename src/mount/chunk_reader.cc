@@ -56,7 +56,7 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 	std::map<ChunkPartType, float> bestScores;
 
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
-		const ChunkPartType& type = chunkTypeWithAddress.chunkType;
+		const ChunkPartType& type = chunkTypeWithAddress.chunk_type;
 		const NetworkAddress& address = chunkTypeWithAddress.address;
 
 		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
@@ -134,7 +134,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 				planner_.startAvoidingPart(partOmited);
 			}
 		} catch (ChunkCrcException &err) {
-			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType()));
+			crcErrors_.push_back(ChunkTypeWithAddress(err.server(), err.chunkType(), 0));
 			throw;
 		}
 		// Shrink the buffer. If availableSize is not divisible by MFSBLOCKSIZE
