@@ -31,14 +31,15 @@
 const uint32_t kReceiveBufferSize = 1024;
 
 WriteExecutor::WriteExecutor(ChunkserverStats& chunkserverStats,
-		const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
-		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
+		const NetworkAddress& headAddress, uint32_t chunkserver_version, int headFd,
+		uint32_t responseTimeout_ms, uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType)
 		: chunkserverStats_(chunkserverStats),
 		  isRunning_(false),
 		  chunkId_(chunkId),
 		  chunkVersion_(chunkVersion),
 		  chunkType_(chunkType),
 		  chainHead_(headAddress),
+		  chunkserver_version_(chunkserver_version),
 		  chainHeadFd_(headFd),
 		  receiveBuffer_(kReceiveBufferSize),
 		  unconfirmedPackets_(0),
@@ -49,14 +50,14 @@ WriteExecutor::WriteExecutor(ChunkserverStats& chunkserverStats,
 WriteExecutor::~WriteExecutor() {
 	chunkserverStats_.unregisterWriteOperation(chainHead_);
 	for (const auto& server : chain_) {
-		chunkserverStats_.unregisterWriteOperation(server);
+		chunkserverStats_.unregisterWriteOperation(server.address);
 	}
 }
 
-void WriteExecutor::addChunkserverToChain(const NetworkAddress& address) {
+void WriteExecutor::addChunkserverToChain(const ChunkTypeWithAddress& type_with_address) {
 	sassert(!isRunning_);
-	chain_.push_back(address);
-	chunkserverStats_.registerWriteOperation(address);
+	chain_.push_back(type_with_address);
+	chunkserverStats_.registerWriteOperation(type_with_address.address);
 }
 
 void WriteExecutor::addInitPacket() {
@@ -64,6 +65,10 @@ void WriteExecutor::addInitPacket() {
 	sassert(unconfirmedPackets_ == 0);
 	pendingPackets_.push_back(Packet());
 	std::vector<uint8_t>& buffer = pendingPackets_.back().buffer;
+	std::stable_sort(chain_.begin(), chain_.end(),
+		[](const ChunkTypeWithAddress& first, const ChunkTypeWithAddress &second) {
+			return first.chunkserver_version > second.chunkserver_version;
+	});
 	cltocs::writeInit::serialize(buffer, chunkId_, chunkVersion_, chunkType_, chain_);
 	increaseUnconfirmedPacketCount();
 	isRunning_ = true;

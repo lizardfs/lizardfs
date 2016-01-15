@@ -22,6 +22,7 @@
 
 #include "common/serialization_macros.h"
 #include "common/chunk_part_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/network_address.h"
 #include "protocol/packet.h"
 
@@ -97,14 +98,14 @@ inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 
 inline void serialize(std::vector<uint8_t>& destination,
 		uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType,
-		const std::vector<NetworkAddress>& chain) {
+		const std::vector<ChunkTypeWithAddress>& chain) {
 	serializePacket(destination, LIZ_CLTOCS_WRITE_INIT, kECChunks,
 			chunkId, chunkVersion, chunkType, chain);
 }
 
 inline void deserialize(const uint8_t* source, uint32_t sourceSize,
 		uint64_t& chunkId, uint32_t& chunkVersion, ChunkPartType& chunkType,
-		std::vector<NetworkAddress>& chain) {
+		std::vector<ChunkTypeWithAddress>& chain) {
 	verifyPacketVersionNoHeader(source, sourceSize, kECChunks);
 	deserializeAllPacketDataNoHeader(source, sourceSize,
 			chunkId, chunkVersion, chunkType, chain);

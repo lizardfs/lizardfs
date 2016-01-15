@@ -19,16 +19,17 @@
 #include "common/platform.h"
 #include "common/read_operation_executor.h"
 
-#include "protocol/cltocs.h"
 #include "common/crc.h"
-#include "protocol/cstocl.h"
+#include "common/lizardfs_version.h"
 #include "common/massert.h"
-#include "protocol/MFSCommunication.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "common/wrong_crc_notifier.h"
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
+#include "protocol/cltocs.h"
+#include "protocol/cstocl.h"
+#include "protocol/MFSCommunication.h"
 
 static const uint32_t kMaxMessageLength = MFSBLOCKSIZE + 1024;
 
@@ -38,6 +39,7 @@ ReadOperationExecutor::ReadOperationExecutor(
 		uint32_t chunkVersion,
 		const ChunkPartType& chunkType,
 		const NetworkAddress& server,
+		uint32_t server_version,
 		int fd,
 		uint8_t* buffer)
 		: readOperation_(readOperation),
@@ -46,6 +48,7 @@ ReadOperationExecutor::ReadOperationExecutor(
 		  chunkVersion_(chunkVersion),
 		  chunkType_(chunkType),
 		  server_(server),
+		  server_version_(server_version),
 		  fd_(fd),
 		  state_(kSendingRequest),
 		  destination_(nullptr),
@@ -57,14 +60,18 @@ ReadOperationExecutor::ReadOperationExecutor(
 
 void ReadOperationExecutor::sendReadRequest(const Timeout& timeout) {
 	std::vector<uint8_t> message;
-#ifdef USE_LEGACY_READ_MESSAGES
-	serializeMooseFsPacket(message, CLTOCS_READ,
+	if (server_version_ >= kFirstECVersion) {
+		cltocs::read::serialize(message, chunkId_, chunkVersion_, chunkType_,
+			readOperation_.requestOffset, readOperation_.requestSize);
+	} else if (server_version_ >= kFirstXorVersion) {
+		cltocs::read::serialize(message, chunkId_, chunkVersion_, (legacy::ChunkPartType)chunkType_,
+			readOperation_.requestOffset, readOperation_.requestSize);
+	} else {
+		serializeMooseFsPacket(message, CLTOCS_READ,
 			chunkId_, chunkVersion_, readOperation_.requestOffset,
 			readOperation_.requestSize);
-#else
-	cltocs::read::serialize(message, chunkId_, chunkVersion_, chunkType_,
-			readOperation_.requestOffset, readOperation_.requestSize);
-#endif
+	}
+
 	int32_t ret = tcptowrite(fd_,
 			message.data(),
 			message.size(),
@@ -160,10 +167,9 @@ void ReadOperationExecutor::processHeaderReceived() {
 		ss << " sent by chunkserver too long (" << packetHeader_.length << " bytes)";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
-	// TODO(msulikowski) Handle CSTOCL_READ_DATA and CSTOCL_READ_STATUS!
-	if (packetHeader_.type == LIZ_CSTOCL_READ_DATA) {
+	if (packetHeader_.type == LIZ_CSTOCL_READ_DATA || packetHeader_.type == CSTOCL_READ_DATA) {
 		setState(kReceivingReadDataMessage);
-	} else if (packetHeader_.type == LIZ_CSTOCL_READ_STATUS) {
+	} else if (packetHeader_.type == LIZ_CSTOCL_READ_STATUS || packetHeader_.type == CSTOCL_READ_STATUS) {
 		setState(kReceivingReadStatusMessage);
 	} else {
 		std::stringstream ss;
@@ -173,12 +179,54 @@ void ReadOperationExecutor::processHeaderReceived() {
 	}
 }
 
+void ReadOperationExecutor::processReadDataMessageReceived() {
+	sassert(state_ == kReceivingReadDataMessage);
+	sassert(bytesLeft_ == 0);
+	uint64_t readChunkId;
+	uint32_t readOffset;
+	uint32_t readSize;
+	if (server_version_ >= kFirstXorVersion) {
+		cstocl::readData::deserializePrefix(messageBuffer_, readChunkId, readOffset, readSize,
+			currentlyReadBlockCrc_);
+	} else {
+		deserializeMooseFsPacketPrefixNoHeader(messageBuffer_.data(), messageBuffer_.size(),
+			readChunkId, readOffset, readSize, currentlyReadBlockCrc_);
+	}
+
+	if (readChunkId != chunkId_) {
+		std::stringstream ss;
+		ss << "Malformed READ_DATA message from chunkserver, incorrect chunk ID ";
+		ss << "(got: " << readChunkId << ", excpected: " << chunkId_ << ")";
+		throw ChunkserverConnectionException(ss.str(), server_);
+	}
+	if (readSize != MFSBLOCKSIZE) {
+		std::stringstream ss;
+		ss << "Malformed READ_DATA message from chunkserver, incorrect size ";
+		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
+		throw ChunkserverConnectionException(ss.str(), server_);
+	}
+	uint32_t expectedOffset = readOperation_.requestOffset + dataBlocksCompleted_ * MFSBLOCKSIZE;
+	if (readOffset != expectedOffset) {
+		std::stringstream ss;
+		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
+		ss << "(got: " << readOffset << ", excpected: " << expectedOffset << ")";
+		throw ChunkserverConnectionException(ss.str(), server_);
+	}
+	setState(kReceivingDataBlock);
+}
+
 void ReadOperationExecutor::processReadStatusMessageReceived() {
 	sassert(state_ == kReceivingReadStatusMessage);
 	sassert(bytesLeft_ == 0);
 	uint8_t readStatus;
 	uint64_t readChunkId;
-	cstocl::readStatus::deserialize(messageBuffer_, readChunkId, readStatus);
+
+	if (server_version_ >= kFirstXorVersion) {
+		cstocl::readStatus::deserialize(messageBuffer_, readChunkId, readStatus);
+	} else {
+		deserializeAllMooseFsPacketDataNoHeader(messageBuffer_.data(), messageBuffer_.size(),
+			readChunkId, readStatus);
+	}
 
 	if (readChunkId != chunkId_) {
 		std::stringstream ss;
@@ -201,37 +249,6 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 	}
 
 	setState(kFinished);
-}
-
-void ReadOperationExecutor::processReadDataMessageReceived() {
-	sassert(state_ == kReceivingReadDataMessage);
-	sassert(bytesLeft_ == 0);
-	uint64_t readChunkId;
-	uint32_t readOffset;
-	uint32_t readSize;
-	cstocl::readData::deserializePrefix(messageBuffer_, readChunkId, readOffset, readSize,
-			currentlyReadBlockCrc_);
-
-	if (readChunkId != chunkId_) {
-		std::stringstream ss;
-		ss << "Malformed READ_DATA message from chunkserver, incorrect chunk ID ";
-		ss << "(got: " << readChunkId << ", excpected: " << chunkId_ << ")";
-		throw ChunkserverConnectionException(ss.str(), server_);
-	}
-	if (readSize != MFSBLOCKSIZE) {
-		std::stringstream ss;
-		ss << "Malformed READ_DATA message from chunkserver, incorrect size ";
-		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
-		throw ChunkserverConnectionException(ss.str(), server_);
-	}
-	uint32_t expectedOffset = readOperation_.requestOffset + dataBlocksCompleted_ * MFSBLOCKSIZE;
-	if (readOffset != expectedOffset) {
-		std::stringstream ss;
-		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
-		ss << "(got: " << readOffset << ", excpected: " << expectedOffset << ")";
-		throw ChunkserverConnectionException(ss.str(), server_);
-	}
-	setState(kReceivingDataBlock);
 }
 
 void ReadOperationExecutor::processDataBlockReceived() {

@@ -53,12 +53,13 @@ public:
 	 * \param chunkType - a chunk that will be written to
 	 */
 	WriteExecutor(ChunkserverStats& chunkserverStats,
-			const NetworkAddress& headAddress, int headFd, uint32_t responseTimeout_ms,
-			uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType);
+			const NetworkAddress& headAddress, uint32_t chunkserver_version, int headFd,
+			uint32_t responseTimeout_ms, uint64_t chunkId, uint32_t chunkVersion,
+			ChunkPartType chunkType);
 	WriteExecutor(const WriteExecutor&) = delete;
 	~WriteExecutor();
 	WriteExecutor& operator=(const WriteExecutor&) = delete;
-	void addChunkserverToChain(const NetworkAddress& address);
+	void addChunkserverToChain(const ChunkTypeWithAddress& address);
 	void addInitPacket();
 	void addDataPacket(uint32_t writeId,
 			uint16_t block, uint32_t offset, uint32_t size, const uint8_t* data);
@@ -77,6 +78,10 @@ public:
 
 	NetworkAddress server() const {
 		return chainHead_;
+	}
+
+	ChunkTypeWithAddress chunkTypeWithAddress() const {
+		return ChunkTypeWithAddress(chainHead_, chunkType_, chunkserver_version_);
 	}
 
 	ChunkPartType chunkType() const {
@@ -101,8 +106,9 @@ private:
 	const uint64_t chunkId_;
 	const uint32_t chunkVersion_;
 	const ChunkPartType chunkType_;
-	std::vector<NetworkAddress> chain_;
+	std::vector<ChunkTypeWithAddress> chain_;
 	const NetworkAddress chainHead_;
+	const uint32_t chunkserver_version_;
 	const int chainHeadFd_;
 	std::list<Packet> pendingPackets_;
 	MultiBufferWriter bufferWriter_;

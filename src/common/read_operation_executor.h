@@ -35,6 +35,7 @@ public:
 			uint32_t chunkVersion,
 			const ChunkPartType& chunkType,
 			const NetworkAddress& server,
+			uint32_t server_version,
 			int fd,
 			uint8_t* buffer);
 
@@ -109,6 +110,7 @@ private:
 
 	/*Information about the server, that will be used to execute the read operation */
 	const NetworkAddress server_;
+	const uint32_t server_version_;
 	const int fd_;
 
 	/* Current state of the operation */

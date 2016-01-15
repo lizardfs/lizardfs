@@ -48,7 +48,7 @@ private:
 			const std::vector<ChunkTypeWithAddress>& sources);
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
-			ChunkPartType chunkType, NetworkAddress server) throw (Exception);
+			ChunkTypeWithAddress type_with_address) throw (Exception);
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 			const std::vector<ChunkTypeWithAddress>& sources);

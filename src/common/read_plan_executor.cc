@@ -103,19 +103,19 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			return kInvalidDescriptor;
 		}
 		sassert(locations.count(chunkType) == 1);
-		const NetworkAddress& server = locations.at(chunkType);
-		statsProxy.registerReadOperation(server);
+		const ChunkTypeWithAddress& chunk_type_with_address = locations.at(chunkType);
+		statsProxy.registerReadOperation(chunk_type_with_address.address);
 		try {
 			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
-			int fd = connector.startUsingConnection(server, connectTimeout);
+			int fd = connector.startUsingConnection(chunk_type_with_address.address, connectTimeout);
 			try {
 				if (totalTimeout.expired()) {
 					// totalTimeout might expire during establishing the connection
 					throw RecoverableReadException("Chunkserver communication timed out");
 				}
 				ReadOperationExecutor executor(op,
-						chunkId_, chunkVersion_, chunkType,
-						server, fd, buffer);
+					chunkId_, chunkVersion_, chunkType, chunk_type_with_address.address,
+					chunk_type_with_address.chunkserver_version, fd, buffer);
 				executor.sendReadRequest(connectTimeout);
 				executors.insert(std::make_pair(fd, std::move(executor)));
 			} catch (...) {
@@ -124,8 +124,8 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 			}
 			return fd;
 		} catch (ChunkserverConnectionException& ex) {
-			lastConnectionFailure = server;
-			statsProxy.markDefective(server);
+			lastConnectionFailure = chunk_type_with_address.address;
+			statsProxy.markDefective(chunk_type_with_address.address);
 			networkingFailures.insert(chunkType);
 			return kInvalidDescriptor;
 		}
@@ -135,7 +135,7 @@ std::vector<ReadPlan::PostProcessOperation> ReadPlanExecutor::executeReadOperati
 	auto startPrefetchOperation = [&](ChunkPartType chunkType, const ReadPlan::PrefetchOperation& op)
 			-> void {
 		sassert(locations.count(chunkType) == 1);
-		const NetworkAddress& server = locations.at(chunkType);
+		const NetworkAddress& server = locations.at(chunkType).address;
 		try {
 			Timeout connectTimeout(std::chrono::milliseconds(timeouts.connectTimeout_ms));
 			int fd = connector.startUsingConnection(server, connectTimeout);

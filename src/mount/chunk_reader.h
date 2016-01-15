@@ -80,7 +80,7 @@ private:
 	uint32_t index_;
 	std::shared_ptr<const ChunkLocationInfo> location_;
 	MultiVariantReadPlanner planner_;
-	std::map<ChunkPartType, NetworkAddress> chunkTypeLocations_;
+	std::map<ChunkPartType, ChunkTypeWithAddress> chunkTypeLocations_;
 	std::vector<ChunkTypeWithAddress> crcErrors_;
 	bool chunkAlreadyRead;
 };

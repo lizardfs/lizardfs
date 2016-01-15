@@ -24,6 +24,7 @@
 #include <cstring>
 
 #include "common/block_xor.h"
+#include "common/chunk_type_with_address.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/read_operation_executor.h"
@@ -135,7 +136,7 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		bool addedToChain = false;
 		for (auto& fdAndExecutor : executors_) {
 			if (fdAndExecutor.second->chunkType() == location.chunk_type) {
-				fdAndExecutor.second->addChunkserverToChain(location.address);
+				fdAndExecutor.second->addChunkserverToChain(location);
 				addedToChain = true;
 			}
 		}
@@ -155,8 +156,8 @@ void ChunkWriter::init(WriteChunkLocator* locator, uint32_t chunkserverTimeout_m
 		// Create an executor
 		int fd = connector_.startUsingConnection(location.address, connectTimeout);
 		std::unique_ptr<WriteExecutor> executor(new WriteExecutor(
-				chunkserverStats_, location.address, fd, chunkserverTimeout_ms,
-				locator_->locationInfo().chunkId, locator_->locationInfo().version,
+				chunkserverStats_, location.address, location.chunkserver_version, fd,
+				chunkserverTimeout_ms, locator_->locationInfo().chunkId, locator_->locationInfo().version,
 				location.chunk_type));
 		executors_.insert(std::make_pair(fd, std::move(executor)));
 	}
@@ -464,35 +465,35 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkPartType& readF
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::readBlock");
 
 	// Find a server from which we will be able to read the block
-	NetworkAddress sourceServer;
+	ChunkTypeWithAddress source_type_with_address;
 	ChunkPartType sourceChunkType = slice_traits::standard::ChunkPartType();
 	for (const auto& fdAndExecutor : executors_) {
 		const auto& executor = *fdAndExecutor.second;
 		ChunkPartType chunkType = executor.chunkType();
 		if (slice_traits::isStandard(chunkType)) {
-			sourceServer = executor.server();
+			source_type_with_address = executor.chunkTypeWithAddress();
 			sourceChunkType = chunkType;
 			break;
 		} else {
 			sassert(slice_traits::isXor(chunkType));
 			if (slice_traits::xors::isXorParity(chunkType)) {
-				if (sourceServer == NetworkAddress() ||
+				if (source_type_with_address == ChunkTypeWithAddress() ||
 						(slice_traits::xors::isXorParity(sourceChunkType)
 						&& slice_traits::xors::getXorLevel(chunkType) < slice_traits::xors::getXorLevel(sourceChunkType))) {
 					// Find a parity with the smallest XOR level
-					sourceServer = executor.server();
+					source_type_with_address = executor.chunkTypeWithAddress();
 					sourceChunkType = chunkType;
 				} else {
 					continue;
 				}
 			} else if (blockIndex % slice_traits::xors::getXorLevel(chunkType) + 1 == (unsigned)slice_traits::xors::getXorPart(chunkType)) {
-				sourceServer = executor.server();
+				source_type_with_address = executor.chunkTypeWithAddress();
 				sourceChunkType = chunkType;
 				break;
 			}
 		}
 	}
-	if (sourceServer == NetworkAddress()) {
+	if (source_type_with_address == ChunkTypeWithAddress()) {
 		throw RecoverableWriteException("No server to read block " + std::to_string(blockIndex));
 	}
 
@@ -507,17 +508,18 @@ WriteCacheBlock ChunkWriter::readBlock(uint32_t blockIndex, ChunkPartType& readF
 	readOperation.readDataOffsets.push_back(0);
 
 	// Connect to the chunkserver and execute the read operation
-	int fd = connector_.startUsingConnection(sourceServer, timeout);
+	int fd = connector_.startUsingConnection(source_type_with_address.address, timeout);
 	try {
 		WriteCacheBlock block(locator_->chunkIndex(), blockIndex, WriteCacheBlock::kReadBlock);
 		block.from = 0;
 		block.to = MFSBLOCKSIZE;
 		ReadOperationExecutor readExecutor(readOperation,
 				locator_->locationInfo().chunkId, locator_->locationInfo().version,
-				sourceChunkType, sourceServer, fd, block.data());
+				sourceChunkType, source_type_with_address.address,
+				source_type_with_address.chunkserver_version, fd, block.data());
 		readExecutor.sendReadRequest(timeout);
 		readExecutor.readAll(timeout);
-		connector_.endUsingConnection(fd, sourceServer);
+		connector_.endUsingConnection(fd, source_type_with_address.address);
 		readFromChunkType = sourceChunkType;
 		return block;
 	} catch (...) {

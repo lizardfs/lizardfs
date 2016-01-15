@@ -272,6 +272,18 @@ inline void deserializeAllMooseFsPacketDataNoHeader(const std::vector<uint8_t>& 
 	deserializeAllMooseFsPacketDataNoHeader(source.data(), source.size(), args...);
 }
 
+template<class... Data>
+inline void deserializeMooseFsPacketPrefixNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
+		Data &...args) {
+	deserialize(source, bytesInBuffer, args...);
+}
+
+template<class... Data>
+inline void deserializeMooseFsPacketPrefixNoHeader(const std::vector<uint8_t>& source,
+		Data &...args) {
+	deserializeMooseFsPacketPrefixNoHeader(source.data(), source.size(), args...);
+}
+
 // check whether a LizardFS packet has expected version
 inline void verifyPacketVersionNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
 		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {

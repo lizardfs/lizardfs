@@ -25,6 +25,7 @@
 
 #include "common/chunk_connector.h"
 #include "common/chunk_part_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/chunkserver_stats.h"
 #include "common/connection_pool.h"
 #include "protocol/MFSCommunication.h"
@@ -35,7 +36,7 @@
 
 class ReadPlanExecutor {
 public:
-	typedef std::map<ChunkPartType, NetworkAddress> ChunkTypeLocations;
+	typedef std::map<ChunkPartType, ChunkTypeWithAddress> ChunkTypeLocations;
 
 	/// Timeouts for ReadPlanExecutor::executePlan.
 	struct Timeouts {

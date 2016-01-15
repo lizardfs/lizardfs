@@ -57,24 +57,22 @@ void ChunkReader::prepareReadingChunk(uint32_t inode, uint32_t index, bool force
 
 	for (const ChunkTypeWithAddress& chunkTypeWithAddress : location_->locations) {
 		const ChunkPartType& type = chunkTypeWithAddress.chunk_type;
-		const NetworkAddress& address = chunkTypeWithAddress.address;
 
 		if (std::count(crcErrors_.begin(), crcErrors_.end(), chunkTypeWithAddress) > 0) {
 			continue;
 		}
 
-		float score = globalChunkserverStats.getStatisticsFor(address).score();
-
+		float score = globalChunkserverStats.getStatisticsFor(chunkTypeWithAddress.address).score();
 		if (chunkTypeLocations_.count(type) == 0) {
 			// first location of this type, choose it (for now)
-			chunkTypeLocations_[type] = address;
+			chunkTypeLocations_[type] = chunkTypeWithAddress;
 			bestScores[type] = score;
 			availableChunkTypes.push_back(type);
 		} else {
 			// we already know other locations
 			if (score > bestScores[type]) {
 				// this location is better, switch to it
-				chunkTypeLocations_[type] = address;
+				chunkTypeLocations_[type] = chunkTypeWithAddress;
 				bestScores[type] = score;
 			}
 		}

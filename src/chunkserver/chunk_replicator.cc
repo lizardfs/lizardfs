@@ -20,6 +20,7 @@
 #include "chunkserver/chunk_replicator.h"
 
 #include <unistd.h>
+#include <cassert>
 #include <algorithm>
 #include <initializer_list>
 #include <memory>
@@ -27,13 +28,14 @@
 
 #include "chunkserver/g_limiters.h"
 #include "common/crc.h"
-#include "protocol/cstocs.h"
 #include "common/exception.h"
-#include "protocol/packet.h"
+#include "common/lizardfs_version.h"
 #include "common/read_plan_executor.h"
 #include "common/sockets.h"
 #include "common/standard_chunk_read_planner.h"
 #include "common/xor_chunk_read_planner.h"
+#include "protocol/cstocs.h"
+#include "protocol/packet.h"
 
 static ConnectionPool pool;
 static ChunkConnectorUsingPool connector(pool);
@@ -66,12 +68,22 @@ std::unique_ptr<ReadPlanner> ChunkReplicator::getPlanner(ChunkPartType chunkType
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
-		ChunkPartType chunkType, NetworkAddress server) throw (Exception) {
+		ChunkTypeWithAddress type_with_address) throw (Exception) {
+	NetworkAddress server = type_with_address.address;
+	ChunkPartType chunkType = type_with_address.chunk_type;
 	int fd = connector.startUsingConnection(server, Timeout{std::chrono::seconds(1)});
 	sassert(fd >= 0);
 
 	std::vector<uint8_t> outputBuffer;
-	cstocs::getChunkBlocks::serialize(outputBuffer, chunkId, chunkVersion, chunkType);
+	if (type_with_address.chunkserver_version >= kFirstECVersion) {
+		cstocs::getChunkBlocks::serialize(outputBuffer, chunkId, chunkVersion, chunkType);
+	} else if (type_with_address.chunkserver_version >= kFirstXorVersion) {
+		assert((int)chunkType.getSliceType() < Goal::Slice::Type::kECFirst);
+		cstocs::getChunkBlocks::serialize(outputBuffer, chunkId, chunkVersion, (legacy::ChunkPartType)chunkType);
+	} else {
+		assert(slice_traits::isStandard(chunkType));
+		serializeMooseFsPacket(outputBuffer, CSTOCS_GET_CHUNK_BLOCKS, chunkId, chunkVersion);
+	}
 	tcptowrite(fd, outputBuffer.data(), outputBuffer.size(), 1000);
 
 	std::vector<uint8_t> inputBuffer;
@@ -141,7 +153,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion
 	for (auto chunkTypesWithAdressesIterator : {standardOnes, parityAndFirstOnes}) {
 		for (auto it = chunkTypesWithAdressesIterator; it != sources.end(); ++it) {
 			try {
-				return getChunkBlocks(chunkId, chunkVersion, it->chunk_type, it->address);
+				return getChunkBlocks(chunkId, chunkVersion, *it);
 			} catch (Exception& e) {
 				syslog(LOG_WARNING, "%s", e.what());
 				// there might be some problems with this specific part/connection
@@ -188,7 +200,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		std::vector<uint8_t> buffer;
 		ReadPlanExecutor::ChunkTypeLocations locations;
 		for (const auto& source : sources) {
-			locations[source.chunk_type] = source.address;
+			locations[source.chunk_type] = source;
 		}
 		ReadPlanExecutor::Timeouts timeouts(timeout.remaining_ms(), timeout.remaining_ms());
 		ReadPlanExecutor executor(chunkserverStats_,

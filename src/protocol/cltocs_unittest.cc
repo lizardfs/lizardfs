@@ -21,6 +21,7 @@
 
 #include <gtest/gtest.h>
 
+#include "common/lizardfs_version.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
 #include "unittests/operators.h"
@@ -53,9 +54,9 @@ TEST(CltocsCommunicationTests, WriteInit) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint64_t, chunkId,  0x987654321, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, chunkVersion, 0x01234567, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(ChunkPartType, chunkType, xor_p_of_7, standard);
-	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(NetworkAddress, chain) = {
-			NetworkAddress(0x0A000001, 12388),
-			NetworkAddress(0x0A000002, 12389),
+	LIZARDFS_DEFINE_INOUT_VECTOR_PAIR(ChunkTypeWithAddress, chain) = {
+			ChunkTypeWithAddress(NetworkAddress(0x0A000001, 12388), slice_traits::standard::ChunkPartType(), kStdVersion),
+			ChunkTypeWithAddress(NetworkAddress(0x0A000002, 12389), slice_traits::standard::ChunkPartType(), kStdVersion),
 	};
 
 	std::vector<uint8_t> buffer;
