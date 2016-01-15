@@ -1507,6 +1507,8 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 			matocl::fuseTruncate::deserialize(message, messageId, oldLength, lockId);
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE - wrong packet version");
+			setDisconnect(true);
+			return LIZARDFS_ERROR_IO;
 		}
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
@@ -1551,6 +1553,8 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 			matocl::fuseTruncateEnd::deserialize(message, messageId, attr);
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_TRUNCATE_END - wrong packet version");
+			setDisconnect(true);
+			return LIZARDFS_ERROR_IO;
 		}
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
@@ -2017,6 +2021,8 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &serverList, uint64_t 
 					chunkId, chunkVersion, serverList);
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
+			setDisconnect(true);
+			return LIZARDFS_ERROR_IO;
 		}
 	} catch (IncorrectDeserializationException&) {
 		setDisconnect(true);
@@ -2099,6 +2105,8 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 					fileLength, chunkId, chunkVersion, lockId, chunkservers);
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
+			setDisconnect(true);
+			return LIZARDFS_ERROR_IO;
 		}
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
