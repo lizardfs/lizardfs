@@ -67,7 +67,7 @@ local address to use for connecting with master instead of default one
 mount specified LizardFS directory (default is /, i.e. whole filesystem)
 
 *-o enablefilelocks=*[0,1]::
-enables/disables global file locking (enabled by default)
+enables/disables global file locking (disabled by default)
 
 *-o mfspassword=*'PASSWORD'::
 authenticate to LizardFS master with 'PASSWORD'

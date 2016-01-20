@@ -79,7 +79,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
 
 #if FUSE_VERSION >= 26
-	MFS_OPT("enablefilelocks=%u", filelocks, 1),
+	MFS_OPT("enablefilelocks=%u", filelocks, 0),
 #endif
 
 	FUSE_OPT_KEY("-m",             KEY_META),
@@ -176,7 +176,7 @@ void usage(const char *progname) {
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"
 #if FUSE_VERSION >= 26
-"    -o enablefilelocks=0|1      enables/disables global file locking (enabled by default)\n"
+"    -o enablefilelocks=0|1      enables/disables global file locking (disabled by default)\n"
 #endif
 "\n");
 	fprintf(stderr,

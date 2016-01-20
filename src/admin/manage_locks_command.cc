@@ -35,7 +35,7 @@ std::string ManageLocksCommand::name() const {
 }
 
 void ManageLocksCommand::usage() const {
-	std::cerr << name() << "[list/unlock] [flock/posix/all] <master ip> <master port>" << std::endl;
+	std::cerr << name() << " <master ip> <master port> [list/unlock] [flock/posix/all]" << std::endl;
 	std::cerr << "    Manages file locks" << std::endl;
 }
 

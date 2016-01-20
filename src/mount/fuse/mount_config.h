@@ -122,7 +122,7 @@ struct mfsopts_ {
 			memlock(0),
 #endif
 #if FUSE_VERSION >= 26
-			filelocks(1),
+			filelocks(0),
 #endif
 			nostdmountoptions(0),
 			meta(0),
