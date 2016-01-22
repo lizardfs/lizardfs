@@ -2035,7 +2035,7 @@ bool ChunkWorker::tryReplication(chunk *c, ChunkPartType part_to_recover,
 	ChunkCopiesCalculator xor_capable_calc(c->getGoal());
 
 	for (slist *s = c->slisthead; s; s = s->next) {
-		if (s->is_valid() && !s->is_busy()) {
+		if (s->is_valid() && !s->is_busy() && matocsserv_replication_read_counter(s->ptr) < MaxReadRepl) {
 			if (matocsserv_get_version(s->ptr) >= kFirstXorVersion) {
 				xor_capable_servers.push_back(s->ptr);
 				xor_capable_parts.push_back(s->chunkType);
@@ -2294,7 +2294,7 @@ bool ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc, boo
 	// There are at least two servers with a disk usage difference grater than
 	// AcceptableDifference, so it's worth checking.
 	for (slist *s = c->slisthead; s != nullptr; s = s->next) {
-		if (!s->is_valid() || matocsserv_replication_read_counter(s->ptr) >= MaxReadRepl) {
+		if (!s->is_valid()) {
 			continue;
 		}
 
@@ -2331,12 +2331,10 @@ bool ChunkWorker::rebalanceChunkParts(chunk *c, ChunkCopiesCalculator &calc, boo
 			    matocsserv_get_version(empty_server.server) < kFirstXorVersion) {
 				continue;  // We can't place xor chunks on old servers
 			}
-			if (chunkPresentOnServer(c, s->chunkType.getSliceType(),
-			                         empty_server.server)) {
+			if (chunkPresentOnServer(c, s->chunkType.getSliceType(), empty_server.server)) {
 				continue;  // A copy is already here
 			}
-			if (matocsserv_replication_write_counter(empty_server.server) >=
-			    MaxWriteRepl) {
+			if (matocsserv_replication_write_counter(empty_server.server) >= MaxWriteRepl) {
 				continue;  // We can't create a new copy here
 			}
 			if (tryReplication(c, s->chunkType, empty_server.server)) {
