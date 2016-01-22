@@ -305,27 +305,14 @@ int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
 				break;
 			}
 			tryCounter = 0;
-		} catch (NoValidCopiesReadException& ex) {
-			printErrorMessage(ex);
-			forcePrepare = true;
-			if (tryCounter > maxRetries) {
-				return EIO;
-			} else {
-				sleep(1 + ((tryCounter < 30) ? (tryCounter / 3) : 10));
-				tryCounter++;
-			}
-		} catch (ChunkCrcException& ex) {
-			printErrorMessage(ex);
-			forcePrepare = true;
-			tryCounter++;
-		} catch (UnrecoverableReadException& ex) {
+		} catch (UnrecoverableReadException &ex) {
 			printErrorMessage(ex);
 			if (ex.status() == LIZARDFS_ERROR_ENOENT) {
 				return EBADF; // stale handle
 			} else {
 				return EIO;
 			}
-		} catch (Exception& ex) {
+		} catch (Exception &ex) {
 			if (tryCounter > 0) {
 				printErrorMessage(ex);
 			}
