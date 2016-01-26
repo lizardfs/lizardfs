@@ -61,84 +61,16 @@ void fs_test_getdata(uint32_t *loopstart, uint32_t *loopend, uint32_t *files, ui
 	*msgbuffleng = fsinfo_msgbuffleng;
 }
 
-uint32_t fs_test_log_inconsistency(fsedge *e, const char *iname, char *buff, uint32_t size) {
-	uint32_t leng;
-	leng = 0;
-	if (e->parent) {
-		syslog(LOG_ERR,
-		       "structure error - %s inconsistency (edge: %" PRIu32 ",%s -> %" PRIu32 ")",
-		       iname, e->parent->id, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
-		if (leng < size) {
-			leng += snprintf(buff + leng, size - leng,
-			                 "structure error - %s inconsistency (edge: %" PRIu32
-			                 ",%s -> %" PRIu32 ")\n",
-			                 iname, e->parent->id,
-			                 fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
-		}
-	} else {
-		if (e->child->type == TYPE_TRASH) {
-			syslog(LOG_ERR,
-			       "structure error - %s inconsistency (edge: TRASH,%s -> %" PRIu32 ")",
-			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
-			if (leng < size) {
-				leng += snprintf(buff + leng, size - leng,
-				                 "structure error - %s inconsistency (edge: "
-				                 "TRASH,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
-				                 e->child->id);
-			}
-		} else if (e->child->type == TYPE_RESERVED) {
-			syslog(LOG_ERR,
-			       "structure error - %s inconsistency (edge: RESERVED,%s -> %" PRIu32
-			       ")",
-			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
-			if (leng < size) {
-				leng += snprintf(buff + leng, size - leng,
-				                 "structure error - %s inconsistency (edge: "
-				                 "RESERVED,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
-				                 e->child->id);
-			}
-		} else {
-			syslog(LOG_ERR,
-			       "structure error - %s inconsistency (edge: NULL,%s -> %" PRIu32 ")",
-			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
-			if (leng < size) {
-				leng += snprintf(buff + leng, size - leng,
-				                 "structure error - %s inconsistency (edge: "
-				                 "NULL,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
-				                 e->child->id);
-			}
-		}
-	}
-	return leng;
-}
-
 void fs_background_checksum_recalculation_a_bit() {
 	uint32_t recalculated = 0;
 
 	switch (gChecksumBackgroundUpdater.getStep()) {
 	case ChecksumRecalculatingStep::kNone:  // Recalculation not in progress.
 		return;
-	case ChecksumRecalculatingStep::kTrash:
-		// Trash has to be recalculated in one step, as it is on a list.
-		for (fsedge *edge = gMetadata->trash; edge; edge = edge->nextchild) {
-			fsedges_checksum_add_to_background(edge);
-		}
-		gChecksumBackgroundUpdater.incStep();
-		break;
-	case ChecksumRecalculatingStep::kReserved:
-		// Reserved has to be recalculated in one step, as it is on a list.
-		for (fsedge *edge = gMetadata->reserved; edge; edge = edge->nextchild) {
-			fsedges_checksum_add_to_background(edge);
-		}
-		gChecksumBackgroundUpdater.incStep();
-		break;
 	case ChecksumRecalculatingStep::kNodes:
 		// Nodes are in a hashtable, therefore they can be recalculated in multiple steps.
 		while (gChecksumBackgroundUpdater.getPosition() < NODEHASHSIZE) {
-			for (fsnode *node =
+			for (FSNode *node =
 			             gMetadata->nodehash[gChecksumBackgroundUpdater.getPosition()];
 			     node; node = node->next) {
 				fsnodes_checksum_add_to_background(node);
@@ -150,25 +82,6 @@ void fs_background_checksum_recalculation_a_bit() {
 			}
 		}
 		if (gChecksumBackgroundUpdater.getPosition() == NODEHASHSIZE) {
-			gChecksumBackgroundUpdater.incStep();
-		}
-		break;
-	case ChecksumRecalculatingStep::kEdges:
-		// Edges (not ones in trash or reserved) are in a hashtable,
-		// therefore they can be recalculated in multiple steps.
-		while (gChecksumBackgroundUpdater.getPosition() < EDGEHASHSIZE) {
-			for (fsedge *edge =
-			             gMetadata->edgehash[gChecksumBackgroundUpdater.getPosition()];
-			     edge; edge = edge->next) {
-				fsedges_checksum_add_to_background(edge);
-				++recalculated;
-			}
-			gChecksumBackgroundUpdater.incPosition();
-			if (recalculated >= gChecksumBackgroundUpdater.getSpeedLimit()) {
-				break;
-			}
-		}
-		if (gChecksumBackgroundUpdater.getPosition() == EDGEHASHSIZE) {
 			gChecksumBackgroundUpdater.incStep();
 		}
 		break;
@@ -208,7 +121,6 @@ void fs_background_checksum_recalculation_a_bit() {
 
 void fs_periodic_test_files() {
 	static uint32_t i = 0;
-	uint32_t j;
 	uint32_t k;
 	uint64_t chunkid;
 	uint8_t vc, valid, ugflag;
@@ -226,8 +138,7 @@ void fs_periodic_test_files() {
 	static uint32_t unavailreservedfiles = 0;
 	static char *msgbuff = NULL, *tmp;
 	static uint32_t leng = 0;
-	fsnode *f;
-	fsedge *e;
+	FSNode *f;
 
 	if ((uint32_t)(main_time()) <= test_start_time) {
 		return;
@@ -239,8 +150,7 @@ void fs_periodic_test_files() {
 	}
 	if (i == 0) {
 		if (errors == ERRORS_LOG_MAX) {
-			syslog(LOG_ERR,
-			       "only first %u errors (unavailable chunks/files) were logged",
+			syslog(LOG_ERR, "only first %u errors (unavailable chunks/files) were logged",
 			       ERRORS_LOG_MAX);
 			if (leng < MSGBUFFSIZE) {
 				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
@@ -261,8 +171,7 @@ void fs_periodic_test_files() {
 			syslog(LOG_ERR, "unavailable chunks: %" PRIu32, unavailchunks);
 			if (leng < MSGBUFFSIZE) {
 				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable chunks: %" PRIu32 "\n",
-				                 unavailchunks);
+				                 "unavailable chunks: %" PRIu32 "\n", unavailchunks);
 			}
 			unavailchunks = 0;
 		}
@@ -270,18 +179,15 @@ void fs_periodic_test_files() {
 			syslog(LOG_ERR, "unavailable trash files: %" PRIu32, unavailtrashfiles);
 			if (leng < MSGBUFFSIZE) {
 				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable trash files: %" PRIu32 "\n",
-				                 unavailtrashfiles);
+				                 "unavailable trash files: %" PRIu32 "\n", unavailtrashfiles);
 			}
 			unavailtrashfiles = 0;
 		}
 		if (unavailreservedfiles > 0) {
-			syslog(LOG_ERR, "unavailable reserved files: %" PRIu32,
-			       unavailreservedfiles);
+			syslog(LOG_ERR, "unavailable reserved files: %" PRIu32, unavailreservedfiles);
 			if (leng < MSGBUFFSIZE) {
 				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable reserved files: %" PRIu32 "\n",
-				                 unavailreservedfiles);
+				                 "unavailable reserved files: %" PRIu32 "\n", unavailreservedfiles);
 			}
 			unavailreservedfiles = 0;
 		}
@@ -325,104 +231,88 @@ void fs_periodic_test_files() {
 	}
 	for (k = 0; k < (NODEHASHSIZE / 14400) && i < NODEHASHSIZE; k++, i++) {
 		for (f = gMetadata->nodehash[i]; f; f = f->next) {
-			if (f->type == TYPE_FILE || f->type == TYPE_TRASH ||
-			    f->type == TYPE_RESERVED) {
+			if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
 				valid = 1;
 				ugflag = 0;
-				for (j = 0; j < f->data.fdata.chunks; j++) {
-					chunkid = f->data.fdata.chunktab[j];
-					if (chunkid > 0) {
-						if (chunk_get_fullcopies(chunkid, &vc) !=
-						    LIZARDFS_STATUS_OK) {
-							if (errors < ERRORS_LOG_MAX) {
-								syslog(LOG_ERR,
-								       "structure error - chunk "
-								       "%016" PRIX64
-								       " not found (inode: %" PRIu32
-								       " ; index: %" PRIu32 ")",
-								       chunkid, f->id, j);
-								if (leng < MSGBUFFSIZE) {
-									leng += snprintf(
-									        msgbuff + leng,
-									        MSGBUFFSIZE - leng,
-									        "structure error - "
-									        "chunk %016" PRIX64
-									        " not found "
-									        "(inode: %" PRIu32
-									        " ; index: %" PRIu32
-									        ")\n",
-									        chunkid, f->id, j);
-								}
-								errors++;
-							}
-							notfoundchunks++;
-							if ((notfoundchunks % 1000) == 0) {
-								syslog(LOG_ERR,
-								       "unknown chunks: %" PRIu32
-								       " ...",
-								       notfoundchunks);
-							}
-							valid = 0;
-							mchunks++;
-						} else if (vc == 0) {
-							if (errors < ERRORS_LOG_MAX) {
-								syslog(LOG_ERR,
-								       "currently unavailable "
-								       "chunk %016" PRIX64
-								       " (inode: %" PRIu32
-								       " ; index: %" PRIu32 ")",
-								       chunkid, f->id, j);
-								if (leng < MSGBUFFSIZE) {
-									leng += snprintf(
-									        msgbuff + leng,
-									        MSGBUFFSIZE - leng,
-									        "currently "
-									        "unavailable chunk "
-									        "%016" PRIX64
-									        " (inode: %" PRIu32
-									        " ; index: %" PRIu32
-									        ")\n",
-									        chunkid, f->id, j);
-								}
-								errors++;
-							}
-							unavailchunks++;
-							if ((unavailchunks % 1000) == 0) {
-								syslog(LOG_ERR,
-								       "unavailable chunks: "
-								       "%" PRIu32 " ...",
-								       unavailchunks);
-							}
-							valid = 0;
-							mchunks++;
-						} else {
-							int recover, remove;
-							chunk_get_partstomodify(chunkid, recover, remove);
-							if (recover > 0) {
-								ugflag = 1;
-								ugchunks++;
-							}
-						}
-						chunks++;
+				for (uint32_t j = 0; j < static_cast<FSNodeFile *>(f)->chunks.size(); ++j) {
+					chunkid = static_cast<FSNodeFile *>(f)->chunks[j];
+					if (chunkid == 0) {
+						continue;
 					}
+
+					if (chunk_get_fullcopies(chunkid, &vc) != LIZARDFS_STATUS_OK) {
+						if (errors < ERRORS_LOG_MAX) {
+							syslog(LOG_ERR,
+							       "structure error - chunk "
+							       "%016" PRIX64 " not found (inode: %" PRIu32 " ; index: %" PRIu32
+							       ")",
+							       chunkid, f->id, j);
+							if (leng < MSGBUFFSIZE) {
+								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+								                 "structure error - "
+								                 "chunk %016" PRIX64
+								                 " not found "
+								                 "(inode: %" PRIu32 " ; index: %" PRIu32 ")\n",
+								                 chunkid, f->id, j);
+							}
+							errors++;
+						}
+						notfoundchunks++;
+						if ((notfoundchunks % 1000) == 0) {
+							syslog(LOG_ERR, "unknown chunks: %" PRIu32 " ...", notfoundchunks);
+						}
+						valid = 0;
+						mchunks++;
+					} else if (vc == 0) {
+						if (errors < ERRORS_LOG_MAX) {
+							syslog(LOG_ERR,
+							       "currently unavailable "
+							       "chunk %016" PRIX64 " (inode: %" PRIu32 " ; index: %" PRIu32 ")",
+							       chunkid, f->id, j);
+							if (leng < MSGBUFFSIZE) {
+								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+								                 "currently "
+								                 "unavailable chunk "
+								                 "%016" PRIX64 " (inode: %" PRIu32
+								                 " ; index: %" PRIu32 ")\n",
+								                 chunkid, f->id, j);
+							}
+							errors++;
+						}
+						unavailchunks++;
+						if ((unavailchunks % 1000) == 0) {
+							syslog(LOG_ERR,
+							       "unavailable chunks: "
+							       "%" PRIu32 " ...",
+							       unavailchunks);
+						}
+						valid = 0;
+						mchunks++;
+					} else {
+						int recover, remove;
+						chunk_get_partstomodify(chunkid, recover, remove);
+						if (recover > 0) {
+							ugflag = 1;
+							ugchunks++;
+						}
+					}
+					chunks++;
 				}
 				if (valid == 0) {
 					mfiles++;
-					if (f->type == TYPE_TRASH) {
+					if (f->type == FSNode::kTrash) {
 						if (errors < ERRORS_LOG_MAX) {
+							std::string name = (std::string)gMetadata->trash.at(f->id);
+
 							syslog(LOG_ERR,
 							       "- currently unavailable file in "
 							       "trash %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name((std::string)f->parents->name).c_str());
+							       f->id, fsnodes_escape_name(name).c_str());
 							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng,
-								        "- currently unavailable "
-								        "file in trash %" PRIu32
-								        ": %s\n",
-								        f->id,
-								        fsnodes_escape_name((std::string)f->parents->name).c_str());
+								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+								                 "- currently unavailable "
+								                 "file in trash %" PRIu32 ": %s\n",
+								                 f->id, fsnodes_escape_name(name).c_str());
 							}
 							errors++;
 							unavailtrashfiles++;
@@ -433,21 +323,19 @@ void fs_periodic_test_files() {
 								       unavailtrashfiles);
 							}
 						}
-					} else if (f->type == TYPE_RESERVED) {
+					} else if (f->type == FSNode::kReserved) {
 						if (errors < ERRORS_LOG_MAX) {
+							std::string name = (std::string)gMetadata->reserved.at(f->id);
+
 							syslog(LOG_ERR,
 							       "+ currently unavailable reserved "
 							       "file %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name((std::string)f->parents->name).c_str());
+							       f->id, fsnodes_escape_name(name).c_str());
 							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng,
-								        "+ currently unavailable "
-								        "reserved file %" PRIu32
-								        ": %s\n",
-								        f->id,
-								        fsnodes_escape_name((std::string)f->parents->name).c_str());
+								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+								                 "+ currently unavailable "
+								                 "reserved file %" PRIu32 ": %s\n",
+								                 f->id, fsnodes_escape_name(name).c_str());
 							}
 							errors++;
 							unavailreservedfiles++;
@@ -460,31 +348,26 @@ void fs_periodic_test_files() {
 						}
 					} else {
 						std::string path;
-						for (e = f->parents; e; e = e->nextparent) {
+						for (const auto parent_inode : f->parent) {
 							if (errors < ERRORS_LOG_MAX) {
-								fsnodes_getpath(e, path);
+								FSNodeDirectory *parent = fsnodes_id_to_node_verify<FSNodeDirectory>(parent_inode);
+								fsnodes_getpath(parent, f, path);
 								syslog(LOG_ERR,
 								       "* currently unavailable "
 								       "file %" PRIu32 ": %s",
 								       f->id, fsnodes_escape_name(path).c_str());
 								if (leng < MSGBUFFSIZE) {
-									leng += snprintf(
-									        msgbuff + leng,
-									        MSGBUFFSIZE - leng,
-									        "* currently "
-									        "unavailable file "
-									        "%" PRIu32 ": %s\n",
-									        f->id,
-									        fsnodes_escape_name(path).c_str());
+									leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+									                 "* currently "
+									                 "unavailable file "
+									                 "%" PRIu32 ": %s\n",
+									                 f->id, fsnodes_escape_name(path).c_str());
 								}
 								errors++;
 							}
 							unavailfiles++;
 							if ((unavailfiles % 1000) == 0) {
-								syslog(LOG_ERR,
-								       "unavailable files: %" PRIu32
-								       " ...",
-								       unavailfiles);
+								syslog(LOG_ERR, "unavailable files: %" PRIu32 " ...", unavailfiles);
 							}
 						}
 					}
@@ -493,170 +376,42 @@ void fs_periodic_test_files() {
 				}
 				files++;
 			}
-			for (e = f->parents; e; e = e->nextparent) {
-				if (e->child != f) {
-					if (e->parent) {
-						syslog(LOG_ERR,
-						       "structure error - edge->child/child->edges "
-						       "(node: %" PRIu32 " ; edge: %" PRIu32
-						       ",%s -> %" PRIu32 ")",
-						       f->id, e->parent->id,
-						       fsnodes_escape_name((std::string)e->name).c_str(),
-						       e->child->id);
+			for (const auto &parent_inode : f->parent) {
+				FSNodeDirectory *parent = fsnodes_id_to_node<FSNodeDirectory>(parent_inode);
+				if (!parent || parent->type != FSNode::kDirectory) {
+					if (errors < ERRORS_LOG_MAX) {
+						syslog(LOG_ERR, "structure error - invalid node's parent (inode: %" PRIu32
+						                " ; parent's inode: %" PRIu32 ")",
+						       f->id, parent_inode);
 						if (leng < MSGBUFFSIZE) {
-							leng += snprintf(
-							        msgbuff + leng, MSGBUFFSIZE - leng,
-							        "structure error - "
-							        "edge->child/child->edges (node: "
-							        "%" PRIu32 " ; edge: %" PRIu32
-							        ",%s -> %" PRIu32 ")\n",
-							        f->id, e->parent->id,
-							        fsnodes_escape_name((std::string)e->name).c_str(),
-							        e->child->id);
+							leng +=
+							    snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+							             "structure error - invalid node's parent (inode: %" PRIu32
+							             " ; parent's inode: %" PRIu32 ")",
+							             f->id, parent_inode);
 						}
-					} else {
-						syslog(LOG_ERR,
-						       "structure error - edge->child/child->edges "
-						       "(node: %" PRIu32
-						       " ; edge: NULL,%s -> %" PRIu32 ")",
-						       f->id,
-						       fsnodes_escape_name((std::string)e->name).c_str(),
-						       e->child->id);
-						if (leng < MSGBUFFSIZE) {
-							leng += snprintf(
-							        msgbuff + leng, MSGBUFFSIZE - leng,
-							        "structure error - "
-							        "edge->child/child->edges (node: "
-							        "%" PRIu32
-							        " ; edge: NULL,%s -> %" PRIu32
-							        ")\n",
-							        f->id, fsnodes_escape_name((std::string)e->name).c_str(),
-							        e->child->id);
-						}
-					}
-				} else if (e->nextchild) {
-					if (e->nextchild->prevchild != &(e->nextchild)) {
-						if (leng < MSGBUFFSIZE) {
-							leng += fs_test_log_inconsistency(
-							        e, "nextchild/prevchild",
-							        msgbuff + leng, MSGBUFFSIZE - leng);
-						} else {
-							fs_test_log_inconsistency(
-							        e, "nextchild/prevchild", NULL, 0);
-						}
-					}
-				} else if (e->nextparent) {
-					if (e->nextparent->prevparent != &(e->nextparent)) {
-						if (leng < MSGBUFFSIZE) {
-							leng += fs_test_log_inconsistency(
-							        e, "nextparent/prevparent",
-							        msgbuff + leng, MSGBUFFSIZE - leng);
-						} else {
-							fs_test_log_inconsistency(
-							        e, "nextparent/prevparent", NULL,
-							        0);
-						}
-					}
-				} else if (e->next) {
-					if (e->next->prev != &(e->next)) {
-						if (leng < MSGBUFFSIZE) {
-							leng += fs_test_log_inconsistency(
-							        e, "nexthash/prevhash",
-							        msgbuff + leng, MSGBUFFSIZE - leng);
-						} else {
-							fs_test_log_inconsistency(
-							        e, "nexthash/prevhash", NULL, 0);
-						}
+						errors++;
 					}
 				}
 			}
-			if (f->type == TYPE_DIRECTORY) {
-				for (e = f->data.ddata.children; e; e = e->nextchild) {
-					if (e->parent != f) {
-						if (e->parent) {
-							syslog(LOG_ERR,
-							       "structure error - "
-							       "edge->parent/parent->edges (node: "
-							       "%" PRIu32 " ; edge: %" PRIu32
-							       ",%s -> %" PRIu32 ")",
-							       f->id, e->parent->id,
-							       fsnodes_escape_name((std::string)e->name).c_str(),
-							       e->child->id);
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng,
-								        "structure error - "
-								        "edge->parent/"
-								        "parent->edges (node: "
-								        "%" PRIu32
-								        " ; edge: %" PRIu32
-								        ",%s -> %" PRIu32 ")\n",
-								        f->id, e->parent->id,
-								        fsnodes_escape_name((std::string)e->name).c_str(),
-								        e->child->id);
-							}
-						} else {
-							syslog(LOG_ERR,
-							       "structure error - "
-							       "edge->parent/parent->edges (node: "
-							       "%" PRIu32
-							       " ; edge: NULL,%s -> %" PRIu32 ")",
-							       f->id, fsnodes_escape_name((std::string)e->name).c_str(),
-							       e->child->id);
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng,
-								        "structure error - "
-								        "edge->parent/"
-								        "parent->edges (node: "
-								        "%" PRIu32
-								        " ; edge: NULL,%s -> "
-								        "%" PRIu32 ")\n",
-								        f->id,
-								        fsnodes_escape_name((std::string)e->name).c_str(),
-								        e->child->id);
-							}
-						}
-					} else if (e->nextchild) {
-						if (e->nextchild->prevchild != &(e->nextchild)) {
-							if (leng < MSGBUFFSIZE) {
-								leng += fs_test_log_inconsistency(
-								        e, "nextchild/prevchild",
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng);
-							} else {
-								fs_test_log_inconsistency(
-								        e, "nextchild/prevchild",
-								        NULL, 0);
-							}
-						}
-					} else if (e->nextparent) {
-						if (e->nextparent->prevparent != &(e->nextparent)) {
-							if (leng < MSGBUFFSIZE) {
-								leng += fs_test_log_inconsistency(
-								        e, "nextparent/prevparent",
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng);
-							} else {
-								fs_test_log_inconsistency(
-								        e, "nextparent/prevparent",
-								        NULL, 0);
-							}
-						}
-					} else if (e->next) {
-						if (e->next->prev != &(e->next)) {
-							if (leng < MSGBUFFSIZE) {
-								leng += fs_test_log_inconsistency(
-								        e, "nexthash/prevhash",
-								        msgbuff + leng,
-								        MSGBUFFSIZE - leng);
-							} else {
-								fs_test_log_inconsistency(
-								        e, "nexthash/prevhash",
-								        NULL, 0);
-							}
+			if (f->type == FSNode::kDirectory) {
+				for (const auto &entry : static_cast<FSNodeDirectory *>(f)->entries) {
+					FSNode *node = entry.second;
+
+					if (!node ||
+					    std::find(node->parent.begin(), node->parent.end(), f->id) ==
+					        node->parent.end()) {
+						syslog(LOG_ERR,
+						       "structure error - "
+						       "child doesn't point to parent (node: "
+						       "%" PRIu32 " ; parent: %" PRIu32 ")",
+						       node->id, f->id);
+						if (leng < MSGBUFFSIZE) {
+							leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
+							                 "structure error - "
+							                 "child doesn't point to parent (node: "
+							                 "%" PRIu32 " ; parent: %" PRIu32 ")",
+							                 node->id, f->id);
 						}
 					}
 				}
@@ -672,21 +427,27 @@ struct InodeInfo {
 };
 
 static InodeInfo fs_do_emptytrash(uint32_t ts) {
-	fsedge *e;
-	fsnode *p;
 	InodeInfo ii{0, 0};
-	e = gMetadata->trash;
-	while (e) {
-		p = e->child;
-		e = e->nextchild;
-		if (((uint64_t)(p->atime) + p->trashtime < (uint64_t)ts)) {
-			if (fsnodes_purge(ts, p)) {
+
+	auto it = gMetadata->trash.cbegin();
+	while (it != gMetadata->trash.cend()) {
+		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+
+		assert(node->type == FSNode::kTrash);
+
+		++it;
+
+		if (((uint64_t)(node->atime) + node->trashtime < (uint64_t)ts)) {
+			if (fsnodes_purge(ts, node)) {
 				ii.free++;
 			} else {
 				ii.reserved++;
 			}
+
+			it.reload();
 		}
 	}
+
 	return ii;
 }
 
@@ -711,16 +472,19 @@ uint8_t fs_apply_emptytrash(uint32_t ts, uint32_t freeinodes, uint32_t reservedi
 }
 
 uint32_t fs_do_emptyreserved(uint32_t ts) {
-	fsedge *e;
-	fsnode *p;
 	uint32_t fi = 0;
-	e = gMetadata->reserved;
-	while (e) {
-		p = e->child;
-		e = e->nextchild;
-		if (p->data.fdata.sessionids==NULL) {
-			fsnodes_purge(ts,p);
+	auto it = gMetadata->reserved.cbegin();
+	while (it != gMetadata->reserved.cend()) {
+		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+
+		assert(node->type == FSNode::kReserved);
+
+		++it;
+
+		if (node && node->sessionid.empty()) {
+			fsnodes_purge(ts,node);
 			fi++;
+			it.reload();
 		}
 	}
 	return fi;

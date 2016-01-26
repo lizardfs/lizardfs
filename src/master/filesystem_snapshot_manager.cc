@@ -83,7 +83,7 @@ void SnapshotManager::checkoutNode(std::list<CloneData>::iterator idata, int sta
 	work_queue_.erase(idata);
 }
 
-int SnapshotManager::makeSnapshot(uint32_t ts, fsnode *src_node, fsnode *parent_node,
+int SnapshotManager::makeSnapshot(uint32_t ts, FSNode *src_node, FSNodeDirectory *parent_node,
 				const HString &name, bool can_overwrite,
 				const std::function<void(int)> &callback) {
 	std::list<CloneData> tmp;
@@ -134,28 +134,28 @@ bool SnapshotManager::workAvailable() const {
 }
 
 /*! \brief Test if node can be cloned. */
-int SnapshotManager::cloneNodeTest(fsnode *src_node, fsnode *dst_parent, fsedge *dst_edge, const CloneData &info) {
+int SnapshotManager::cloneNodeTest(FSNode *src_node, FSNode *dst_node, FSNodeDirectory* dst_parent,
+		const CloneData &info) {
 	if (fsnodes_quota_exceeded_ug(src_node, {{QuotaResource::kInodes, 1}}) ||
 	    fsnodes_quota_exceeded_dir(dst_parent, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	if (src_node->type == TYPE_FILE &&
+	if (src_node->type == FSNode::kFile &&
 	    (fsnodes_quota_exceeded_ug(src_node, {{QuotaResource::kSize, 1}}) ||
 	     fsnodes_quota_exceeded_dir(dst_parent, {{QuotaResource::kSize, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	if (dst_edge) {
-		fsnode *dst_node = dst_edge->child;
+	if (dst_node) {
 		if (info.orig_inode != 0 && dst_node->id == info.orig_inode) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
 		if (dst_node->type != src_node->type) {
 			return LIZARDFS_ERROR_EPERM;
 		}
-		if (src_node->type == TYPE_TRASH || src_node->type == TYPE_RESERVED) {
+		if (src_node->type == FSNode::kTrash || src_node->type == FSNode::kReserved) {
 			return LIZARDFS_ERROR_EPERM;
 		}
-		if (src_node->type != TYPE_DIRECTORY && !info.can_overwrite) {
+		if (src_node->type != FSNode::kDirectory && !info.can_overwrite) {
 			return LIZARDFS_ERROR_EEXIST;
 		}
 	}
@@ -163,23 +163,22 @@ int SnapshotManager::cloneNodeTest(fsnode *src_node, fsnode *dst_parent, fsedge 
 }
 
 int SnapshotManager::cloneNode(uint32_t ts, const CloneData &info) {
-	fsnode *src_node = fsnodes_id_to_node(info.src_inode);
-	fsnode *dst_parent = fsnodes_id_to_node(info.dst_parent_inode);
+	FSNode *src_node = fsnodes_id_to_node(info.src_inode);
+	FSNodeDirectory *dst_parent = fsnodes_id_to_node<FSNodeDirectory>(info.dst_parent_inode);
 
-	if (!src_node || !dst_parent) {
+	if (!src_node || !dst_parent || dst_parent->type != FSNode::kDirectory) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
-	fsedge *dst_edge = fsnodes_lookup(dst_parent, HString(info.dst_name));
+	FSNode *dst_node = fsnodes_lookup(dst_parent, info.dst_name);
 
-	int status = cloneNodeTest(src_node, dst_parent, dst_edge, info);
+	int status = cloneNodeTest(src_node, dst_node, dst_parent, info);
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
 
-	fsnode *dst_node;
-	if (dst_edge) {
-		dst_node = cloneToExistingNode(ts, src_node, dst_parent, dst_edge, info);
+	if (dst_node) {
+		dst_node = cloneToExistingNode(ts, src_node, dst_parent, dst_node, info);
 	} else {
 		dst_node = cloneToNewNode(ts, src_node, dst_parent, info);
 	}
@@ -197,28 +196,28 @@ int SnapshotManager::cloneNode(uint32_t ts, const CloneData &info) {
 	return LIZARDFS_ERROR_EPERM;
 }
 
-fsnode *SnapshotManager::cloneToExistingNode(uint32_t ts, fsnode *src_node, fsnode *dst_parent,
-					fsedge *dst_edge, const CloneData &info) {
-	fsnode *dst_node = dst_edge->child;
-
+FSNode *SnapshotManager::cloneToExistingNode(uint32_t ts, FSNode *src_node, FSNodeDirectory *dst_parent,
+					FSNode *dst_node, const CloneData &info) {
 	if (dst_node->type != src_node->type) {
 		return NULL;
 	}
 
 	switch (src_node->type) {
-	case TYPE_DIRECTORY:
-		cloneDirectoryData(src_node, dst_node, info);
+	case FSNode::kDirectory:
+		cloneDirectoryData(static_cast<const FSNodeDirectory *>(src_node),
+		                   static_cast<FSNodeDirectory *>(dst_node), info);
 		break;
-	case TYPE_FILE:
-		dst_node = cloneToExistingFileNode(ts, src_node, dst_parent, dst_node, dst_edge,
-		                                      info);
+	case FSNode::kFile:
+		dst_node = cloneToExistingFileNode(ts, static_cast<FSNodeFile *>(src_node), dst_parent,
+		                                   static_cast<FSNodeFile *>(dst_node), info);
 		break;
-	case TYPE_SYMLINK:
-		cloneSymlinkData(src_node, dst_node, dst_parent);
+	case FSNode::kSymlink:
+		cloneSymlinkData(static_cast<FSNodeSymlink *>(src_node),
+		                 static_cast<FSNodeSymlink *>(dst_node), dst_parent);
 		break;
-	case TYPE_BLOCKDEV:
-	case TYPE_CHARDEV:
-		dst_node->data.devdata.rdev = src_node->data.devdata.rdev;
+	case FSNode::kBlockDev:
+	case FSNode::kCharDev:
+		static_cast<FSNodeDevice *>(dst_node)->rdev = static_cast<FSNodeDevice *>(src_node)->rdev;
 	}
 
 	dst_node->mode = src_node->mode;
@@ -231,19 +230,18 @@ fsnode *SnapshotManager::cloneToExistingNode(uint32_t ts, fsnode *src_node, fsno
 	return dst_node;
 }
 
-fsnode *SnapshotManager::cloneToNewNode(uint32_t ts, fsnode *src_node, fsnode *dst_parent,
+FSNode *SnapshotManager::cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirectory *dst_parent,
 					const CloneData &info) {
-	if (!(src_node->type == TYPE_FILE || src_node->type == TYPE_DIRECTORY ||
-	      src_node->type == TYPE_SYMLINK || src_node->type == TYPE_BLOCKDEV ||
-	      src_node->type == TYPE_CHARDEV || src_node->type == TYPE_SOCKET ||
-	      src_node->type == TYPE_FIFO)) {
+	if (!(src_node->type == FSNode::kFile || src_node->type == FSNode::kDirectory ||
+	      src_node->type == FSNode::kSymlink || src_node->type == FSNode::kBlockDev ||
+	      src_node->type == FSNode::kCharDev || src_node->type == FSNode::kSocket ||
+	      src_node->type == FSNode::kFifo)) {
 		return NULL;
 	}
 
-	fsnode *dst_node = fsnodes_create_node(
-	        ts, dst_parent, info.dst_name,
-	        src_node->type, src_node->mode, 0, src_node->uid, src_node->gid, 0,
-	        AclInheritance::kDontInheritAcl, info.dst_inode);
+	FSNode *dst_node = fsnodes_create_node(ts, dst_parent, info.dst_name, src_node->type,
+	                                       src_node->mode, 0, src_node->uid, src_node->gid, 0,
+	                                       AclInheritance::kDontInheritAcl, info.dst_inode);
 
 	dst_node->goal = src_node->goal;
 	dst_node->trashtime = src_node->trashtime;
@@ -252,106 +250,91 @@ fsnode *SnapshotManager::cloneToNewNode(uint32_t ts, fsnode *src_node, fsnode *d
 	dst_node->mtime = src_node->mtime;
 
 	switch (src_node->type) {
-	case TYPE_DIRECTORY:
-		cloneDirectoryData(src_node, dst_node, info);
+	case FSNode::kDirectory:
+		cloneDirectoryData(static_cast<const FSNodeDirectory *>(src_node),
+		                   static_cast<FSNodeDirectory *>(dst_node), info);
 		break;
-	case TYPE_FILE:
-		cloneChunkData(src_node, dst_node, dst_parent);
+	case FSNode::kFile:
+		cloneChunkData(static_cast<FSNodeFile *>(src_node), static_cast<FSNodeFile *>(dst_node),
+		               dst_parent);
 		break;
-	case TYPE_SYMLINK:
-		cloneSymlinkData(src_node, dst_node, dst_parent);
+	case FSNode::kSymlink:
+		cloneSymlinkData(static_cast<FSNodeSymlink *>(src_node),
+		                 static_cast<FSNodeSymlink *>(dst_node), dst_parent);
 		break;
-	case TYPE_BLOCKDEV:
-	case TYPE_CHARDEV:
-		dst_node->data.devdata.rdev = src_node->data.devdata.rdev;
+	case FSNode::kBlockDev:
+	case FSNode::kCharDev:
+		static_cast<FSNodeDevice *>(dst_node)->rdev = static_cast<FSNodeDevice *>(src_node)->rdev;
 	}
 
 	return dst_node;
 }
 
-fsnode *SnapshotManager::cloneToExistingFileNode(uint32_t ts, fsnode *src_node, fsnode *dst_parent,
-				fsnode *dst_node, fsedge *dst_edge,const CloneData &info) {
-	bool same = false;
-
-	if (dst_node->data.fdata.length == src_node->data.fdata.length &&
-	    dst_node->data.fdata.chunks == src_node->data.fdata.chunks) {
-		same = true;
-		for (uint32_t i = 0; i < src_node->data.fdata.chunks && same; i++) {
-			if (src_node->data.fdata.chunktab[i] != dst_node->data.fdata.chunktab[i]) {
-				same = false;
-			}
-		}
-	}
+FSNodeFile *SnapshotManager::cloneToExistingFileNode(uint32_t ts, FSNodeFile *src_node,
+		FSNodeDirectory *dst_parent, FSNodeFile *dst_node, const CloneData &info) {
+	bool same = dst_node->length == src_node->length && dst_node->chunks == src_node->chunks;
 
 	if (same) {
 		return dst_node;
 	}
 
-	fsnodes_unlink(ts, dst_edge);
-	dst_node = fsnodes_create_node(ts, dst_parent, info.dst_name, TYPE_FILE,
-	                               src_node->mode, 0, src_node->uid, src_node->gid, 0,
-	                               AclInheritance::kDontInheritAcl, info.dst_inode);
+	fsnodes_unlink(ts, dst_parent, info.dst_name, dst_node);
+	dst_node = static_cast<FSNodeFile *>(fsnodes_create_node(
+	    ts, dst_parent, info.dst_name, FSNode::kFile, src_node->mode, 0, src_node->uid,
+	    src_node->gid, 0, AclInheritance::kDontInheritAcl, info.dst_inode));
 
 	cloneChunkData(src_node, dst_node, dst_parent);
 
 	return dst_node;
 }
 
-void SnapshotManager::cloneChunkData(fsnode *src_node, fsnode *dst_node, fsnode *dst_parent) {
+void SnapshotManager::cloneChunkData(const FSNodeFile *src_node, FSNodeFile *dst_node,
+		FSNodeDirectory *dst_parent) {
 	statsrecord psr, nsr;
 
 	fsnodes_get_stats(dst_node, &psr);
 
 	dst_node->goal = src_node->goal;
 	dst_node->trashtime = src_node->trashtime;
-	if (src_node->data.fdata.chunks > 0) {
-		dst_node->data.fdata.chunktab =
-		        static_cast<uint64_t *>(malloc(sizeof(uint64_t) * (src_node->data.fdata.chunks)));
-		passert(dst_node->data.fdata.chunktab);
-		dst_node->data.fdata.chunks = src_node->data.fdata.chunks;
-		for (uint32_t i = 0; i < src_node->data.fdata.chunks; i++) {
-			uint64_t chunkid = src_node->data.fdata.chunktab[i];
-			dst_node->data.fdata.chunktab[i] = chunkid;
-			if (chunkid > 0) {
-				if (chunk_add_file(chunkid, dst_node->goal) != LIZARDFS_STATUS_OK) {
-					syslog(LOG_ERR, "structure error - chunk %016" PRIX64
-					                " not found (inode: %" PRIu32
-					                " ; index: %" PRIu32 ")",
-					       chunkid, src_node->id, i);
-				}
+	dst_node->chunks = src_node->chunks;
+	dst_node->length = src_node->length;
+	for (uint32_t i = 0; i < src_node->chunks.size(); ++i) {
+		auto chunkid = src_node->chunks[i];
+		if (chunkid > 0) {
+			if (chunk_add_file(chunkid, dst_node->goal) != LIZARDFS_STATUS_OK) {
+				syslog(LOG_ERR, "structure error - chunk %016" PRIX64 " not found (inode: %" PRIu32
+				                " ; index: %" PRIu32 ")",
+				       chunkid, src_node->id, i);
 			}
 		}
-	} else {
-		dst_node->data.fdata.chunktab = NULL;
-		dst_node->data.fdata.chunks = 0;
 	}
-	dst_node->data.fdata.length = src_node->data.fdata.length;
 
 	fsnodes_get_stats(dst_node, &nsr);
 	fsnodes_add_sub_stats(dst_parent, &nsr, &psr);
 	fsnodes_quota_update(dst_node, {{QuotaResource::kSize, nsr.size - psr.size}});
 }
 
-void SnapshotManager::cloneDirectoryData(fsnode *src_node, fsnode *dst_node,
+void SnapshotManager::cloneDirectoryData(const FSNodeDirectory *src_node, FSNodeDirectory *dst_node,
 					const CloneData &info) {
 	if (!info.enqueue_work) {
 		return;
 	}
-	for (fsedge *e = src_node->data.ddata.children; e; e = e->nextchild) {
-		work_queue_.push_back({info.orig_inode, e->child->id, dst_node->id, 0,
-		                       (HString)e->name, info.can_overwrite,
+	for(const auto &entry : src_node->entries) {
+		work_queue_.push_back({info.orig_inode, entry.second->id, dst_node->id, 0,
+		                       (HString)entry.first, info.can_overwrite,
 		                       info.emit_changelog, info.enqueue_work, info.request});
 		info.request->enqueued_count++;
 	}
 }
 
-void SnapshotManager::cloneSymlinkData(fsnode *src_node, fsnode *dst_node, fsnode *dst_parent) {
+void SnapshotManager::cloneSymlinkData(FSNodeSymlink *src_node, FSNodeSymlink *dst_node,
+		FSNodeDirectory *dst_parent) {
 	statsrecord psr, nsr;
 
 	fsnodes_get_stats(dst_node, &psr);
 
-	dst_node->symlink_path() = src_node->symlink_path();
-	dst_node->data.sdata.pleng = src_node->data.sdata.pleng;
+	dst_node->path = src_node->path;
+	dst_node->path_length = src_node->path_length;
 
 	fsnodes_get_stats(dst_node, &nsr);
 	fsnodes_add_sub_stats(dst_parent, &nsr, &psr);

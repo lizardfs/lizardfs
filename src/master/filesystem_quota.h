@@ -37,7 +37,7 @@ bool fsnodes_quota_exceeded_ug(uint32_t uid, uint32_t gid,
  * \param resource_list Required changes to resources.
  * \return true if quota is exceeded.
  */
-bool fsnodes_quota_exceeded_ug(fsnode *node,
+bool fsnodes_quota_exceeded_ug(FSNode *node,
 	const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list);
 
 /*! \brief Test if resource change exceeds quota for directories.
@@ -45,7 +45,7 @@ bool fsnodes_quota_exceeded_ug(fsnode *node,
  * \param resource_list Required changes to resources.
  * \return true if quota is exceeded.
  */
-bool fsnodes_quota_exceeded_dir(fsnode *node,
+bool fsnodes_quota_exceeded_dir(FSNode *node,
 	const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list);
 
 /*! \brief Test if moving node (moving resources from one parent to other) exceeds quota.
@@ -54,7 +54,7 @@ bool fsnodes_quota_exceeded_dir(fsnode *node,
  * \param resource_list required changes to quota.
  * \return true if quota is exceeded.
  */
-bool fsnodes_quota_exceeded_dir(fsnode *node, fsnode* prev_node,
+bool fsnodes_quota_exceeded_dir(FSNodeDirectory *node, FSNodeDirectory* prev_node,
 	const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list);
 
 
@@ -64,7 +64,7 @@ bool fsnodes_quota_exceeded_dir(fsnode *node, fsnode* prev_node,
  * \param resource_list Required changes to resources.
  * \return true if quota is exceeded.
  */
-bool fsnodes_quota_exceeded(fsnode *node,
+bool fsnodes_quota_exceeded(FSNode *node,
 	const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list);
 
 /*! \brief Update quota for both user+group and directory.
@@ -73,7 +73,7 @@ bool fsnodes_quota_exceeded(fsnode *node,
  * \param resource_list Required changes to quota.
  * \return true if quota is exceeded.
  */
-void fsnodes_quota_update(fsnode *node,
+void fsnodes_quota_update(FSNode *node,
 	const std::initializer_list<std::pair<QuotaResource, int64_t>> &resource_list);
 
 /*! \brief Remove quota.
@@ -87,4 +87,4 @@ void fsnodes_quota_remove(QuotaOwnerType owner_type, uint32_t owner_id);
  * \param total_space Totals space (used + free).
  * \param available_space Free space.
  */
-void fsnodes_quota_adjust_space(fsnode *node, uint64_t &total_space, uint64_t &available_space);
+void fsnodes_quota_adjust_space(FSNode *node, uint64_t &total_space, uint64_t &available_space);

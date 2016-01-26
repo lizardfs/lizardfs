@@ -25,56 +25,55 @@
 
 #ifdef METARESTORE
 
-void fs_dumpedge(fsedge *e) {
-	if (e->parent == NULL) {
-		if (e->child->type == TYPE_TRASH) {
-			printf("E|p:     TRASH|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name((std::string)e->name).c_str());
-		} else if (e->child->type == TYPE_RESERVED) {
-			printf("E|p:  RESERVED|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name((std::string)e->name).c_str());
+void fs_dumpedge(FSNodeDirectory *parent, FSNode *child, const std::string &name) {
+	if (parent == NULL) {
+		if (child->type == FSNode::kTrash) {
+			printf("E|p:     TRASH|c:%10" PRIu32 "|n:%s\n", child->id,
+			       fsnodes_escape_name(name).c_str());
+		} else if (child->type == FSNode::kReserved) {
+			printf("E|p:  RESERVED|c:%10" PRIu32 "|n:%s\n", child->id,
+			       fsnodes_escape_name(name).c_str());
 		} else {
-			printf("E|p:      NULL|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name((std::string)e->name).c_str());
+			printf("E|p:      NULL|c:%10" PRIu32 "|n:%s\n", child->id,
+			       fsnodes_escape_name(name).c_str());
 		}
 	} else {
-		printf("E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:%s\n", e->parent->id, e->child->id,
-		       fsnodes_escape_name((std::string)e->name).c_str());
+		printf("E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:%s\n", parent->id, child->id,
+		       fsnodes_escape_name(name).c_str());
 	}
 }
 
-void fs_dumpnode(fsnode *f) {
+void fs_dumpnode(FSNode *f) {
 	char c;
 	uint32_t i, ch;
-	sessionidrec *sessionidptr;
 
 	c = '?';
 	switch (f->type) {
-	case TYPE_DIRECTORY:
+	case FSNode::kDirectory:
 		c = 'D';
 		break;
-	case TYPE_SOCKET:
+	case FSNode::kSocket:
 		c = 'S';
 		break;
-	case TYPE_FIFO:
+	case FSNode::kFifo:
 		c = 'F';
 		break;
-	case TYPE_BLOCKDEV:
+	case FSNode::kBlockDev:
 		c = 'B';
 		break;
-	case TYPE_CHARDEV:
+	case FSNode::kCharDev:
 		c = 'C';
 		break;
-	case TYPE_SYMLINK:
+	case FSNode::kSymlink:
 		c = 'L';
 		break;
-	case TYPE_FILE:
+	case FSNode::kFile:
 		c = '-';
 		break;
-	case TYPE_TRASH:
+	case FSNode::kTrash:
 		c = 'T';
 		break;
-	case TYPE_RESERVED:
+	case FSNode::kReserved:
 		c = 'R';
 		break;
 	}
@@ -84,22 +83,18 @@ void fs_dumpnode(fsnode *f) {
 	       c, f->id, f->goal, (uint16_t)(f->mode >> 12), (uint16_t)(f->mode & 0xFFF), f->uid,
 	       f->gid, f->atime, f->mtime, f->ctime, f->trashtime);
 
-	if (f->type == TYPE_BLOCKDEV || f->type == TYPE_CHARDEV) {
-		printf("|d:%5" PRIu32 ",%5" PRIu32 "\n", f->data.devdata.rdev >> 16,
-		       f->data.devdata.rdev & 0xFFFF);
-	} else if (f->type == TYPE_SYMLINK) {
-		printf("|p:%s\n", fsnodes_escape_name((std::string)f->symlink_path()).c_str());
-	} else if (f->type == TYPE_FILE || f->type == TYPE_TRASH || f->type == TYPE_RESERVED) {
-		printf("|l:%20" PRIu64 "|c:(", f->data.fdata.length);
-		ch = 0;
-		for (i = 0; i < f->data.fdata.chunks; i++) {
-			if (f->data.fdata.chunktab[i] != 0) {
-				ch = i + 1;
-			}
-		}
+	if (f->type == FSNode::kBlockDev || f->type == FSNode::kCharDev) {
+		printf("|d:%5" PRIu32 ",%5" PRIu32 "\n", static_cast<FSNodeDevice*>(f)->rdev >> 16,
+		       static_cast<FSNodeDevice*>(f)->rdev & 0xFFFF);
+	} else if (f->type == FSNode::kSymlink) {
+		printf("|p:%s\n", fsnodes_escape_name((std::string)static_cast<FSNodeSymlink*>(f)->path).c_str());
+	} else if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
+		FSNodeFile *node_file = static_cast<FSNodeFile*>(f);
+		printf("|l:%20" PRIu64 "|c:(", node_file->length);
+		ch = node_file->chunkCount();
 		for (i = 0; i < ch; i++) {
-			if (f->data.fdata.chunktab[i] != 0) {
-				printf("%016" PRIX64, f->data.fdata.chunktab[i]);
+			if (node_file->chunks[i] != 0) {
+				printf("%016" PRIX64, node_file->chunks[i]);
 			} else {
 				printf("N");
 			}
@@ -108,12 +103,13 @@ void fs_dumpnode(fsnode *f) {
 			}
 		}
 		printf(")|r:(");
-		for (sessionidptr = f->data.fdata.sessionids; sessionidptr;
-		     sessionidptr = sessionidptr->next) {
-			printf("%" PRIu32, sessionidptr->sessionid);
-			if (sessionidptr->next) {
+		i = 0;
+		for(const auto &sessionid : node_file->sessionid) {
+			if (i > 0) {
 				printf(",");
 			}
+			printf("%" PRIu32, sessionid);
+			++i;
 		}
 		printf(")\n");
 	} else {
@@ -123,7 +119,7 @@ void fs_dumpnode(fsnode *f) {
 
 void fs_dumpnodes() {
 	uint32_t i;
-	fsnode *p;
+	FSNode *p;
 	for (i = 0; i < NODEHASHSIZE; i++) {
 		for (p = gMetadata->nodehash[i]; p; p = p->next) {
 			fs_dumpnode(p);
@@ -131,19 +127,25 @@ void fs_dumpnodes() {
 	}
 }
 
-void fs_dumpedgelist(fsedge *e) {
-	while (e) {
-		fs_dumpedge(e);
-		e = e->nextchild;
+void fs_dumpedgelist(FSNodeDirectory *parent) {
+	for (const auto &entry : parent->entries) {
+		fs_dumpedge(parent, entry.second, (std::string)entry.first);
 	}
 }
 
-void fs_dumpedges(fsnode *f) {
-	fsedge *e;
-	fs_dumpedgelist(f->data.ddata.children);
-	for (e = f->data.ddata.children; e; e = e->nextchild) {
-		if (e->child->type == TYPE_DIRECTORY) {
-			fs_dumpedges(e->child);
+void fs_dumpedgelist(const judy_map<uint32_t, hstorage::Handle> &data) {
+	for (const auto &entry : data) {
+		FSNode *child = fsnodes_id_to_node(entry.first);
+		fs_dumpedge(nullptr, child, (std::string)entry.second);
+	}
+}
+
+void fs_dumpedges(FSNodeDirectory *parent) {
+	fs_dumpedgelist(parent);
+	for (const auto &entry : parent->entries) {
+		FSNode *child = entry.second;
+		if (child->type == FSNode::kDirectory) {
+			fs_dumpedges(static_cast<FSNodeDirectory*>(child));
 		}
 	}
 }

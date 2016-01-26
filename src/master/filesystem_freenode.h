@@ -22,17 +22,6 @@
 #include "common/platform.h"
 #include "master/filesystem_node.h"
 
-#define CUIDREC_BUCKET_SIZE 1000
-typedef struct _sessionidrec_bucket {
-	sessionidrec bucket[CUIDREC_BUCKET_SIZE];
-	uint32_t firstfree;
-	struct _sessionidrec_bucket *next;
-} sessionidrec_bucket;
-
-void sessionidrec_free(sessionidrec *p);
-
-sessionidrec *sessionidrec_malloc();
-
 /*! \brief Get next free inode number.
  *
  * \param ts        - current time stamp

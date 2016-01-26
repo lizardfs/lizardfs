@@ -30,10 +30,7 @@
  */
 enum class ChecksumRecalculatingStep {
 	kNone,
-	kTrash,
-	kReserved,
 	kNodes,
-	kEdges,
 	kXattrs,
 	kChunks,
 	kDone
@@ -77,10 +74,7 @@ public:
 	void incPosition();
 
 	// is node already included in the background checksum?
-	bool isNodeIncluded(fsnode *node);
-
-	// is edge already included in the background checksum?
-	bool isEdgeIncluded(fsedge *edge);
+	bool isNodeIncluded(FSNode *node);
 
 	// is xattr already included in the background checksum?
 	bool isXattrIncluded(xattr_data_entry *xde);
@@ -97,7 +91,6 @@ public:
 public:
 	// Checksum values
 	uint64_t fsNodesChecksum;
-	uint64_t fsEdgesChecksum;
 	uint64_t xattrChecksum;
 
 private:

@@ -80,7 +80,7 @@ public:
 	 * \param can_overwrite if true then snapshot can overwrite existing files.
 	 * \param callback function to be called on snapshot finish.
 	 */
-	int makeSnapshot(uint32_t ts, fsnode *src_node, fsnode *parent_node,
+	int makeSnapshot(uint32_t ts, FSNode *src_node, FSNodeDirectory *parent_node,
 	                 const HString &name, bool can_overwrite,
 	                 const std::function<void(int)> &callback);
 
@@ -115,17 +115,21 @@ public:
 	bool workAvailable() const;
 
 protected:
-	int cloneNodeTest(fsnode *src_node, fsnode *dst_parent, fsedge *dst_edge,
-	                  const CloneData &info);
-	fsnode *cloneToExistingNode(uint32_t ts, fsnode *src_node, fsnode *parent_node,
-	                            fsedge *dst_edge, const CloneData &info);
-	fsnode *cloneToNewNode(uint32_t ts, fsnode *src_node, fsnode *parent_node,
+	int cloneNodeTest(FSNode *src_node, FSNode *dst_node, FSNodeDirectory *dst_parent, const CloneData &info);
+	FSNode *cloneToExistingNode(uint32_t ts, FSNode *src_node, FSNodeDirectory *dst_parent, FSNode *dst_node,
+	                            const CloneData &info);
+	FSNode *cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirectory *dst_parent,
 	                       const CloneData &info);
-	fsnode *cloneToExistingFileNode(uint32_t ts, fsnode *src_node, fsnode *parent_node,
-	                                fsnode *dst_node, fsedge *dst_edge, const CloneData &info);
-	void cloneChunkData(fsnode *src_node, fsnode *dst_node, fsnode *parent_node);
-	void cloneDirectoryData(fsnode *src_node, fsnode *dst_node, const CloneData &info);
-	void cloneSymlinkData(fsnode *src_node, fsnode *dst_node, fsnode *parent_node);
+	FSNodeFile *cloneToExistingFileNode(uint32_t ts, FSNodeFile *src_node,
+	                                    FSNodeDirectory *dst_parent, FSNodeFile *dst_node,
+	                                    const CloneData &info);
+	void cloneChunkData(const FSNodeFile *src_node, FSNodeFile *dst_node,
+	                    FSNodeDirectory *dst_parent);
+	void cloneDirectoryData(const FSNodeDirectory *src_node, FSNodeDirectory *dst_node,
+	                        const CloneData &info);
+	void cloneDirectoryData(FSNodeDirectory *src_node, FSNodeDirectory *dst_node, const CloneData &info);
+	void cloneSymlinkData(FSNodeSymlink *src_node, FSNodeSymlink *dst_node,
+	                      FSNodeDirectory *dst_parent);
 
 	void emitChangelog(uint32_t ts, uint32_t dst_inode, const CloneData &info);
 

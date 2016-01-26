@@ -46,13 +46,10 @@ public:
 	xattr_inode_entry *xattr_inode_hash[XATTR_INODE_HASH_SIZE];
 	xattr_data_entry *xattr_data_hash[XATTR_DATA_HASH_SIZE];
 	IdPoolDetainer<uint32_t, uint32_t> inode_pool;
-	fsedge *trash;
-	fsedge *reserved;
-	fsnode *root;
-	fsnode *nodehash[NODEHASHSIZE];
-	fsedge *edgehash[EDGEHASHSIZE];
-	sessionidrec_bucket *crbhead;
-	sessionidrec *crfreehead;
+	judy_map<uint32_t, hstorage::Handle> trash;
+	judy_map<uint32_t, hstorage::Handle> reserved;
+	FSNodeDirectory *root;
+	FSNode *nodehash[NODEHASHSIZE];
 	SnapshotManager snapshot_manager;
 	FileLocks flock_locks;
 	FileLocks posix_locks;
@@ -71,7 +68,6 @@ public:
 	QuotaDatabase quota_database;
 
 	uint64_t fsNodesChecksum;
-	uint64_t fsEdgesChecksum;
 	uint64_t xattrChecksum;
 	uint64_t quota_checksum;
 
@@ -86,9 +82,6 @@ public:
 	      reserved{},
 	      root{},
 	      nodehash{},
-	      edgehash{},
-	      crbhead{},
-	      crfreehead{},
 	      snapshot_manager{},
 	      flock_locks{},
 	      posix_locks{},
@@ -104,7 +97,6 @@ public:
 	      dirnodes{},
 	      quota_database{},
 	      fsNodesChecksum{},
-	      fsEdgesChecksum{},
 	      xattrChecksum{},
 	      quota_checksum{quota_database.checksum()} {
 	}
@@ -120,32 +112,15 @@ public:
 			deleteListConnectedUsingNext(xattr_data_hash[i]);
 		}
 
-		// Free memory allocated in trash list
-		while (trash != nullptr) {
-			fsedge *next = trash->nextchild;
-			delete trash;
-			trash = next;
-		}
-
-		// Free memory allocated in reserved list
-		while (reserved != nullptr) {
-			fsedge *next = reserved->nextchild;
-			delete reserved;
-			reserved = next;
-		}
-
 		// Free memory allocated in nodehash hashmap
 		for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-			deleteListConnectedUsingNext(nodehash[i]);
+			FSNode *node = nodehash[i];
+			while (node != nullptr) {
+				FSNode *next = node->next;
+				FSNode::destroy(node);
+				node = next;
+			}
 		}
-
-		// Free memory allocated in edgehash hashmap
-		for (uint32_t i = 0; i < EDGEHASHSIZE; ++i) {
-			deleteListConnectedUsingNext(edgehash[i]);
-		}
-
-		// Free memory allocated in crbhead lists
-		freeListConnectedUsingNext(crbhead);
 	}
 
 private:

@@ -28,10 +28,8 @@
 #include "master/filesystem_node.h"
 #include "master/personality.h"
 
-void fsedges_checksum_add_to_background(fsedge *edge);
-void fsedges_update_checksum(fsedge *edge);
-void fsnodes_checksum_add_to_background(fsnode *node);
-void fsnodes_update_checksum(fsnode *node);
+void fsnodes_checksum_add_to_background(FSNode *node);
+void fsnodes_update_checksum(FSNode *node);
 
 uint64_t fs_checksum(ChecksumMode mode);
 uint8_t fs_start_checksum_recalculation();

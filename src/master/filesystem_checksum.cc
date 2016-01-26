@@ -29,7 +29,7 @@
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_xattr.h"
 
-static uint64_t fsnodes_checksum(const fsnode *node) {
+static uint64_t fsnodes_checksum(FSNode *node, bool full_update = false) {
 	if (!node) {
 		return 0;
 	}
@@ -37,39 +37,47 @@ static uint64_t fsnodes_checksum(const fsnode *node) {
 	hashCombine(seed, node->type, node->id, node->goal, node->mode, node->uid, node->gid,
 	            node->atime, node->mtime, node->ctime, node->trashtime);
 	switch (node->type) {
-	case TYPE_DIRECTORY:
-	case TYPE_SOCKET:
-	case TYPE_FIFO:
+	case FSNode::kDirectory:
+		if (full_update) {
+			static_cast<FSNodeDirectory*>(node)->entries_hash = 0;
+			for(const auto &entry : *static_cast<FSNodeDirectory*>(node)) {
+				static_cast<FSNodeDirectory*>(node)->entries_hash ^= entry.first.hash();
+			}
+		}
+		hashCombine(seed, static_cast<const FSNodeDirectory*>(node)->entries_hash);
 		break;
-	case TYPE_BLOCKDEV:
-	case TYPE_CHARDEV:
-		hashCombine(seed, node->data.devdata.rdev);
+	case FSNode::kSocket:
+	case FSNode::kFifo:
 		break;
-	case TYPE_SYMLINK:
-		hashCombine(seed, node->symlink_path().hash());
+	case FSNode::kBlockDev:
+	case FSNode::kCharDev:
+		hashCombine(seed, static_cast<const FSNodeDevice*>(node)->rdev);
 		break;
-	case TYPE_FILE:
-	case TYPE_TRASH:
-	case TYPE_RESERVED:
-		hashCombine(seed, node->data.fdata.length);
+	case FSNode::kSymlink:
+		hashCombine(seed, static_cast<const FSNodeSymlink*>(node)->path.hash());
+		break;
+	case FSNode::kFile:
+	case FSNode::kTrash:
+	case FSNode::kReserved:
+		hashCombine(seed, static_cast<const FSNodeFile*>(node)->length);
 		// first chunk's id
-		if (node->data.fdata.length == 0 || node->data.fdata.chunks == 0) {
+		if (static_cast<const FSNodeFile*>(node)->length == 0 || static_cast<const FSNodeFile*>(node)->chunks.size() == 0) {
 			hashCombine(seed, static_cast<uint64_t>(0));
 		} else {
-			hashCombine(seed, node->data.fdata.chunktab[0]);
+			hashCombine(seed, static_cast<const FSNodeFile*>(node)->chunks[0]);
 		}
 		// last chunk's id
-		uint32_t lastchunk = (node->data.fdata.length - 1) / MFSCHUNKSIZE;
-		if (node->data.fdata.length == 0 || lastchunk >= node->data.fdata.chunks) {
+		uint32_t lastchunk = (static_cast<const FSNodeFile*>(node)->length - 1) / MFSCHUNKSIZE;
+		if (static_cast<const FSNodeFile*>(node)->length == 0 || lastchunk >= static_cast<const FSNodeFile*>(node)->chunks.size()) {
 			hashCombine(seed, static_cast<uint64_t>(0));
 		} else {
-			hashCombine(seed, node->data.fdata.chunktab[lastchunk]);
+			hashCombine(seed, static_cast<const FSNodeFile*>(node)->chunks[lastchunk]);
 		}
 	}
 	return seed;
 }
 
-void fsnodes_checksum_add_to_background(fsnode *node) {
+void fsnodes_checksum_add_to_background(FSNode *node) {
 	if (!node) {
 		return;
 	}
@@ -79,7 +87,7 @@ void fsnodes_checksum_add_to_background(fsnode *node) {
 	addToChecksum(gChecksumBackgroundUpdater.fsNodesChecksum, node->checksum);
 }
 
-void fsnodes_update_checksum(fsnode *node) {
+void fsnodes_update_checksum(FSNode *node) {
 	if (!node) {
 		return;
 	}
@@ -98,81 +106,10 @@ static void fsnodes_recalculate_checksum() {
 	gMetadata->fsNodesChecksum = NODECHECKSUMSEED;  // arbitrary number
 	// nodes
 	for (uint32_t i = 0; i < NODEHASHSIZE; i++) {
-		for (fsnode *node = gMetadata->nodehash[i]; node; node = node->next) {
-			node->checksum = fsnodes_checksum(node);
+		for (FSNode *node = gMetadata->nodehash[i]; node; node = node->next) {
+			node->checksum = fsnodes_checksum(node, true);
 			addToChecksum(gMetadata->fsNodesChecksum, node->checksum);
 		}
-	}
-}
-
-static uint64_t fsedges_checksum(const fsedge *edge) {
-	if (!edge) {
-		return 0;
-	}
-	uint64_t seed = 0xb14f9f1819ff266c;  // random number
-	if (edge->parent) {
-		hashCombine(seed, edge->parent->id);
-	}
-	hashCombine(seed, edge->child->id, edge->name.hash());
-	return seed;
-}
-
-static void fsedges_checksum_edges_list(uint64_t &checksum, fsedge *edge) {
-	while (edge) {
-		edge->checksum = fsedges_checksum(edge);
-		addToChecksum(checksum, edge->checksum);
-		edge = edge->nextchild;
-	}
-}
-
-static void fsedges_checksum_edges_rec(uint64_t &checksum, fsnode *node) {
-	if (!node) {
-		return;
-	}
-	fsedges_checksum_edges_list(checksum, node->data.ddata.children);
-	for (const fsedge *edge = node->data.ddata.children; edge; edge = edge->nextchild) {
-		if (edge->child->type == TYPE_DIRECTORY) {
-			fsedges_checksum_edges_rec(checksum, edge->child);
-		}
-	}
-}
-
-void fsedges_checksum_add_to_background(fsedge *edge) {
-	if (!edge) {
-		return;
-	}
-	removeFromChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
-	edge->checksum = fsedges_checksum(edge);
-	addToChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
-	addToChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
-}
-
-void fsedges_update_checksum(fsedge *edge) {
-	if (!edge) {
-		return;
-	}
-	if (gChecksumBackgroundUpdater.isEdgeIncluded(edge)) {
-		removeFromChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
-	}
-	removeFromChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
-	edge->checksum = fsedges_checksum(edge);
-	addToChecksum(gMetadata->fsEdgesChecksum, edge->checksum);
-	if (gChecksumBackgroundUpdater.isEdgeIncluded(edge)) {
-		addToChecksum(gChecksumBackgroundUpdater.fsEdgesChecksum, edge->checksum);
-	}
-}
-
-static void fsedges_recalculate_checksum() {
-	gMetadata->fsEdgesChecksum = EDGECHECKSUMSEED;
-	// edges
-	if (gMetadata->root) {
-		fsedges_checksum_edges_rec(gMetadata->fsEdgesChecksum, gMetadata->root);
-	}
-	if (gMetadata->trash) {
-		fsedges_checksum_edges_list(gMetadata->fsEdgesChecksum, gMetadata->trash);
-	}
-	if (gMetadata->reserved) {
-		fsedges_checksum_edges_list(gMetadata->fsEdgesChecksum, gMetadata->reserved);
 	}
 }
 
@@ -183,12 +120,10 @@ uint64_t fs_checksum(ChecksumMode mode) {
 	hashCombine(checksum, gMetadata->nextsessionid);
 	if (mode == ChecksumMode::kForceRecalculate) {
 		fsnodes_recalculate_checksum();
-		fsedges_recalculate_checksum();
 		xattr_recalculate_checksum();
 		gMetadata->quota_checksum = gMetadata->quota_database.checksum();
 	}
 	hashCombine(checksum, gMetadata->fsNodesChecksum);
-	hashCombine(checksum, gMetadata->fsEdgesChecksum);
 	hashCombine(checksum, gMetadata->xattrChecksum);
 	hashCombine(checksum, gMetadata->quota_checksum);
 	hashCombine(checksum, chunk_checksum(mode));

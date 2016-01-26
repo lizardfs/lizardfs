@@ -68,7 +68,7 @@ void ChecksumBackgroundUpdater::incPosition() {
 	++position_;
 }
 
-bool ChecksumBackgroundUpdater::isNodeIncluded(fsnode *node) {
+bool ChecksumBackgroundUpdater::isNodeIncluded(FSNode *node) {
 	auto ret = false;
 	if (step_ > ChecksumRecalculatingStep::kNodes) {
 		ret = true;
@@ -80,34 +80,6 @@ bool ChecksumBackgroundUpdater::isNodeIncluded(fsnode *node) {
 		DEBUG_LOG("master.fs.checksum.changing_recalculated_node");
 	} else {
 		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_node");
-	}
-	return ret;
-}
-
-bool ChecksumBackgroundUpdater::isEdgeIncluded(fsedge *edge) {
-	auto ret = false;
-	if (edge->child->type == TYPE_TRASH) {
-		if (step_ > ChecksumRecalculatingStep::kTrash) {
-			ret = true;
-		} else {
-			ret = false;
-		}
-	} else if (edge->child->type == TYPE_RESERVED) {
-		if (step_ > ChecksumRecalculatingStep::kReserved) {
-			ret = true;
-		} else {
-			ret = false;
-		}
-	} else if (step_ > ChecksumRecalculatingStep::kEdges) {
-		ret = true;
-	} else if (step_ == ChecksumRecalculatingStep::kEdges &&
-	           EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->name)) < position_) {
-		ret = true;
-	}
-	if (ret) {
-		DEBUG_LOG("master.fs.checksum.changing_recalculated_edge");
-	} else {
-		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_edge");
 	}
 	return ret;
 }
@@ -143,11 +115,6 @@ void ChecksumBackgroundUpdater::updateChecksum() {
 		gMetadata->fsNodesChecksum = fsNodesChecksum;
 		DEBUG_LOG("master.fs.checksum.mismatch");
 	}
-	if (fsEdgesChecksum != gMetadata->fsEdgesChecksum) {
-		syslog(LOG_WARNING, "FsEdges checksum mismatch found, replacing with a new value.");
-		gMetadata->fsEdgesChecksum = fsEdgesChecksum;
-		DEBUG_LOG("master.fs.checksum.mismatch");
-	}
 	if (xattrChecksum != gMetadata->xattrChecksum) {
 		syslog(LOG_WARNING, "Xattr checksum mismatch found, replacing with a new value.");
 		gMetadata->xattrChecksum = xattrChecksum;
@@ -159,6 +126,5 @@ void ChecksumBackgroundUpdater::reset() {
 	position_ = 0;
 	step_ = ChecksumRecalculatingStep::kNone;
 	fsNodesChecksum = NODECHECKSUMSEED;
-	fsEdgesChecksum = EDGECHECKSUMSEED;
 	xattrChecksum = XATTRCHECKSUMSEED;
 }
