@@ -326,15 +326,14 @@ void* job_worker(void *th_arg) {
 						gReplicator.replicate(creator, sources);
 						status = LIZARDFS_STATUS_OK;
 					} catch (Exception& ex) {
-						syslog(LOG_WARNING, "replication error: %s", ex.what());
+						lzfs_pretty_syslog(LOG_WARNING, "replication error: %s", ex.what());
 						status = ex.status();
 					}
 				}
 				break;
 			}
-			default: // OP_EXIT
-//                              syslog(LOG_NOTICE,"worker %p exiting (jobqueue: %p)",(void*)pthread_self(),jp->jobqueue);
-				return NULL;
+			default:
+				return nullptr;
 		}
 		job_send_status(jp,jobid,status);
 	}
