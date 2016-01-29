@@ -2235,7 +2235,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	auid = uid = get32bit(&data);
 	agid = gid = get32bit(&data);
 	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_lookup(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid,auid,agid,&newinode,attr);
+	status = fs_lookup(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,HString((char*)name, nleng),uid,gid,auid,agid,&newinode,attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_LOOKUP,(status!=LIZARDFS_STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=LIZARDFS_STATUS_OK) {
@@ -2444,29 +2444,29 @@ void matoclserv_fuse_truncate(matoclserventry *eptr, PacketHeader header, const 
 
 void matoclserv_fuse_readlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
-	uint32_t pleng;
-	uint8_t *path;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
-	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_READLINK - wrong size (%" PRIu32 "/8)",length);
+	std::string path;
+	if (length != 8) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_READLINK - wrong size (%" PRIu32 "/8)", length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
-	status = fs_readlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_READLINK,(status!=LIZARDFS_STATUS_OK)?5:8+pleng+1);
-	put32bit(&ptr,msgid);
-	if (status!=LIZARDFS_STATUS_OK) {
-		put8bit(&ptr,status);
+	status = fs_readlink(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, path);
+	ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_READLINK,
+	                              (status != LIZARDFS_STATUS_OK) ? 5 : 8 + path.length() + 1);
+	put32bit(&ptr, msgid);
+	if (status != LIZARDFS_STATUS_OK) {
+		put8bit(&ptr, status);
 	} else {
-		put32bit(&ptr,pleng+1);
-		if (pleng>0) {
-			memcpy(ptr,path,pleng);
+		put32bit(&ptr, path.length() + 1);
+		if (path.length() > 0) {
+			memcpy(ptr, path.c_str(), path.length());
 		}
-		ptr[pleng]=0;
+		ptr[path.length()] = 0;
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[7]++;
@@ -2476,32 +2476,35 @@ void matoclserv_fuse_readlink(matoclserventry *eptr,const uint8_t *data,uint32_t
 void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t nleng;
-	const uint8_t *name,*path;
-	uint32_t uid,gid;
+	const uint8_t *name, *path;
+	uint32_t uid, gid;
 	uint32_t pleng;
 	uint32_t newinode;
 	Attributes attr;
 	uint32_t msgid;
 	uint8_t status;
 	uint8_t *ptr;
-	if (length<21) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ")",length);
+	if (length < 21) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ")", length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
-	if (length<21U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
+	if (length < 21U + nleng) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",
+		       length, nleng);
 		eptr->mode = KILL;
 		return;
 	}
 	name = data;
 	data += nleng;
 	pleng = get32bit(&data);
-	if (length!=21U+nleng+pleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ":pleng=%" PRIu32 ")",length,nleng,pleng);
+	if (length != 21U + nleng + pleng) {
+		syslog(LOG_NOTICE,
+		       "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ":pleng=%" PRIu32 ")",
+		       length, nleng, pleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2509,18 +2512,20 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	data += pleng;
 	uid = get32bit(&data);
 	gid = get32bit(&data);
-	while (pleng>0 && path[pleng-1]==0) {
+	while (pleng > 0 && path[pleng - 1] == 0) {
 		pleng--;
 	}
-	newinode = 0; // request to acquire new inode id
-	status = fs_symlink(matoclserv_get_context(eptr, uid, gid),inode,nleng,name,pleng,path,&newinode,&attr);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SYMLINK,(status!=LIZARDFS_STATUS_OK)?5:43);
-	put32bit(&ptr,msgid);
-	if (status!=LIZARDFS_STATUS_OK) {
-		put8bit(&ptr,status);
+	newinode = 0;  // request to acquire new inode id
+	status = fs_symlink(matoclserv_get_context(eptr, uid, gid), inode, HString((char *)name, nleng),
+	                    std::string((char *)path, pleng), &newinode, &attr);
+	ptr =
+	    matoclserv_createpacket(eptr, MATOCL_FUSE_SYMLINK, (status != LIZARDFS_STATUS_OK) ? 5 : 43);
+	put32bit(&ptr, msgid);
+	if (status != LIZARDFS_STATUS_OK) {
+		put8bit(&ptr, status);
 	} else {
-		put32bit(&ptr,newinode);
-		memcpy(ptr,attr,35);
+		put32bit(&ptr, newinode);
+		memcpy(ptr, attr, 35);
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[6]++;
@@ -2551,7 +2556,7 @@ void matoclserv_fuse_mknod(matoclserventry *eptr, PacketHeader header, const uin
 	uint32_t newinode;
 	Attributes attr;
 	uint8_t status = fs_mknod(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
-			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
+			inode, HString(std::move(name)),
 			type, mode, umask, uid, gid, auid, agid, rdev, &newinode, attr);
 
 	MessageBuffer reply;
@@ -2600,7 +2605,7 @@ void matoclserv_fuse_mkdir(matoclserventry *eptr, PacketHeader header, const uin
 	uint32_t newinode;
 	Attributes attr;
 	uint8_t status = fs_mkdir(eptr->sesdata->rootinode, eptr->sesdata->sesflags,
-			inode, name.size(), reinterpret_cast<const uint8_t*>(name.data()),
+			inode, HString(std::move(name)),
 			mode, umask, uid, gid, auid, agid, copysgid, &newinode, attr);
 
 	MessageBuffer reply;
@@ -2644,7 +2649,7 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_unlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
+	status = fs_unlink(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode, HString((char*)name, nleng),uid,gid);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_UNLINK,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -2678,7 +2683,7 @@ void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_rmdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,nleng,name,uid,gid);
+	status = fs_rmdir(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,HString((char*)name, nleng),uid,gid);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RMDIR,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);
@@ -2723,7 +2728,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	status = fs_rename(matoclserv_get_context(eptr, uid, gid),
-			inode_src, nleng_src, name_src, inode_dst, nleng_dst, name_dst, &inode, &attr);
+			inode_src, HString((char*)name_src, nleng_src), inode_dst, HString((char*)name_dst, nleng_dst), &inode, &attr);
 	if (eptr->version>=0x010615 && status==LIZARDFS_STATUS_OK) {
 		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_RENAME,43);
 	} else {
@@ -2770,7 +2775,7 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	status = fs_link(matoclserv_get_context(eptr, uid, gid),
-			inode, inode_dst, nleng_dst, name_dst, &newinode, &attr);
+			inode, inode_dst, HString((char*)name_dst, nleng_dst), &newinode, &attr);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_LINK,(status!=LIZARDFS_STATUS_OK)?5:43);
 	put32bit(&ptr,msgid);
 	if (status!=LIZARDFS_STATUS_OK) {
@@ -3621,8 +3626,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr, const uint8_t *data, uint32
 	uid = get32bit(&data);
 	gid = get32bit(&data);
 	canoverwrite = get8bit(&data);
-	status = fs_snapshot(matoclserv_get_context(eptr, uid, gid), inode, inode_dst, nleng_dst,
-	                     name_dst, canoverwrite,
+	status = fs_snapshot(matoclserv_get_context(eptr, uid, gid), inode, inode_dst, HString((char*)name_dst, nleng_dst),
+	                     canoverwrite,
 	                     std::bind(matoclserv_fuse_snapshot_wake_up, eptr->sesdata->sessionid,
 	                               msgid, std::placeholders::_1));
 	if (status != LIZARDFS_ERROR_WAITING) {
@@ -3746,29 +3751,29 @@ void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,u
 
 void matoclserv_fuse_gettrashpath(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
-	uint32_t pleng;
-	uint8_t *path;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
-	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASHPATH - wrong size (%" PRIu32 "/8)",length);
+	std::string path;
+	if (length != 8) {
+		syslog(LOG_NOTICE, "CLTOMA_FUSE_GETTRASHPATH - wrong size (%" PRIu32 "/8)", length);
 		eptr->mode = KILL;
 		return;
 	}
 	msgid = get32bit(&data);
 	inode = get32bit(&data);
-	status = fs_gettrashpath(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,&pleng,&path);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETTRASHPATH,(status!=LIZARDFS_STATUS_OK)?5:8+pleng+1);
-	put32bit(&ptr,msgid);
-	if (status!=LIZARDFS_STATUS_OK) {
-		put8bit(&ptr,status);
+	status = fs_gettrashpath(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode, path);
+	ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_GETTRASHPATH,
+	                              (status != LIZARDFS_STATUS_OK) ? 5 : 8 + path.length() + 1);
+	put32bit(&ptr, msgid);
+	if (status != LIZARDFS_STATUS_OK) {
+		put8bit(&ptr, status);
 	} else {
-		put32bit(&ptr,pleng+1);
-		if (pleng>0) {
-			memcpy(ptr,path,pleng);
+		put32bit(&ptr, path.length() + 1);
+		if (path.length() > 0) {
+			memcpy(ptr, path.c_str(), path.length());
 		}
-		ptr[pleng]=0;
+		ptr[path.length()] = 0;
 	}
 }
 
@@ -3797,7 +3802,7 @@ void matoclserv_fuse_settrashpath(matoclserventry *eptr,const uint8_t *data,uint
 	while (pleng>0 && path[pleng-1]==0) {
 		pleng--;
 	}
-	status = fs_settrashpath(matoclserv_get_context(eptr), inode, pleng, path);
+	status = fs_settrashpath(matoclserv_get_context(eptr), inode, std::string((char*)path, pleng));
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHPATH,5);
 	put32bit(&ptr,msgid);
 	put8bit(&ptr,status);

@@ -40,6 +40,8 @@
 #include "common/slogger.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
+#include "master/hstring_memstorage.h"
+#include "master/hstring_storage.h"
 #include "master/restore.h"
 #include "metarestore/merger.h"
 
@@ -193,6 +195,8 @@ int main(int argc,char **argv) {
 	std::unique_ptr<uint64_t> expectedChecksum;
 	int storedPreviousBackMetaCopies = kMaxStoredPreviousBackMetaCopies;
 	bool noLock = false;
+
+	hstorage::Storage::reset(new hstorage::MemStorage());
 
 	prepareEnvironment();
 	strerr_init();

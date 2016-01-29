@@ -46,3 +46,20 @@
    fun:clone
 }
 
+{
+   Berkeley DB close
+   Memcheck:Param
+   pwrite64(buf)
+   fun:__pwrite_nocancel
+   fun:__os_io
+   fun:__memp_pgwrite.part.0
+   fun:__memp_bhwrite
+   fun:__memp_sync_int
+   fun:__env_refresh
+   fun:__env_close
+   fun:__db_close
+   fun:__db_close_pp
+   fun:_ZN8hstorage10BDBStorageD1Ev
+   fun:_ZN8hstorage10BDBStorageD0Ev
+   fun:_Z8destructv
+}

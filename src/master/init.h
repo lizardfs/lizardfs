@@ -26,6 +26,7 @@
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
+#include "master/hstorage_init.h"
 #include "master/masterconn.h"
 #include "master/matoclserv.h"
 #include "master/matocsserv.h"
@@ -46,7 +47,8 @@ struct run_tab {
 };
 
 run_tab RunTab[]={
-	{metadataserver::personality_init, "personality"}, // has to be first
+	{hstorage_init, "name storage"}, // has to be first
+	{metadataserver::personality_init, "personality"}, // has to be second
 	{rnd_init,"random generator"},
 	{dcm_init,"data cache manager"}, // has to be before 'fs_init' and 'matoclserv_networkinit'
 	{matoclserv_sessionsinit,"load stored sessions"}, // has to be before 'fs_init'

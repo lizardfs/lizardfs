@@ -25,6 +25,7 @@
 #include <string>
 
 #include "master/filesystem_node.h"
+#include "master/hstring.h"
 
 /*! \brief Implementation of snapshot engine.
  *
@@ -54,7 +55,7 @@ public:
 		uint32_t dst_parent_inode; /*!< Inode of clone parent. */
 		uint32_t dst_inode;        /*!< Inode number of clone. If 0 means that
 		                                inode number should be requested. */
-		std::string dst_name;      /*!< Clone file name. */
+		HString dst_name;          /*!< Clone file name. */
 		uint8_t can_overwrite;     /*!< Can cloning operation overwrite existing node. */
 		bool emit_changelog;       /*!< If true change log message should be generated. */
 		bool enqueue_work;         /*!< If true than new clone request should be created
@@ -80,7 +81,7 @@ public:
 	 * \param callback function to be called on snapshot finish.
 	 */
 	int makeSnapshot(uint32_t ts, fsnode *src_node, fsnode *parent_node,
-	                 const std::string &name, bool can_overwrite,
+	                 const HString &name, bool can_overwrite,
 	                 const std::function<void(int)> &callback);
 
 	/*! \brief Clone one fsnode.

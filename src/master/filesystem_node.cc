@@ -113,7 +113,7 @@ static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t fi
 	(void)file_size;
 	return 0; // Doesn't really matter. Metarestore doesn't need this value
 #else
-	const Goal& goal = fs_get_goal_definition(node->goal);
+	const Goal &goal = fs_get_goal_definition(node->goal);
 
 	uint64_t full_size = 0;
 	for (const auto &slice : goal) {
@@ -143,79 +143,49 @@ static uint64_t file_realsize(fsnode *node, uint32_t nonzero_chunks, uint64_t fi
 #endif
 }
 
-char *fsnodes_escape_name(uint32_t nleng, const uint8_t *name) {
-	static char *escname[2] = {NULL, NULL};
-	static uint32_t escnamesize[2] = {0, 0};
-	static uint8_t buffid = 0;
-	char *currescname = NULL;
-	uint32_t i;
-	uint8_t c;
-	buffid = 1 - buffid;
-	i = nleng;
-	i = i * 3 + 1;
-	if (i > escnamesize[buffid] || i == 0) {
-		escnamesize[buffid] = ((i / 1000) + 1) * 1000;
-		if (escname[buffid] != NULL) {
-			free(escname[buffid]);
-		}
-		escname[buffid] = (char *)malloc(escnamesize[buffid]);
-		passert(escname[buffid]);
-	}
-	i = 0;
-	currescname = escname[buffid];
-	passert(currescname);
-	while (nleng > 0) {
-		c = *name;
+std::string fsnodes_escape_name(const std::string &name) {
+	constexpr std::array<char, 16> hex_digit = {{'0', '1', '2', '3', '4', '5', '6', '7',
+	                                             '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'}};
+	std::string result;
+
+	// It could be possible to reserve 3 * name.length() bytes in result,
+	// but it would lead to unnecessary allocations in some cases.
+	// This would take much more time than computation of exact result size.
+	// Hint: remember that std::string uses static allocation
+	// for small string sizes.
+	int long_count = std::count_if(name.begin(), name.end(), [](char c) {
+		return c < 32 || c >= 127 || c == ',' || c == '%' || c == '(' || c == ')';
+	});
+	result.reserve(2 * long_count + name.length());
+
+	for (char c : name) {
 		if (c < 32 || c >= 127 || c == ',' || c == '%' || c == '(' || c == ')') {
-			currescname[i++] = '%';
-			currescname[i++] = "0123456789ABCDEF"[(c >> 4) & 0xF];
-			currescname[i++] = "0123456789ABCDEF"[c & 0xF];
+			result.push_back('%');
+			result.push_back(hex_digit[(c >> 4) & 0xF]);
+			result.push_back(hex_digit[c & 0xF]);
 		} else {
-			currescname[i++] = c;
+			result.push_back(c);
 		}
-		name++;
-		nleng--;
 	}
-	currescname[i] = 0;
-	return currescname;
+
+	return result;
 }
 
-int fsnodes_nameisused(fsnode *node, uint16_t nleng, const uint8_t *name) {
-	fsedge *ei;
-	if (node->data.ddata.elements > LOOKUPNOHASHLIMIT) {
-		ei = gMetadata->edgehash[EDGEHASHPOS(fsnodes_hash(node->id, nleng, name))];
-		while (ei) {
-			if (ei->parent == node && nleng == ei->nleng &&
-			    memcmp((char *)(ei->name), (char *)name, nleng) == 0) {
-				return 1;
-			}
-			ei = ei->next;
-		}
-	} else {
-		ei = node->data.ddata.children;
-		while (ei) {
-			if (nleng == ei->nleng &&
-			    memcmp((char *)(ei->name), (char *)name, nleng) == 0) {
-				return 1;
-			}
-			ei = ei->nextchild;
-		}
-	}
-	return 0;
+int fsnodes_nameisused(fsnode *node, const HString &name) {
+	return fsnodes_lookup(node, name) != nullptr;
 }
 
 /// searches for an edge with given name (`name`) in given directory (`node`)
-fsedge *fsnodes_lookup(fsnode *node, uint16_t nleng, const uint8_t *name) {
+fsedge *fsnodes_lookup(fsnode *node, const HString &name) {
 	fsedge *ei;
 
 	if (node->type != TYPE_DIRECTORY) {
 		return NULL;
 	}
 	if (node->data.ddata.elements > LOOKUPNOHASHLIMIT) {
-		ei = gMetadata->edgehash[EDGEHASHPOS(fsnodes_hash(node->id, nleng, name))];
+		ei = gMetadata->edgehash[EDGEHASHPOS(fsnodes_hash(node->id, name))];
 		while (ei) {
-			if (ei->parent == node && nleng == ei->nleng &&
-			    memcmp((char *)(ei->name), (char *)name, nleng) == 0) {
+			if (ei->parent == node && name == ei->name) {
 				return ei;
 			}
 			ei = ei->next;
@@ -223,8 +193,7 @@ fsedge *fsnodes_lookup(fsnode *node, uint16_t nleng, const uint8_t *name) {
 	} else {
 		ei = node->data.ddata.children;
 		while (ei) {
-			if (nleng == ei->nleng &&
-			    memcmp((char *)(ei->name), (char *)name, nleng) == 0) {
+			if (name == ei->name) {
 				return ei;
 			}
 			ei = ei->nextchild;
@@ -523,16 +492,13 @@ void fsnodes_remove_edge(uint32_t ts, fsedge *e) {
 	delete e;
 }
 
-void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, const uint8_t *name) {
+void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, const HString &name) {
 	fsedge *e;
 	statsrecord sr;
 	uint32_t hpos;
 
 	e = new fsedge;
-	e->nleng = nleng;
-	e->name = (uint8_t *)malloc(nleng);
-	passert(e->name);
-	memcpy(e->name, name, nleng);
+	e->name = name;
 	e->child = child;
 	e->parent = parent;
 	e->nextchild = parent->data.ddata.children;
@@ -547,7 +513,7 @@ void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, co
 	}
 	child->parents = e;
 	e->prevparent = &(child->parents);
-	hpos = EDGEHASHPOS(fsnodes_hash(parent->id, nleng, name));
+	hpos = EDGEHASHPOS(fsnodes_hash(parent->id, name));
 	e->next = gMetadata->edgehash[hpos];
 	if (e->next) {
 		e->next->prev = &(e->next);
@@ -571,7 +537,7 @@ void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, co
 	}
 }
 
-fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uint8_t *name,
+fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, const HString &name,
 			uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
 			uint8_t copysgid, AclInheritance inheritacl, uint32_t req_inode) {
 	fsnode *p;
@@ -642,7 +608,6 @@ fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uin
 		break;
 	case TYPE_SYMLINK:
 		p->data.sdata.pleng = 0;
-		p->data.sdata.path = NULL;
 		break;
 	case TYPE_BLOCKDEV:
 	case TYPE_CHARDEV:
@@ -654,7 +619,7 @@ fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uin
 	gMetadata->nodehash[nodepos] = p;
 	p->checksum = 0;
 	fsnodes_update_checksum(p);
-	fsnodes_link(ts, node, p, nleng, name);
+	fsnodes_link(ts, node, p, name);
 	fsnodes_quota_update(p, {{QuotaResource::kInodes, +1}});
 	if (type == TYPE_FILE) {
 		fsnodes_quota_update(p, {{QuotaResource::kSize, +fsnodes_get_size(p)}});
@@ -662,32 +627,37 @@ fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uin
 	return p;
 }
 
-#ifndef METARESTORE
 uint32_t fsnodes_getpath_size(fsedge *e) {
+	std::string name;
 	uint32_t size;
 	fsnode *p;
 	if (e == NULL) {
 		return 0;
 	}
+	name = (std::string)e->name;
 	p = e->parent;
-	size = e->nleng;
+	size = name.length();
 	while (p != gMetadata->root && p->parents) {
-		size += p->parents->nleng + 1;
+		name = (std::string)p->parents->name;
+		size += name.length() + 1;
 		p = p->parents->parent;
 	}
 	return size;
 }
 
 void fsnodes_getpath_data(fsedge *e, uint8_t *path, uint32_t size) {
+	std::string name;
 	fsnode *p;
 	if (e == NULL) {
 		return;
 	}
-	if (size >= e->nleng) {
-		size -= e->nleng;
-		memcpy(path + size, e->name, e->nleng);
+
+	name = (std::string)e->name;
+	if (size >= name.length()) {
+		size -= name.length();
+		memcpy(path + size, name.c_str(), name.length());
 	} else if (size > 0) {
-		memcpy(path, e->name + (e->nleng - size), size);
+		memcpy(path, name.c_str() + (name.length() - size), size);
 		size = 0;
 	}
 	if (size > 0) {
@@ -695,11 +665,12 @@ void fsnodes_getpath_data(fsedge *e, uint8_t *path, uint32_t size) {
 	}
 	p = e->parent;
 	while (p != gMetadata->root && p->parents) {
-		if (size >= p->parents->nleng) {
-			size -= p->parents->nleng;
-			memcpy(path + size, p->parents->name, p->parents->nleng);
+		name = (std::string)p->parents->name;
+		if (size >= name.length()) {
+			size -= name.length();
+			memcpy(path + size, name.c_str(), name.length());
 		} else if (size > 0) {
-			memcpy(path, p->parents->name + (p->parents->nleng - size), size);
+			memcpy(path, name.c_str() + (name.length() - size), size);
 			size = 0;
 		}
 		if (size > 0) {
@@ -708,49 +679,18 @@ void fsnodes_getpath_data(fsedge *e, uint8_t *path, uint32_t size) {
 		p = p->parents->parent;
 	}
 }
-#endif /* METARESTORE */
 
-void fsnodes_getpath(fsedge *e, uint16_t *pleng, uint8_t **path) {
-	uint32_t size;
-	uint8_t *ret;
-	fsnode *p;
+void fsnodes_getpath(fsedge *e, std::string &path) {
+	uint32_t size = fsnodes_getpath_size(e);
 
-	p = e->parent;
-	size = e->nleng;
-	while (p != gMetadata->root && p->parents) {
-		size += p->parents->nleng + 1;  // get first parent !!!
-		p = p->parents->parent;  // when folders can be hardlinked it's the only way to
-		                         // obtain path (one of them)
-	}
 	if (size > 65535) {
 		syslog(LOG_WARNING, "path too long !!! - truncate");
 		size = 65535;
 	}
-	*pleng = size;
-	ret = (uint8_t *)malloc(size);
-	passert(ret);
-	size -= e->nleng;
-	memcpy(ret + size, e->name, e->nleng);
-	if (size > 0) {
-		ret[--size] = '/';
-	}
-	p = e->parent;
-	while (p != gMetadata->root && p->parents) {
-		if (size >= p->parents->nleng) {
-			size -= p->parents->nleng;
-			memcpy(ret + size, p->parents->name, p->parents->nleng);
-		} else {
-			if (size > 0) {
-				memcpy(ret, p->parents->name + (p->parents->nleng - size), size);
-				size = 0;
-			}
-		}
-		if (size > 0) {
-			ret[--size] = '/';
-		}
-		p = p->parents->parent;
-	}
-	*path = ret;
+
+	path.resize(size);
+
+	fsnodes_getpath_data(e, (uint8_t*)path.data(), size);
 }
 
 #ifndef METARESTORE
@@ -758,11 +698,13 @@ void fsnodes_getpath(fsedge *e, uint16_t *pleng, uint8_t **path) {
 uint32_t fsnodes_getdetachedsize(fsedge *start) {
 	fsedge *e;
 	uint32_t result = 0;
+	std::string name;
 	for (e = start; e; e = e->nextchild) {
-		if (e->nleng > 240) {
+		name = (std::string)e->name;
+		if (name.length() > 240) {
 			result += 245;
 		} else {
-			result += 5 + e->nleng;
+			result += 5 + name.length();
 		}
 	}
 	return result;
@@ -772,13 +714,15 @@ void fsnodes_getdetacheddata(fsedge *start, uint8_t *dbuff) {
 	fsedge *e;
 	uint8_t *sptr;
 	uint8_t c;
+	std::string name;
 	for (e = start; e; e = e->nextchild) {
-		if (e->nleng > 240) {
+		name = (std::string)e->name;
+		if (name.length() > 240) {
 			*dbuff = 240;
 			dbuff++;
 			memcpy(dbuff, "(...)", 5);
 			dbuff += 5;
-			sptr = e->name + (e->nleng - 235);
+			sptr = (uint8_t*)name.c_str() + (name.length() - 235);
 			for (c = 0; c < 235; c++) {
 				if (*sptr == '/') {
 					*dbuff = '|';
@@ -789,10 +733,10 @@ void fsnodes_getdetacheddata(fsedge *start, uint8_t *dbuff) {
 				dbuff++;
 			}
 		} else {
-			*dbuff = e->nleng;
+			*dbuff = name.length();
 			dbuff++;
-			sptr = e->name;
-			for (c = 0; c < e->nleng; c++) {
+			sptr = (uint8_t*)name.c_str();
+			for (c = 0; c < name.length(); c++) {
 				if (*sptr == '/') {
 					*dbuff = '|';
 				} else {
@@ -809,8 +753,10 @@ void fsnodes_getdetacheddata(fsedge *start, uint8_t *dbuff) {
 uint32_t fsnodes_getdirsize(fsnode *p, uint8_t withattr) {
 	uint32_t result = ((withattr) ? 40 : 6) * 2 + 3;  // for '.' and '..'
 	fsedge *e;
+	std::string name;
 	for (e = p->data.ddata.children; e; e = e->nextchild) {
-		result += ((withattr) ? 40 : 6) + e->nleng;
+		name = (std::string)e->name;
+		result += ((withattr) ? 40 : 6) + name.length();
 	}
 	return result;
 }
@@ -884,11 +830,13 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 		}
 	}
 	// entries
+	std::string name;
 	for (e = p->data.ddata.children; e; e = e->nextchild) {
-		dbuff[0] = e->nleng;
+		name = (std::string)e->name;
+		dbuff[0] = name.size();
 		dbuff++;
-		memcpy(dbuff, e->name, e->nleng);
-		dbuff += e->nleng;
+		memcpy(dbuff, name.c_str(), name.length());
+		dbuff += name.length();
 		put32bit(&dbuff, e->child->id);
 		if (withattr) {
 			fsnodes_fill_attr(e->child, p, uid, gid, auid, agid, sesflags, attr);
@@ -1146,8 +1094,7 @@ static inline void fsnodes_remove_node(uint32_t ts, fsnode *toremove) {
 
 void fsnodes_unlink(uint32_t ts, fsedge *e) {
 	fsnode *child;
-	uint16_t pleng = 0;
-	uint8_t *path = NULL;
+	std::string path;
 
 	child = e->child;
 	if (child->parents->nextparent == NULL) {  // last link
@@ -1155,7 +1102,7 @@ void fsnodes_unlink(uint32_t ts, fsedge *e) {
 		    (child->trashtime > 0 ||
 		     child->data.fdata.sessionids !=
 		             NULL)) {  // go to trash or reserved ? - get path
-			fsnodes_getpath(e, &pleng, &path);
+			fsnodes_getpath(e, path);
 		}
 	}
 	fsnodes_remove_edge(ts, e);
@@ -1166,8 +1113,7 @@ void fsnodes_unlink(uint32_t ts, fsedge *e) {
 				child->atime = ts;
 				fsnodes_update_checksum(child);
 				e = new fsedge;
-				e->nleng = pleng;
-				e->name = path;
+				e->name = HString(path);
 				e->child = child;
 				e->parent = NULL;
 				e->nextchild = gMetadata->trash;
@@ -1189,8 +1135,7 @@ void fsnodes_unlink(uint32_t ts, fsedge *e) {
 				child->type = TYPE_RESERVED;
 				fsnodes_update_checksum(child);
 				e = new fsedge;
-				e->nleng = pleng;
-				e->name = path;
+				e->name = HString(path);
 				e->child = child;
 				e->parent = NULL;
 				e->nextchild = gMetadata->reserved;
@@ -1209,15 +1154,11 @@ void fsnodes_unlink(uint32_t ts, fsedge *e) {
 				e->checksum = 0;
 				fsedges_update_checksum(e);
 			} else {
-				free(path);
 				fsnodes_remove_node(ts, child);
 			}
 		} else {
-			free(path);
 			fsnodes_remove_node(ts, child);
 		}
-	} else {
-		free(path);
 	}
 }
 
@@ -1260,8 +1201,8 @@ int fsnodes_purge(uint32_t ts, fsnode *p) {
 }
 
 uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
-	uint16_t pleng;
-	const uint8_t *path;
+	unsigned pleng;
+	const char *path;
 	uint8_t is_new;
 	uint32_t i, partleng, dots;
 	fsedge *e, *pe;
@@ -1269,10 +1210,11 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 
 	/* check path */
 	e = node->parents;
-	pleng = e->nleng;
-	path = e->name;
+	std::string path_str = (std::string)e->name;
+	path = path_str.c_str();
+	pleng = path_str.length();
 
-	if (path == NULL) {
+	if (path_str.empty()) {
 		return LIZARDFS_ERROR_CANTCREATEPATH;
 	}
 	while (*path == '/' && pleng > 0) {
@@ -1313,7 +1255,7 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 		return LIZARDFS_ERROR_CANTCREATEPATH;
 	}
 
-	/* create path */
+	// create path
 	n = NULL;
 	p = gMetadata->root;
 	is_new = 0;
@@ -1322,22 +1264,23 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 		while ((partleng < pleng) && (path[partleng] != '/')) {
 			partleng++;
 		}
+		HString name(path, partleng);
 		if (partleng == pleng) {  // last name
-			if (fsnodes_nameisused(p, partleng, path)) {
+			if (fsnodes_nameisused(p, name)) {
 				return LIZARDFS_ERROR_EEXIST;
 			}
 			// remove from trash and link to new parent
 			node->type = TYPE_FILE;
 			node->ctime = ts;
 			fsnodes_update_checksum(node);
-			fsnodes_link(ts, p, node, partleng, path);
+			fsnodes_link(ts, p, node, name);
 			fsnodes_remove_edge(ts, e);
 			gMetadata->trashspace -= node->data.fdata.length;
 			gMetadata->trashnodes--;
 			return LIZARDFS_STATUS_OK;
 		} else {
 			if (is_new == 0) {
-				pe = fsnodes_lookup(p, partleng, path);
+				pe = fsnodes_lookup(p, name);
 				if (pe == NULL) {
 					is_new = 1;
 				} else {
@@ -1348,7 +1291,7 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 				}
 			}
 			if (is_new == 1) {
-				n = fsnodes_create_node(ts, p, partleng, path, TYPE_DIRECTORY, 0755,
+				n = fsnodes_create_node(ts, p, name, TYPE_DIRECTORY, 0755,
 				                        0, 0, 0, 0,
 				                        AclInheritance::kDontInheritAcl);
 
@@ -1358,7 +1301,7 @@ uint8_t fsnodes_undel(uint32_t ts, fsnode *node) {
 
 				fs_changelog(ts, "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32
 				                 ",%" PRIu32 "):%" PRIu32,
-				             p->id, fsnodes_escape_name(partleng, path),
+				             p->id, fsnodes_escape_name(name).c_str(),
 				             TYPE_DIRECTORY, n->mode & 07777, (uint32_t)0,
 				             (uint32_t)0, (uint32_t)0, n->id);
 			}
@@ -1647,20 +1590,20 @@ uint8_t fsnodes_setacl(fsnode *p, AclType type, AccessControlList acl, uint32_t 
 	return LIZARDFS_STATUS_OK;
 }
 
-int fsnodes_namecheck(uint32_t nleng, const uint8_t *name) {
+int fsnodes_namecheck(const std::string &name) {
 	uint32_t i;
-	if (nleng == 0 || nleng > MAXFNAMELENG) {
+	if (name.length() == 0 || name.length() > MAXFNAMELENG) {
 		return -1;
 	}
 	if (name[0] == '.') {
-		if (nleng == 1) {
+		if (name.length() == 1) {
 			return -1;
 		}
-		if (nleng == 2 && name[1] == '.') {
+		if (name.length() == 2 && name[1] == '.') {
 			return -1;
 		}
 	}
-	for (i = 0; i < nleng; i++) {
+	for (i = 0; i < name.length(); i++) {
 		if (name[i] == '\0' || name[i] == '/') {
 			return -1;
 		}

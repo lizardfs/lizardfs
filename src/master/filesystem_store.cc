@@ -322,9 +322,10 @@ void fs_storeedge(fsedge *e, FILE *fd) {
 		put32bit(&ptr, e->parent->id);
 	}
 	put32bit(&ptr, e->child->id);
-	put16bit(&ptr, e->nleng);
-	memcpy(ptr, e->name, e->nleng);
-	if (fwrite(uedgebuff, 1, 4 + 4 + 2 + e->nleng, fd) != (size_t)(4 + 4 + 2 + e->nleng)) {
+	std::string name = (std::string)e->name;
+	put16bit(&ptr, name.length());
+	memcpy(ptr, name.c_str(), name.length());
+	if (fwrite(uedgebuff, 1, 4 + 4 + 2 + name.length(), fd) != (size_t)(4 + 4 + 2 + name.length())) {
 		syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
@@ -360,26 +361,26 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		return 1;
 	}
 	e = new fsedge;
-	e->nleng = get16bit(&ptr);
-	if (e->nleng == 0) {
+	auto nleng = get16bit(&ptr);
+	if (nleng == 0) {
 		lzfs_pretty_syslog(LOG_ERR,
 		                   "loading edge: %" PRIu32 "->%" PRIu32 " error: empty name",
 		                   parent_id, child_id);
 		delete e;
 		return -1;
 	}
-	e->name = (uint8_t *)malloc(e->nleng);
-	passert(e->name);
-	if (fread(e->name, 1, e->nleng, fd) != e->nleng) {
+	std::vector<char> name_buffer(nleng);
+	if (fread(name_buffer.data(), 1, nleng, fd) != nleng) {
 		lzfs_pretty_errlog(LOG_ERR, "loading edge: read error");
 		delete e;
 		return -1;
 	}
+	e->name = HString(name_buffer.data(), nleng);
 	e->child = fsnodes_id_to_node(child_id);
 	if (e->child == NULL) {
 		lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 		                            " error: child not found",
-		                   parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
+		                   parent_id, fsnodes_escape_name((std::string)e->name).c_str(), child_id);
 		delete e;
 		if (ignoreflag) {
 			return 0;
@@ -414,7 +415,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		} else {
 			lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 			                            " error: bad child type (%c)\n",
-			                   parent_id, fsnodes_escape_name(e->nleng, e->name),
+			                   parent_id, fsnodes_escape_name((std::string)e->name).c_str(),
 			                   child_id, e->child->type);
 			delete e;
 			return -1;
@@ -424,7 +425,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		if (e->parent == NULL) {
 			lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 			                            " error: parent not found",
-			                   parent_id, fsnodes_escape_name(e->nleng, e->name),
+			                   parent_id, fsnodes_escape_name((std::string)e->name).c_str(),
 			                   child_id);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(SPECIAL_INODE_ROOT);
@@ -432,7 +433,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 					lzfs_pretty_syslog(
 					        LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 					                 " root dir not found !!!",
-					        parent_id, fsnodes_escape_name(e->nleng, e->name),
+					        parent_id, fsnodes_escape_name((std::string)e->name).c_str(),
 					        child_id);
 					delete e;
 					return -1;
@@ -440,7 +441,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 				lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 				                            " attaching node to root dir",
 				                   parent_id,
-				                   fsnodes_escape_name(e->nleng, e->name),
+				                   fsnodes_escape_name((std::string)e->name).c_str(),
 				                   child_id);
 				parent_id = SPECIAL_INODE_ROOT;
 			} else {
@@ -454,7 +455,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		if (e->parent->type != TYPE_DIRECTORY) {
 			lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 			                            " error: bad parent type (%c)",
-			                   parent_id, fsnodes_escape_name(e->nleng, e->name),
+			                   parent_id, fsnodes_escape_name((std::string)e->name).c_str(),
 			                   child_id, e->parent->type);
 			if (ignoreflag) {
 				e->parent = fsnodes_id_to_node(SPECIAL_INODE_ROOT);
@@ -462,7 +463,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 					lzfs_pretty_syslog(
 					        LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 					                 " root dir not found !!!",
-					        parent_id, fsnodes_escape_name(e->nleng, e->name),
+					        parent_id, fsnodes_escape_name((std::string)e->name).c_str(),
 					        child_id);
 					delete e;
 					return -1;
@@ -470,7 +471,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 				lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 				                            " attaching node to root dir",
 				                   parent_id,
-				                   fsnodes_escape_name(e->nleng, e->name),
+				                   fsnodes_escape_name((std::string)e->name).c_str(),
 				                   child_id);
 				parent_id = SPECIAL_INODE_ROOT;
 			} else {
@@ -490,7 +491,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 			if (e->parent->data.ddata.children) {
 				syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 				                " error: parent node sequence error",
-				       parent_id, fsnodes_escape_name(e->nleng, e->name), child_id);
+				       parent_id, fsnodes_escape_name((std::string)e->name).c_str(), child_id);
 				if (ignoreflag) {
 					current_tail = &(e->parent->data.ddata.children);
 					while (*current_tail) {
@@ -519,7 +520,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		if (e->child->type == TYPE_DIRECTORY) {
 			e->parent->data.ddata.nlink++;
 		}
-		hpos = EDGEHASHPOS(fsnodes_hash(e->parent->id, e->nleng, e->name));
+		hpos = EDGEHASHPOS(fsnodes_hash(e->parent->id, e->name));
 		e->next = gMetadata->edgehash[hpos];
 		if (e->next) {
 			e->next->prev = &(e->next);
@@ -546,6 +547,7 @@ void fs_storenode(fsnode *f, FILE *fd) {
 	uint8_t *ptr, *chptr;
 	uint32_t i, indx, ch, sessionids;
 	sessionidrec *sessionidptr;
+	std::string name;
 
 	if (f == NULL) {  // last node
 		fputc(0, fd);
@@ -582,13 +584,14 @@ void fs_storenode(fsnode *f, FILE *fd) {
 		}
 		break;
 	case TYPE_SYMLINK:
-		put32bit(&ptr, f->data.sdata.pleng);
+		name = (std::string)f->symlink_path();
+		put32bit(&ptr, name.length());
 		if (fwrite(unodebuff, 1, 1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4, fd) !=
 		    (size_t)(1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4)) {
 			syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
-		if (fwrite(f->data.sdata.path, 1, f->data.sdata.pleng, fd) !=
+		if (fwrite(name.c_str(), 1, name.length(), fd) !=
 		    (size_t)(f->data.sdata.pleng)) {
 			syslog(LOG_NOTICE, "fwrite error");
 			return;
@@ -663,6 +666,7 @@ int fs_loadnode(FILE *fd) {
 	sessionidrec *sessionidptr;
 	uint32_t nodepos;
 	statsrecord *sr;
+	std::vector<char> name_buffer;
 
 	if (fd == NULL) {
 		return 0;
@@ -739,16 +743,15 @@ int fs_loadnode(FILE *fd) {
 	case TYPE_SYMLINK:
 		pleng = get32bit(&ptr);
 		p->data.sdata.pleng = pleng;
+
 		if (pleng > 0) {
-			p->data.sdata.path = (uint8_t *)malloc(pleng);
-			passert(p->data.sdata.path);
-			if (fread(p->data.sdata.path, 1, pleng, fd) != pleng) {
+			name_buffer.resize(pleng);
+			if (fread(name_buffer.data(), 1, pleng, fd) != pleng) {
 				lzfs_pretty_errlog(LOG_ERR, "loading node: read error");
 				delete p;
 				return -1;
 			}
-		} else {
-			p->data.sdata.path = NULL;
+			p->symlink_path() = HString(name_buffer.begin(), name_buffer.end());
 		}
 		break;
 	case TYPE_FILE:
@@ -885,8 +888,9 @@ int fs_lostnode(fsnode *p) {
 			l = snprintf((char *)artname, 40, "lost_node_%" PRIu32 ".%" PRIu32, p->id,
 			             i);
 		}
-		if (!fsnodes_nameisused(gMetadata->root, l, artname)) {
-			fsnodes_link(0, gMetadata->root, p, l, artname);
+		HString name((const char*)artname, l);
+		if (!fsnodes_nameisused(gMetadata->root, name)) {
+			fsnodes_link(0, gMetadata->root, p, name);
 			return 1;
 		}
 		i++;

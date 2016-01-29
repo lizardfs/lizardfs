@@ -162,7 +162,7 @@ static void fsnodes_getpath(uint32_t root_inode, fsnode *node, std::string &ret)
 	p = node;
 	size = 0;
 	while (p != gMetadata->root && p->parents && p->id != root_inode) {
-		size += p->parents->nleng + 1;  // get first parent !!!
+		size += ((std::string)p->parents->name).size() + 1;  // get first parent !!!
 		p = p->parents->parent;  // when folders can be hardlinked it's the only way to
 		                         // obtain path (one of them)
 	}
@@ -176,12 +176,13 @@ static void fsnodes_getpath(uint32_t root_inode, fsnode *node, std::string &ret)
 	p = node;
 	while (p != gMetadata->root && p->parents) {
 		fsedge *e = p->parents;
-		if (size >= e->nleng) {
-			size -= e->nleng;
-			std::copy(e->name, e->name + e->nleng, ret.begin() + size);
+		const std::string &name = (std::string)e->name;
+		if (size >= name.size()) {
+			size -= name.size();
+			std::copy(name.begin(), name.end(), ret.begin() + size);
 		} else {
 			if (size > 0) {
-				std::copy(e->name + (e->nleng - size), e->name + e->nleng, ret.begin());
+				std::copy(name.begin() + (name.size() - size), name.end(), ret.begin());
 				size = 0;
 			}
 		}

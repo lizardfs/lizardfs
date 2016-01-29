@@ -101,8 +101,7 @@ bool ChecksumBackgroundUpdater::isEdgeIncluded(fsedge *edge) {
 	} else if (step_ > ChecksumRecalculatingStep::kEdges) {
 		ret = true;
 	} else if (step_ == ChecksumRecalculatingStep::kEdges &&
-	           EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->nleng, edge->name)) <
-	                   position_) {
+	           EDGEHASHPOS(fsnodes_hash(edge->parent->id, edge->name)) < position_) {
 		ret = true;
 	}
 	if (ret) {

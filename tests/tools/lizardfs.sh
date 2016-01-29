@@ -231,6 +231,15 @@ create_magic_debug_log_entry_() {
 	fi | sed -e 's/,$//'
 }
 
+# Sometimes use Berkley DB name storage
+create_bdb_name_storage_entry_() {
+	if (($RANDOM % 2)); then
+		echo "USE_BDB_FOR_NAME_STORAGE = 0"
+	else
+		echo "USE_BDB_FOR_NAME_STORAGE = 1"
+	fi
+}
+
 create_mfsmaster_master_cfg_() {
 	local this_module_cfg_variable="MASTER_${masterserver_id}_EXTRA_CONFIG"
 	echo "PERSONALITY = master"
@@ -250,6 +259,7 @@ create_mfsmaster_master_cfg_() {
 	create_magic_debug_log_entry_ "master_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
+	create_bdb_name_storage_entry_
 }
 
 create_mfsmaster_shadow_cfg_() {
@@ -273,6 +283,7 @@ create_mfsmaster_shadow_cfg_() {
 	create_magic_debug_log_entry_ "shadow_${masterserver_id}"
 	echo "${MASTER_EXTRA_CONFIG-}" | tr '|' '\n'
 	echo "${!this_module_cfg_variable-}" | tr '|' '\n'
+	create_bdb_name_storage_entry_
 }
 
 lizardfs_make_conf_for_shadow() {
@@ -412,7 +423,7 @@ create_mfschunkserver_cfg_() {
 # Run every second chunkserver with each chunk format
 chunkserver_chunk_format_cfg_() {
 	local chunkserver_id=$1
-	if [[ "$(($RANDOM % 2))" == 0 ]]; then
+	if (($RANDOM % 2)); then
 		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0"
 	else
 		echo "CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 1"

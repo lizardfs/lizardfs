@@ -44,8 +44,7 @@ void SnapshotManager::emitChangelog(uint32_t ts, uint32_t dst_inode, const Clone
 
 	fs_changelog(ts, "CLONE(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")", info.src_inode,
 	             info.dst_parent_inode, dst_inode,
-	             fsnodes_escape_name(info.dst_name.size(),
-	                                 reinterpret_cast<const uint8_t *>(info.dst_name.c_str())),
+	             fsnodes_escape_name(info.dst_name).c_str(),
 	             info.can_overwrite);
 }
 
@@ -85,7 +84,7 @@ void SnapshotManager::checkoutNode(std::list<CloneData>::iterator idata, int sta
 }
 
 int SnapshotManager::makeSnapshot(uint32_t ts, fsnode *src_node, fsnode *parent_node,
-				const std::string &name, bool can_overwrite,
+				const HString &name, bool can_overwrite,
 				const std::function<void(int)> &callback) {
 	std::list<CloneData> tmp;
 
@@ -171,8 +170,7 @@ int SnapshotManager::cloneNode(uint32_t ts, const CloneData &info) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
-	fsedge *dst_edge = fsnodes_lookup(dst_parent, info.dst_name.size(),
-	                                  reinterpret_cast<const uint8_t *>(info.dst_name.c_str()));
+	fsedge *dst_edge = fsnodes_lookup(dst_parent, HString(info.dst_name));
 
 	int status = cloneNodeTest(src_node, dst_parent, dst_edge, info);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -243,7 +241,7 @@ fsnode *SnapshotManager::cloneToNewNode(uint32_t ts, fsnode *src_node, fsnode *d
 	}
 
 	fsnode *dst_node = fsnodes_create_node(
-	        ts, dst_parent, info.dst_name.size(), reinterpret_cast<const uint8_t *>(info.dst_name.c_str()),
+	        ts, dst_parent, info.dst_name,
 	        src_node->type, src_node->mode, 0, src_node->uid, src_node->gid, 0,
 	        AclInheritance::kDontInheritAcl, info.dst_inode);
 
@@ -290,8 +288,7 @@ fsnode *SnapshotManager::cloneToExistingFileNode(uint32_t ts, fsnode *src_node, 
 	}
 
 	fsnodes_unlink(ts, dst_edge);
-	dst_node = fsnodes_create_node(ts, dst_parent, info.dst_name.size(),
-	                               reinterpret_cast<const uint8_t *>(info.dst_name.c_str()), TYPE_FILE,
+	dst_node = fsnodes_create_node(ts, dst_parent, info.dst_name, TYPE_FILE,
 	                               src_node->mode, 0, src_node->uid, src_node->gid, 0,
 	                               AclInheritance::kDontInheritAcl, info.dst_inode);
 
@@ -342,7 +339,7 @@ void SnapshotManager::cloneDirectoryData(fsnode *src_node, fsnode *dst_node,
 	}
 	for (fsedge *e = src_node->data.ddata.children; e; e = e->nextchild) {
 		work_queue_.push_back({info.orig_inode, e->child->id, dst_node->id, 0,
-		                       std::string(reinterpret_cast<const char *>(e->name),e->nleng), info.can_overwrite,
+		                       (HString)e->name, info.can_overwrite,
 		                       info.emit_changelog, info.enqueue_work, info.request});
 		info.request->enqueued_count++;
 	}
@@ -353,20 +350,8 @@ void SnapshotManager::cloneSymlinkData(fsnode *src_node, fsnode *dst_node, fsnod
 
 	fsnodes_get_stats(dst_node, &psr);
 
-	if (dst_node->data.sdata.path) {
-		free(dst_node->data.sdata.path);
-	}
-
-	if (src_node->data.sdata.pleng > 0) {
-		dst_node->data.sdata.path = static_cast<uint8_t *>(malloc(src_node->data.sdata.pleng));
-		passert(dst_node->data.sdata.path);
-		memcpy(dst_node->data.sdata.path, src_node->data.sdata.path,
-		       src_node->data.sdata.pleng);
-		dst_node->data.sdata.pleng = src_node->data.sdata.pleng;
-	} else {
-		dst_node->data.sdata.path = NULL;
-		dst_node->data.sdata.pleng = 0;
-	}
+	dst_node->symlink_path() = src_node->symlink_path();
+	dst_node->data.sdata.pleng = src_node->data.sdata.pleng;
 
 	fsnodes_get_stats(dst_node, &nsr);
 	fsnodes_add_sub_stats(dst_parent, &nsr, &psr);

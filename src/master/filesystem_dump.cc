@@ -29,17 +29,17 @@ void fs_dumpedge(fsedge *e) {
 	if (e->parent == NULL) {
 		if (e->child->type == TYPE_TRASH) {
 			printf("E|p:     TRASH|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name(e->nleng, e->name));
+			       fsnodes_escape_name((std::string)e->name).c_str());
 		} else if (e->child->type == TYPE_RESERVED) {
 			printf("E|p:  RESERVED|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name(e->nleng, e->name));
+			       fsnodes_escape_name((std::string)e->name).c_str());
 		} else {
 			printf("E|p:      NULL|c:%10" PRIu32 "|n:%s\n", e->child->id,
-			       fsnodes_escape_name(e->nleng, e->name));
+			       fsnodes_escape_name((std::string)e->name).c_str());
 		}
 	} else {
 		printf("E|p:%10" PRIu32 "|c:%10" PRIu32 "|n:%s\n", e->parent->id, e->child->id,
-		       fsnodes_escape_name(e->nleng, e->name));
+		       fsnodes_escape_name((std::string)e->name).c_str());
 	}
 }
 
@@ -88,7 +88,7 @@ void fs_dumpnode(fsnode *f) {
 		printf("|d:%5" PRIu32 ",%5" PRIu32 "\n", f->data.devdata.rdev >> 16,
 		       f->data.devdata.rdev & 0xFFFF);
 	} else if (f->type == TYPE_SYMLINK) {
-		printf("|p:%s\n", fsnodes_escape_name(f->data.sdata.pleng, f->data.sdata.path));
+		printf("|p:%s\n", fsnodes_escape_name((std::string)f->symlink_path()).c_str());
 	} else if (f->type == TYPE_FILE || f->type == TYPE_TRASH || f->type == TYPE_RESERVED) {
 		printf("|l:%20" PRIu64 "|c:(", f->data.fdata.length);
 		ch = 0;
@@ -161,8 +161,8 @@ void xattr_dump() {
 	for (i = 0; i < XATTR_DATA_HASH_SIZE; i++) {
 		for (xa = gMetadata->xattr_data_hash[i]; xa; xa = xa->next) {
 			printf("X|i:%10" PRIu32 "|n:%s|v:%s\n", xa->inode,
-			       fsnodes_escape_name(xa->anleng, xa->attrname),
-			       fsnodes_escape_name(xa->avleng, xa->attrvalue));
+			       fsnodes_escape_name(std::string((char*)xa->attrname, xa->anleng)).c_str(),
+			       fsnodes_escape_name(std::string((char*)xa->attrvalue, xa->avleng)).c_str());
 		}
 	}
 }

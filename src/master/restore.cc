@@ -272,7 +272,7 @@ int do_create(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_apply_create(ts,parent,strlen((char*)name),name,type,mode,uid,gid,rdev,inode);
+	return fs_apply_create(ts, parent, HString((const char*)name), type, mode, uid, gid, rdev, inode);
 }
 
 int do_session(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
@@ -333,7 +333,7 @@ int do_link(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	EAT(ptr,filename,lv,',');
 	GETNAME(name,ptr,filename,lv,')');
 	EAT(ptr,filename,lv,')');
-	return fs_link(FsContext::getForRestore(ts), inode, parent, strlen((char*)name), name,
+	return fs_link(FsContext::getForRestore(ts), inode, parent, HString((const char*)name),
 			nullptr, nullptr);
 }
 
@@ -363,8 +363,8 @@ int do_move(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
 	return fs_rename(FsContext::getForRestore(ts),
-			parent_src, strlen((char*)name_src), name_src,
-			parent_dst, strlen((char*)name_dst), name_dst,
+			parent_src, HString((const char*)name_src),
+			parent_dst, HString((const char*)name_dst),
 			&inode, nullptr);
 }
 
@@ -547,7 +547,7 @@ int do_setpath(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) 
 	EAT(ptr,filename,lv,',');
 	GETPATH(path,pathsize,ptr,filename,lv,')');
 	EAT(ptr,filename,lv,')');
-	return fs_settrashpath(FsContext::getForRestore(ts), inode, strlen((const char*)path), path);
+	return fs_settrashpath(FsContext::getForRestore(ts), inode, std::string((const char*)path));
 }
 
 int do_settrashtime(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -659,8 +659,9 @@ int do_snapshot(const char* filename, uint64_t lv, uint32_t ts, const char* ptr)
 	EAT(ptr,filename,lv,',');
 	GETU32(canoverwrite,ptr);
 	EAT(ptr,filename,lv,')');
+
 	return fs_deprecated_snapshot(FsContext::getForRestore(ts),
-			inode, parent, strlen((char*)name), name, canoverwrite);
+			inode, parent, HString((const char*)name), canoverwrite);
 }
 
 int do_clone_node(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -678,7 +679,7 @@ int do_clone_node(const char* filename, uint64_t lv, uint32_t ts, const char* pt
 	GETU32(can_overwrite,ptr);
 	EAT(ptr,filename,lv,')');
 	return fs_clone_node(FsContext::getForRestore(ts), src_inode, dst_parent, dst_inode,
-				strlen((char*)name), name, can_overwrite);
+				HString((const char*)name), can_overwrite);
 }
 
 int do_symlink(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -700,7 +701,7 @@ int do_symlink(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) 
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
 	return fs_symlink(FsContext::getForRestoreWithUidGid(ts, uid, gid),
-			parent, strlen((char*)name), name, strlen((char*)path), path, &inode, nullptr);
+			parent, HString((char*)name), std::string((char*)path), &inode, nullptr);
 }
 
 int do_undel(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -721,7 +722,7 @@ int do_unlink(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(inode,ptr);
-	return fs_apply_unlink(ts,parent,strlen((char*)name),name,inode);
+	return fs_apply_unlink(ts, parent, HString((char*)name), inode);
 }
 
 int do_unlock(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {

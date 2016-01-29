@@ -30,7 +30,7 @@
  * This requires that shadow has built-in oracle that can guess what inode numbers is master using.
  */
 uint8_t fs_deprecated_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		uint16_t nleng_dst, const uint8_t *name_dst, uint8_t can_overwrite);
+		const HString &name_dst, uint8_t can_overwrite);
 
 /*! \brief Register snapshot task.
  *
@@ -43,7 +43,7 @@ uint8_t fs_deprecated_snapshot(const FsContext &context, uint32_t inode_src, uin
  * \param callback function that should be executed on finish of snapshot task.
  */
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		uint16_t nleng_dst, const uint8_t *name_dst, uint8_t can_overwrite,
+		const HString &name_dst, uint8_t can_overwrite,
 		const std::function<void(int)> &callback);
 
 /*! \brief Clone one inode.
@@ -52,12 +52,11 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
  * \param inode_src number of inode to clone.
  * \param parent_dst number of inode of the directory where source inode should be cloned to.
  * \param inode_dst inode number that should be used for clone's inode.
- * \param nleng_dst length of name_dst in characters.
  * \param name_dst clone name.
  * \param can_overwrite if true then cloning process can overwrite existing nodes.
  */
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		uint32_t inode_dst, uint16_t nleng_dst, const uint8_t *name_dst,
+		uint32_t inode_dst, const HString &name_dst,
 		uint8_t can_overwrite);
 
 /*! \brief Function processing enqueued snapshot tasks.

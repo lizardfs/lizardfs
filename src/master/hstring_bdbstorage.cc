@@ -41,7 +41,7 @@ BDBStorage::BDBStorage(const std::string &path, uint64_t cachesize, int ncache, 
 
 BDBStorage::~BDBStorage() {
 	if (dbp_) {
-		dbp_->close(dbp_, 0);
+		dbp_->close(dbp_, DB_NOSYNC);
 		dbp_ = nullptr;
 	}
 }

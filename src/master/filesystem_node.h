@@ -32,6 +32,7 @@
 #include "common/extended_acl.h"
 #include "common/goal.h"
 #include "master/fs_context.h"
+#include "master/hstring_storage.h"
 
 #define NODEHASHBITS (22)
 #define NODEHASHSIZE (1 << NODEHASHBITS)
@@ -68,14 +69,9 @@ struct fsedge {
 	struct fsedge **prevchild, **prevparent;
 	struct fsedge *next, **prev;
 	uint64_t checksum;
-	uint16_t nleng;
-	uint8_t *name;
+	hstorage::Handle name;
 
-	fsedge() : name(nullptr) {
-	}
-
-	~fsedge() {
-		free(name);
+	fsedge() : name() {
 	}
 };
 void free(fsedge *);  // disable freeing using free at link time :)
@@ -112,8 +108,8 @@ public:
 			statsrecord *stats;
 		} ddata;
 		struct _sdata {  // type==TYPE_SYMLINK
+			std::array<uint8_t, sizeof(hstorage::Handle)> path_storage;
 			uint32_t pleng;
-			uint8_t *path;
 		} sdata;
 		struct _devdata {
 			uint32_t rdev;  // type==TYPE_BLOCKDEV ; type==TYPE_CHARDEV
@@ -133,7 +129,7 @@ public:
 		if (type == TYPE_DIRECTORY) {
 			data.ddata.stats = nullptr;
 		} else if (type == TYPE_SYMLINK) {
-			data.sdata.path = nullptr;
+			new (data.sdata.path_storage.data()) hstorage::Handle();
 		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
 			data.fdata.chunktab = nullptr;
 		}
@@ -143,29 +139,36 @@ public:
 		if (type == TYPE_DIRECTORY) {
 			free(data.ddata.stats);
 		} else if (type == TYPE_SYMLINK) {
-			free(data.sdata.path);
+
+			reinterpret_cast<hstorage::Handle*>(data.sdata.path_storage.data())->~Handle();
 		} else if (type == TYPE_FILE || type == TYPE_RESERVED || type == TYPE_TRASH) {
 			free(data.fdata.chunktab);
 		}
+	}
+
+	hstorage::Handle& symlink_path() {
+		return *reinterpret_cast<hstorage::Handle*>(data.sdata.path_storage.data());
+	}
+	const hstorage::Handle& symlink_path() const {
+		return *reinterpret_cast<const hstorage::Handle*>(data.sdata.path_storage.data());
 	}
 };
 
 void free(fsnode *);  // disable freeing using free at link time :)
 
-inline uint32_t fsnodes_hash(uint32_t parentid, uint16_t nleng, const uint8_t *name) {
-	uint32_t hash, i;
-	hash = ((parentid * 0x5F2318BD) + nleng);
-	for (i = 0; i < nleng; i++) {
-		hash = hash * 33 + name[i];
-	}
-	return hash;
+inline uint32_t fsnodes_hash(uint32_t parentid, const hstorage::Handle &name) {
+	return (parentid * 0x5F2318BD) + name.hash();
 }
 
-char *fsnodes_escape_name(uint32_t nleng, const uint8_t *name);
+inline uint32_t fsnodes_hash(uint32_t parentid, const HString &name) {
+	return (parentid * 0x5F2318BD) + (hstorage::Handle::HashType)name.hash();
+}
+
+std::string fsnodes_escape_name(const std::string &name);
 int fsnodes_purge(uint32_t ts, fsnode *p);
 uint32_t fsnodes_getdetachedsize(fsedge *start);
 void fsnodes_getdetacheddata(fsedge *start, uint8_t *dbuff);
-void fsnodes_getpath(fsedge *e, uint16_t *pleng, uint8_t **path);
+void fsnodes_getpath(fsedge *e, std::string &path);
 fsnode *fsnodes_id_to_node(uint32_t id);
 void fsnodes_fill_attr(fsnode *node, fsnode *parent, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, Attributes &attr);
@@ -178,18 +181,18 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 	uint8_t modemask, uint32_t inode, fsnode **ret);
 uint8_t fsnodes_undel(uint32_t ts, fsnode *node);
 
-int fsnodes_namecheck(uint32_t nleng, const uint8_t *name);
-fsedge *fsnodes_lookup(fsnode *node, uint16_t nleng, const uint8_t *name);
+int fsnodes_namecheck(const std::string &name);
+fsedge *fsnodes_lookup(fsnode *node, const HString &name);
 void fsnodes_get_stats(fsnode *node, statsrecord *sr);
 bool fsnodes_isancestor_or_node_reserved_or_trash(fsnode *f, fsnode *p);
 int fsnodes_access(fsnode *node, uint32_t uid, uint32_t gid, uint8_t modemask, uint8_t sesflags);
 
 void fsnodes_setlength(fsnode *obj, uint64_t length);
 void fsnodes_change_uid_gid(fsnode *p, uint32_t uid, uint32_t gid);
-int fsnodes_nameisused(fsnode *node, uint16_t nleng, const uint8_t *name);
+int fsnodes_nameisused(fsnode *node, const HString &name);
 bool fsnodes_inode_quota_exceeded(uint32_t uid, uint32_t gid);
 
-fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, uint16_t nleng, const uint8_t *name,
+fsnode *fsnodes_create_node(uint32_t ts, fsnode *node, const HString &name,
 			uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
 			uint8_t copysgid, AclInheritance inheritacl, uint32_t req_inode=0);
 
@@ -198,7 +201,7 @@ int fsnodes_sticky_access(fsnode *parent, fsnode *node, uint32_t uid);
 void fsnodes_unlink(uint32_t ts, fsedge *e);
 bool fsnodes_isancestor(fsnode *f, fsnode *p);
 void fsnodes_remove_edge(uint32_t ts, fsedge *e);
-void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, uint16_t nleng, const uint8_t *name);
+void fsnodes_link(uint32_t ts, fsnode *parent, fsnode *child, const HString &name);
 
 uint8_t fsnodes_appendchunks(uint32_t ts, fsnode *dstobj, fsnode *srcobj);
 uint32_t fsnodes_getdirsize(fsnode *p, uint8_t withattr);

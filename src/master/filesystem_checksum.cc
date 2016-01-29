@@ -46,8 +46,7 @@ static uint64_t fsnodes_checksum(const fsnode *node) {
 		hashCombine(seed, node->data.devdata.rdev);
 		break;
 	case TYPE_SYMLINK:
-		hashCombine(seed, node->data.sdata.pleng,
-		            ByteArray(node->data.sdata.path, node->data.sdata.pleng));
+		hashCombine(seed, node->symlink_path().hash());
 		break;
 	case TYPE_FILE:
 	case TYPE_TRASH:
@@ -114,7 +113,7 @@ static uint64_t fsedges_checksum(const fsedge *edge) {
 	if (edge->parent) {
 		hashCombine(seed, edge->parent->id);
 	}
-	hashCombine(seed, edge->child->id, edge->nleng, ByteArray(edge->name, edge->nleng));
+	hashCombine(seed, edge->child->id, edge->name.hash());
 	return seed;
 }
 

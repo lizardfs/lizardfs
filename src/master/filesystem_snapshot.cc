@@ -24,7 +24,7 @@
 #include "master/filesystem_quota.h"
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-			uint16_t nleng_dst, const uint8_t *name_dst, uint8_t can_overwrite,
+					const HString &name_dst, uint8_t can_overwrite,
 			const std::function<void(int)> &callback) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *src_node = NULL;
@@ -52,20 +52,18 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 	assert(context.isPersonalityMaster());
 
 	return gMetadata->snapshot_manager.makeSnapshot(context.ts(), src_node, dst_parent_node,
-	                                         std::string((const char *)name_dst, nleng_dst),
-	                                         can_overwrite, callback);
+	                                         name_dst, can_overwrite, callback);
 }
 
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-			uint32_t inode_dst, uint16_t nleng_dst, const uint8_t *name_dst,
-			uint8_t can_overwrite) {
+			uint32_t inode_dst, const HString &name_dst, uint8_t can_overwrite) {
 	SnapshotManager::CloneData data;
 
 	data.orig_inode = 0;
 	data.src_inode = inode_src;
 	data.dst_parent_inode = parent_dst;
 	data.dst_inode = inode_dst;
-	data.dst_name = std::string(reinterpret_cast<const char *>(name_dst), nleng_dst);
+	data.dst_name = name_dst;
 	data.can_overwrite = can_overwrite;
 	data.emit_changelog = false;
 	data.enqueue_work = false;
@@ -89,7 +87,7 @@ void fs_background_snapshot_work() {
 #endif
 
 uint8_t fsnodes_deprecated_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, fsnode *parentnode,
-			uint32_t nleng, const uint8_t *name, uint8_t can_overwrite) {
+			const HString &name, uint8_t can_overwrite) {
 	fsedge *e;
 	fsnode *dstnode;
 	uint8_t status;
@@ -102,7 +100,7 @@ uint8_t fsnodes_deprecated_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, f
 	     fsnodes_quota_exceeded_dir(parentnode, {{QuotaResource::kSize, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	if ((e = fsnodes_lookup(parentnode, nleng, name))) {
+	if ((e = fsnodes_lookup(parentnode, name))) {
 		dstnode = e->child;
 		if (dstnode == origsrcnode) {
 			return LIZARDFS_ERROR_EINVAL;
@@ -116,7 +114,7 @@ uint8_t fsnodes_deprecated_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, f
 		if (srcnode->type == TYPE_DIRECTORY) {
 			for (e = srcnode->data.ddata.children; e; e = e->nextchild) {
 				status = fsnodes_deprecated_snapshot_test(origsrcnode, e->child, dstnode,
-				                               e->nleng, e->name, can_overwrite);
+				                               (HString)e->name, can_overwrite);
 				if (status != LIZARDFS_STATUS_OK) {
 					return status;
 				}
@@ -129,19 +127,18 @@ uint8_t fsnodes_deprecated_snapshot_test(fsnode *origsrcnode, fsnode *srcnode, f
 }
 
 /// creates cow copy
-void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnode, uint32_t nleng,
-				const uint8_t *name) {
+void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnode,
+		const HString &name) {
 	fsedge *e;
 	fsnode *dstnode = nullptr;
 	uint32_t i;
 	uint64_t chunkid;
-	if ((e = fsnodes_lookup(parentnode, nleng, name))) {
+	if ((e = fsnodes_lookup(parentnode, name))) {
 		// link already exists
 		dstnode = e->child;
 		if (srcnode->type == TYPE_DIRECTORY) {
 			for (e = srcnode->data.ddata.children; e; e = e->nextchild) {
-				fsnodes_deprecated_snapshot(ts, e->child, dstnode, e->nleng,
-				                            e->name);
+				fsnodes_deprecated_snapshot(ts, e->child, dstnode, (HString)e->name);
 			}
 		} else if (srcnode->type == TYPE_FILE) {
 			uint8_t same = 0;
@@ -158,7 +155,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 			if (same == 0) {
 				statsrecord psr, nsr;
 				fsnodes_unlink(ts, e);
-				dstnode = fsnodes_create_node(ts, parentnode, nleng, name,
+				dstnode = fsnodes_create_node(ts, parentnode, name,
 				                              TYPE_FILE, srcnode->mode, 0,
 				                              srcnode->uid, srcnode->gid, 0,
 				                              AclInheritance::kDontInheritAcl);
@@ -202,20 +199,8 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 				sr.length = dstnode->data.sdata.pleng - srcnode->data.sdata.pleng;
 				fsnodes_add_stats(parentnode, &sr);
 			}
-			if (dstnode->data.sdata.path) {
-				free(dstnode->data.sdata.path);
-			}
-			if (srcnode->data.sdata.pleng > 0) {
-				dstnode->data.sdata.path =
-				        (uint8_t *)malloc(srcnode->data.sdata.pleng);
-				passert(dstnode->data.sdata.path);
-				memcpy(dstnode->data.sdata.path, srcnode->data.sdata.path,
-				       srcnode->data.sdata.pleng);
-				dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
-			} else {
-				dstnode->data.sdata.path = NULL;
-				dstnode->data.sdata.pleng = 0;
-			}
+			dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
+			dstnode->symlink_path() = srcnode->symlink_path();
 		} else if (srcnode->type == TYPE_BLOCKDEV || srcnode->type == TYPE_CHARDEV) {
 			dstnode->data.devdata.rdev = srcnode->data.devdata.rdev;
 		}
@@ -231,7 +216,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 		    srcnode->type == TYPE_CHARDEV || srcnode->type == TYPE_SOCKET ||
 		    srcnode->type == TYPE_FIFO) {
 			statsrecord psr, nsr;
-			dstnode = fsnodes_create_node(ts, parentnode, nleng, name, srcnode->type,
+			dstnode = fsnodes_create_node(ts, parentnode, name, srcnode->type,
 			                              srcnode->mode, 0, srcnode->uid, srcnode->gid,
 			                              0, AclInheritance::kDontInheritAcl);
 			fsnodes_get_stats(dstnode, &psr);
@@ -242,8 +227,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 			dstnode->mtime = srcnode->mtime;
 			if (srcnode->type == TYPE_DIRECTORY) {
 				for (e = srcnode->data.ddata.children; e; e = e->nextchild) {
-					fsnodes_deprecated_snapshot(ts, e->child, dstnode, e->nleng,
-					                            e->name);
+					fsnodes_deprecated_snapshot(ts, e->child, dstnode, (HString)e->name);
 				}
 			} else if (srcnode->type == TYPE_FILE) {
 				if (srcnode->data.fdata.chunks > 0) {
@@ -277,12 +261,8 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 				fsnodes_quota_update(dstnode, {{QuotaResource::kSize, nsr.size - psr.size}});
 			} else if (srcnode->type == TYPE_SYMLINK) {
 				if (srcnode->data.sdata.pleng > 0) {
-					dstnode->data.sdata.path =
-					        (uint8_t *)malloc(srcnode->data.sdata.pleng);
-					passert(dstnode->data.sdata.path);
-					memcpy(dstnode->data.sdata.path, srcnode->data.sdata.path,
-					       srcnode->data.sdata.pleng);
 					dstnode->data.sdata.pleng = srcnode->data.sdata.pleng;
+					dstnode->symlink_path() = srcnode->symlink_path();
 				}
 				fsnodes_get_stats(dstnode, &nsr);
 				fsnodes_add_sub_stats(parentnode, &nsr, &psr);
@@ -296,7 +276,7 @@ void fsnodes_deprecated_snapshot(uint32_t ts, fsnode *srcnode, fsnode *parentnod
 }
 
 uint8_t fs_deprecated_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-			uint16_t nleng_dst, const uint8_t *name_dst, uint8_t can_overwrite) {
+			const HString &name_dst, uint8_t can_overwrite) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *sp = NULL;
 	fsnode *dwd = NULL;
@@ -319,14 +299,14 @@ uint8_t fs_deprecated_snapshot(const FsContext &context, uint32_t inode_src, uin
 			return LIZARDFS_ERROR_EINVAL;
 		}
 	}
-	status = fsnodes_deprecated_snapshot_test(sp, sp, dwd, nleng_dst, name_dst, can_overwrite);
+	status = fsnodes_deprecated_snapshot_test(sp, sp, dwd, name_dst, can_overwrite);
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	fsnodes_deprecated_snapshot(context.ts(), sp, dwd, nleng_dst, name_dst);
+	fsnodes_deprecated_snapshot(context.ts(), sp, dwd, name_dst);
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "SNAPSHOT(%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
-		             sp->id, dwd->id, fsnodes_escape_name(nleng_dst, name_dst),
+		             sp->id, dwd->id, fsnodes_escape_name(name_dst).c_str(),
 		             can_overwrite);
 	} else {
 		gMetadata->metaversion++;

@@ -194,11 +194,8 @@ uint8_t fs_getdetachedattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_gettrashpath(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t *pleng,
-			uint8_t **path) {
+uint8_t fs_gettrashpath(uint32_t rootinode, uint8_t sesflags, uint32_t inode, std::string &path) {
 	fsnode *p;
-	*pleng = 0;
-	*path = NULL;
 	if (rootinode != 0) {
 		return LIZARDFS_ERROR_EPERM;
 	}
@@ -210,14 +207,12 @@ uint8_t fs_gettrashpath(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 	if (p->type != TYPE_TRASH) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
-	*pleng = p->parents->nleng;
-	*path = p->parents->name;
+	path = (std::string)p->parents->name;
 	return LIZARDFS_STATUS_OK;
 }
 #endif
 
-uint8_t fs_settrashpath(const FsContext &context, uint32_t inode, uint32_t pleng,
-			const uint8_t *path) {
+uint8_t fs_settrashpath(const FsContext &context, uint32_t inode, const std::string &path) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *p;
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kOnlyMeta);
@@ -230,25 +225,20 @@ uint8_t fs_settrashpath(const FsContext &context, uint32_t inode, uint32_t pleng
 		return status;
 	} else if (p->type != TYPE_TRASH) {
 		return LIZARDFS_ERROR_ENOENT;
-	} else if (pleng == 0) {
+	} else if (path.length() == 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	for (uint32_t i = 0; i < pleng; i++) {
+	for (uint32_t i = 0; i < path.length(); i++) {
 		if (path[i] == 0) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
 	}
 
-	uint8_t *newpath = (uint8_t *)malloc(pleng);
-	passert(newpath);
-	free(p->parents->name);
-	memcpy(newpath, path, pleng);
-	p->parents->name = newpath;
-	p->parents->nleng = pleng;
+	p->parents->name = HString(path);
 	fsedges_update_checksum(p->parents);
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "SETPATH(%" PRIu32 ",%s)", p->id,
-		             fsnodes_escape_name(pleng, newpath));
+		             fsnodes_escape_name(path).c_str());
 	} else {
 		gMetadata->metaversion++;
 	}
@@ -322,6 +312,7 @@ void fs_info(uint64_t *totalspace, uint64_t *availspace, uint64_t *trspace, uint
 }
 
 uint8_t fs_getrootinode(uint32_t *rootinode, const uint8_t *path) {
+	HString hname;
 	uint32_t nleng;
 	const uint8_t *name;
 	fsnode *p;
@@ -341,10 +332,11 @@ uint8_t fs_getrootinode(uint32_t *rootinode, const uint8_t *path) {
 		while (name[nleng] && name[nleng] != '/') {
 			nleng++;
 		}
-		if (fsnodes_namecheck(nleng, name) < 0) {
+		hname = HString((const char*)name, nleng);
+		if (fsnodes_namecheck(hname) < 0) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
-		e = fsnodes_lookup(p, nleng, name);
+		e = fsnodes_lookup(p, hname);
 		if (!e) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
@@ -443,8 +435,8 @@ uint8_t fs_access(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 	return fsnodes_access(p, uid, gid, modemask, sesflags) ? LIZARDFS_STATUS_OK : LIZARDFS_ERROR_EACCES;
 }
 
-uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
-		const uint8_t *name, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
+uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HString &name,
+		uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
 		uint32_t *inode, Attributes &attr) {
 	fsnode *wd, *rn;
 	fsedge *e;
@@ -481,8 +473,8 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 	if (!fsnodes_access(wd, uid, gid, MODE_MASK_X, sesflags)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
-	if (name[0] == '.') {
-		if (nleng == 1) {  // self
+	if (!name.empty() && name[0] == '.') {
+		if (name.length() == 1) {  // self
 			if (parent == rootinode) {
 				*inode = SPECIAL_INODE_ROOT;
 			} else {
@@ -492,7 +484,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 			stats_lookup++;
 			return LIZARDFS_STATUS_OK;
 		}
-		if (nleng == 2 && name[1] == '.') {  // parent
+		if (name.length() == 2 && name[1] == '.') {  // parent
 			if (parent == rootinode) {
 				*inode = SPECIAL_INODE_ROOT;
 				fsnodes_fill_attr(wd, wd, uid, gid, auid, agid, sesflags, attr);
@@ -515,10 +507,10 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 			return LIZARDFS_STATUS_OK;
 		}
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	e = fsnodes_lookup(wd, nleng, name);
+	e = fsnodes_lookup(wd, name);
 	if (!e) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
@@ -941,15 +933,12 @@ static inline void fs_update_atime(fsnode *p, uint32_t ts) {
 	}
 }
 
-uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t *pleng,
-			uint8_t **path) {
+uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, std::string &path) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *p = NULL;
 
 	(void)sesflags;
-	*pleng = 0;
-	*path = NULL;
 	if (rootinode == SPECIAL_INODE_ROOT) {
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
@@ -976,16 +965,15 @@ uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32
 	if (p->type != TYPE_SYMLINK) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	*pleng = p->data.sdata.pleng;
-	*path = p->data.sdata.path;
+	path = (std::string)p->symlink_path();
 	fs_update_atime(p, ts);
 	stats_readlink++;
 	return LIZARDFS_STATUS_OK;
 }
 #endif
 
-uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, const uint8_t *name,
-		uint32_t pleng, const uint8_t *path, uint32_t *inode, Attributes *attr) {
+uint8_t fs_symlink(const FsContext &context, uint32_t parent, const HString &name,
+		const std::string &path, uint32_t *inode, Attributes *attr) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *wd;
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
@@ -997,18 +985,18 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	if (pleng == 0) {
+	if (path.length() == 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	for (uint32_t i = 0; i < pleng; i++) {
+	for (uint32_t i = 0; i < path.length(); i++) {
 		if (path[i] == 0) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (fsnodes_nameisused(wd, nleng, name)) {
+	if (fsnodes_nameisused(wd, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
 	if (context.isPersonalityMaster() &&
@@ -1016,18 +1004,15 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 	     fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}}))) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	uint8_t *newpath = (uint8_t *)malloc(pleng);
-	passert(newpath);
-	fsnode *p = fsnodes_create_node(context.ts(), wd, nleng, name, TYPE_SYMLINK, 0777, 0,
+	fsnode *p = fsnodes_create_node(context.ts(), wd, name, TYPE_SYMLINK, 0777, 0,
 	                                context.uid(), context.gid(), 0,
 	                                AclInheritance::kDontInheritAcl, *inode);
-	memcpy(newpath, path, pleng);
-	p->data.sdata.path = newpath;
-	p->data.sdata.pleng = pleng;
+	p->symlink_path() = HString(path);
+	p->data.sdata.pleng = path.length();
 	fsnodes_update_checksum(p);
 	statsrecord sr;
 	memset(&sr, 0, sizeof(statsrecord));
-	sr.length = pleng;
+	sr.length = path.length();
 	fsnodes_add_stats(wd, &sr);
 	if (attr != NULL) {
 		fsnodes_fill_attr(context, p, wd, *attr);
@@ -1037,7 +1022,7 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 		*inode = p->id;
 		fs_changelog(context.ts(),
 		             "SYMLINK(%" PRIu32 ",%s,%s,%" PRIu32 ",%" PRIu32 "):%" PRIu32, wd->id,
-		             fsnodes_escape_name(nleng, name), fsnodes_escape_name(pleng, newpath),
+		             fsnodes_escape_name(name).c_str(), fsnodes_escape_name(path).c_str(),
 		             context.uid(), context.gid(), p->id);
 	} else {
 		if (*inode != p->id) {
@@ -1052,8 +1037,8 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, uint16_t nleng, co
 }
 
 #ifndef METARESTORE
-uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
-		const uint8_t *name, uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid,
+uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HString &name,
+		uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid,
 		uint32_t gid, uint32_t auid, uint32_t agid, uint32_t rdev, uint32_t *inode,
 		Attributes &attr) {
 	uint32_t ts = main_time();
@@ -1097,17 +1082,17 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (!fsnodes_access(wd, uid, gid, MODE_MASK_W, sesflags)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (fsnodes_nameisused(wd, nleng, name)) {
+	if (fsnodes_nameisused(wd, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
 	if (fsnodes_quota_exceeded_ug(uid, gid, {{QuotaResource::kInodes, 1}}) ||
 	    fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	p = fsnodes_create_node(ts, wd, nleng, name, type, mode, umask, uid, gid, 0,
+	p = fsnodes_create_node(ts, wd, name, type, mode, umask, uid, gid, 0,
 	                        AclInheritance::kInheritAcl);
 	if (type == TYPE_BLOCKDEV || type == TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
@@ -1116,15 +1101,15 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	fsnodes_fill_attr(p, wd, uid, gid, auid, agid, sesflags, attr);
 	fs_changelog(ts,
 	             "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
-	             parent, fsnodes_escape_name(nleng, name), type, p->mode & 07777, uid, gid,
+	             parent, fsnodes_escape_name(name).c_str(), type, p->mode & 07777, uid, gid,
 	             rdev, p->id);
 	stats_mknod++;
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
-		const uint8_t *name, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
+uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent,
+		const HString &name, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
 		uint32_t auid, uint32_t agid, uint8_t copysgid, uint32_t *inode,
 		Attributes &attr) {
 	uint32_t ts = main_time();
@@ -1164,30 +1149,30 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (!fsnodes_access(wd, uid, gid, MODE_MASK_W, sesflags)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (fsnodes_nameisused(wd, nleng, name)) {
+	if (fsnodes_nameisused(wd, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
 	if (fsnodes_quota_exceeded_ug(uid, gid, {{QuotaResource::kInodes, 1}}) ||
 	    fsnodes_quota_exceeded_dir(wd, {{QuotaResource::kInodes, 1}})) {
 		return LIZARDFS_ERROR_QUOTA;
 	}
-	p = fsnodes_create_node(ts, wd, nleng, name, TYPE_DIRECTORY, mode, umask, uid, gid,
+	p = fsnodes_create_node(ts, wd, name, TYPE_DIRECTORY, mode, umask, uid, gid,
 	                        copysgid, AclInheritance::kInheritAcl);
 	*inode = p->id;
 	fsnodes_fill_attr(p, wd, uid, gid, auid, agid, sesflags, attr);
 	fs_changelog(ts,
 	             "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
-	             parent, fsnodes_escape_name(nleng, name), TYPE_DIRECTORY, p->mode & 07777, uid,
+	             parent, fsnodes_escape_name(name).c_str(), TYPE_DIRECTORY, p->mode & 07777, uid,
 	             gid, 0, p->id);
 	stats_mkdir++;
 	return LIZARDFS_STATUS_OK;
 }
 #endif
 
-uint8_t fs_apply_create(uint32_t ts, uint32_t parent, uint32_t nleng, const uint8_t *name,
+uint8_t fs_apply_create(uint32_t ts, uint32_t parent, const HString &name,
 		uint8_t type, uint32_t mode, uint32_t uid, uint32_t gid, uint32_t rdev,
 		uint32_t inode) {
 	fsnode *wd, *p;
@@ -1202,11 +1187,11 @@ uint8_t fs_apply_create(uint32_t ts, uint32_t parent, uint32_t nleng, const uint
 	if (wd->type != TYPE_DIRECTORY) {
 		return LIZARDFS_ERROR_ENOTDIR;
 	}
-	if (fsnodes_nameisused(wd, nleng, name)) {
+	if (fsnodes_nameisused(wd, name)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
 	// we pass requested inode number here
-	p = fsnodes_create_node(ts, wd, nleng, name, type, mode, 0, uid, gid, 0,
+	p = fsnodes_create_node(ts, wd, name, type, mode, 0, uid, gid, 0,
 	                        AclInheritance::kInheritAcl, inode);
 	if (type == TYPE_BLOCKDEV || type == TYPE_CHARDEV) {
 		p->data.devdata.rdev = rdev;
@@ -1221,8 +1206,8 @@ uint8_t fs_apply_create(uint32_t ts, uint32_t parent, uint32_t nleng, const uint
 }
 
 #ifndef METARESTORE
-uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
-		const uint8_t *name, uint32_t uid, uint32_t gid) {
+uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HString &name,
+		uint32_t uid, uint32_t gid) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *wd, *rn;
@@ -1259,10 +1244,10 @@ uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 	if (!fsnodes_access(wd, uid, gid, MODE_MASK_W, sesflags)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	e = fsnodes_lookup(wd, nleng, name);
+	e = fsnodes_lookup(wd, name);
 	if (!e) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
@@ -1273,14 +1258,14 @@ uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_
 		return LIZARDFS_ERROR_EPERM;
 	}
 	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32, parent,
-	             fsnodes_escape_name(nleng, name), e->child->id);
+	             fsnodes_escape_name(name).c_str(), e->child->id);
 	fsnodes_unlink(ts, e);
 	stats_unlink++;
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t nleng,
-		const uint8_t *name, uint32_t uid, uint32_t gid) {
+uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HString &name,
+		uint32_t uid, uint32_t gid) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	fsnode *wd, *rn;
@@ -1317,10 +1302,10 @@ uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 	if (!fsnodes_access(wd, uid, gid, MODE_MASK_W, sesflags)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
-	if (fsnodes_namecheck(nleng, name) < 0) {
+	if (fsnodes_namecheck(name) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	e = fsnodes_lookup(wd, nleng, name);
+	e = fsnodes_lookup(wd, name);
 	if (!e) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
@@ -1334,14 +1319,14 @@ uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, uint16_t
 		return LIZARDFS_ERROR_ENOTEMPTY;
 	}
 	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32, parent,
-	             fsnodes_escape_name(nleng, name), e->child->id);
+	             fsnodes_escape_name(name).c_str(), e->child->id);
 	fsnodes_unlink(ts, e);
 	stats_rmdir++;
 	return LIZARDFS_STATUS_OK;
 }
 #endif
 
-uint8_t fs_apply_unlink(uint32_t ts, uint32_t parent, uint32_t nleng, const uint8_t *name,
+uint8_t fs_apply_unlink(uint32_t ts, uint32_t parent, const HString &name,
 		uint32_t inode) {
 	fsnode *wd;
 	fsedge *e;
@@ -1352,7 +1337,7 @@ uint8_t fs_apply_unlink(uint32_t ts, uint32_t parent, uint32_t nleng, const uint
 	if (wd->type != TYPE_DIRECTORY) {
 		return LIZARDFS_ERROR_ENOTDIR;
 	}
-	e = fsnodes_lookup(wd, nleng, name);
+	e = fsnodes_lookup(wd, name);
 	if (!e) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
@@ -1367,9 +1352,8 @@ uint8_t fs_apply_unlink(uint32_t ts, uint32_t parent, uint32_t nleng, const uint
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_src,
-		const uint8_t *name_src, uint32_t parent_dst, uint16_t nleng_dst,
-		const uint8_t *name_dst, uint32_t *inode, Attributes *attr) {
+uint8_t fs_rename(const FsContext &context, uint32_t parent_src, const HString &name_src,
+		uint32_t parent_dst, const HString &name_dst, uint32_t *inode, Attributes *attr) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *swd;
 	fsnode *dwd;
@@ -1387,10 +1371,10 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	if (fsnodes_namecheck(nleng_src, name_src) < 0) {
+	if (fsnodes_namecheck(name_src) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	fsedge *se = fsnodes_lookup(swd, nleng_src, name_src);
+	fsedge *se = fsnodes_lookup(swd, name_src);
 	if (!se) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
@@ -1415,11 +1399,10 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 	} else if (se->child->type == TYPE_FILE) {
 		quota_delta[(int)QuotaResource::kSize] = fsnodes_get_size(se->child);
 	}
-
-	if (fsnodes_namecheck(nleng_dst, name_dst) < 0) {
+	if (fsnodes_namecheck(name_dst) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	fsedge *de = fsnodes_lookup(dwd, nleng_dst, name_dst);
+	fsedge *de = fsnodes_lookup(dwd, name_dst);
 	if (de) {
 		if (de->child->type == TYPE_DIRECTORY && de->child->data.ddata.children != NULL) {
 			return LIZARDFS_ERROR_ENOTEMPTY;
@@ -1451,14 +1434,14 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 		fsnodes_unlink(context.ts(), de);
 	}
 	fsnodes_remove_edge(context.ts(), se);
-	fsnodes_link(context.ts(), dwd, node, nleng_dst, name_dst);
+	fsnodes_link(context.ts(), dwd, node, name_dst);
 	if (attr) {
 		fsnodes_fill_attr(context, node, dwd, *attr);
 	}
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "MOVE(%" PRIu32 ",%s,%" PRIu32 ",%s):%" PRIu32, swd->id,
-		             fsnodes_escape_name(nleng_src, name_src), dwd->id,
-		             fsnodes_escape_name(nleng_dst, name_dst), node->id);
+		             fsnodes_escape_name(name_src).c_str(), dwd->id,
+		             fsnodes_escape_name(name_dst).c_str(), node->id);
 	} else {
 		gMetadata->metaversion++;
 	}
@@ -1469,7 +1452,7 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, uint16_t nleng_
 }
 
 uint8_t fs_link(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		uint16_t nleng_dst, const uint8_t *name_dst, uint32_t *inode, Attributes *attr) {
+		const HString &name_dst, uint32_t *inode, Attributes *attr) {
 	ChecksumUpdater cu(context.ts());
 	fsnode *sp;
 	fsnode *dwd;
@@ -1490,13 +1473,13 @@ uint8_t fs_link(const FsContext &context, uint32_t inode_src, uint32_t parent_ds
 	if (sp->type == TYPE_TRASH || sp->type == TYPE_RESERVED) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
-	if (fsnodes_namecheck(nleng_dst, name_dst) < 0) {
+	if (fsnodes_namecheck(name_dst) < 0) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
-	if (fsnodes_nameisused(dwd, nleng_dst, name_dst)) {
+	if (fsnodes_nameisused(dwd, name_dst)) {
 		return LIZARDFS_ERROR_EEXIST;
 	}
-	fsnodes_link(context.ts(), dwd, sp, nleng_dst, name_dst);
+	fsnodes_link(context.ts(), dwd, sp, name_dst);
 	if (inode) {
 		*inode = inode_src;
 	}
@@ -1505,7 +1488,7 @@ uint8_t fs_link(const FsContext &context, uint32_t inode_src, uint32_t parent_ds
 	}
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "LINK(%" PRIu32 ",%" PRIu32 ",%s)", sp->id, dwd->id,
-		             fsnodes_escape_name(nleng_dst, name_dst));
+		             fsnodes_escape_name(name_dst).c_str());
 	} else {
 		gMetadata->metaversion++;
 	}
@@ -2738,7 +2721,8 @@ uint8_t fs_setxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 	p->ctime = ts;
 	fsnodes_update_checksum(p);
 	fs_changelog(ts, "SETXATTR(%" PRIu32 ",%s,%s,%" PRIu8 ")", inode,
-	             fsnodes_escape_name(anleng, attrname), fsnodes_escape_name(avleng, attrvalue),
+	             fsnodes_escape_name(std::string((const char*)attrname, anleng)).c_str(),
+	             fsnodes_escape_name(std::string((const char*)attrvalue, avleng)).c_str(),
 	             mode);
 	return LIZARDFS_STATUS_OK;
 }

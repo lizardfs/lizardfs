@@ -67,47 +67,47 @@ uint32_t fs_test_log_inconsistency(fsedge *e, const char *iname, char *buff, uin
 	if (e->parent) {
 		syslog(LOG_ERR,
 		       "structure error - %s inconsistency (edge: %" PRIu32 ",%s -> %" PRIu32 ")",
-		       iname, e->parent->id, fsnodes_escape_name(e->nleng, e->name), e->child->id);
+		       iname, e->parent->id, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
 		if (leng < size) {
 			leng += snprintf(buff + leng, size - leng,
 			                 "structure error - %s inconsistency (edge: %" PRIu32
 			                 ",%s -> %" PRIu32 ")\n",
 			                 iname, e->parent->id,
-			                 fsnodes_escape_name(e->nleng, e->name), e->child->id);
+			                 fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
 		}
 	} else {
 		if (e->child->type == TYPE_TRASH) {
 			syslog(LOG_ERR,
 			       "structure error - %s inconsistency (edge: TRASH,%s -> %" PRIu32 ")",
-			       iname, fsnodes_escape_name(e->nleng, e->name), e->child->id);
+			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
 			if (leng < size) {
 				leng += snprintf(buff + leng, size - leng,
 				                 "structure error - %s inconsistency (edge: "
 				                 "TRASH,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name(e->nleng, e->name),
+				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
 				                 e->child->id);
 			}
 		} else if (e->child->type == TYPE_RESERVED) {
 			syslog(LOG_ERR,
 			       "structure error - %s inconsistency (edge: RESERVED,%s -> %" PRIu32
 			       ")",
-			       iname, fsnodes_escape_name(e->nleng, e->name), e->child->id);
+			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
 			if (leng < size) {
 				leng += snprintf(buff + leng, size - leng,
 				                 "structure error - %s inconsistency (edge: "
 				                 "RESERVED,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name(e->nleng, e->name),
+				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
 				                 e->child->id);
 			}
 		} else {
 			syslog(LOG_ERR,
 			       "structure error - %s inconsistency (edge: NULL,%s -> %" PRIu32 ")",
-			       iname, fsnodes_escape_name(e->nleng, e->name), e->child->id);
+			       iname, fsnodes_escape_name((std::string)e->name).c_str(), e->child->id);
 			if (leng < size) {
 				leng += snprintf(buff + leng, size - leng,
 				                 "structure error - %s inconsistency (edge: "
 				                 "NULL,%s -> %" PRIu32 ")\n",
-				                 iname, fsnodes_escape_name(e->nleng, e->name),
+				                 iname, fsnodes_escape_name((std::string)e->name).c_str(),
 				                 e->child->id);
 			}
 		}
@@ -413,9 +413,7 @@ void fs_periodic_test_files() {
 							syslog(LOG_ERR,
 							       "- currently unavailable file in "
 							       "trash %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name(
-							                      f->parents->nleng,
-							                      f->parents->name));
+							       f->id, fsnodes_escape_name((std::string)f->parents->name).c_str());
 							if (leng < MSGBUFFSIZE) {
 								leng += snprintf(
 								        msgbuff + leng,
@@ -424,9 +422,7 @@ void fs_periodic_test_files() {
 								        "file in trash %" PRIu32
 								        ": %s\n",
 								        f->id,
-								        fsnodes_escape_name(
-								                f->parents->nleng,
-								                f->parents->name));
+								        fsnodes_escape_name((std::string)f->parents->name).c_str());
 							}
 							errors++;
 							unavailtrashfiles++;
@@ -442,9 +438,7 @@ void fs_periodic_test_files() {
 							syslog(LOG_ERR,
 							       "+ currently unavailable reserved "
 							       "file %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name(
-							                      f->parents->nleng,
-							                      f->parents->name));
+							       f->id, fsnodes_escape_name((std::string)f->parents->name).c_str());
 							if (leng < MSGBUFFSIZE) {
 								leng += snprintf(
 								        msgbuff + leng,
@@ -453,9 +447,7 @@ void fs_periodic_test_files() {
 								        "reserved file %" PRIu32
 								        ": %s\n",
 								        f->id,
-								        fsnodes_escape_name(
-								                f->parents->nleng,
-								                f->parents->name));
+								        fsnodes_escape_name((std::string)f->parents->name).c_str());
 							}
 							errors++;
 							unavailreservedfiles++;
@@ -467,16 +459,14 @@ void fs_periodic_test_files() {
 							}
 						}
 					} else {
-						uint8_t *path;
-						uint16_t pleng;
+						std::string path;
 						for (e = f->parents; e; e = e->nextparent) {
 							if (errors < ERRORS_LOG_MAX) {
-								fsnodes_getpath(e, &pleng, &path);
+								fsnodes_getpath(e, path);
 								syslog(LOG_ERR,
 								       "* currently unavailable "
 								       "file %" PRIu32 ": %s",
-								       f->id, fsnodes_escape_name(
-								                      pleng, path));
+								       f->id, fsnodes_escape_name(path).c_str());
 								if (leng < MSGBUFFSIZE) {
 									leng += snprintf(
 									        msgbuff + leng,
@@ -485,11 +475,8 @@ void fs_periodic_test_files() {
 									        "unavailable file "
 									        "%" PRIu32 ": %s\n",
 									        f->id,
-									        fsnodes_escape_name(
-									                pleng,
-									                path));
+									        fsnodes_escape_name(path).c_str());
 								}
-								free(path);
 								errors++;
 							}
 							unavailfiles++;
@@ -514,7 +501,7 @@ void fs_periodic_test_files() {
 						       "(node: %" PRIu32 " ; edge: %" PRIu32
 						       ",%s -> %" PRIu32 ")",
 						       f->id, e->parent->id,
-						       fsnodes_escape_name(e->nleng, e->name),
+						       fsnodes_escape_name((std::string)e->name).c_str(),
 						       e->child->id);
 						if (leng < MSGBUFFSIZE) {
 							leng += snprintf(
@@ -524,8 +511,7 @@ void fs_periodic_test_files() {
 							        "%" PRIu32 " ; edge: %" PRIu32
 							        ",%s -> %" PRIu32 ")\n",
 							        f->id, e->parent->id,
-							        fsnodes_escape_name(e->nleng,
-							                            e->name),
+							        fsnodes_escape_name((std::string)e->name).c_str(),
 							        e->child->id);
 						}
 					} else {
@@ -534,7 +520,7 @@ void fs_periodic_test_files() {
 						       "(node: %" PRIu32
 						       " ; edge: NULL,%s -> %" PRIu32 ")",
 						       f->id,
-						       fsnodes_escape_name(e->nleng, e->name),
+						       fsnodes_escape_name((std::string)e->name).c_str(),
 						       e->child->id);
 						if (leng < MSGBUFFSIZE) {
 							leng += snprintf(
@@ -544,8 +530,7 @@ void fs_periodic_test_files() {
 							        "%" PRIu32
 							        " ; edge: NULL,%s -> %" PRIu32
 							        ")\n",
-							        f->id, fsnodes_escape_name(e->nleng,
-							                                   e->name),
+							        f->id, fsnodes_escape_name((std::string)e->name).c_str(),
 							        e->child->id);
 						}
 					}
@@ -595,8 +580,7 @@ void fs_periodic_test_files() {
 							       "%" PRIu32 " ; edge: %" PRIu32
 							       ",%s -> %" PRIu32 ")",
 							       f->id, e->parent->id,
-							       fsnodes_escape_name(e->nleng,
-							                           e->name),
+							       fsnodes_escape_name((std::string)e->name).c_str(),
 							       e->child->id);
 							if (leng < MSGBUFFSIZE) {
 								leng += snprintf(
@@ -609,8 +593,7 @@ void fs_periodic_test_files() {
 								        " ; edge: %" PRIu32
 								        ",%s -> %" PRIu32 ")\n",
 								        f->id, e->parent->id,
-								        fsnodes_escape_name(
-								                e->nleng, e->name),
+								        fsnodes_escape_name((std::string)e->name).c_str(),
 								        e->child->id);
 							}
 						} else {
@@ -619,8 +602,7 @@ void fs_periodic_test_files() {
 							       "edge->parent/parent->edges (node: "
 							       "%" PRIu32
 							       " ; edge: NULL,%s -> %" PRIu32 ")",
-							       f->id, fsnodes_escape_name(e->nleng,
-							                                  e->name),
+							       f->id, fsnodes_escape_name((std::string)e->name).c_str(),
 							       e->child->id);
 							if (leng < MSGBUFFSIZE) {
 								leng += snprintf(
@@ -633,8 +615,7 @@ void fs_periodic_test_files() {
 								        " ; edge: NULL,%s -> "
 								        "%" PRIu32 ")\n",
 								        f->id,
-								        fsnodes_escape_name(
-								                e->nleng, e->name),
+								        fsnodes_escape_name((std::string)e->name).c_str(),
 								        e->child->id);
 							}
 						}
