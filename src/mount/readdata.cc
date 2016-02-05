@@ -30,6 +30,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <condition_variable>
+#include <map>
 #include <mutex>
 
 #include "common/connection_pool.h"
@@ -44,6 +45,8 @@
 #include "mount/chunk_reader.h"
 #include "mount/exceptions.h"
 #include "mount/mastercomm.h"
+#include "mount/readahead_adviser.h"
+#include "mount/readdata_cache.h"
 #include "mount/tweaks.h"
 
 #define USECTICK 333333
@@ -56,7 +59,9 @@
 
 struct readrec {
 	ChunkReader reader;
-	std::vector<uint8_t> readBufer;
+	ReadCache cache;
+	ReadaheadAdviser readahead_adviser;
+	std::vector<uint8_t> read_buffer;
 	uint32_t inode;
 	uint8_t refreshCounter;         // gMutex
 	bool expired;                   // gMutex
@@ -65,6 +70,7 @@ struct readrec {
 
 	readrec(uint32_t inode, ChunkConnector& connector, double bandwidth_overuse)
 			: reader(connector, bandwidth_overuse),
+			  readahead_adviser(ReadCache::gDefaultExpirationTime_ms),
 			  inode(inode),
 			  refreshCounter(0),
 			  expired(false),
@@ -86,6 +92,15 @@ static std::atomic<bool> gPrefetchXorStripes;
 static bool readDataTerminate;
 static std::atomic<uint32_t> maxRetries;
 static double gBandwidthOveruse;
+
+const unsigned ReadaheadAdviser::kInitWindowSize;
+const unsigned ReadaheadAdviser::kMaxWindowSize;
+const int ReadaheadAdviser::kRandomThreshold;
+const int ReadaheadAdviser::kHistoryEntryLifespan_ns;
+const int ReadaheadAdviser::kHistoryCapacity;
+const unsigned ReadaheadAdviser::kHistoryValidityThreshold;
+
+std::atomic<uint32_t> ReadCache::gDefaultExpirationTime_ms;
 
 uint32_t read_data_get_wave_read_timeout_ms() {
 	return gChunkserverWaveReadTimeout_ms;
@@ -212,11 +227,11 @@ void read_data_term(void) {
 	rdhead = NULL;
 }
 
-void read_inode_ops(uint32_t inode) { // attributes of inode have been changed - force reconnect
+void read_inode_ops(uint32_t inode) { // attributes of inode have been changed - force reconnect and clear cache
 	readrec *rrec;
 	std::unique_lock<std::mutex> lock(gMutex);
 	for (rrec = rdinodemap[MAPINDX(inode)] ; rrec ; rrec=rrec->mapnext) {
-		if (rrec->inode==inode) {
+		if (rrec->inode == inode) {
 			rrec->refreshCounter = REFRESHTICKS; // force reconnect on forthcoming access
 		}
 	}
@@ -230,123 +245,125 @@ int read_data_sleep_time_ms(int tryCounter) {
 	}
 }
 
-int read_data(void *rr, uint64_t offset, uint32_t *size, uint8_t **buff) {
-	readrec *rrec = (readrec*)rr;
-	sassert(size != NULL);
-	sassert(buff != NULL);
-	sassert(*buff == NULL);
-	sassert(*size % MFSBLOCKSIZE == 0);
-	sassert(offset % MFSBLOCKSIZE == 0);
-
-	std::unique_lock<std::mutex> lock(gMutex);
-	bool forcePrepare = (rrec->refreshCounter == REFRESHTICKS);
-	lock.unlock();
-
-	if (*size == 0) {
-		return 0;
+static void print_error_msg(const readrec *rrec, uint32_t try_counter, const Exception &ex) {
+	if (rrec->reader.isChunkLocated()) {
+		lzfs_pretty_syslog(LOG_WARNING,
+		                   "read file error, inode: %u, index: %u, chunk: %lu, version: %u - %s "
+		                   "(try counter: %u)", rrec->reader.inode(), rrec->reader.index(),
+		                   rrec->reader.chunkId(), rrec->reader.version(), ex.what(), try_counter);
+	} else {
+		lzfs_pretty_syslog(LOG_WARNING,
+		                   "read file error, inode: %u, index: %u, chunk: failed to locate - %s "
+		                   "(try counter: %u)", rrec->reader.inode(), rrec->reader.index(),
+		                   ex.what(), try_counter);
 	}
+}
 
-	uint32_t tryCounter = 0;
-	uint64_t currentOffset = offset;
-	uint32_t bytesToReadLeft = *size;
-	uint32_t bytesRead = 0;
-
-	// We will reserve some more space. This might be helpful when reading
-	// xored chunks with missing parts
-	rrec->readBufer.resize(0);
-	rrec->readBufer.reserve(bytesToReadLeft + 2 * MFSBLOCKSIZE);
-
-	uint32_t preparedInode = 0; // this is always different than any real inode
-	uint32_t preparedChunkIndex = 0;
+static int read_to_buffer(readrec *rrec, uint64_t current_offset, uint64_t bytes_to_read,
+		std::vector<uint8_t> &read_buffer, uint64_t *bytes_read) {
+	uint32_t try_counter = 0;
+	uint32_t prepared_inode = 0; // this is always different than any real inode
+	uint32_t prepared_chunk_id = 0;
+	assert(*bytes_read == 0);
 
 	// forced sleep between retries caused by recoverable failures
-	uint32_t sleepTime_ms = 0;
+	uint32_t sleep_time_ms = 0;
 
-	auto printErrorMessage = [&rrec, &tryCounter] (const Exception& ex) {
-		if (rrec->reader.isChunkLocated()) {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: %" PRIu64 ", version: %" PRIu32 " - %s "
-					"(try counter: %" PRIu32 ")",
-					rrec->reader.inode(),
-					rrec->reader.index(),
-					rrec->reader.chunkId(),
-					rrec->reader.version(),
-					ex.what(),
-					tryCounter);
-		} else {
-			lzfs_pretty_syslog(LOG_WARNING,
-					"read file error, inode: %" PRIu32
-					", index: %" PRIu32 ", chunk: failed to locate - %s "
-					"(try counter: %" PRIu32 ")",
-					rrec->reader.inode(),
-					rrec->reader.index(),
-					ex.what(),
-					tryCounter);
-		}
-	};
+	std::unique_lock<std::mutex> lock(gMutex);
+	bool force_prepare = (rrec->refreshCounter == REFRESHTICKS);
+	lock.unlock();
 
-	while (bytesToReadLeft > 0) {
-		Timeout sleepTimeout = Timeout(std::chrono::milliseconds(sleepTime_ms));
+	while (bytes_to_read > 0) {
+		Timeout sleep_timeout = Timeout(std::chrono::milliseconds(sleep_time_ms));
 		// Increase communicationTimeout to sleepTime; longer poll() can't be worse
 		// than short poll() followed by nonproductive usleep().
-		uint32_t timeout_ms = std::max(gChunkserverTotalReadTimeout_ms.load(), sleepTime_ms);
-		Timeout communicationTimeout = Timeout(std::chrono::milliseconds(timeout_ms));
-		sleepTime_ms = 0;
+		uint32_t timeout_ms = std::max(gChunkserverTotalReadTimeout_ms.load(), sleep_time_ms);
+		Timeout communication_timeout = Timeout(std::chrono::milliseconds(timeout_ms));
+		sleep_time_ms = 0;
 		try {
-			uint32_t chunkIndex = currentOffset / MFSCHUNKSIZE;
-			if (forcePrepare || preparedInode != rrec->inode || preparedChunkIndex != chunkIndex) {
-				rrec->reader.prepareReadingChunk(rrec->inode, chunkIndex, forcePrepare);
-				preparedChunkIndex = chunkIndex;
-				preparedInode = rrec->inode;
-				forcePrepare = false;
+			uint32_t chunk_id = current_offset / MFSCHUNKSIZE;
+			if (force_prepare || prepared_inode != rrec->inode || prepared_chunk_id != chunk_id) {
+				rrec->reader.prepareReadingChunk(rrec->inode, chunk_id, force_prepare);
+				prepared_chunk_id = chunk_id;
+				prepared_inode = rrec->inode;
+				force_prepare = false;
 				lock.lock();
 				rrec->refreshCounter = 0;
 				lock.unlock();
 			}
 
-			uint64_t offsetOfChunk = static_cast<uint64_t>(chunkIndex) * MFSCHUNKSIZE;
-			uint32_t offsetInChunk = currentOffset - offsetOfChunk;
-			uint32_t sizeInChunk = MFSCHUNKSIZE - offsetInChunk;
-			if (sizeInChunk > bytesToReadLeft) {
-				sizeInChunk = bytesToReadLeft;
+			uint64_t offset_of_chunk = static_cast<uint64_t>(chunk_id) * MFSCHUNKSIZE;
+			uint32_t offset_in_chunk = current_offset - offset_of_chunk;
+			uint32_t size_in_chunk = MFSCHUNKSIZE - offset_in_chunk;
+			if (size_in_chunk > bytes_to_read) {
+				size_in_chunk = bytes_to_read;
 			}
-			uint32_t bytesReadFromChunk = rrec->reader.readData(
-					rrec->readBufer, offsetInChunk, sizeInChunk,
+			uint32_t bytes_read_from_chunk = rrec->reader.readData(
+					read_buffer, offset_in_chunk, size_in_chunk,
 					gChunkserverConnectTimeout_ms, gChunkserverWaveReadTimeout_ms,
-					communicationTimeout, gPrefetchXorStripes);
+					communication_timeout, gPrefetchXorStripes);
 			// No exceptions thrown. We can increase the counters and go to the next chunk
-			bytesRead += bytesReadFromChunk;
-			currentOffset += bytesReadFromChunk;
-			bytesToReadLeft -= bytesReadFromChunk;
-			if (bytesReadFromChunk < sizeInChunk) {
+			*bytes_read += bytes_read_from_chunk;
+			current_offset += bytes_read_from_chunk;
+			bytes_to_read -= bytes_read_from_chunk;
+			if (bytes_read_from_chunk < size_in_chunk) {
 				// end of file
 				break;
 			}
-			tryCounter = 0;
+			try_counter = 0;
 		} catch (UnrecoverableReadException &ex) {
-			printErrorMessage(ex);
+			print_error_msg(rrec, try_counter, ex);
 			if (ex.status() == LIZARDFS_ERROR_ENOENT) {
 				return EBADF; // stale handle
 			} else {
 				return EIO;
 			}
 		} catch (Exception &ex) {
-			if (tryCounter > 0) {
-				printErrorMessage(ex);
+			if (try_counter > 0) {
+				print_error_msg(rrec, try_counter, ex);
 			}
-			forcePrepare = true;
-			if (tryCounter > maxRetries) {
+			force_prepare = true;
+			if (try_counter > maxRetries) {
 				return EIO;
 			} else {
-				usleep(sleepTimeout.remaining_us());
-				sleepTime_ms = read_data_sleep_time_ms(tryCounter);
+				usleep(sleep_timeout.remaining_us());
+				sleep_time_ms = read_data_sleep_time_ms(try_counter);
 			}
-			tryCounter++;
+			try_counter++;
 		}
 	}
+	return 0;
+}
 
-	*size = bytesRead;
-	*buff = rrec->readBufer.data();
+int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret) {
+	readrec *rrec = (readrec*)rr;
+	assert(size % MFSBLOCKSIZE == 0);
+	assert(offset % MFSBLOCKSIZE == 0);
+
+	if (size == 0) {
+		return 0;
+	}
+
+	rrec->readahead_adviser.feed(offset, size);
+
+	ReadCache::Result result = rrec->cache.query(offset, size);
+
+	if (result.frontOffset() <= offset && offset + size <= result.endOffset()) {
+		ret = std::move(result);
+		return 0;
+	}
+	uint64_t request_offset = result.remainingOffset();
+	uint64_t bytes_to_read_left = std::max<uint64_t>(size, rrec->readahead_adviser.window()) - (request_offset - offset);
+	bytes_to_read_left = (bytes_to_read_left + MFSBLOCKSIZE - 1) / MFSBLOCKSIZE * MFSBLOCKSIZE;
+
+	uint64_t bytes_read = 0;
+	int err = read_to_buffer(rrec, request_offset, bytes_to_read_left, result.inputBuffer(), &bytes_read);
+	if (err) {
+		// paranoia check - discard any leftover bytes from incorrect read
+		result.inputBuffer().clear();
+		return err;
+	}
+
+	ret = std::move(result);
 	return 0;
 }

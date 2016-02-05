@@ -36,4 +36,8 @@ public:
 	static size_t fileSize() {
 		return getIntOr("FILE_SIZE", 1024 * 1024 * 100);
 	}
+
+	static size_t repeatAfter_ms() {
+		return getIntOr("REPEAT_AFTER_MS", 0);
+	}
 };

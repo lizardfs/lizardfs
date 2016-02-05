@@ -30,6 +30,7 @@
 
 #include "common/exception.h"
 #include "mount/lizard_client_context.h"
+#include "mount/readdata_cache.h"
 #include "mount/stat_defs.h"
 #include "protocol/lock_info.h"
 
@@ -147,7 +148,8 @@ void open(Context ctx, Inode ino, FileInfo* fi);
 
 std::vector<uint8_t> read_special_inode(Context ctx, Inode ino, size_t size, off_t off,
 				        FileInfo* fi);
-std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
+
+ReadCache::Result read(Context ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
 
 typedef size_t BytesWritten;
 BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t off,

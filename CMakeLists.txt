@@ -198,10 +198,11 @@ if(ENABLE_DEBUG_LOG)
   set(LIZARDFS_ENABLE_DEBUG_LOG ON)
 endif()
 
+if(NOT Boost_INCLUDE_DIRS)
+  message(FATAL_ERROR "Boost headers are required")
+endif()
+
 if(ENABLE_TRACES)
-  if(NOT Boost_INCLUDE_DIRS)
-    message(FATAL_ERROR "Boost headers are required if traces are enabled")
-  endif()
   add_definitions(-DENABLE_TRACES)
 endif()
 

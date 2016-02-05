@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "common/massert.h"
+#include "common/small_vector.h"
 #include "common/special_inode_defs.h"
 #include "mount/fuse/lock_conversion.h"
 #include "mount/lizard_client.h"
@@ -387,9 +388,12 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 				   get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
 			fuse_reply_buf(req, (char*) ret.data(), ret.size());
 		} else {
-			auto ret = LizardClient::read(
-				   get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
-			fuse_reply_buf(req, (char*) ret.data(), ret.size());
+			ReadCache::Result ret = LizardClient::read(
+					get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
+
+			small_vector<struct iovec, 8> reply;
+			ret.toIoVec(reply, off, size);
+			fuse_reply_iov(req, reply.data(), reply.size());
 		}
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.errNo);

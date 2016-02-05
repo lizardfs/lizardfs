@@ -23,6 +23,7 @@
 #include <inttypes.h>
 
 #include "mount/chunk_locator.h"
+#include "mount/readdata_cache.h"
 
 uint32_t read_data_get_wave_read_timeout_ms();
 uint32_t read_data_get_connect_timeout_ms();
@@ -32,7 +33,7 @@ bool read_data_get_prefetchxorstripes();
 void read_inode_ops(uint32_t inode);
 void* read_data_new(uint32_t inode);
 void read_data_end(void *rr);
-int read_data(void *rr,uint64_t offset,uint32_t *size,uint8_t **buff);
+int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret);
 void read_data_freebuff(void *rr);
 void read_data_init(uint32_t retries,
 		uint32_t chunkserverRoundTripTime_ms,

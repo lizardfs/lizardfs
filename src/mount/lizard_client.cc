@@ -1901,7 +1901,7 @@ std::vector<uint8_t> read_special_inode(Context ctx,
 	return special_read(ino, ctx, size, off, fi, debug_mode);
 }
 
-std::vector<uint8_t> read(Context ctx,
+ReadCache::Result read(Context ctx,
 			Inode ino,
 			size_t size,
 			off_t off,
@@ -1911,8 +1911,7 @@ std::vector<uint8_t> read(Context ctx,
 
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
-	uint8_t *buff;
-	std::vector<uint8_t> ret;
+	ReadCache::Result ret;
 	if (debug_mode) {
 		fprintf(stderr,"read from inode %lu up to %" PRIu64 " bytes from position %" PRIu64 "\n",
 		                (unsigned long int)ino,
@@ -1995,9 +1994,10 @@ std::vector<uint8_t> read(Context ctx,
 	uint64_t alignedSize = (firstBlockNotToRead - firstBlockToRead) * MFSBLOCKSIZE;
 
 	uint32_t ssize = alignedSize;
-	buff = NULL;    // use internal 'readdata' buffer
-	err = read_data(fileinfo->data, alignedOffset, &ssize, &buff);
-	if (err!=0) {
+
+	err = read_data(fileinfo->data, alignedOffset, ssize, ret);
+	ssize = ret.requestSize(alignedOffset, ssize);
+	if (err != 0) {
 		if (debug_mode) {
 			fprintf(stderr,"IO error occurred while reading inode %lu\n",
 					(unsigned long int)ino);
@@ -2010,7 +2010,6 @@ std::vector<uint8_t> read(Context ctx,
 		throw RequestException(err);
 	} else {
 		uint32_t replyOffset = off - alignedOffset;
-		buff += replyOffset;
 		if (ssize > replyOffset) {
 			ssize -= replyOffset;
 			if (ssize > size) {
@@ -2029,7 +2028,6 @@ std::vector<uint8_t> read(Context ctx,
 				(uint64_t)size,
 				(uint64_t)off,
 				(unsigned long int)ssize);
-		ret = std::vector<uint8_t>(buff, buff + ssize);
 	}
 	return ret;
 }

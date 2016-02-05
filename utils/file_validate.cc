@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <iostream>
 #include <string>
+#include "utils/configuration.h"
 #include "utils/data_generator.h"
 
 int main(int argc, char** argv) {
@@ -33,7 +34,7 @@ int main(int argc, char** argv) {
 	for (int i = 1; i < argc; ++i) {
 		std::string file = argv[i];
 		try {
-			DataGenerator::validateFile(file);
+			DataGenerator::validateFile(file, UtilsConfiguration::repeatAfter_ms());
 		} catch (std::exception& ex) {
 			std::cerr << "File " << file << ": " << ex.what() << std::endl;
 			error = 2;
