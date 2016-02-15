@@ -24,7 +24,6 @@
 #include "common/massert.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
-#include "common/wrong_crc_notifier.h"
 #include "devtools/request_log.h"
 #include "mount/exceptions.h"
 #include "protocol/cltocs.h"
@@ -236,6 +235,10 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 
+	if (readStatus == LIZARDFS_ERROR_CRC) {
+		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
+	}
+
 	if (readStatus != LIZARDFS_STATUS_OK) {
 		std::stringstream ss;
 		ss << "Status '" << mfsstrerr(readStatus) << "' sent by chunkserver";
@@ -254,13 +257,6 @@ void ReadOperationExecutor::processReadStatusMessageReceived() {
 void ReadOperationExecutor::processDataBlockReceived() {
 	sassert(state_ == kReceivingDataBlock);
 	sassert(bytesLeft_ == 0);
-
-#ifdef ENABLE_CRC
-	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
-		gWrongCrcNotifier.reportBadCrc(server_, chunkId_, chunkVersion_, chunkType_);
-		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
-	}
-#endif
 
 	dataBlocksCompleted_++;
 	setState(kReceivingHeader);

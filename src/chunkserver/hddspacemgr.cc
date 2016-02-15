@@ -67,7 +67,6 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "common/unique_queue.h"
-#include "common/wrong_crc_notifier.h"
 #include "devtools/TracePrinter.h"
 #include "devtools/request_log.h"
 #include "protocol/MFSCommunication.h"
@@ -1613,13 +1612,18 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
 		off_t off = c->getBlockOffset(blocknum);
 
 		IF_MOOSEFS_CHUNK(mc, c) {
-			sassert(c->chunkFormat() == ChunkFormat::MOOSEFS);
+			assert(c->chunkFormat() == ChunkFormat::MOOSEFS);
 			uint8_t crcBuff[sizeof(uint32_t)];
 			memcpy(crcBuff, mc->crc->data() + blocknum * sizeof(uint32_t), sizeof(uint32_t));
 			outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
 			bytesRead = outputBuffer->copyIntoBuffer(c->fd, MFSBLOCKSIZE, &off);
+			const uint8_t *crc = crcBuff;
+			if (bytesRead == toBeRead && !outputBuffer->checkCRC(bytesRead, get32bit(&crc))) {
+				hdd_test_chunk(ChunkWithVersionAndType{c->chunkid, c->version, c->type()});
+				return LIZARDFS_ERROR_CRC;
+			}
 		} else do {
-			sassert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
+			assert(c->chunkFormat() == ChunkFormat::INTERLEAVED);
 			uint8_t* crcBuff = hdd_get_block_buffer();
 			uint8_t* data = crcBuff + 4;
 			auto containsZerosOnly = [](uint8_t* buffer, uint32_t size) {
@@ -1645,6 +1649,11 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
 				bytesRead = outputBuffer->copyIntoBuffer(hdd_get_block_buffer(), kHddBlockSize);
 			} else {
 				bytesRead = outputBuffer->copyIntoBuffer(c->fd, kHddBlockSize, &off);
+				const uint8_t *crc = crcBuff;
+				if (bytesRead == toBeRead && !outputBuffer->checkCRC(bytesRead - 4, get32bit(&crc))) {
+					hdd_test_chunk(ChunkWithVersionAndType{c->chunkid, c->version, c->type()});
+					return LIZARDFS_ERROR_CRC;
+				}
 			}
 		} while (false);
 
@@ -1762,10 +1771,12 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 	} else {
 		OutputBuffer tmp(kHddBlockSize);
 		status = hdd_read_crc_and_block(c, block, &tmp);
-		uint8_t* crcBuffPointer = crcBuff;
-		put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size));
-		outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
-		outputBuffer->copyIntoBuffer(tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size);
+		if (status == LIZARDFS_STATUS_OK) {
+			uint8_t *crcBuffPointer = crcBuff;
+			put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size));
+			outputBuffer->copyIntoBuffer(crcBuff, sizeof(uint32_t));
+			outputBuffer->copyIntoBuffer(tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size);
+		}
 	}
 
 	PRINTTHIS(status);
@@ -4006,12 +4017,6 @@ int hdd_late_init(void) {
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
-	try {
-		gWrongCrcNotifier.init(0);
-	} catch (std::system_error &e) {
-		syslog(LOG_ERR, "Failed to create wrong CRC notifier thread: %s", e.what());
-		abort();
-	}
 	try {
 		test_chunk_thread = std::thread(hdd_test_chunk_thread);
 	} catch (std::system_error &e) {

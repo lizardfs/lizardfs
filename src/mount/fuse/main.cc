@@ -27,7 +27,6 @@
 #include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
 #include "common/sockets.h"
-#include "common/wrong_crc_notifier.h"
 #include "mount/fuse/mfs_fuse.h"
 #include "mount/fuse/mfs_meta_fuse.h"
 #include "mount/fuse/mount_config.h"
@@ -274,12 +273,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	uint32_t bindIp;
 	if (tcpresolve(gMountOptions.bindhost, NULL, &bindIp, NULL, 1) < 0) {
 		bindIp = 0;
-	}
-	try {
-		gWrongCrcNotifier.init(bindIp);
-	} catch (std::system_error &e) {
-		lzfs_pretty_syslog(LOG_ERR, "Failed to create wrong CRC notifier thread: %s", e.what());
-		abort();
 	}
 
 	if (gMountOptions.meta==0) {

@@ -19,6 +19,7 @@
 #include "common/platform.h"
 #include <fcntl.h>
 #include <unistd.h>
+#include <cassert>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
@@ -26,6 +27,7 @@
 #include <stdexcept>
 
 #include "chunkserver/output_buffer.h"
+#include "common/crc.h"
 #include "common/massert.h"
 #include "devtools/request_log.h"
 
@@ -77,6 +79,12 @@ ssize_t OutputBuffer::copyIntoBuffer(int inputFileDescriptor, size_t len, off_t*
 		bytes_written += ret;
 	}
 	return bytes_written;
+}
+
+bool OutputBuffer::checkCRC(size_t bytes, uint32_t crc) const {
+	assert(bufferUnflushedDataOneAfterLastIndex_ - bytes > 0
+			&& bufferUnflushedDataOneAfterLastIndex_ - bytes < buffer_.size());
+	return mycrc32(0, &buffer_[bufferUnflushedDataOneAfterLastIndex_ - bytes], bytes) == crc;
 }
 
 ssize_t OutputBuffer::copyIntoBuffer(const void *mem, size_t len) {

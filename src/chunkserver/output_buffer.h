@@ -39,6 +39,8 @@ public:
 	ssize_t copyIntoBuffer(int inputFileDescriptor, size_t len, off_t* offset);
 	ssize_t copyIntoBuffer(const void *mem, size_t len);
 
+	bool checkCRC(size_t bytes, uint32_t crc) const;
+
 	ssize_t copyIntoBuffer(const std::vector<uint8_t>& mem) {
 		return copyIntoBuffer(mem.data(), mem.size());
 	}
