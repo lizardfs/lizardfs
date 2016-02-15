@@ -105,9 +105,6 @@ try to fix out-of-order read requests; the value tells how much of skipped data 
 offset of some read operation is greater than the offset where the previos operation finished
 (default is 0, i.e. don't read any skipped data; the value is aligned down to 64 KiB)
 
-*USE_SPLICE*::
-whether to use splice syscall when doing disk operations on data blocks (default is 1, i.e. enabled)
-
 *CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT*::
 whether to create new chunks in the MooseFS format (signature + <checksum>* + <data block>*) or in
 the newer interleaved format ([<checksum> <data block>]*). (Default is 1, i.e. new chunks are created

@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "chunkserver/network_stats.h"
-#include "chunkserver/output_buffers.h"
+#include "chunkserver/output_buffer.h"
 #include "common/chunk_part_type.h"
 #include "common/network_address.h"
 #include "common/slice_traits.h"
@@ -177,8 +177,6 @@ public:
 	void* bgJobPool() {
 		return bgJobPool_;
 	}
-
-	static std::atomic<bool> useSplice;
 
 private:
 	void preparePollFds();

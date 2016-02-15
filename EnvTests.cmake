@@ -63,7 +63,7 @@ endif()
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
 set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer posix_fadvise splice)
+  setitimer posix_fadvise)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 CHECK_LIBRARY_EXISTS(rt clock_gettime "time.h" LIZARDFS_HAVE_CLOCK_GETTIME)

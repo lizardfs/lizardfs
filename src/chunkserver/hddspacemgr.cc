@@ -1684,7 +1684,7 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firs
 				mfsstrerr(status));
 		return LIZARDFS_ERROR_NOCHUNK;
 	}
-	SimpleOutputBuffer buffer = SimpleOutputBuffer(kHddBlockSize);
+	OutputBuffer buffer = OutputBuffer(kHddBlockSize);
 	for (auto block = firstBlock; block < firstBlock + nrOfBlocks && block < c->blocks; block++) {
 		buffer.clear();
 		status |= hdd_read_crc_and_block(c, block, &buffer);
@@ -1751,7 +1751,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 		}
 		sassert(firstBlockToRead < block);
 		hdd_prefetch(*c, firstBlockToRead, blocksToBeReadAhead + block - firstBlockToRead);
-		SimpleOutputBuffer buffer = SimpleOutputBuffer(
+		OutputBuffer buffer = OutputBuffer(
 				kHddBlockSize * (block - firstBlockToRead));
 		for (uint16_t b = firstBlockToRead; b < block; ++b) {
 			hdd_read_crc_and_block(c, b, &buffer);
@@ -1771,7 +1771,7 @@ int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
 	if (size == MFSBLOCKSIZE) {
 		status = hdd_read_crc_and_block(c, block, outputBuffer);
 	} else {
-		SimpleOutputBuffer tmp(kHddBlockSize);
+		OutputBuffer tmp(kHddBlockSize);
 		status = hdd_read_crc_and_block(c, block, &tmp);
 		uint8_t* crcBuffPointer = crcBuff;
 		put32bit(&crcBuffPointer, mycrc32(0, tmp.data() + serializedSize(uint32_t()) + offsetWithinBlock, size));

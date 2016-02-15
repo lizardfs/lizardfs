@@ -23,7 +23,7 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "chunkserver/output_buffers.h"
+#include "chunkserver/output_buffer.h"
 #include "common/chunk_type_with_address.h"
 
 void* job_pool_new(uint8_t workers,uint32_t jobs,int *wakeupdesc);
