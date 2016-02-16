@@ -56,7 +56,6 @@
 
 # READ_AHEAD_KB = 0
 # MAX_READ_BEHIND_KB = 0
-# USE_SPLICE = 1
 
 ## Name of volume configuration file.
 ## (Default: @ETC_PATH@/mfshdd.cfg)
@@ -104,8 +103,10 @@
 # MAX_READ_BEHIND_KB = 0
 
 ## Whether to use splice syscall when doing disk operations on data blocks.
-## (Default: 1), i.e. enabled.
-# USE_SPLICE = 1
+## Warning: Current implementation does not prevent data from being
+## modified during reading which causes occasional read errors.
+## (Default: 0), i.e. disabled.
+# USE_SPLICE = 0
 
 ## Whether to create new chunks in the MooseFS format
 ##    (signature + <checksum>* + <data block>*)

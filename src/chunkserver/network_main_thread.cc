@@ -92,7 +92,7 @@ void mainNetworkThreadReload(void) {
 			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", gNrOfHddWorkersPerNetworkWorker);
 	cfg_warning_on_value_change(
 			"BGJOBSCNT_PER_NETWORK_WORKER", gBgjobsCountPerNetworkWorker);
-	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 1);
+	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 0);
 
 	try {
 		replicationBandwidthLimitReload();
@@ -214,7 +214,7 @@ int mainNetworkThreadInit(void) {
 			"NR_OF_HDD_WORKERS_PER_NETWORK_WORKER", 2, 1);
 	gBgjobsCountPerNetworkWorker = cfg_get_minvalue<uint32_t>(
 			"BGJOBSCNT_PER_NETWORK_WORKER", 1000, 10);
-	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 1);
+	NetworkWorkerThread::useSplice = cfg_getint32("USE_SPLICE", 0);
 
 	gHDDReadAhead.setReadAhead_kB(
 			cfg_get_maxvalue<uint32_t>("READ_AHEAD_KB", 0, MFSCHUNKSIZE / 1024));
