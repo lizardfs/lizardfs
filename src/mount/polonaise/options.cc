@@ -134,6 +134,9 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 			("daemonize",
 				po::bool_switch(&setup.make_daemon)->default_value(false),
 				"work in daemon mode")
+			("enable-acl",
+				po::bool_switch(&setup.enable_acl)->default_value(false),
+				"enable acl support")
 #ifdef _WIN32
 			("pipe-name,N",
 			        po::value<std::string>(&setup.pipe_name)->default_value("polonaise-server-1"),
