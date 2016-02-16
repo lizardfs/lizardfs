@@ -109,6 +109,7 @@ struct mfsopts_ {
 	int prefetchxorstripes;
 	int chunkserverwriteto;
 	unsigned symlinkcachetimeout;
+	double bandwidthoveruse;
 
 	mfsopts_()
 		: masterhost(NULL),
@@ -161,7 +162,8 @@ struct mfsopts_ {
 			chunkservertotalreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			prefetchxorstripes(0),
 			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO),
-			symlinkcachetimeout(3600) {
+			symlinkcachetimeout(3600),
+			bandwidthoveruse(1.25) {
 	}
 };
 

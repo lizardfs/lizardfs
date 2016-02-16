@@ -298,12 +298,17 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			symlink_cache_term();
 			return 1;
 		}
+		if (gMountOptions.bandwidthoveruse < 1.) {
+			gMountOptions.bandwidthoveruse = 1.;
+		}
+
 		read_data_init(gMountOptions.ioretries,
 				gMountOptions.chunkserverrtt,
 				gMountOptions.chunkserverconnectreadto,
 				gMountOptions.chunkserverwavereadto,
 				gMountOptions.chunkservertotalreadto,
-				gMountOptions.prefetchxorstripes);
+				gMountOptions.prefetchxorstripes,
+				gMountOptions.bandwidthoveruse);
 		write_data_init(gMountOptions.writecachesize,
 				gMountOptions.ioretries,
 				gMountOptions.writeworkers,

@@ -191,6 +191,10 @@ Allow or disallow execution of binaries.
 *-o symlinkcachetimeout=*'N'::
 Set timeout value for symlink cache timeout in seconds. Default value is 3600.
 
+*-o bandwidthoveruse=*'N'::
+Define ratio of allowed bandwidth overuse when fetching data. Default value is 1.25.
+This option is effective only with N+M goals (xors and erasure codes).
+
 == DATA CACHE MODES
 
 There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shuldn't

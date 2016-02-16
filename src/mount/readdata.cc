@@ -63,8 +63,8 @@ struct readrec {
 	struct readrec *next;           // gMutex
 	struct readrec *mapnext;        // gMutex
 
-	readrec(uint32_t inode, ChunkConnector& connector)
-			: reader(connector),
+	readrec(uint32_t inode, ChunkConnector& connector, double bandwidth_overuse)
+			: reader(connector, bandwidth_overuse),
 			  inode(inode),
 			  refreshCounter(0),
 			  expired(false),
@@ -85,6 +85,7 @@ static std::atomic<uint32_t> gChunkserverTotalReadTimeout_ms;
 static std::atomic<bool> gPrefetchXorStripes;
 static bool readDataTerminate;
 static std::atomic<uint32_t> maxRetries;
+static double gBandwidthOveruse;
 
 void* read_data_delayed_ops(void *arg) {
 	readrec *rrec,**rrecp;
@@ -122,7 +123,7 @@ void* read_data_delayed_ops(void *arg) {
 }
 
 void* read_data_new(uint32_t inode) {
-	readrec *rrec = new readrec(inode, gChunkConnector);
+	readrec *rrec = new readrec(inode, gChunkConnector, gBandwidthOveruse);
 	std::unique_lock<std::mutex> lock(gMutex);
 	rrec->next = rdhead;
 	rdhead = rrec;
@@ -143,7 +144,8 @@ void read_data_init(uint32_t retries,
 		uint32_t chunkserverConnectTimeout_ms,
 		uint32_t chunkServerWaveReadTimeout_ms,
 		uint32_t chunkserverTotalReadTimeout_ms,
-		bool prefetchXorStripes) {
+		bool prefetchXorStripes,
+		double bandwidth_overuse) {
 	uint32_t i;
 	pthread_attr_t thattr;
 
@@ -156,6 +158,7 @@ void read_data_init(uint32_t retries,
 	gChunkserverWaveReadTimeout_ms = chunkServerWaveReadTimeout_ms;
 	gChunkserverTotalReadTimeout_ms = chunkserverTotalReadTimeout_ms;
 	gPrefetchXorStripes = prefetchXorStripes;
+	gBandwidthOveruse = bandwidth_overuse;
 	gTweaks.registerVariable("PrefetchXorStripes", gPrefetchXorStripes);
 	gChunkConnector.setRoundTripTime(chunkserverRoundTripTime_ms);
 	gChunkConnector.setSourceIp(fs_getsrcip());

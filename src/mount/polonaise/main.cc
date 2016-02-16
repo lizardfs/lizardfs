@@ -1027,6 +1027,7 @@ int main (int argc, char **argv) {
 	auto chunkserverwavereadto = 500;
 	auto chunkservertotalreadto = 2000;
 	bool prefetchFullXorStripes = true;
+	auto bandwidthOveruse = 1.25;
 	auto chunkserverwriteto = 5000;
 	auto cacheperinodepercentage = 25;
 	parse_command_line(argc, argv, gSetup);
@@ -1078,7 +1079,8 @@ int main (int argc, char **argv) {
 			chunkserverconnectreadto,
 			chunkserverwavereadto,
 			chunkservertotalreadto,
-			prefetchFullXorStripes);
+			prefetchFullXorStripes,
+			bandwidthOveruse);
 	write_data_init(gSetup.write_buffer_size, gSetup.io_retries, writeworkers,
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
 	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,

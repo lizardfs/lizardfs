@@ -39,7 +39,7 @@
 
 class ChunkReader {
 public:
-	ChunkReader(ChunkConnector& connector);
+	ChunkReader(ChunkConnector& connector, double bandwidth_overuse);
 
 	/**
 	 * Uses a locator to locate the chunk and chooses chunkservers to read from.

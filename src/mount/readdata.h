@@ -34,5 +34,6 @@ void read_data_init(uint32_t retries,
 		uint32_t chunkserverConnectTimeout_ms,
 		uint32_t chunkServerWaveReadTimeout_ms,
 		uint32_t chunkserverTotalReadTimeout_ms,
-		bool prefetchXorStripes);
+		bool prefetchXorStripes,
+		double bandwidth_overuse);
 void read_data_term(void);

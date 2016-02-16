@@ -55,9 +55,10 @@ public:
 	                 small_vector<std::pair<ChunkPartType, float>, Goal::Slice::kMaxPartsCount / 2>>
 	    ScoreContainer;
 
-	SliceReadPlanner() : slice_type_(0), slice_parts_(), weighted_parts_to_use_(), scores_(),
-			bandwidth_overuse_(1.25),
-			can_read_(), required_parts_available_(), can_recover_parts_(), part_indices_() {
+	SliceReadPlanner(double bandwidth_overuse = 1.)
+		: slice_type_(0), slice_parts_(), weighted_parts_to_use_(), scores_(),
+		  bandwidth_overuse_(bandwidth_overuse), can_read_(), required_parts_available_(),
+		  can_recover_parts_(), part_indices_() {
 	}
 
 	/*!

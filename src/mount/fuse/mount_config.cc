@@ -77,6 +77,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
+	MFS_OPT("bandwidthoveruse=%lf", bandwidthoveruse, 1),
 
 #if FUSE_VERSION >= 26
 	MFS_OPT("enablefilelocks=%u", filelocks, 0),
@@ -175,6 +176,7 @@ void usage(const char *progname) {
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"
+"    -o bandwidthoveruse=N       define ratio of allowed bandwidth overuse when fetching data (default: 1.25)\n"
 #if FUSE_VERSION >= 26
 "    -o enablefilelocks=0|1      enables/disables global file locking (disabled by default)\n"
 #endif

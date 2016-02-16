@@ -74,7 +74,8 @@ public:
 	typedef SliceReadPlanner::ScoreContainer ScoreContainer;
 	typedef SliceReadPlanner::PartsContainer PartsContainer;
 
-	ChunkReadPlanner() : read_from_type_(0) {
+	ChunkReadPlanner(double bandwidth_overuse = 1.)
+		: read_planner_(bandwidth_overuse), read_from_type_(0) {
 	}
 
 	/*! \brief Prepare for creating plan.

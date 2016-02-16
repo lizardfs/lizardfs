@@ -27,10 +27,11 @@
 #include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
 
-ChunkReader::ChunkReader(ChunkConnector& connector)
+ChunkReader::ChunkReader(ChunkConnector& connector, double bandwidth_overuse)
 		: connector_(connector),
 		  inode_(0),
 		  index_(0),
+		  planner_(bandwidth_overuse),
 		  chunkAlreadyRead(false) {
 }
 
