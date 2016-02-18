@@ -29,7 +29,9 @@
 #include <utility>
 #include <vector>
 
-
+#include "common/compact_vector.h"
+#include "common/flat_set.h"
+#include "common/flat_map.h"
 #include "common/datapack.h"
 #include "common/exception.h"
 #include "common/massert.h"
@@ -173,6 +175,26 @@ inline uint32_t serializedSize(const std::map<K, T, C, A>& map) {
 	return ret;
 }
 
+template <typename T, typename Size, typename Alloc>
+inline uint32_t serializedSize(const compact_vector<T, Size, Alloc>& vector) {
+	uint32_t ret = 0;
+	ret += serializedSize(uint32_t(vector.size()));
+	for (const auto& t : vector) {
+		ret += serializedSize(t);
+	}
+	return ret;
+}
+
+template <typename T, typename C, class Compare>
+inline uint32_t serializedSize(const flat_set<T, C, Compare>& set) {
+	return serializedSize(set.data());
+}
+
+template <typename Key, typename T, typename C, class Compare>
+inline uint32_t serializedSize(const flat_map<Key, T, C, Compare>& map) {
+	return serializedSize(map.data());
+}
+
 template<class T>
 inline uint32_t serializedSize(const T& t) {
 	return t.serializedSize();
@@ -309,6 +331,23 @@ inline void serialize(uint8_t** destination, const std::map<K, T, C, A>& map) {
 	for (const auto& t : map) {
 		serialize(destination, t);
 	}
+}
+
+template <typename T, typename Size, typename Alloc>
+inline void serialize(uint8_t** destination, const compact_vector<T, Size, Alloc>& vector) {
+	serialize(destination, uint32_t(vector.size()));
+	for (const T& t : vector) {
+		serialize(destination, t);
+	}
+}
+
+template <typename T, typename C, class Compare>
+inline void serialize(uint8_t** destination, const flat_set<T, C, Compare>& set) {
+	serialize(destination, set.data());
+}
+template <typename Key, typename T, typename C, class Compare>
+inline void serialize(uint8_t** destination, const flat_map<Key, T, C, Compare>& map) {
+	serialize(destination, map.data());
 }
 
 // serialization
@@ -538,6 +577,33 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
 		deserialize(source, bytesLeftInBuffer, v);
 		map.insert(std::move(v));
 	}
+}
+
+template<typename T, typename Size, typename Alloc>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		compact_vector<T, Size, Alloc>& vec) {
+	sassert(vec.size() == 0);
+	uint32_t size;
+	deserialize(source, bytesLeftInBuffer, size);
+	if (size > kMaxDeserializedElementsCount) {
+		throw IncorrectDeserializationException("untrustworthy compact_vector size");
+	}
+	vec.resize(size);
+	for(auto &element : vec) {
+		deserialize(source, bytesLeftInBuffer, element);
+	}
+}
+
+template <typename T, typename C, class Compare>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		flat_set<T, C, Compare>& set) {
+	deserialize(source, bytesLeftInBuffer, set.data());
+}
+
+template <typename Key, typename T, typename C, class Compare>
+inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer,
+		flat_map<Key, T, C, Compare>& map) {
+	deserialize(source, bytesLeftInBuffer, map.data());
 }
 
 template<class T>
