@@ -150,9 +150,9 @@ TEST(CltomaCommunicationTests, FuseSetAcl) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, uid, 789, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, gid, 1011, 0);
 	LIZARDFS_DEFINE_INOUT_PAIR(AclType, type, AclType::kDefault, AclType::kAccess);
-	LIZARDFS_DEFINE_INOUT_PAIR(AccessControlList, acl, 0750, 0000);
-	aclIn.extendedAcl.reset(new ExtendedAcl(5));
-	aclIn.extendedAcl->addNamedGroup(123, 7);
+	AccessControlList aclIn, aclOut;
+	aclIn.setMode(0750);
+	aclIn.setEntry(AccessControlList::kNamedGroup, 123, 7);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(cltoma::fuseSetAcl::serialize(buffer,
@@ -168,7 +168,5 @@ TEST(CltomaCommunicationTests, FuseSetAcl) {
 	LIZARDFS_VERIFY_INOUT_PAIR(uid);
 	LIZARDFS_VERIFY_INOUT_PAIR(gid);
 	LIZARDFS_VERIFY_INOUT_PAIR(type);
-	EXPECT_EQ(aclIn.mode, aclOut.mode);
-	EXPECT_EQ(aclIn.extendedAcl->owningGroupMask(), aclOut.extendedAcl->owningGroupMask());
-	EXPECT_EQ(aclIn.extendedAcl->list(), aclOut.extendedAcl->list());
+	EXPECT_EQ(aclIn, aclOut);
 }

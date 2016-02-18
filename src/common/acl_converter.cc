@@ -23,6 +23,7 @@ static constexpr uint16_t kUserPermissionsModeOffset  = 0100;
 static constexpr uint16_t kGroupPermissionsModeOffset = 010;
 static constexpr uint16_t kOtherPermissionsModeOffset = 01;
 
+/* FIXME
 static bool checkPermissions(uint16_t perm) {
 	return (perm & ~(ACL_READ | ACL_WRITE | ACL_EXECUTE)) == 0;
 }
@@ -69,6 +70,7 @@ static void validateIdEntry(const AccessControlList& acl, const PosixAclXattrEnt
 		throw IncorrectDeserializationException("Group entry duplication");
 	}
 }
+*/
 
 PosixAclXattr aclConverter::extractPosixObject(const uint8_t* buffer, uint32_t bufferSize) {
 	PosixAclXattr posix;
@@ -90,6 +92,7 @@ AccessControlList aclConverter::posixToAclObject(const PosixAclXattr& posix) {
 		throw AclConversionException("Empty POSIX ACL xattr object");
 	}
 
+	/* FIXME
 	AccessControlList acl(0);
 	// NOTE Documentation says nothing about the order of entries (it's supposed
 	//      to be ascending by a tag value), so we allow any order.
@@ -146,9 +149,13 @@ AccessControlList aclConverter::posixToAclObject(const PosixAclXattr& posix) {
 	}
 
 	return acl;
+	*/
+	return AccessControlList();
 }
 
 std::vector<uint8_t> aclConverter::aclObjectToXattr(const AccessControlList& acl) {
+	(void)acl;
+	/* FIXME
 	// NOTE Documentation says nothing about the order of entries. It's supposed
 	//      to be ascending by a tag value, so we implement it.
 	PosixAclXattr xattr;
@@ -201,4 +208,6 @@ std::vector<uint8_t> aclConverter::aclObjectToXattr(const AccessControlList& acl
 		throw AclConversionException("xattr data incorrectly written to a buffer");
 	}
 	return buffer;
+	*/
+	return std::vector<uint8_t>();
 }

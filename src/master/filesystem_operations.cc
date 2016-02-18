@@ -710,6 +710,9 @@ uint8_t fs_setattr(const FsContext &context, uint32_t inode, uint8_t setmask, ui
 	}
 	if (setmask & SET_MODE_FLAG) {
 		p->mode = (attrmode & 07777) | (p->mode & 0xF000);
+		if (p->extendedAcl) {
+			p->extendedAcl->setMode(p->mode);
+		}
 	}
 	if (setmask & (SET_UID_FLAG | SET_GID_FLAG)) {
 		fsnodes_change_uid_gid(p, ((setmask & SET_UID_FLAG) ? attruid : p->uid),
@@ -745,6 +748,9 @@ uint8_t fs_apply_attr(uint32_t ts, uint32_t inode, uint32_t mode, uint32_t uid, 
 		return LIZARDFS_ERROR_EINVAL;
 	}
 	p->mode = mode | (p->mode & 0xF000);
+	if (p->extendedAcl) {
+		p->extendedAcl->setMode(p->mode);
+	}
 	if (p->uid != uid || p->gid != gid) {
 		fsnodes_change_uid_gid(p, uid, gid);
 	}

@@ -551,10 +551,12 @@ FSNode *fsnodes_create_node(uint32_t ts, FSNodeDirectory *parent, const HString 
 			static_cast<FSNodeDirectory*>(node)->defaultAcl.reset(new AccessControlList(*parent->defaultAcl));
 		}
 		// Join ACL's access mask without cleaning sticky bits etc.
-		node->mode &= ~0777 | (parent->defaultAcl->mode);
-		if (parent->defaultAcl->extendedAcl) {
-			node->extendedAcl.reset(new ExtendedAcl(*parent->defaultAcl->extendedAcl));
-		}
+		node->mode = (node->mode & ~0777) | parent->defaultAcl->getMode();
+		node->extendedAcl.reset(new AccessControlList(*parent->defaultAcl));
+
+		// Set effective permissions as the intersection of mode and ACL
+		node->mode &= mode | ~0777;
+		node->extendedAcl->setMode(node->mode);
 	} else {
 		// Apply umask
 		node->mode &= ~(umask & 0777);  // umask must be applied manually
@@ -1469,6 +1471,9 @@ void fsnodes_seteattr_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t
 		}
 		if (neweattr != (node->mode >> 12)) {
 			node->mode = (node->mode & 0xFFF) | (((uint16_t)neweattr) << 12);
+			if (node->extendedAcl) {
+				node->extendedAcl->setMode(node->mode);
+			}
 			(*sinodes)++;
 			fsnodes_update_ctime(node, ts);
 		} else {
@@ -1510,8 +1515,8 @@ uint8_t fsnodes_getacl(FSNode *p, AclType type, AccessControlList &acl) {
 		if (!p->extendedAcl) {
 			return LIZARDFS_ERROR_ENOATTR;
 		}
-		acl.mode = (p->mode & 0777);
-		acl.extendedAcl.reset(new ExtendedAcl(*p->extendedAcl));
+		acl = *p->extendedAcl;
+		assert((p->mode & 0777) == p->extendedAcl->getMode());
 	}
 	return LIZARDFS_STATUS_OK;
 }
@@ -1524,8 +1529,8 @@ uint8_t fsnodes_setacl(FSNode *p, AclType type, AccessControlList acl, uint32_t 
 		}
 		static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList(std::move(acl)));
 	} else {
-		p->mode = (p->mode & ~0777) | (acl.mode & 0777);
-		p->extendedAcl = std::move(acl.extendedAcl);
+		p->mode = (p->mode & ~0777) | (acl.getMode() & 0777);
+		p->extendedAcl.reset(new AccessControlList(std::move(acl)));
 	}
 	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);

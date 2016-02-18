@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -23,7 +23,7 @@
 #include <cstring>
 #include <sstream>
 
-static char accessMaskToChar(ExtendedAcl::AccessMask mask) {
+static char accessMaskToChar(AccessControlList::AccessMask mask) {
 	if (mask > 7) {
 		return '?';
 	} else {
@@ -31,72 +31,85 @@ static char accessMaskToChar(ExtendedAcl::AccessMask mask) {
 	}
 }
 
-static ExtendedAcl::AccessMask accessMaskFromChar(char chr) {
+static AccessControlList::AccessMask accessMaskFromChar(char chr) {
 	if (chr >= '0' && chr <= '7') {
 		return chr - '0';
 	} else {
 		throw AccessControlList::IncorrectStringRepresentationException(
-				std::string("wrong mask '") + chr + "'");
+		    std::string("wrong mask '") + chr + "'");
 	}
 }
 
+static uint8_t entryTypeFromChar(char chr) {
+	switch (chr) {
+	case 'u': return AccessControlList::kNamedUser;
+	case 'g': return AccessControlList::kNamedGroup;
+	case 'm': return AccessControlList::kMask;
+	}
+
+	return AccessControlList::kInvalid;
+}
+
 // Removes given prefix from a C-string
-static void eat(const char*& str, const std::string& prefix) {
+static void eat(const char *&str, const std::string &prefix) {
 	if (strncmp(str, prefix.c_str(), prefix.size()) != 0) {
 		throw AccessControlList::IncorrectStringRepresentationException(
-				"Expected prefix '" + prefix + "' in string '" + str + "'");
+		    "Expected prefix '" + prefix + "' in string '" + str + "'");
 	}
 	str += prefix.size();
 }
 
-AccessControlList AccessControlList::fromString(const std::string& str) {
+AccessControlList AccessControlList::fromString(const std::string &str) {
 	if (str.size() < 4) {
 		throw IncorrectStringRepresentationException("ACL string '" + str + "': too short");
 	}
 	AccessControlList acl;
-	const char* rptr = str.c_str();
+	const char *rptr = str.c_str();
 	eat(rptr, "A");
-	acl.mode = 0;
-	for (int i = 0; i < 3; ++i) {
-		acl.mode <<= 3;
-		acl.mode |= accessMaskFromChar(*rptr++);
+
+	for (auto type : {kUser, kGroup, kOther}) {
+		AccessMask mask = accessMaskFromChar(*rptr++);
+		acl.setEntry(type, 0, mask);
 	}
 	if (*rptr == '\0') {
 		return acl;
 	}
-	eat(rptr, "/g::");
-	acl.extendedAcl.reset(new ExtendedAcl(accessMaskFromChar(*rptr++)));
 	while (*rptr != '\0') {
-		char entryType = '\0';
+		uint8_t entry_type = kInvalid;
+
 		eat(rptr, "/");
 		if (*rptr != '\0') {
-			entryType = *rptr++; // should be 'g' or 'u' -- will be verified in a moment
+			entry_type = entryTypeFromChar(*rptr++);  // should be 'g' or 'u' -- will be verified in a moment
 		}
 		eat(rptr, ":");
-		char* endOfId;
-		uint32_t id = strtol(rptr, &endOfId, 10);
-		if (endOfId == rptr) {
-			throw IncorrectStringRepresentationException("ACL string '" + str + "': unknown id");
-		} else {
-			rptr = endOfId;
+		uint32_t id = 0xFFFFFFFFU;
+		if (*rptr != ':') {
+			char *end_of_id;
+			id = strtol(rptr, &end_of_id, 10);
+			if (end_of_id == rptr) {
+				throw IncorrectStringRepresentationException("ACL string '" + str +
+				                                             "': unknown id");
+			} else {
+				rptr = end_of_id;
+			}
 		}
 		eat(rptr, ":");
-		if (entryType == 'u') {
-			if (acl.extendedAcl->hasNamedUser(id)) {
-				throw IncorrectStringRepresentationException(
-						"ACL string '" + str + "': repeated uid");
-			}
-			acl.extendedAcl->addNamedUser(id, accessMaskFromChar(*rptr++));
-		} else if (entryType == 'g') {
-			if (acl.extendedAcl->hasNamedGroup(id)) {
-				throw IncorrectStringRepresentationException(
-						"ACL string '" + str + "': repeated gid");
-			}
-			acl.extendedAcl->addNamedGroup(id, accessMaskFromChar(*rptr++));
-		} else {
-			throw IncorrectStringRepresentationException(
-					"ACL string '" + str + "': unknown entry type " + entryType);
+		AccessMask mask = accessMaskFromChar(*rptr++);
+
+		if (entry_type == kInvalid) {
+			throw IncorrectStringRepresentationException("ACL string '" + str +
+			                                             "': unknown entry type");
 		}
+		if (acl.getEntry(entry_type, id).type != kInvalid) {
+			throw IncorrectStringRepresentationException("ACL string '" + str +
+			                                             "': repeated entry");
+		}
+		if (id == 0xFFFFFFFFU && (entry_type == kNamedUser || entry_type == kNamedGroup)) {
+			throw IncorrectStringRepresentationException("ACL string '" + str +
+			                                             "': missing id for entry");
+		}
+
+		acl.setEntry(entry_type, id, mask);
 	}
 	return acl;
 }
@@ -104,22 +117,21 @@ AccessControlList AccessControlList::fromString(const std::string& str) {
 std::string AccessControlList::toString() const {
 	std::stringstream ss;
 	ss << 'A';
-	for (int i = 0; i < 3; ++i) {
-		ss << accessMaskToChar((mode >> (6 - 3 * i)) & 0007);
+	for (auto type : {kUser, kGroup, kOther}) {
+		ss << accessMaskToChar(getEntry(type, 0).access_rights);
 	}
-	if (extendedAcl) {
-		ss << "/g::" << accessMaskToChar(extendedAcl->owningGroupMask());
-		for (const auto& entry : extendedAcl->list()) {
-			if (entry.type == ExtendedAcl::EntryType::kNamedUser) {
-				ss << "/u:" << entry.id << ":" << accessMaskToChar(entry.mask);
-			}
-		}
-		for (const auto& entry : extendedAcl->list()) {
-			if (entry.type == ExtendedAcl::EntryType::kNamedGroup) {
-				ss << "/g:" << entry.id << ":" << accessMaskToChar(entry.mask);
-			}
-		}
 
+	auto mask = getEntry(kMask, 0);
+	for (const auto &entry : list_) {
+		if (entry.type == kNamedUser) {
+			ss << "/u:" << entry.id << ":" << accessMaskToChar(entry.access_rights);
+		}
+		if (entry.type == kNamedGroup) {
+			ss << "/g:" << entry.id << ":" << accessMaskToChar(entry.access_rights);
+		}
+	}
+	if (mask.type == kMask) {
+		ss << "/m::" << accessMaskToChar(mask.access_rights);
 	}
 	return ss.str();
 }

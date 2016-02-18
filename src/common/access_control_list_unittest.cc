@@ -41,10 +41,10 @@ TEST(AccessControlListTests, ToStringMimial) {
 }
 
 TEST(AccessControlListTests, ToStringExtended) {
-	EXPECT_GOOD_ACL("A700/g::7");
-	EXPECT_GOOD_ACL("A700/g::7/u:12345:5");
-	EXPECT_GOOD_ACL("A755/g::4/g:12345:5");
-	EXPECT_GOOD_ACL("A755/g::4/u:12345:5/g:12345:5");
+	EXPECT_GOOD_ACL("A700/m::7");
+	EXPECT_GOOD_ACL("A700/u:12345:5/m::7");
+	EXPECT_GOOD_ACL("A755/g:12345:5/m::4");
+	EXPECT_GOOD_ACL("A755/u:12345:5/g:12345:5/m::4");
 }
 
 TEST(AccessControlListTests, ToStringErrors) {
@@ -54,32 +54,31 @@ TEST(AccessControlListTests, ToStringErrors) {
 	EXPECT_WRONG_ACL("A1234"); // malformed
 	EXPECT_WRONG_ACL("123"); // malformed
 	EXPECT_WRONG_ACL("Ab123"); // malformed
-	EXPECT_WRONG_ACL("750/g::3"); // malformed
+	EXPECT_WRONG_ACL("750/m::3"); // malformed
 	EXPECT_WRONG_ACL("A800"); // wrong access mask
-	EXPECT_WRONG_ACL("A700/u:123:4"); // no owning group
-	EXPECT_WRONG_ACL("A700/g:123:4"); // no owning group
-	EXPECT_WRONG_ACL("A700/g::8"); // wrong access mask
-	EXPECT_WRONG_ACL("A700/g:8"); // malformed
-	EXPECT_WRONG_ACL("A700/g::7:u:123:8"); // wrong access mask
-	EXPECT_WRONG_ACL("A700/g::7/u:123:5/u::5"); // missing uid
-	EXPECT_WRONG_ACL("A700/g::7/u:123:5/g::5"); // missing gid
-	EXPECT_WRONG_ACL("A700/g::7/u:123:5/u:123:5"); // repeated entry
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/g:123:5"); // repeated entry
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/g:125:"); // malformed
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/g:125"); // malformed
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/g:"); // malformed
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/g"); // malformed
-	EXPECT_WRONG_ACL("A700/g::7/g:123:5/"); // malformed
-	EXPECT_WRONG_ACL("A755/g/g:4/g:12345:5");
-	EXPECT_WRONG_ACL("A755/g::4i/g:12345:5");
-	EXPECT_WRONG_ACL("A755/g::4/g:1o2345:5");
-	EXPECT_WRONG_ACL("A755/g::4/g:12345:5a");
-	EXPECT_WRONG_ACL("A755g/g::4/g:12345:5");
-	EXPECT_WRONG_ACL("A755/g::4/g:i12345:5");
-	EXPECT_WRONG_ACL("A755/g::4/g:12345p:5");
+	EXPECT_WRONG_ACL("A700/g::4"); // named group without id
+	EXPECT_WRONG_ACL("A700/m::8"); // wrong access mask
+	EXPECT_WRONG_ACL("A700/m:8"); // malformed
+	EXPECT_WRONG_ACL("A700/m::7:u:123:8"); // wrong access mask
+	EXPECT_WRONG_ACL("A700/m::7/u:123:5/u::5"); // missing uid
+	EXPECT_WRONG_ACL("A700/m::7/u:123:5/g::5"); // missing gid
+	EXPECT_WRONG_ACL("A700/m::7/u:123:5/u:123:5"); // repeated entry
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/g:123:5"); // repeated entry
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/g:125:"); // malformed
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/g:125"); // malformed
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/g:"); // malformed
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/g"); // malformed
+	EXPECT_WRONG_ACL("A700/m::7/g:123:5/"); // malformed
+	EXPECT_WRONG_ACL("A755/g/m:4/g:12345:5");
+	EXPECT_WRONG_ACL("A755/m::4i/g:12345:5");
+	EXPECT_WRONG_ACL("A755/m::4/g:1o2345:5");
+	EXPECT_WRONG_ACL("A755/m::4/g:12345:5a");
+	EXPECT_WRONG_ACL("A755g/m::4/g:12345:5");
+	EXPECT_WRONG_ACL("A755/m::4/g:i12345:5");
+	EXPECT_WRONG_ACL("A755/m::4/g:12345p:5");
 	EXPECT_WRONG_ACL("A755:i::4/g:12345:5");
-	EXPECT_WRONG_ACL("A755/g::4/m:12345:5");
-	EXPECT_WRONG_ACL("A755:g::4/g:12345:5:u/12345:5");
-	EXPECT_WRONG_ACL("A755/g::4:g:12345:5:u/12345:5");
-	EXPECT_WRONG_ACL("A755/g::4/g:12345:5:u:12345:5");
+	EXPECT_WRONG_ACL("A755/m::4/m:12345:5");
+	EXPECT_WRONG_ACL("A755:m::4/g:12345:5:u/12345:5");
+	EXPECT_WRONG_ACL("A755/m::4:g:12345:5:u/12345:5");
+	EXPECT_WRONG_ACL("A755/m::4/g:12345:5:u:12345:5");
 }

@@ -207,9 +207,10 @@ TEST(MatoclCommunicationTests, FuseGetAclStatus) {
 
 TEST(MatoclCommunicationTests, FuseGetAclResponse) {
 	LIZARDFS_DEFINE_INOUT_PAIR(uint32_t, messageId, 123, 0);
-	LIZARDFS_DEFINE_INOUT_PAIR(AccessControlList, acl, 0750, 0000);
-	aclIn.extendedAcl.reset(new ExtendedAcl(5));
-	aclIn.extendedAcl->addNamedGroup(123, 7);
+	AccessControlList aclIn, aclOut;
+	aclIn.setMode(0750);
+	aclIn.setEntry(AccessControlList::kMask, 0, 5);
+	aclIn.setEntry(AccessControlList::kNamedGroup, 123, 7);
 
 	std::vector<uint8_t> buffer;
 	ASSERT_NO_THROW(matocl::fuseGetAcl::serialize(buffer, messageIdIn, aclIn));
@@ -220,9 +221,7 @@ TEST(MatoclCommunicationTests, FuseGetAclResponse) {
 			messageIdOut, aclOut));
 
 	LIZARDFS_VERIFY_INOUT_PAIR(messageId);
-	EXPECT_EQ(aclIn.mode, aclOut.mode);
-	EXPECT_EQ(aclIn.extendedAcl->owningGroupMask(), aclOut.extendedAcl->owningGroupMask());
-	EXPECT_EQ(aclIn.extendedAcl->list(), aclOut.extendedAcl->list());
+	EXPECT_EQ(aclIn, aclOut);
 }
 
 TEST(MatoclCommunicationTests, FuseSetAcl) {

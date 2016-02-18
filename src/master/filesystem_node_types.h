@@ -29,7 +29,6 @@
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
 #include "common/attributes.h"
-#include "common/extended_acl.h"
 #include "common/goal.h"
 #include "common/compact_vector.h"
 
@@ -113,7 +112,7 @@ struct FSNode {
 	uint32_t gid; /*!< Group id. */
 	uint32_t trashtime; /*!< Trash time. */
 
-	std::unique_ptr<ExtendedAcl> extendedAcl; /*!< Access control list. */
+	std::unique_ptr<AccessControlList> extendedAcl; /*!< Access control list. */
 	compact_vector<uint32_t, uint32_t> parent; /*!< Parent nodes ids. To reduce memory usage ids
 	                                                are stored instead of pointers to FSNode. */
 
