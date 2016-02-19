@@ -40,6 +40,7 @@
 #include "master/filesystem_operations.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_quota.h"
+#include "master/filesystem_store_acl.h"
 #include "master/locks.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
@@ -234,85 +235,6 @@ static bool fs_load_generic(FILE *fd, Args &&... args) {
 	}
 	deserialize(buffer, std::forward<Args>(args)...);
 	return true;
-}
-
-static void fs_storeacl(FSNode *p, FILE *fd) {
-	static std::vector<uint8_t> buffer;
-	buffer.clear();
-	if (!p) {
-		// write end marker
-		uint32_t marker = 0;
-		serialize(buffer, marker);
-	} else {
-		if (p->type == FSNode::kDirectory) {
-			uint32_t size = serializedSize(p->id, p->extendedAcl, static_cast<FSNodeDirectory*>(p)->defaultAcl);
-			serialize(buffer, size, p->id, p->extendedAcl, static_cast<FSNodeDirectory*>(p)->defaultAcl);
-		} else {
-			std::unique_ptr<AccessControlList> default_acl;
-			uint32_t size = serializedSize(p->id, p->extendedAcl, default_acl);
-			serialize(buffer, size, p->id, p->extendedAcl, default_acl);
-		}
-	}
-	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-		syslog(LOG_NOTICE, "fwrite error");
-		return;
-	}
-}
-
-static int fs_loadacl(FILE *fd, int ignoreflag) {
-	static std::vector<uint8_t> buffer;
-
-	// initialize
-	if (fd == nullptr) {
-		return 0;
-	}
-
-	try {
-		// Read size of the entry
-		uint32_t size = 0;
-		buffer.resize(serializedSize(size));
-		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
-		}
-		deserialize(buffer, size);
-		if (size == 0) {
-			// this is end marker
-			return 1;
-		} else if (size > 10000000) {
-			throw Exception("strange size of entry: " + std::to_string(size),
-				LIZARDFS_ERROR_ERANGE);
-		}
-
-		// Read the entry
-		buffer.resize(size);
-		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
-		}
-
-		// Deserialize inode
-		uint32_t inode;
-		deserialize(buffer, inode);
-		FSNode *p = fsnodes_id_to_node(inode);
-		if (!p) {
-			throw Exception("unknown inode: " + std::to_string(inode));
-		}
-
-		// Deserialize ACL
-		std::unique_ptr<AccessControlList> default_acl;
-
-		deserialize(buffer, inode, p->extendedAcl, default_acl);
-		if (p->type == FSNode::kDirectory) {
-			static_cast<FSNodeDirectory*>(p)->defaultAcl = std::move(default_acl);
-		}
-		return 0;
-	} catch (Exception &ex) {
-		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
-		if (!ignoreflag || ex.status() != LIZARDFS_STATUS_OK) {
-			return -1;
-		} else {
-			return 0;
-		}
-	}
 }
 
 void fs_storeedge(FSNodeDirectory* parent, FSNode* child, const std::string &name, FILE *fd) {
@@ -794,17 +716,6 @@ void fs_storeedges(FILE *fd) {
 	fs_storeedge(nullptr, nullptr, std::string(), fd);  // end marker
 }
 
-static void fs_storeacls(FILE *fd) {
-	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
-			if (p->extendedAcl || (p->type == FSNode::kDirectory && static_cast<FSNodeDirectory*>(p)->defaultAcl)) {
-				fs_storeacl(p, fd);
-			}
-		}
-	}
-	fs_storeacl(nullptr, fd);  // end marker
-}
-
 static void fs_storequotas(FILE *fd) {
 	const std::vector<QuotaEntry> &entries = gMetadata->quota_database.getEntries();
 	fs_store_generic(fd, entries);
@@ -877,18 +788,6 @@ int fs_loadedges(FILE *fd, int ignoreflag) {
 	fs_loadedge(NULL, ignoreflag);  // init
 	do {
 		s = fs_loadedge(fd, ignoreflag);
-		if (s < 0) {
-			return -1;
-		}
-	} while (s == 0);
-	return 0;
-}
-
-static int fs_loadacls(FILE *fd, int ignoreflag) {
-	fs_loadacl(NULL, ignoreflag);  // init
-	int s = 0;
-	do {
-		s = fs_loadacl(fd, ignoreflag);
 		if (s < 0) {
 			return -1;
 		}
@@ -1068,8 +967,8 @@ void fs_store(FILE *fd, uint8_t fver) {
 		if (process_section("XATR 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
-		fs_storeacls(fd);
-		if (process_section("ACLS 1.0", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
+		fs_store_acls(fd);
+		if (process_section("ACLS 1.1", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
 		fs_storequotas(fd);
@@ -1236,7 +1135,19 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 				lzfs_pretty_syslog_attempt(LOG_INFO,
 				                           "loading access control lists from the metadata file");
 				fflush(stderr);
-				if (fs_loadacls(fd, ignoreflag) < 0) {
+				if (fs_load_legacy_acls(fd, ignoreflag) < 0) {
+#ifndef METARESTORE
+					lzfs_pretty_syslog(LOG_ERR,
+					                   "error reading access control lists");
+#endif
+					return -1;
+				}
+			} else if (memcmp(hdr, "ACLS 1.1", 8) == 0) {
+				lzfs_pretty_syslog_attempt(
+				        LOG_INFO,
+				        "loading access control lists from the metadata file");
+				fflush(stderr);
+				if (fs_load_acls(fd, ignoreflag) < 0) {
 #ifndef METARESTORE
 					lzfs_pretty_syslog(LOG_ERR, "error reading access control lists");
 #endif
