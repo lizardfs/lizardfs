@@ -542,6 +542,31 @@ bool operator==(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) 
 }
 
 template <typename T, typename C, class Compare>
+bool operator<(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) {
+	return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+}
+
+template <typename T, typename C, class Compare>
 bool operator!=(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) {
-	return a.size() != b.size() || !std::equal(a.begin(), a.end(), b.begin());
+	return !(a == b);
+}
+
+template <typename T, typename C, class Compare>
+bool operator>(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) {
+	return b < a;
+}
+
+template <typename T, typename C, class Compare>
+bool operator<=(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) {
+	return !(b < a);
+}
+
+template <typename T, typename C, class Compare>
+bool operator>=(const flat_set<T,C,Compare>& a, const flat_set<T,C,Compare>& b) {
+	return !(a < b);
+}
+
+template <typename T, typename C, class Compare>
+void swap(flat_set<T,C,Compare>& a, flat_set<T,C,Compare>& b) {
+	a.swap(b);
 }

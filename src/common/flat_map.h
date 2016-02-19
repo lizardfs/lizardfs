@@ -418,12 +418,37 @@ private:
 };
 
 
-template <typename T, typename C, class Compare>
-bool operator==(const flat_map<T,C,Compare>& a, const flat_map<T,C,Compare>& b) {
+template <typename Key, typename T, typename C, class Compare>
+bool operator==(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
 	return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
 }
 
-template <typename T, typename C, class Compare>
-bool operator!=(const flat_map<T,C,Compare>& a, const flat_map<T,C,Compare>& b) {
-	return a.size() != b.size() || !std::equal(a.begin(), a.end(), b.begin());
+template <typename Key, typename T, typename C, class Compare>
+bool operator<(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
+	return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+}
+
+template <typename Key, typename T, typename C, class Compare>
+bool operator!=(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
+	return !(a == b);
+}
+
+template <typename Key, typename T, typename C, class Compare>
+bool operator>(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
+	return b < a;
+}
+
+template <typename Key, typename T, typename C, class Compare>
+bool operator<=(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
+	return !(b < a);
+}
+
+template <typename Key, typename T, typename C, class Compare>
+bool operator>=(const flat_map<Key,T,C,Compare>& a, const flat_map<Key,T,C,Compare>& b) {
+	return !(a < b);
+}
+
+template <typename Key, typename T, typename C, class Compare>
+void swap(flat_map<Key,T,C,Compare>& a, flat_map<Key,T,C,Compare>& b) {
+	a.swap(b);
 }
