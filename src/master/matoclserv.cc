@@ -4020,7 +4020,12 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 		status = fs_getacl(context, inode, type, acl);
 	}
 	if (status == LIZARDFS_STATUS_OK) {
-		matocl::fuseGetAcl::serialize(reply, messageId, acl);
+		if (eptr->version >= kACL11Version) {
+			matocl::fuseGetAcl::serialize(reply, messageId, acl);
+		} else {
+			legacy::AccessControlList legacy_acl = acl;
+			matocl::fuseGetAcl::serialize(reply, messageId, legacy_acl);
+		}
 	} else {
 		matocl::fuseGetAcl::serialize(reply, messageId, status);
 	}
@@ -4338,7 +4343,17 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	uint32_t messageId, inode, uid, gid;
 	AclType type;
 	AccessControlList acl;
-	cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
+
+	PacketVersion version;
+	deserializePacketVersionNoHeader(data, length, version);
+
+	if (version == cltoma::fuseSetAcl::kLegacyACL) {
+		legacy::AccessControlList legacy_acl;
+		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, legacy_acl);
+		acl = (AccessControlList)legacy_acl;
+	} else {
+		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
+	}
 
 	MessageBuffer reply;
 	uint8_t status = matoclserv_check_group_cache(eptr, gid);

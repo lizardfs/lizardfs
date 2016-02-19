@@ -26,6 +26,7 @@
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/io_limits_database.h"
+#include "common/legacy_acl.h"
 #include "common/metadataserver_list_entry.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
@@ -80,12 +81,18 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 // LIZ_MATOCL_FUSE_GET_ACL
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kStatusPacketVersion, 0)
-LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kResponsePacketVersion, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kLegacyResponsePacketVersion, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kResponsePacketVersion, 2)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kStatusPacketVersion,
 		uint32_t, messageId,
 		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kLegacyResponsePacketVersion,
+		uint32_t, messageId,
+		legacy::AccessControlList, acl)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kResponsePacketVersion,

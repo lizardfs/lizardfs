@@ -24,6 +24,7 @@
 
 #include "common/access_control_list.h"
 #include "common/acl_type.h"
+#include "common/legacy_acl.h"
 #include "common/moosefs_string.h"
 #include "common/serialization_macros.h"
 #include "common/small_vector.h"
@@ -80,8 +81,18 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, gid,
 		AclType, type)
 
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, fuseSetAcl, kLegacyACL, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, fuseSetAcl, kCurrentACL, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cltoma, fuseSetAcl, LIZ_CLTOMA_FUSE_SET_ACL, 0,
+		cltoma, fuseSetAcl, LIZ_CLTOMA_FUSE_SET_ACL, kLegacyACL,
+		uint32_t, messageId,
+		uint32_t, inode,
+		uint32_t, uid,
+		uint32_t, gid,
+		AclType, type,
+		legacy::AccessControlList, acl)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, fuseSetAcl, LIZ_CLTOMA_FUSE_SET_ACL, kCurrentACL,
 		uint32_t, messageId,
 		uint32_t, inode,
 		uint32_t, uid,

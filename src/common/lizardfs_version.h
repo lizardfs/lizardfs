@@ -42,3 +42,4 @@ constexpr uint32_t kDisconnectedChunkserverVersion = lizardfsVersion(256, 0, 0);
 constexpr uint32_t kStdVersion = lizardfsVersion(2, 6, 0);
 constexpr uint32_t kFirstXorVersion = lizardfsVersion(2, 9, 0);
 constexpr uint32_t kFirstECVersion = lizardfsVersion(3, 9, 5);
+constexpr uint32_t kACL11Version = lizardfsVersion(3, 11, 0);
