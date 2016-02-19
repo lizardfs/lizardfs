@@ -1,3 +1,4 @@
+timeout_set 2 minutes
 assert_program_installed setfacl
 touch "$TEMP_DIR/f"
 MESSAGE="Testing ACL support in $TEMP_DIR/" assert_success setfacl -m group:fuse:rw "$TEMP_DIR/f"
@@ -10,11 +11,19 @@ mkdir -p "$lizdir" "$tmpdir"
 chmod 770 "$lizdir" "$tmpdir"
 
 # Do the same things in two trees (lizdir and tmpdir) and compare results after each command
+counter=0
 while read command; do
 	command=$(sed -e 's/ *#.*//' <<< "$command") # Strip the trailing comment
 	export MESSAGE="Executing '$command' in both directory trees"
 	( cd "$tmpdir" ; assertlocal_success eval "$command" )
 	( cd "$lizdir" ; assertlocal_success eval "$command" )
+
+	if [[ $((RANDOM % 10)) == 0 && $counter < 3 ]]; then
+		lizardfs_master_daemon restart
+		lizardfs_wait_for_all_ready_chunkservers
+		counter=$((counter + 1))
+	fi
+
 	export MESSAGE="Veryfing permissions after '$command'"
 	cd "$lizdir"
 	find . | while read f; do

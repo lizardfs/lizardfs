@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2016 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -18,196 +18,140 @@
 
 #include "common/platform.h"
 #include "common/acl_converter.h"
+#include "common/portable_endian.h"
 
-static constexpr uint16_t kUserPermissionsModeOffset  = 0100;
-static constexpr uint16_t kGroupPermissionsModeOffset = 010;
-static constexpr uint16_t kOtherPermissionsModeOffset = 01;
+#include <bitset>
 
-/* FIXME
-static bool checkPermissions(uint16_t perm) {
-	return (perm & ~(ACL_READ | ACL_WRITE | ACL_EXECUTE)) == 0;
+#define ACL_UNDEFINED_ID    (-1U)
+
+/* e_tag entry in struct posix_acl_entry */
+#define ACL_USER_OBJ        (0x01)
+#define ACL_USER            (0x02)
+#define ACL_GROUP_OBJ       (0x04)
+#define ACL_GROUP           (0x08)
+#define ACL_MASK            (0x10)
+#define ACL_OTHER           (0x20)
+
+/* permissions in the e_perm field */
+#define ACL_READ            (0x04)
+#define ACL_WRITE           (0x02)
+#define ACL_EXECUTE         (0x01)
+
+#define POSIX_ACL_XATTR_VERSION 0x0002
+
+static uint16_t convertTag(uint16_t tag) {
+	switch(tag) {
+		case ACL_USER_OBJ : return AccessControlList::kUser;
+		case ACL_USER : return AccessControlList::kNamedUser;
+		case ACL_GROUP_OBJ : return AccessControlList::kGroup;
+		case ACL_GROUP : return AccessControlList::kNamedGroup;
+		case ACL_MASK : return AccessControlList::kMask;
+		case ACL_OTHER : return AccessControlList::kOther;
+	}
+	return AccessControlList::kInvalid;
 }
 
-static uint16_t assertPermissionsOnTheFly(uint16_t perm) {
-	if (!checkPermissions(perm)) {
+static AccessControlList::Entry extractEntry(const uint8_t* buffer, uint32_t buffer_size) {
+	if (buffer_size < 8) {
+		return AccessControlList::Entry(AccessControlList::kInvalid, 0, 0);
+	}
+
+	AccessControlList::Entry entry;
+
+	entry.type = convertTag(le16toh(*(const uint16_t*)buffer));
+	entry.access_rights = le16toh(*(const uint16_t*)(buffer + 2));
+	entry.id = le32toh(*(const uint32_t*)(buffer + 4));
+
+	if ((entry.access_rights & ~(ACL_READ | ACL_WRITE | ACL_EXECUTE)) != 0) {
 		throw aclConverter::AclConversionException("Invalid permissions mask");
 	}
-	return perm;
-}
 
-static uint16_t extractMask(uint16_t mode, uint16_t offset) {
-	uint16_t mask = uint16_t((mode / offset) & 07);
-	return assertPermissionsOnTheFly(mask);
-}
-
-static void insertToMode(uint16_t& mode, uint16_t offset, uint8_t newMask) {
-	uint8_t oldMask = (mode / offset) & 07;
-	mode -= oldMask * offset;
-	mode += newMask * offset;
-}
-
-static void prepareExtendedAcl(AccessControlList& acl) {
-	if (!acl.extendedAcl) {
-		acl.extendedAcl.reset(new ExtendedAcl);
-		acl.extendedAcl->setOwningGroupMask(extractMask(acl.mode, kGroupPermissionsModeOffset));
+	if (entry.type >= AccessControlList::kUser && entry.type < AccessControlList::kInvalid &&
+	    entry.id != ACL_UNDEFINED_ID) {
+		throw aclConverter::AclConversionException("Entry with invalid ID");
 	}
+
+	return entry;
 }
 
-static void validateNonIdEntry(uint8_t tags, const PosixAclXattrEntry& entry) {
-	// These entries can appear only once...
-	if (tags & entry.tag) {
-		throw aclConverter::AclConversionException("Entry duplication");
+static void storeEntry(std::vector<uint8_t> &buffer, const AccessControlList::Entry &entry) {
+	if (entry.type == AccessControlList::kInvalid) {
+		return;
 	}
-	// ...and with undefined id
-	if (entry.id != ACL_UNDEFINED_ID) {
-		throw aclConverter::AclConversionException("Entry with defined ID");
-	}
-}
 
-static void validateIdEntry(const AccessControlList& acl, const PosixAclXattrEntry& entry) {
-	if (acl.extendedAcl &&
-			acl.extendedAcl->hasEntryFor(ExtendedAcl::EntryType::kNamedGroup, entry.id)) {
-		throw IncorrectDeserializationException("Group entry duplication");
-	}
-}
-*/
+	uint16_t tag[] = {ACL_USER, ACL_GROUP, ACL_USER_OBJ, ACL_GROUP_OBJ, ACL_OTHER, ACL_MASK};
 
-PosixAclXattr aclConverter::extractPosixObject(const uint8_t* buffer, uint32_t bufferSize) {
-	PosixAclXattr posix;
-	try {
-		posix.read(buffer, bufferSize);
-	} catch (Exception&) {
-		throw AclConversionException("Data doesn't contain ACL");
-	}
-	return posix;
+	buffer.resize(buffer.size() + 8);
+	uint8_t *buf = buffer.data() + (buffer.size() - 8);
+
+	*(uint16_t*)buf = htole16(tag[entry.type]);
+	*(uint16_t*)(buf + 2) = htole16(entry.access_rights);
+	*(uint32_t*)(buf + 4) = htole32(entry.id);
 }
 
 
-AccessControlList aclConverter::posixToAclObject(const PosixAclXattr& posix) {
-	if (posix.version != POSIX_ACL_XATTR_VERSION) {
+AccessControlList aclConverter::extractAclObject(const uint8_t* buffer, uint32_t buffer_size) {
+	if (buffer_size<4) {
+		throw AclConversionException("Incorrect POSIX ACL xattr version");
+	}
+
+	uint32_t version = le32toh(*(uint32_t*)buffer);
+	if (version != POSIX_ACL_XATTR_VERSION) {
 		throw AclConversionException("Incorrect POSIX ACL xattr version: " +
-				std::to_string(posix.version));
-	}
-	if (posix.entries.empty()) {
-		throw AclConversionException("Empty POSIX ACL xattr object");
+				std::to_string(version));
 	}
 
-	/* FIXME
-	AccessControlList acl(0);
-	// NOTE Documentation says nothing about the order of entries (it's supposed
-	//      to be ascending by a tag value), so we allow any order.
-	uint8_t appearedTagsBitmask = 0x00;
-	for (const PosixAclXattrEntry& entry : posix.entries) {
-		assertPermissionsOnTheFly(entry.perm); // Check permissions mask
-		switch (entry.tag) {
-			case ACL_USER_OBJ:
-				validateNonIdEntry(appearedTagsBitmask, entry);
-				insertToMode(acl.mode, kUserPermissionsModeOffset, entry.perm);
-				break;
-			case ACL_USER:
-				validateIdEntry(acl, entry);
-				prepareExtendedAcl(acl);
-				acl.extendedAcl->addNamedUser(entry.id, entry.perm);
-				break;
-			case ACL_GROUP_OBJ:
-				validateNonIdEntry(appearedTagsBitmask, entry);
-				// If eacl exists, store owning group permissions there
-				if (acl.extendedAcl) {
-					acl.extendedAcl->setOwningGroupMask(entry.perm);
-				} else {
-					insertToMode(acl.mode, kGroupPermissionsModeOffset, entry.perm);
-				}
-				break;
-			case ACL_GROUP:
-				validateIdEntry(acl, entry);
-				prepareExtendedAcl(acl);
-				acl.extendedAcl->addNamedGroup(entry.id, entry.perm);
-				break;
-			case ACL_MASK:
-				validateNonIdEntry(appearedTagsBitmask, entry);
-				prepareExtendedAcl(acl); // Move owning group permissions to eacl if necessary
-				insertToMode(acl.mode, kGroupPermissionsModeOffset, entry.perm);
-				break;
-			case ACL_OTHER:
-				validateNonIdEntry(appearedTagsBitmask, entry);
-				insertToMode(acl.mode, kOtherPermissionsModeOffset, entry.perm);
-				break;
-			default:
-				throw AclConversionException("Unknown ACL xattr entry tag");
+	AccessControlList acl;
+	std::bitset<16> available_tags;
+
+	for (uint32_t scan_position = 4; scan_position < buffer_size; scan_position += 8) {
+		auto entry = extractEntry(buffer + scan_position, buffer_size - scan_position);
+		if (entry.type == AccessControlList::kInvalid) {
+			throw aclConverter::AclConversionException("Invalid entry");
 		}
-		appearedTagsBitmask |= entry.tag;
+		acl.setEntry(entry.type, entry.id, entry.access_rights);
+
+		if (entry.type >= AccessControlList::kUser && available_tags[entry.type]) {
+			throw aclConverter::AclConversionException("Tag occurred more than once");
+		}
+		available_tags.set(entry.type);
 	}
 
-	// Check if at least minimal ACL appeared
-	if ((appearedTagsBitmask & (ACL_USER_OBJ | ACL_GROUP_OBJ | ACL_OTHER)) !=
-			(ACL_USER_OBJ | ACL_GROUP_OBJ | ACL_OTHER)) {
+	if (!available_tags[AccessControlList::kUser] ||
+	   !available_tags[AccessControlList::kGroup] ||
+	   !available_tags[AccessControlList::kOther]) {
 		throw AclConversionException("ACL xattr without all minimal ACL entries");
-	}
-	// Extended ACL without mask is invalid
-	if ((appearedTagsBitmask & (ACL_GROUP | ACL_USER)) && !(appearedTagsBitmask & ACL_MASK)) {
-		throw AclConversionException("Extended ACL without permissions mask");
 	}
 
 	return acl;
-	*/
-	return AccessControlList();
 }
 
 std::vector<uint8_t> aclConverter::aclObjectToXattr(const AccessControlList& acl) {
-	(void)acl;
-	/* FIXME
-	// NOTE Documentation says nothing about the order of entries. It's supposed
-	//      to be ascending by a tag value, so we implement it.
-	PosixAclXattr xattr;
-	xattr.version = POSIX_ACL_XATTR_VERSION;
+	std::vector<uint8_t> buffer;
 
-	// Owner user permissions
-	xattr.entries.push_back(
-			{ACL_USER_OBJ, extractMask(acl.mode, kUserPermissionsModeOffset), ACL_UNDEFINED_ID});
+	buffer.reserve(4 + 8 * (4 + std::distance(acl.begin(), acl.end())));
 
-	if (acl.extendedAcl) {
-		// Users permissions
-		for (ExtendedAcl::Entry entry : acl.extendedAcl->list()) {
-			if (entry.type != ExtendedAcl::EntryType::kNamedUser) {
-				continue;
-			}
-			xattr.entries.push_back(
-					{ACL_USER, assertPermissionsOnTheFly(entry.mask), entry.id});
+	buffer.resize(4);
+	*(uint32_t*)buffer.data() = htole32(POSIX_ACL_XATTR_VERSION);
+
+	storeEntry(buffer, acl.getEntry(AccessControlList::kUser, 0));
+	for (const auto &entry : acl) {
+		if (entry.type != AccessControlList::kNamedUser) {
+			continue;
 		}
-
-		// Owning group permissions from ExtendedAcl
-		xattr.entries.push_back({ACL_GROUP_OBJ,
-				assertPermissionsOnTheFly(acl.extendedAcl->owningGroupMask()), ACL_UNDEFINED_ID});
-
-		// Groups permissions
-		for (ExtendedAcl::Entry entry : acl.extendedAcl->list()) {
-			if (entry.type != ExtendedAcl::EntryType::kNamedGroup) {
-				continue;
-			}
-			xattr.entries.push_back(
-					{ACL_GROUP, assertPermissionsOnTheFly(entry.mask), entry.id});
-		}
-
-		// Permissions mask
-		xattr.entries.push_back(
-				{ACL_MASK, extractMask(acl.mode, kGroupPermissionsModeOffset), ACL_UNDEFINED_ID});
-	} else {
-		// Owning group permissions from mode
-		xattr.entries.push_back({ACL_GROUP_OBJ,
-				extractMask(acl.mode, kGroupPermissionsModeOffset), ACL_UNDEFINED_ID});
+		storeEntry(buffer, entry);
 	}
 
-	// Other permissions
-	xattr.entries.push_back(
-			{ACL_OTHER, extractMask(acl.mode, kOtherPermissionsModeOffset), ACL_UNDEFINED_ID});
-
-	// Write to buffer
-	std::vector<uint8_t> buffer(xattr.rawSize());
-	size_t writtenSize = xattr.write(buffer.data());
-	if (writtenSize != buffer.size()) {
-		throw AclConversionException("xattr data incorrectly written to a buffer");
+	storeEntry(buffer, acl.getEntry(AccessControlList::kGroup, 0));
+	for (const auto &entry : acl) {
+		if (entry.type != AccessControlList::kNamedGroup) {
+			continue;
+		}
+		storeEntry(buffer, entry);
 	}
+
+	storeEntry(buffer, acl.getEntry(AccessControlList::kMask, 0));
+	storeEntry(buffer, acl.getEntry(AccessControlList::kOther, 0));
+
 	return buffer;
-	*/
-	return std::vector<uint8_t>();
 }

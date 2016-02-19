@@ -40,7 +40,6 @@
 #include "common/datapack.h"
 #include "common/lru_cache.h"
 #include "common/mfserr.h"
-#include "common/posix_acl_xattr.h"
 #include "common/slogger.h"
 #include "common/special_inode_defs.h"
 #include "common/time_utils.h"
@@ -2373,19 +2372,19 @@ public:
 
 	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, const char *value, size_t size, int) {
+		static constexpr size_t kEmptyAclSize = 4;
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
 		AccessControlList acl;
 		try {
-			PosixAclXattr posix = aclConverter::extractPosixObject((const uint8_t*)value, size);
-			if (posix.entries.empty()) {
+			if (size <= kEmptyAclSize) {
 				uint8_t status;
 				RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 					fs_deletacl(ino, ctx.uid, ctx.gid, type_));
 				return status;
 			}
-			acl = aclConverter::posixToAclObject(posix);
+			acl = aclConverter::extractAclObject((const uint8_t*)value, size);
 		} catch (Exception&) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
@@ -2445,8 +2444,8 @@ static ErrorXattrHandler enotsupXattrHandler(LIZARDFS_ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 
 static std::map<std::string, XattrHandler*> xattr_handlers = {
-	{POSIX_ACL_XATTR_ACCESS, &accessAclXattrHandler},
-	{POSIX_ACL_XATTR_DEFAULT, &defaultAclXattrHandler},
+	{"system.posix_acl_access", &accessAclXattrHandler},
+	{"system.posix_acl_default", &defaultAclXattrHandler},
 	{"security.capability", &enotsupXattrHandler},
 };
 
