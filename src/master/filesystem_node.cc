@@ -1558,19 +1558,29 @@ int fsnodes_namecheck(const std::string &name) {
 	return 0;
 }
 
-int fsnodes_access(FSNode *node, uint32_t uid, uint32_t gid, uint8_t modemask, uint8_t sesflags) {
+int fsnodes_access(const FsContext &context, FSNode *node, uint8_t modemask) {
 	uint8_t nodemode;
-	if ((sesflags & SESFLAG_NOMASTERPERMCHECK) || uid == 0) {
+	if ((context.sesflags() & SESFLAG_NOMASTERPERMCHECK) || context.uid() == 0) {
 		return 1;
 	}
-	if (uid == node->uid || (node->mode & (EATTR_NOOWNER << 12))) {
-		nodemode = ((node->mode) >> 6) & 7;
-	} else if (sesflags & SESFLAG_IGNOREGID) {
-		nodemode = (((node->mode) >> 3) | (node->mode)) & 7;
-	} else if (gid == node->gid) {
-		nodemode = ((node->mode) >> 3) & 7;
+	if (node->extendedAcl) {
+		assert((node->mode & 0777) == node->extendedAcl->getMode());
+
+		if (context.uid() == node->uid && (node->mode & (EATTR_NOOWNER << 12))) {
+			nodemode = node->extendedAcl->getEntry(AccessControlList::kUser, 0).access_rights;
+		} else {
+			nodemode = node->extendedAcl->getEffectiveRights(node->uid, node->gid, context.uid(), context.groups());
+		}
 	} else {
-		nodemode = (node->mode & 7);
+		if (context.uid() == node->uid || (node->mode & (EATTR_NOOWNER << 12))) {
+			nodemode = ((node->mode) >> 6) & 7;
+		} else if (context.sesflags() & SESFLAG_IGNOREGID) {
+			nodemode = (((node->mode) >> 3) | (node->mode)) & 7;
+		} else if (std::find(context.groups().begin(), context.groups().end(), node->gid) != context.groups().end()) {
+			nodemode = ((node->mode) >> 3) & 7;
+		} else {
+			nodemode = (node->mode & 7);
+		}
 	}
 	if ((nodemode & modemask) == modemask) {
 		return 1;
@@ -1665,7 +1675,7 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 		return LIZARDFS_ERROR_EPERM;
 	}
 	if (context.canCheckPermissions() &&
-	    !fsnodes_access(p, context.uid(), context.gid(), modemask, context.sesflags())) {
+	    !fsnodes_access(context, p, modemask)) {
 		return LIZARDFS_ERROR_EACCES;
 	}
 	*ret = p;

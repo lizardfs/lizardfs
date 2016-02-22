@@ -134,7 +134,7 @@ uint8_t fsnodes_undel(uint32_t ts, FSNodeFile *node);
 int fsnodes_namecheck(const std::string &name);
 void fsnodes_get_stats(FSNode *node, statsrecord *sr);
 bool fsnodes_isancestor_or_node_reserved_or_trash(FSNodeDirectory *f, FSNode *p);
-int fsnodes_access(FSNode *node, uint32_t uid, uint32_t gid, uint8_t modemask, uint8_t sesflags);
+int fsnodes_access(const FsContext &context, FSNode *node, uint8_t modemask);
 
 void fsnodes_setlength(FSNodeFile *obj, uint64_t length);
 void fsnodes_change_uid_gid(FSNode *p, uint32_t uid, uint32_t gid);

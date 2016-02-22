@@ -636,7 +636,7 @@ uint8_t fs_setattr(const FsContext &context, uint32_t inode, uint8_t setmask, ui
 			return LIZARDFS_ERROR_EPERM;
 		}
 		if ((setmask & (SET_ATIME_NOW_FLAG | SET_MTIME_NOW_FLAG)) &&
-		    !fsnodes_access(p, context.uid(), context.gid(), MODE_MASK_W, context.sesflags())) {
+		    !fsnodes_access(context, p, MODE_MASK_W)) {
 			return LIZARDFS_ERROR_EACCES;
 		}
 	}
@@ -1657,7 +1657,7 @@ uint8_t fs_opencheck(const FsContext &context, uint32_t inode, uint8_t flags, At
 		if (flags & WANT_WRITE) {
 			modemask |= MODE_MASK_W;
 		}
-		if (!fsnodes_access(p, context.uid(), context.gid(), modemask, context.sesflags())) {
+		if (!fsnodes_access(context, p, modemask)) {
 			return LIZARDFS_ERROR_EACCES;
 		}
 	}
