@@ -1663,60 +1663,49 @@ int hdd_read_crc_and_block(Chunk* c, uint16_t blocknum, OutputBuffer* outputBuff
 	return LIZARDFS_STATUS_OK;
 }
 
-/**
- * Unlike other hdd_... functions this one reports errors to syslog. That's due to the fact that
- * nobody else looks at these errors and we don't want to lose information about them.
- */
-int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t firstBlock,
-		uint16_t nrOfBlocks) {
+static void hdd_prefetch(Chunk &chunk, uint16_t first_block, uint32_t block_count) {
+	if (block_count > 0) {
+		auto blockSize = chunk.chunkFormat() == ChunkFormat::MOOSEFS ?
+				MFSBLOCKSIZE : kHddBlockSize;
+		posix_fadvise(chunk.fd, chunk.getBlockOffset(first_block),
+				uint32_t(block_count) * blockSize, POSIX_FADV_WILLNEED);
+	}
+}
+
+int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunk_type, uint32_t first_block,
+		uint16_t block_count) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_prefetch_blocks");
 
-	auto status = hdd_open(chunkid, chunkType);
+	Chunk *c = hdd_chunk_find(chunkid, chunk_type);
+	if (!c) {
+		lzfs_pretty_syslog(LOG_WARNING, "error finding chunk for prefetching: %" PRIu64, chunkid);
+		return LIZARDFS_ERROR_NOCHUNK;
+	}
+
+	int status = hdd_open(c);
 	if (status != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING, "error opening chunk for prefetching: %" PRIu64 " - %s", chunkid,
-				mfsstrerr(status));
+		lzfs_pretty_syslog(LOG_WARNING, "error opening chunk for prefetching: %" PRIu64 " - %s",
+				chunkid, mfsstrerr(status));
+		hdd_chunk_release(c);
 		return status;
 	}
 
-	Chunk* c = hdd_chunk_find(chunkid, chunkType);
-	if (c==NULL) {
-		syslog(LOG_WARNING, "error finding chunk for prefetching: %" PRIu64 " - %s", chunkid,
-				mfsstrerr(status));
-		return LIZARDFS_ERROR_NOCHUNK;
-	}
-	OutputBuffer buffer = OutputBuffer(kHddBlockSize);
-	for (auto block = firstBlock; block < firstBlock + nrOfBlocks && block < c->blocks; block++) {
-		buffer.clear();
-		status |= hdd_read_crc_and_block(c, block, &buffer);
-		if (status != LIZARDFS_STATUS_OK) {
-			syslog(LOG_WARNING, "error prefetching chunk: %" PRIu64 " - %s", chunkid,
-					mfsstrerr(status));
-			break;
-		}
-	}
-	hdd_chunk_release(c);
+	hdd_prefetch(*c, first_block, block_count);
 
 	DEBUG_LOG("chunkserver.hdd_prefetch_blocks")
-			<< "chunk:" << chunkid
-			<< " status:" << uint16_t(status)
-			<< " firstBlock:" << firstBlock
-			<< " nrOfBlocks:" << nrOfBlocks;
+			<< "chunk:" << chunkid << " status:" << (uint16_t)status
+			<< " firstBlock:" << first_block << " nrOfBlocks:" << block_count;
 
-	status |= hdd_close(chunkid, chunkType);
+	status = hdd_close(c);
 	if (status != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING, "error closing prefetched chunk: %" PRIu64 " - %s", chunkid,
-				mfsstrerr(status));
+		lzfs_pretty_syslog(LOG_WARNING, "error closing prefetched chunk: %" PRIu64 " - %s",
+				chunkid, mfsstrerr(status));
 	}
-	return status;
-}
 
-static void hdd_prefetch(Chunk& chunk, uint16_t firstBlock, uint32_t numberOfBlocks) {
-	if (numberOfBlocks > 0) {
-		auto blockSize = chunk.chunkFormat() == ChunkFormat::MOOSEFS ?
-				MFSBLOCKSIZE : kHddBlockSize;
-		posix_fadvise(chunk.fd, chunk.getBlockOffset(firstBlock),
-				uint32_t(numberOfBlocks) * blockSize, POSIX_FADV_WILLNEED);
-	}
+	hdd_chunk_release(c);
+
+
+	return status;
 }
 
 int hdd_read(uint64_t chunkid, uint32_t version, ChunkPartType chunkType,
