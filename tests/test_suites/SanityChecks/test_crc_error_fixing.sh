@@ -25,8 +25,12 @@ assert_equals 1 $(wc -l <<< "$chunk")
 correct_data=$(get_damaged_area "$chunk")
 
 # Damage it a bit and read the file to trigger a fix
-dd if=/dev/urandom of="$chunk" bs=1 seek=$damage_start count=$damage_length conv=notrunc
-MESSAGE="Reading file with corrupted chunk" expect_success file-validate file
+dd if=/dev/urandom of="$chunk" bs=1 seek=$damage_start count=$damage_length conv=notrunc oflag=nocache,sync
+
+# Read file several times to raise the probability of reading corrupted part
+for x in {1..32}; do
+	MESSAGE="Reading file with corrupted chunk" expect_success file-validate file
+done
 
 echo "Waiting for the chunk to be fixed..."
 assert_success wait_for '[[ $(get_damaged_area "$chunk") == $correct_data ]]' "25 seconds"
