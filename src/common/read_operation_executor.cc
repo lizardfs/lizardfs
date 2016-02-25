@@ -258,6 +258,12 @@ void ReadOperationExecutor::processDataBlockReceived() {
 	sassert(state_ == kReceivingDataBlock);
 	sassert(bytesLeft_ == 0);
 
+#ifdef ENABLE_CRC
+	if (currentlyReadBlockCrc_ != mycrc32(0, destination_ - MFSBLOCKSIZE, MFSBLOCKSIZE)) {
+		throw ChunkCrcException("READ_DATA: corrupted data block (CRC mismatch)", server_, chunkType_);
+	}
+#endif
+
 	dataBlocksCompleted_++;
 	setState(kReceivingHeader);
 }
