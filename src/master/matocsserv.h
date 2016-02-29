@@ -24,9 +24,9 @@
 #include <vector>
 
 #include "common/chunk_part_type.h"
-#include "common/chunkserver_list_entry.h"
 #include "common/goal.h"
 #include "common/media_label.h"
+#include "protocol/chunkserver_list_entry.h"
 
 /// A struct representing a chunkserver.
 struct matocsserventry;
@@ -77,16 +77,7 @@ double matocsserv_get_usage(matocsserventry* e);
 /*! \brief Get chunkservers ordered by disk usage. */
 std::vector<ServerWithUsage> matocsserv_getservers_sorted();
 
-/*! \brief Get information about all chunkservers.
- *
- * This list includes disconnected chunkservers.
- * Disconnected chunkservers have the following fields set to non-zero:
- * \p version (set to \p kDisconnectedChunkserverVersion), \p servip, \p servport.
- */
-std::vector<ChunkserverListEntry> matocsserv_cservlist();
-
 uint32_t matocsserv_get_version(matocsserventry* e);
-int matocsserv_csdb_remove_server(uint32_t ip, uint16_t port);
 void matocsserv_remove_server(matocsserventry* ptr);
 void matocsserv_usagedifference(double* minusage, double* maxusage,
 		uint16_t* usablescount, uint16_t* totalscount);
@@ -124,3 +115,4 @@ int matocsserv_send_duptruncchunk(matocsserventry* e,
 		uint64_t newChunkId, uint32_t newChunkVersion,
 		ChunkPartType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t length);
 int matocsserv_init(void);
+void matocsserv_getserverdata(const matocsserventry* s, ChunkserverListEntry &result);

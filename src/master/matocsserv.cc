@@ -50,6 +50,7 @@
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "master/chunks.h"
+#include "master/chunkserver_db.h"
 #include "master/filesystem.h"
 #include "master/get_servers_for_new_chunk.h"
 #include "master/personality.h"
@@ -103,98 +104,9 @@ static int32_t lsockpdescpos;
 static char *ListenHost;
 static char *ListenPort;
 
-#define CSDBHASHSIZE 256
-#define CSDBHASHFN(ip,port) (hash32((ip)^((port)<<16))%(CSDBHASHSIZE))
-
-typedef struct csdbentry {
-	uint32_t ip;
-	uint16_t port;
-	matocsserventry *eptr;
-	struct csdbentry *next;
-} csdbentry;
-
-static csdbentry *csdbhash[CSDBHASHSIZE];
-
-int matocsserv_csdb_new_connection(uint32_t ip,uint16_t port,matocsserventry *eptr) {
-	uint32_t hash;
-	csdbentry *csptr;
-
-	hash = CSDBHASHFN(ip,port);
-	for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-		if (csptr->ip == ip && csptr->port == port) {
-			if (csptr->eptr!=NULL) {
-				return -1;
-			}
-			csptr->eptr = eptr;
-			return 0;
-		}
-	}
-	csptr = (csdbentry*) malloc(sizeof(csdbentry));
-	passert(csptr);
-	csptr->ip = ip;
-	csptr->port = port;
-	csptr->eptr = eptr;
-	csptr->next = csdbhash[hash];
-	csdbhash[hash] = csptr;
-	return 1;
-}
-
-void matocsserv_csdb_lost_connection(uint32_t ip,uint16_t port) {
-	uint32_t hash;
-	csdbentry *csptr;
-
-	hash = CSDBHASHFN(ip,port);
-	for (csptr = csdbhash[hash] ; csptr ; csptr = csptr->next) {
-		if (csptr->ip == ip && csptr->port == port) {
-			csptr->eptr = NULL;
-			return;
-		}
-	}
-}
-
-std::vector<ChunkserverListEntry> matocsserv_cservlist() {
-	std::vector<ChunkserverListEntry> result;
-	for (uint32_t hash = 0; hash < CSDBHASHSIZE; hash++) {
-		for (csdbentry *csptr = csdbhash[hash]; csptr; csptr = csptr->next) {
-			if (csptr->eptr != nullptr) {
-				result.emplace_back(*csptr->eptr);
-			} else {
-				result.emplace_back(
-						kDisconnectedChunkserverVersion,
-						csptr->ip, csptr->port,
-						0, 0, 0, 0, 0, 0, 0,
-						MediaLabelManager::kWildcard);
-			}
-		}
-	}
-	return result;
-}
-
-int matocsserv_csdb_remove_server(uint32_t ip,uint16_t port) {
-	uint32_t hash;
-	csdbentry *csptr,**cspptr;
-
-	hash = CSDBHASHFN(ip,port);
-	cspptr = csdbhash + hash;
-	while ((csptr=*cspptr)) {
-		if (csptr->ip == ip && csptr->port == port) {
-			if (csptr->eptr!=NULL) {
-				return -1;
-			}
-			*cspptr = csptr->next;
-			free(csptr);
-			return 1;
-		} else {
-			cspptr = &(csptr->next);
-		}
-	}
-	return 0;
-}
-
-void matocsserv_csdb_init(void) {
-	uint32_t hash;
-	for (hash=0 ; hash<CSDBHASHSIZE ; hash++) {
-		csdbhash[hash]=NULL;
+void matocsserv_getserverdata(const matocsserventry* s, ChunkserverListEntry &result) {
+	if (s) {
+		result = *s;
 	}
 }
 
@@ -1097,7 +1009,7 @@ void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t 
 		eptr->mode=KILL;
 		return;
 	}
-	if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
+	if (csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
 		syslog(LOG_WARNING,"chunk-server already connected !!!");
 		eptr->mode=KILL;
 		return;
@@ -1275,7 +1187,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 		us = (double)(eptr->usedspace)/(double)(1024*1024*1024);
 		ts = (double)(eptr->totalspace)/(double)(1024*1024*1024);
 		syslog(LOG_NOTICE,"chunkserver register - ip: %s, port: %" PRIu16 ", usedspace: %" PRIu64 " (%.2f GiB), totalspace: %" PRIu64 " (%.2f GiB)",eptr->servstrip,eptr->servport,eptr->usedspace,us,eptr->totalspace,ts);
-		if (matocsserv_csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
+		if (csdb_new_connection(eptr->servip,eptr->servport,eptr)<0) {
 			syslog(LOG_WARNING,"chunk-server already connected !!!");
 			eptr->mode=KILL;
 			return;
@@ -1771,7 +1683,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr, eptr->label);
 			if (eptr->incsdb) {
-				matocsserv_csdb_lost_connection(eptr->servip,eptr->servport);
+				csdb_lost_connection(eptr->servip,eptr->servport);
 			}
 			tcpclose(eptr->sock);
 
@@ -1861,7 +1773,6 @@ int matocsserv_init(void) {
 	lzfs_pretty_syslog(LOG_NOTICE,"master <-> chunkservers module: listen on %s:%s",ListenHost,ListenPort);
 
 	matocsserv_replication_init();
-	matocsserv_csdb_init();
 	matocsservhead = NULL;
 	main_reloadregister(matocsserv_reload);
 	main_destructregister(matocsserv_term);

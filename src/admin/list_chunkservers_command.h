@@ -22,8 +22,9 @@
 
 #include "common/network_address.h"
 #include "common/serialization_macros.h"
-#include "common/chunkserver_list_entry.h"
 #include "admin/lizardfs_admin_command.h"
+#include "protocol/chunkserver_list_entry.h"
+
 
 class ListChunkserversCommand : public LizardFsProbeCommand {
 public:

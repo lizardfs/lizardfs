@@ -41,7 +41,6 @@
 #include "common/chunk_type_with_address.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
-#include "protocol/cltoma.h"
 #include "common/datapack.h"
 #include "common/goal.h"
 #include "common/human_readable_format.h"
@@ -51,10 +50,8 @@
 #include "common/lizardfs_version.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/matocl.h"
 #include "common/md5.h"
 #include "common/metadata.h"
-#include "protocol/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/network_address.h"
 #include "common/random.h"
@@ -64,6 +61,7 @@
 #include "master/changelog.h"
 #include "master/chartsdata.h"
 #include "master/chunks.h"
+#include "master/chunkserver_db.h"
 #include "master/datacachemgr.h"
 #include "master/exports.h"
 #include "master/filesystem.h"
@@ -73,6 +71,9 @@
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
+#include "protocol/MFSCommunication.h"
 
 #define MaxPacketSize 1000000
 
@@ -1211,7 +1212,7 @@ void matoclserv_cserv_list(matoclserventry *eptr, const uint8_t */*data*/, uint3
 		eptr->mode = KILL;
 		return;
 	}
-	auto listOfChunkservers = matocsserv_cservlist();
+	auto listOfChunkservers = csdb_chunkserver_list();
 	uint8_t *ptr = matoclserv_createpacket(eptr, MATOCL_CSERV_LIST, 54 * listOfChunkservers.size());
 	for (const auto& server : listOfChunkservers) {
 		put32bit(&ptr, server.version);
@@ -1229,7 +1230,7 @@ void matoclserv_cserv_list(matoclserventry *eptr, const uint8_t */*data*/, uint3
 
 void matoclserv_liz_cserv_list(matoclserventry *eptr) {
 	MessageBuffer buffer;
-	matocl::cservList::serialize(buffer, matocsserv_cservlist());
+	matocl::cservList::serialize(buffer, csdb_chunkserver_list());
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
@@ -1243,7 +1244,7 @@ void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint3
 	}
 	ip = get32bit(&data);
 	port = get16bit(&data);
-	matocsserv_csdb_remove_server(ip,port);
+	csdb_remove_server(ip,port);
 	matoclserv_createpacket(eptr,MATOCL_CSSERV_REMOVESERV,0);
 }
 
