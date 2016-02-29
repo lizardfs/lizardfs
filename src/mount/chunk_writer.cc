@@ -173,7 +173,7 @@ uint32_t ChunkWriter::getMinimumBlockCountWorthWriting() {
 	return combinedStripeSize_;
 }
 
-uint32_t ChunkWriter::startNewOperations() {
+uint32_t ChunkWriter::startNewOperations(bool can_expect_next_block) {
 	LOG_AVG_TILL_END_OF_SCOPE0("ChunkWriter::startNewOperations");
 	uint32_t operationsStarted = 0;
 	// Start all possible operations. Break at the first operation that can't be started, because
@@ -184,7 +184,8 @@ uint32_t ChunkWriter::startNewOperations() {
 		// Only the last one can be expanded and only if we accept new data.
 		if (i == std::prev(newOperations_.end())
 				&& acceptsNewOperations_
-				&& !operation.isFullStripe(combinedStripeSize_)) {
+				&& !operation.isFullStripe(combinedStripeSize_)
+				&& can_expect_next_block) {
 			break;
 		}
 		if (!canStartOperation(operation)) {

@@ -78,7 +78,7 @@ public:
 	 * Starts these added operations, which are worth starting right now.
 	 * Returns number of operations started.
 	 */
-	uint32_t startNewOperations();
+	uint32_t startNewOperations(bool can_expect_next_block);
 
 	/*
 	 * Processes all started operations for at most specified time (0 - asap)
