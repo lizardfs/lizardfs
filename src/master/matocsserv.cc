@@ -91,7 +91,7 @@ struct matocsserventry {
 	uint16_t wrepcounter;
 	uint16_t delcounter;
 
-	uint8_t incsdb;
+	csdbentry *csdb; /*!< Pointer to database entry for chunkserver. */
 
 	matocsserventry *next;
 };
@@ -108,6 +108,11 @@ void matocsserv_getserverdata(const matocsserventry* s, ChunkserverListEntry &re
 	if (s) {
 		result = *s;
 	}
+}
+
+csdbentry *matocsserv_get_csdb(matocsserventry* s) {
+	assert(s);
+	return s->csdb;
 }
 
 /* replications DB */
@@ -1014,7 +1019,7 @@ void matocsserv_register_host(matocsserventry *eptr, uint32_t version, uint32_t 
 		eptr->mode=KILL;
 		return;
 	}
-	eptr->incsdb = 1;
+	eptr->csdb = csdb_find(eptr->servip, eptr->servport);
 	syslog(LOG_NOTICE, "chunkserver register begin (packet version: 5) - ip: %s, port: %"
 			PRIu16, eptr->servstrip, eptr->servport);
 	return;
@@ -1192,7 +1197,7 @@ void matocsserv_register(matocsserventry *eptr,const uint8_t *data,uint32_t leng
 			eptr->mode=KILL;
 			return;
 		}
-		eptr->incsdb = 1;
+		eptr->csdb = csdb_find(eptr->servip, eptr->servport);
 		chunkcount = length/(8+4);
 		for (i=0 ; i<chunkcount ; i++) {
 			chunkid = get64bit(&data);
@@ -1642,7 +1647,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 			eptr->rrepcounter = 0;
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
-			eptr->incsdb = 0;
+			eptr->csdb = nullptr;
 			chunk_server_unlabelled_connected();
 		} else {
 			tcpclose(ns);
@@ -1682,7 +1687,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 					us, eptr->totalspace, ts);
 			matocsserv_replication_disconnected(eptr);
 			chunk_server_disconnected(eptr, eptr->label);
-			if (eptr->incsdb) {
+			if (eptr->csdb) {
 				csdb_lost_connection(eptr->servip,eptr->servport);
 			}
 			tcpclose(eptr->sock);

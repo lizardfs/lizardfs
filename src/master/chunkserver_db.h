@@ -27,13 +27,18 @@ class matocsserventry;
 
 /*! \brief Structure keeping extra information for chunkserver. */
 struct csdbentry {
-	matocsserventry *eptr; /*!< Handle to chunkserver. */
+	static constexpr int kMaxIdCount = 8192; /*!< Max number of database entries (we have 13
+	                                            bits available for storage of csid in class
+	                                            Chunk, so we are limited to 2^13 entries). */
+	matocsserventry *eptr;                   /*!< Handle to chunkserver. */
 
-	csdbentry() : eptr() {
-	}
-	explicit csdbentry(matocsserventry *eptr) : eptr(eptr) {
-	}
+	uint16_t csid;
+
+	csdbentry() : eptr(), csid() {}
+	explicit csdbentry(matocsserventry *eptr) : eptr(eptr), csid() {}
 };
+
+extern std::array<csdbentry *, csdbentry::kMaxIdCount> gIdToCSEntry;
 
 /*! \brief Register new connection to chunkserver.
  *
@@ -72,3 +77,23 @@ std::vector<ChunkserverListEntry> csdb_chunkserver_list();
  *          1 chunkserver was disconnected before removal.
  */
 int csdb_remove_server(uint32_t ip, uint16_t port);
+
+/*! \brief Find database entry for specific chunkserver.
+ *
+ * \param ip Chunkserver ip.
+ * \param port Chunkserver port.
+ *
+ * \return Pointer to database entry structure.
+ */
+csdbentry *csdb_find(uint32_t ip, uint16_t port);
+
+/*! \brief Find database entry for specific chunkserver.
+ *
+ * \param id Chunkserver id.
+ *
+ * \return Pointer to database entry structure.
+ */
+inline csdbentry *csdb_find(int id) {
+	assert(id >= 0 && id < csdbentry::kMaxIdCount);
+	return gIdToCSEntry[id];
+}

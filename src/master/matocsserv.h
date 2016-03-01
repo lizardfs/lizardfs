@@ -31,6 +31,8 @@
 /// A struct representing a chunkserver.
 struct matocsserventry;
 
+struct csdbentry;
+
 /// A list of chunkservers.
 typedef std::vector<matocsserventry*> Chunkservers;
 
@@ -116,3 +118,5 @@ int matocsserv_send_duptruncchunk(matocsserventry* e,
 		ChunkPartType chunkType, uint64_t chunkId, uint32_t chunkVersion, uint32_t length);
 int matocsserv_init(void);
 void matocsserv_getserverdata(const matocsserventry* s, ChunkserverListEntry &result);
+csdbentry *matocsserv_get_csdb(matocsserventry* s);
+
