@@ -300,6 +300,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.chunkserverconnectreadto,
 				gMountOptions.chunkserverwavereadto,
 				gMountOptions.chunkservertotalreadto,
+				gMountOptions.cacheexpirationtime,
+				gMountOptions.readaheadmaxwindowsize,
 				gMountOptions.prefetchxorstripes,
 				gMountOptions.bandwidthoveruse);
 		write_data_init(gMountOptions.writecachesize,
@@ -601,6 +603,7 @@ int main(int argc, char *argv[]) try {
 			|| strcasecmp(gMountOptions.cachemode,"NONE")==0
 			|| strcasecmp(gMountOptions.cachemode,"NEVER")==0) {
 		gMountOptions.keepcache=2;
+		gMountOptions.cacheexpirationtime=0;
 	} else {
 		fprintf(stderr,"unrecognized cachemode option\nsee: %s -h for help\n",argv[0]);
 		return 1;

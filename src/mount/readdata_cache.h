@@ -32,11 +32,9 @@
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
-
+#include "common/slogger.h"
 class ReadCache {
 public:
-	static std::atomic<uint32_t> gDefaultExpirationTime_ms;
-
 	typedef uint64_t Offset;
 	typedef uint32_t Size;
 
@@ -194,10 +192,7 @@ public:
 		}
 	};
 
-	ReadCache()
-	: entries_(), lru_(), reserved_entries_(), expiration_time_(gDefaultExpirationTime_ms.load()) {}
-
-	ReadCache(uint32_t expiration_time)
+	explicit ReadCache(uint32_t expiration_time)
 	: entries_(), lru_(), reserved_entries_(), expiration_time_(expiration_time) {}
 
 	~ReadCache() {

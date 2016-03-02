@@ -59,6 +59,7 @@ enum {
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO 500
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO 2000
 #define LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO 5000
+#define LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS 500
 #define LIZARDFS_MOUNT_DEFAULT_RTT 200
 
 struct mfsopts_ {
@@ -106,8 +107,10 @@ struct mfsopts_ {
 	int chunkserverconnectreadto;
 	int chunkserverwavereadto;
 	int chunkservertotalreadto;
-	int prefetchxorstripes;
 	int chunkserverwriteto;
+	int cacheexpirationtime;
+	int readaheadmaxwindowsize;
+	int prefetchxorstripes;
 	unsigned symlinkcachetimeout;
 	double bandwidthoveruse;
 
@@ -160,8 +163,10 @@ struct mfsopts_ {
 			chunkserverconnectreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
 			chunkserverwavereadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO),
 			chunkservertotalreadto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO),
-			prefetchxorstripes(0),
 			chunkserverwriteto(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO),
+			cacheexpirationtime(LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS),
+			readaheadmaxwindowsize(4096),
+			prefetchxorstripes(0),
 			symlinkcachetimeout(3600),
 			bandwidthoveruse(1.25) {
 	}

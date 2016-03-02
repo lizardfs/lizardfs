@@ -75,6 +75,8 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfschunkserverconnectreadto=%d", chunkserverconnectreadto, 0),
 	MFS_OPT("mfschunkserverwavereadto=%d", chunkserverwavereadto, 0),
 	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
+	MFS_OPT("cacheexpirationtime=%d", cacheexpirationtime, 500),
+	MFS_OPT("readaheadmaxwindowsize=%d", readaheadmaxwindowsize, 4096),
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
@@ -155,6 +157,8 @@ void usage(const char *progname) {
 "    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
 "    -o mfschunkserverwavereadto=MSEC   set timeout for executing each wave of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO) ")\n"
 "    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
+"    -o cacheexpirationtime=MSEC set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: " STR(LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS) ")\n"
+"    -o readaheadmaxwindowsize=KB set max value of readahead window per single descriptor in kibibytes (default: " STR(LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS) ")\n"
 "    -o mfsprefetchxorstripes    prefetch full xor stripe on every first read of a xor chunk\n"
 "    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"

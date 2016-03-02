@@ -57,6 +57,9 @@
 #define MAPMASK (MAPSIZE-1)
 #define MAPINDX(inode) (inode&MAPMASK)
 
+static std::atomic<uint32_t> gReadaheadMaxWindowSize;
+static std::atomic<uint32_t> gCacheExpirationTime_ms;
+
 struct readrec {
 	ChunkReader reader;
 	ReadCache cache;
@@ -70,7 +73,8 @@ struct readrec {
 
 	readrec(uint32_t inode, ChunkConnector& connector, double bandwidth_overuse)
 			: reader(connector, bandwidth_overuse),
-			  readahead_adviser(ReadCache::gDefaultExpirationTime_ms),
+			  cache(gCacheExpirationTime_ms),
+			  readahead_adviser(gCacheExpirationTime_ms, gReadaheadMaxWindowSize),
 			  inode(inode),
 			  refreshCounter(0),
 			  expired(false),
@@ -99,8 +103,6 @@ const int ReadaheadAdviser::kRandomThreshold;
 const int ReadaheadAdviser::kHistoryEntryLifespan_ns;
 const int ReadaheadAdviser::kHistoryCapacity;
 const unsigned ReadaheadAdviser::kHistoryValidityThreshold;
-
-std::atomic<uint32_t> ReadCache::gDefaultExpirationTime_ms;
 
 uint32_t read_data_get_wave_read_timeout_ms() {
 	return gChunkserverWaveReadTimeout_ms;
@@ -175,6 +177,8 @@ void read_data_init(uint32_t retries,
 		uint32_t chunkserverConnectTimeout_ms,
 		uint32_t chunkServerWaveReadTimeout_ms,
 		uint32_t chunkserverTotalReadTimeout_ms,
+		uint32_t cache_expiration_time_ms,
+		uint32_t readahead_max_window_size_kB,
 		bool prefetchXorStripes,
 		double bandwidth_overuse) {
 	uint32_t i;
@@ -188,6 +192,8 @@ void read_data_init(uint32_t retries,
 	gChunkserverConnectTimeout_ms = chunkserverConnectTimeout_ms;
 	gChunkserverWaveReadTimeout_ms = chunkServerWaveReadTimeout_ms;
 	gChunkserverTotalReadTimeout_ms = chunkserverTotalReadTimeout_ms;
+	gCacheExpirationTime_ms = cache_expiration_time_ms;
+	gReadaheadMaxWindowSize = readahead_max_window_size_kB * 1024;
 	gPrefetchXorStripes = prefetchXorStripes;
 	gBandwidthOveruse = bandwidth_overuse;
 	gTweaks.registerVariable("PrefetchXorStripes", gPrefetchXorStripes);
@@ -202,6 +208,8 @@ void read_data_init(uint32_t retries,
 	gTweaks.registerVariable("ReadConnectTimeout", gChunkserverConnectTimeout_ms);
 	gTweaks.registerVariable("ReadWaveTimeout", gChunkserverWaveReadTimeout_ms);
 	gTweaks.registerVariable("ReadTotalTimeout", gChunkserverTotalReadTimeout_ms);
+	gTweaks.registerVariable("CacheExpirationTime", gCacheExpirationTime_ms);
+	gTweaks.registerVariable("ReadaheadMaxWindowSize", gReadaheadMaxWindowSize);
 	gTweaks.registerVariable("ReadChunkPrepare", ChunkReader::preparations);
 	gTweaks.registerVariable("ReqExecutedTotal", ReadPlanExecutor::executions_total_);
 	gTweaks.registerVariable("ReqExecutedUsingAll", ReadPlanExecutor::executions_with_additional_operations_);
