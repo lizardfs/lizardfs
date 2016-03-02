@@ -240,19 +240,18 @@ public:
 #endif
 #ifndef METARESTORE
 private:
-	uint8_t allMissingParts_, regularMissingParts_;
-	uint8_t allRedundantParts_, regularRedundantParts_;
-	uint8_t allFullCopies_, regularFullCopies_;
-	uint8_t allAvailabilityState_, regularAvailabilityState_;
+	uint8_t allMissingParts_;
+	uint8_t allRedundantParts_;
+	uint8_t allFullCopies_;
+	uint8_t allAvailabilityState_;
 #endif
 
 public:
 #ifndef METARESTORE
-	static ChunksAvailabilityState allChunksAvailability, regularChunksAvailability;
-	static ChunksReplicationState allChunksReplicationState, regularChunksReplicationState;
+	static ChunksAvailabilityState allChunksAvailability;
+	static ChunksReplicationState allChunksReplicationState;
 	static uint64_t count;
 	static uint64_t allFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
-	static uint64_t regularFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 	static std::deque<Chunk *> endangeredChunks;
 	static GoalCache goalCache;
 #endif
@@ -349,10 +348,10 @@ public:
 	// This method should be called on a new chunk
 	void initStats() {
 		count++;
-		allMissingParts_ = regularMissingParts_ = 0;
-		allRedundantParts_ = regularRedundantParts_ = 0;
-		allFullCopies_ = regularFullCopies_ = 0;
-		allAvailabilityState_ = regularAvailabilityState_ = ChunksAvailabilityState::kSafe;
+		allMissingParts_ = 0;
+		allRedundantParts_= 0;
+		allFullCopies_ = 0;
+		allAvailabilityState_ = ChunksAvailabilityState::kSafe;
 		copiesInStats_ = 0;
 		updateStats(false);
 	}
@@ -373,29 +372,21 @@ public:
 
 		Goal g = getGoal();
 
-		ChunkCopiesCalculator all(g), regular(g);
+		ChunkCopiesCalculator all(g);
 
 		for (const auto &part : parts) {
 			if (!part.is_valid()) {
 				continue;
 			}
 			all.addPart(part.type, matocsserv_get_label(part.server()));
-			if (!part.is_todel()) {
-				regular.addPart(part.type, matocsserv_get_label(part.server()));
-			}
 		}
 
 		all.optimize();
-		regular.optimize();
 
 		allFullCopies_ = all.getFullCopiesCount();
 		allAvailabilityState_ = all.getState();
 		allMissingParts_ = std::min(200, all.countPartsToRecover());
 		allRedundantParts_ = std::min(200, all.countPartsToRemove());
-		regularFullCopies_ = regular.getFullCopiesCount();
-		regularAvailabilityState_ = regular.getState();
-		regularMissingParts_ = std::min(200, regular.countPartsToRecover());
-		regularRedundantParts_ = std::min(200, regular.countPartsToRemove());
 		copiesInStats_ = ChunkCopiesCalculator::getFullCopiesCount(g);
 
 		/* Enqueue a chunk as endangered only if:
@@ -466,10 +457,6 @@ private:
 		return static_cast<ChunksAvailabilityState::State>(allAvailabilityState_);
 	}
 
-	ChunksAvailabilityState::State regularCopiesState() const {
-		return static_cast<ChunksAvailabilityState::State>(regularAvailabilityState_);
-	}
-
 	void removeFromStats() {
 		int prev_goal = -1;
 		for (const auto& counter : goalCounters_) {
@@ -479,17 +466,11 @@ private:
 			prev_goal = counter.goal;
 			allChunksAvailability.removeChunk(counter.goal, allCopiesState());
 			allChunksReplicationState.removeChunk(counter.goal, allMissingParts_, allRedundantParts_);
-
-			regularChunksAvailability.removeChunk(counter.goal, regularCopiesState());
-			regularChunksReplicationState.removeChunk(counter.goal,
-				regularMissingParts_, regularRedundantParts_);
 		}
 
 		uint8_t limitedGoal = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
 		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allFullCopies_);
-		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularFullCopies_);
 		allFullChunkCopies[limitedGoal][limitedAll]--;
-		regularFullChunkCopies[limitedGoal][limitedRegular]--;
 	}
 
 	void addToStats() {
@@ -501,17 +482,11 @@ private:
 			prev_goal = counter.goal;
 			allChunksAvailability.addChunk(counter.goal, allCopiesState());
 			allChunksReplicationState.addChunk(counter.goal, allMissingParts_, allRedundantParts_);
-
-			regularChunksAvailability.addChunk(counter.goal, regularCopiesState());
-			regularChunksReplicationState.addChunk(counter.goal,
-				regularMissingParts_, regularRedundantParts_);
 		}
 
 		uint8_t limitedGoal = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, copiesInStats_);
 		uint8_t limitedAll = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, allFullCopies_);
-		uint8_t limitedRegular = std::min<uint8_t>(CHUNK_MATRIX_SIZE - 1, regularFullCopies_);
 		allFullChunkCopies[limitedGoal][limitedAll]++;
-		regularFullChunkCopies[limitedGoal][limitedRegular]++;
 	}
 #endif
 };
@@ -520,11 +495,10 @@ private:
 
 std::deque<Chunk *> Chunk::endangeredChunks;
 GoalCache Chunk::goalCache(10000);
-ChunksAvailabilityState Chunk::allChunksAvailability, Chunk::regularChunksAvailability;
-ChunksReplicationState Chunk::allChunksReplicationState, Chunk::regularChunksReplicationState;
+ChunksAvailabilityState Chunk::allChunksAvailability;
+ChunksReplicationState Chunk::allChunksReplicationState;
 uint64_t Chunk::count;
 uint64_t Chunk::allFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
-uint64_t Chunk::regularFullChunkCopies[CHUNK_MATRIX_SIZE][CHUNK_MATRIX_SIZE];
 #endif
 
 #define CHUNK_BUCKET_SIZE 20000
@@ -890,13 +864,10 @@ void chunk_info(uint32_t *allchunks,uint32_t *allcopies,uint32_t *regularvalidco
 	*regularvalidcopies = 0;
 	for (int actualCopies = 1; actualCopies < CHUNK_MATRIX_SIZE; actualCopies++) {
 		uint32_t ag = 0;
-		uint32_t rg = 0;
 		for (int expectedCopies = 0; expectedCopies < CHUNK_MATRIX_SIZE; expectedCopies++) {
 			ag += Chunk::allFullChunkCopies[expectedCopies][actualCopies];
-			rg += Chunk::regularFullChunkCopies[expectedCopies][actualCopies];
 		}
 		*allcopies += ag * actualCopies;
-		*regularvalidcopies += rg * actualCopies;
 	}
 }
 
@@ -913,12 +884,6 @@ void chunk_store_chunkcounters(uint8_t *buff,uint8_t matrixid) {
 		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
 			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
 				put32bit(&buff, Chunk::allFullChunkCopies[i][j]);
-			}
-		}
-	} else if (matrixid == MATRIX_REGULAR_COPIES) {
-		for (int i = 0; i < CHUNK_MATRIX_SIZE; i++) {
-			for (int j = 0; j < CHUNK_MATRIX_SIZE; j++) {
-				put32bit(&buff, Chunk::regularFullChunkCopies[i][j]);
 			}
 		}
 	} else {
@@ -1426,16 +1391,12 @@ uint8_t chunk_set_next_chunkid(uint64_t nextChunkIdToBeSet) {
 
 #ifndef METARESTORE
 
-const ChunksReplicationState& chunk_get_replication_state(bool regularChunksOnly) {
-	return regularChunksOnly ?
-			Chunk::regularChunksReplicationState :
-			Chunk::allChunksReplicationState;
+const ChunksReplicationState& chunk_get_replication_state() {
+	return Chunk::allChunksReplicationState;
 }
 
-const ChunksAvailabilityState& chunk_get_availability_state(bool regularChunksOnly) {
-	return regularChunksOnly ?
-			Chunk::regularChunksAvailability :
-			Chunk::allChunksAvailability;
+const ChunksAvailabilityState& chunk_get_availability_state() {
+	return Chunk::allChunksAvailability;
 }
 
 struct ChunkLocation {
@@ -2718,13 +2679,10 @@ int chunk_strinit(void) {
 	for (int i = 0; i < CHUNK_MATRIX_SIZE; ++i) {
 		for (int j = 0; j < CHUNK_MATRIX_SIZE; ++j) {
 			Chunk::allFullChunkCopies[i][j] = 0;
-			Chunk::regularFullChunkCopies[i][j] = 0;
 		}
 	}
 	Chunk::allChunksAvailability = ChunksAvailabilityState();
-	Chunk::regularChunksAvailability = ChunksAvailabilityState();
 	Chunk::allChunksReplicationState = ChunksReplicationState();
-	Chunk::regularChunksReplicationState = ChunksReplicationState();
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);

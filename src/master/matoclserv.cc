@@ -1298,8 +1298,8 @@ void matoclserv_chunks_health(matoclserventry *eptr, const uint8_t *data, uint32
 	bool regularChunksOnly;
 	cltoma::chunksHealth::deserialize(data, length, regularChunksOnly);
 	auto message = matocl::chunksHealth::build(regularChunksOnly,
-			chunk_get_availability_state(regularChunksOnly),
-			chunk_get_replication_state(regularChunksOnly));
+			chunk_get_availability_state(),
+			chunk_get_replication_state());
 	matoclserv_createpacket(eptr, std::move(message));
 }
 

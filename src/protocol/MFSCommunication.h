@@ -251,7 +251,7 @@
 
 /// field values: matrixid
 #define MATRIX_ALL_COPIES      0
-#define MATRIX_REGULAR_COPIES  1
+#define MATRIX_REGULAR_COPIES  1  // deprecated
 
 // size of the matrix of chunks in the CGI interface = 11 x 11
 #define CHUNK_MATRIX_SIZE      11
