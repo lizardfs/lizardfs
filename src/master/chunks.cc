@@ -250,6 +250,23 @@ public:
 	static GoalCache goalCache;
 #endif
 
+	chunk() {
+		next = nullptr;
+		chunkid = 0;
+		version = 0;
+		lockid = 0;
+		lockedto = 0;
+		checksum = 0;
+#ifndef METARESTORE
+		inEndangeredQueue = 0;
+		needverincrease = 1;
+		interrupted = 0;
+		operation = NONE;
+		slisthead = NULL;
+		initStats();
+#endif
+	}
+
 	// Highest id of the chunk's goal
 	// This function is preserved only for backward compatibility of metadata checksums
 	// and shouldn't be used anywhere else.
@@ -795,6 +812,7 @@ static inline chunk* chunk_malloc() {
 	if (gChunksMetadata->chfreehead) {
 		ret = gChunksMetadata->chfreehead;
 		gChunksMetadata->chfreehead = ret->next;
+		new (ret) chunk();
 		return ret;
 	}
 	if (gChunksMetadata->cbhead==NULL || gChunksMetadata->cbhead->firstfree==CHUNK_BUCKET_SIZE) {
@@ -805,11 +823,13 @@ static inline chunk* chunk_malloc() {
 	}
 	ret = (gChunksMetadata->cbhead->bucket)+(gChunksMetadata->cbhead->firstfree);
 	gChunksMetadata->cbhead->firstfree++;
+	new (ret) chunk();
 	return ret;
 }
 
 #ifndef METARESTORE
 static inline void chunk_free(chunk *p) {
+	p->~chunk();
 	p->next = gChunksMetadata->chfreehead;
 	gChunksMetadata->chfreehead = p;
 }
@@ -823,19 +843,8 @@ chunk* chunk_new(uint64_t chunkid, uint32_t chunkversion) {
 	gChunksMetadata->chunkhash[chunkpos] = newchunk;
 	newchunk->chunkid = chunkid;
 	newchunk->version = chunkversion;
-	newchunk->lockid = 0;
-	newchunk->lockedto = 0;
-#ifndef METARESTORE
-	newchunk->inEndangeredQueue = 0;
-	newchunk->needverincrease = 1;
-	newchunk->interrupted = 0;
-	newchunk->operation = NONE;
-	newchunk->slisthead = NULL;
-	newchunk->initStats();
-#endif
 	gChunksMetadata->lastchunkid = chunkid;
 	gChunksMetadata->lastchunkptr = newchunk;
-	newchunk->checksum = 0;
 	chunk_update_checksum(newchunk);
 	return newchunk;
 }
