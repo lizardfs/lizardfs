@@ -205,6 +205,10 @@ static uint32_t starttime;
 #endif // METARESTORE
 
 class Chunk {
+	static constexpr int kMaxStatCount = 15;
+	static_assert(CHUNK_MATRIX_SIZE <= kMaxStatCount, "stats matrix size too big for internal stats storage");
+	static_assert(ChunksAvailabilityState::kStateCount <= 3, "not enough space for chunk state");
+
 public:
 	/* chunk.operation */
 	enum {
@@ -222,28 +226,23 @@ public:
 #ifndef METARESTORE
 	compact_vector<ChunkPart> parts;
 #endif
-
+private: // public/private sections are mixed here to make the struct as small as possible
+	ChunkGoalCounters goalCounters_;
+public:
 	uint32_t version;
 	uint32_t lockid;
 	uint32_t lockedto;
-private: // public/private sections are mixed here to make the struct as small as possible
-	ChunkGoalCounters goalCounters_;
 #ifndef METARESTORE
-	uint8_t copiesInStats_;
-#endif
-#ifndef METARESTORE
-public:
 	uint8_t inEndangeredQueue:1;
 	uint8_t needverincrease:1;
 	uint8_t interrupted:1;
-	uint8_t operation:4;
-#endif
-#ifndef METARESTORE
+	uint8_t operation:3;
 private:
-	uint8_t allMissingParts_;
-	uint8_t allRedundantParts_;
-	uint8_t allFullCopies_;
-	uint8_t allAvailabilityState_;
+	uint8_t allAvailabilityState_:2;
+	uint8_t copiesInStats_:4;
+	uint8_t allMissingParts_:4;
+	uint8_t allRedundantParts_:4;
+	uint8_t allFullCopies_:4;
 #endif
 
 public:
@@ -270,7 +269,13 @@ public:
 		interrupted = 0;
 		operation = Chunk::NONE;
 		parts.clear();
-		initStats();
+		allMissingParts_ = 0;
+		allRedundantParts_= 0;
+		allFullCopies_ = 0;
+		allAvailabilityState_ = ChunksAvailabilityState::kSafe;
+		copiesInStats_ = 0;
+		count++;
+		updateStats(false);
 #endif
 	}
 
@@ -345,17 +350,6 @@ public:
 		return result;
 	}
 
-	// This method should be called on a new chunk
-	void initStats() {
-		count++;
-		allMissingParts_ = 0;
-		allRedundantParts_= 0;
-		allFullCopies_ = 0;
-		allAvailabilityState_ = ChunksAvailabilityState::kSafe;
-		copiesInStats_ = 0;
-		updateStats(false);
-	}
-
 	// This method should be called when a chunk is removed
 	void freeStats() {
 		count--;
@@ -383,11 +377,11 @@ public:
 
 		all.optimize();
 
-		allFullCopies_ = all.getFullCopiesCount();
+		allFullCopies_ = std::min(kMaxStatCount, all.getFullCopiesCount());
 		allAvailabilityState_ = all.getState();
-		allMissingParts_ = std::min(200, all.countPartsToRecover());
-		allRedundantParts_ = std::min(200, all.countPartsToRemove());
-		copiesInStats_ = ChunkCopiesCalculator::getFullCopiesCount(g);
+		allMissingParts_ = std::min(kMaxStatCount, all.countPartsToRecover());
+		allRedundantParts_ = std::min(kMaxStatCount, all.countPartsToRemove());
+		copiesInStats_ = std::min(kMaxStatCount, ChunkCopiesCalculator::getFullCopiesCount(g));
 
 		/* Enqueue a chunk as endangered only if:
 		 * 1. Endangered chunks prioritization is on (limit > 0)
@@ -490,6 +484,8 @@ private:
 	}
 #endif
 };
+
+constexpr int Chunk::kMaxStatCount;
 
 #ifndef METARESTORE
 

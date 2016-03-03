@@ -76,7 +76,7 @@ private:
 
 class ChunksAvailabilityState {
 public:
-	enum State { kSafe = 0, kEndangered, kLost };
+	enum State { kSafe = 0, kEndangered, kLost, kStateCount };
 
 	ChunksAvailabilityState() : data_() {
 	}
