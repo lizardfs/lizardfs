@@ -154,7 +154,14 @@ off_t MooseFSChunk::getSignatureOffset() const {
 }
 
 void MooseFSChunk::readaheadHeader() const {
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
 	posix_fadvise(fd, 0, getHeaderSize(), POSIX_FADV_WILLNEED);
+#elif defined(__APPLE__)
+	struct radvisory ra;
+	ra.ra_offset = 0;
+	ra.ra_count = getHeaderSize();
+	fcntl(fd, F_RDADVISE, &ra);
+#endif
 }
 
 size_t MooseFSChunk::getHeaderSize() const {
