@@ -1676,8 +1676,15 @@ static void hdd_prefetch(Chunk &chunk, uint16_t first_block, uint32_t block_coun
 	if (block_count > 0) {
 		auto blockSize = chunk.chunkFormat() == ChunkFormat::MOOSEFS ?
 				MFSBLOCKSIZE : kHddBlockSize;
+#ifdef LIZARDFS_HAVE_POSIX_FADVISE
 		posix_fadvise(chunk.fd, chunk.getBlockOffset(first_block),
 				uint32_t(block_count) * blockSize, POSIX_FADV_WILLNEED);
+#elif defined(__APPLE__)
+		struct radvisory ra;
+		ra.ra_offset = chunk.getBlockOffset(first_block);
+		ra.ra_count = uint32_t(block_count) * blockSize;
+		fcntl(chunk.fd, F_RDADVISE, &ra);
+#endif
 	}
 }
 
