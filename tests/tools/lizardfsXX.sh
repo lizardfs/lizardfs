@@ -13,7 +13,8 @@ build_lizardfsXX_or_use_cache() {
 	git checkout v$LIZARDFSXX_TAG
 	mkdir build
 	cd build
-	cmake .. -DCMAKE_INSTALL_PREFIX="$LIZARDFSXX_DIR"
+	sed -i 's:add_subdirectory(src/mount/polonaise):# Polonaise disabled:g' ../CMakeLists.txt
+	cmake .. -DCMAKE_INSTALL_PREFIX="$LIZARDFSXX_DIR" -DENABLE_POLONAISE=OFF
 	make
 	make install
 	popd

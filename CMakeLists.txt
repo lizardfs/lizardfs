@@ -77,6 +77,7 @@ option(THROW_INSTEAD_OF_ABORT   "Throw std::exception instead of calling abort" 
 option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                          OFF)
 option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                   OFF)
 option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  OFF)
+option(ENABLE_POLONAISE     "Enable polonaise"                                        ON)
 # end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)
 option(ENABLE_CRC           "Enable checksums"                                        ON)
@@ -100,6 +101,7 @@ message(STATUS "THROW_INSTEAD_OF_ABORT: ${THROW_INSTEAD_OF_ABORT}")
 message(STATUS "ENABLE_DEBUG_LOG: ${ENABLE_DEBUG_LOG}")
 message(STATUS "ENABLE_VERBOSE_ASCIIDOC: ${ENABLE_VERBOSE_ASCIIDOC}")
 message(STATUS "ENABLE_TCMALLOC: ${ENABLE_TCMALLOC}")
+message(STATUS "ENABLE_POLONAISE: ${ENABLE_POLONAISE}")
 # end of LizardFS options values
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
 message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
@@ -269,7 +271,10 @@ add_subdirectory(src/admin)
 add_subdirectory(src/common)
 add_subdirectory(src/protocol)
 add_subdirectory(src/mount)
-add_subdirectory(src/mount/polonaise)
+
+if(ENABLE_POLONAISE)
+  add_subdirectory(src/mount/polonaise)
+endif()
 
 if(NOT MINGW)
   if(BUILD_DEVTOOLS)
