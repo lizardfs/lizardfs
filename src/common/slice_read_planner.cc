@@ -149,10 +149,7 @@ int SliceReadPlanner::addExtraParts(SliceReadPlan *plan, int first_block, int bl
 }
 
 bool SliceReadPlanner::shouldReadPartsRequiredForRecovery() const {
-	size_t nearly_all_parts = slice_traits::requiredPartsToRecover(slice_type_) / bandwidth_overuse_;
-
-	return can_recover_parts_
-			&& (!required_parts_available_ || slice_parts_.size() >= nearly_all_parts);
+	return !required_parts_available_;
 }
 
 /*!
