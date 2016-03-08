@@ -85,6 +85,10 @@ public:
 		return counters_.size();
 	}
 
+	void clear() {
+		counters_.clear();
+	}
+
 private:
 	Counters counters_;
 };

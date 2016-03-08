@@ -250,7 +250,8 @@ public:
 	static GoalCache goalCache;
 #endif
 
-	chunk() {
+	void clear() {
+		goalCounters_.clear();
 		next = nullptr;
 		chunkid = 0;
 		version = 0;
@@ -812,7 +813,7 @@ static inline chunk* chunk_malloc() {
 	if (gChunksMetadata->chfreehead) {
 		ret = gChunksMetadata->chfreehead;
 		gChunksMetadata->chfreehead = ret->next;
-		new (ret) chunk();
+		ret->clear();
 		return ret;
 	}
 	if (gChunksMetadata->cbhead==NULL || gChunksMetadata->cbhead->firstfree==CHUNK_BUCKET_SIZE) {
@@ -823,13 +824,12 @@ static inline chunk* chunk_malloc() {
 	}
 	ret = (gChunksMetadata->cbhead->bucket)+(gChunksMetadata->cbhead->firstfree);
 	gChunksMetadata->cbhead->firstfree++;
-	new (ret) chunk();
+	ret->clear();
 	return ret;
 }
 
 #ifndef METARESTORE
 static inline void chunk_free(chunk *p) {
-	p->~chunk();
 	p->next = gChunksMetadata->chfreehead;
 	gChunksMetadata->chfreehead = p;
 }
