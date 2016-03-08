@@ -268,6 +268,16 @@ uint8_t fs_apply_setquota(char rigor, char resource, char owner_type, uint32_t o
 	return LIZARDFS_STATUS_OK;
 }
 
+static int fsnodes_find_depth(fsnode *a) {
+	int depth = 0;
+	while (a) {
+		a = a->parents ? a->parents->parent : nullptr;
+		++depth;
+	}
+
+	return depth;
+}
+
 /*! \brief Find common ancestor.
  *
  * Only path starting from first parent is used to find
@@ -282,32 +292,29 @@ static fsnode *fsnodes_find_common_ancestor(fsnode *a, fsnode *b) {
 		return nullptr;
 	}
 
-	small_vector<fsnode *, 32> a_path, b_path;
+	int depth_a = fsnodes_find_depth(a);
+	int depth_b = fsnodes_find_depth(b);
 
-	a_path.push_back(a);
-	for (fsedge *e = a->parents; e && e->parent; e = e->parent->parents) {
-		a_path.push_back(e->parent);
-	}
-
-	b_path.push_back(b);
-	for (fsedge *e = b->parents; e && e->parent; e = e->parent->parents) {
-		b_path.push_back(e->parent);
-	}
-
-	fsnode *common = nullptr;
-	auto a_it = a_path.rbegin();
-	auto b_it = b_path.rbegin();
-	while (a_it != a_path.rend() && b_it != b_path.rend()) {
-		if (*a_it != *b_it) {
-			break;
+	if (depth_a > depth_b) {
+		for(;depth_a > depth_b;--depth_a) {
+			assert(a);
+			a = a->parents ? a->parents->parent : nullptr;
 		}
-		common = *a_it;
-
-		++a_it;
-		++b_it;
+	} else if (depth_b > depth_a) {
+		for(;depth_b > depth_a;--depth_b) {
+			assert(b);
+			b = b->parents ? b->parents->parent : nullptr;
+		}
 	}
 
-	return common;
+	while(a && b) {
+		if (a == b) return a;
+
+		a = a->parents ? a->parents->parent : nullptr;
+		b = b->parents ? b->parents->parent : nullptr;
+	}
+
+	return nullptr;
 }
 
 static bool fsnodes_test_dir_quota_noparents(fsnode *node,
