@@ -286,7 +286,8 @@ void ReadOperationExecutor::setState(ReadOperationState newState) {
 		break;
 	case kReceivingReadDataMessage:
 		sassert(state_ == kReceivingHeader);
-		messageBuffer_.resize(cstocl::readData::kPrefixSize);
+		messageBuffer_.resize(server_version_ >= kFirstXorVersion
+			? cstocl::readData::kPrefixSize : cstocl::readData::kLegacyPrefixSize);
 		destination_ = messageBuffer_.data();
 		bytesLeft_ = messageBuffer_.size();
 		break;

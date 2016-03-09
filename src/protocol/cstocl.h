@@ -43,6 +43,8 @@ inline void deserializePrefix(const std::vector<uint8_t>& source,
 
 // kPrefixSize - version:u32, chunkId:u64, readOffset:u32, readSize:u32, crc:u32
 static const uint32_t kPrefixSize = 4 + 8 + 4 + 4 + 4;
+// kLegacyPrefixSize - chunkId:u64, readOffset:u32, readSize:u32, crc:u32
+static const uint32_t kLegacyPrefixSize = 8 + 4 + 4 + 4;
 
 } // namespace readData
 

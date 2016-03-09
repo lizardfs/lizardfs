@@ -58,17 +58,11 @@ lizardfsXX_chunkserver_daemon 0 stop
 # Check if LizardFS CS can serve newly replicated chunks to old LizardFS client:
 assert_success file-validate file1
 
-# Check if replication from LizardFS CS to old LizardFS CS works:
+# Replication from LizardFS CS to old LizardFS CS is not guaranteed, but writes are supported
+lizardfsXX_chunkserver_daemon 0 start
+lizardfs_wait_for_all_ready_chunkservers
 assert_success generate_file file2
 assert_success file-validate file2
-lizardfsXX_chunkserver_daemon 0 start
-assert_eventually '[[ $(lizardfsXX mfscheckfile file2 | grep "chunks with 2 copies" | wc -l) == 1 ]]' "$REPLICATION_TIMEOUT"
-lizardfs_chunkserver_daemon 1 stop
-
-# Check if old LizardFS CS can serve newly replicated chunks (check if the file is consistent):
-assert_success file-validate file2
-lizardfs_chunkserver_daemon 1 start
-lizardfs_wait_for_all_ready_chunkservers
 
 # Check if LizardFS CS and old LizardFS CS can communicate with each other when writing a file
 # with goal = 2.
