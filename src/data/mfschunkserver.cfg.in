@@ -75,6 +75,13 @@
 ## (Default: 0)
 # HDD_ADVISE_NO_CACHE = 0
 
+## If enabled then chunkserver detects zero values in chunk data and frees
+## corresponding file blocks (decreasing file system usage).
+## This option works only on Linux
+## with file systems supporting punching holes (XFS, ext4, Btrfs, tmpfs).
+## (Default : 0)
+# HDD_PUNCH_HOLES = 1
+
 ## Limit how many kilobytes can be replicated from other chunkservers to
 ## this chunkserver in every second (by default undefined, i.e. no limits)
 # REPLICATION_BANDWIDTH_LIMIT_KBPS = 8192

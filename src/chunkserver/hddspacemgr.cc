@@ -19,6 +19,10 @@
 #include "common/platform.h"
 #include "chunkserver/hddspacemgr.h"
 
+#if defined(LIZARDFS_HAVE_FALLOCATE) && defined(LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE) && !defined(_GNU_SOURCE)
+  #define _GNU_SOURCE
+#endif
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -117,6 +121,8 @@ static std::atomic_bool gAdviseNoCache;
 static std::atomic<bool> MooseFSChunkFormat;
 
 static std::atomic<bool> PerformFsync;
+
+static bool gPunchHolesInFiles;
 
 /* folders data */
 static folder *folderhead = NULL;
@@ -1839,6 +1845,49 @@ int hdd_int_read_block_and_crc(Chunk* c, uint8_t* blockBuffer, uint8_t* crcBuffe
 	}
 }
 
+void hdd_int_punch_holes(Chunk *c, const uint8_t *buffer, uint32_t offset, uint32_t size) {
+#if defined(LIZARDFS_HAVE_FALLOCATE) && defined(LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE)
+	if (!gPunchHolesInFiles) {
+		return;
+	}
+
+	constexpr uint32_t block_size = 4096;
+	uint32_t p = (offset % block_size) == 0 ? 0 : block_size - (offset % block_size);
+	uint32_t hole_start = 0, hole_size = 0;
+
+	for(;(p + block_size) <= size; p += block_size) {
+		const std::size_t *zero_test = reinterpret_cast<const std::size_t*>(buffer + p);
+		bool is_zero = true;
+		for(unsigned i = 0; i < block_size/sizeof(std::size_t); ++i) {
+			if (zero_test[i] != 0) {
+				is_zero = false;
+				break;
+			}
+		}
+
+		if (is_zero) {
+			if (hole_size == 0) {
+				hole_start = offset + p;
+			}
+			hole_size += block_size;
+		} else {
+			if (hole_size > 0) {
+				fallocate(c->fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, hole_start, hole_size);
+			}
+			hole_size = 0;
+		}
+	}
+	if (hole_size > 0) {
+		fallocate(c->fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, hole_start, hole_size);
+	}
+#else
+	(void)c;
+	(void)buffer;
+	(void)offset;
+	(void)size;
+#endif
+}
+
 /**
  * Returns number of written bytes on success, -1 on failure.
  */
@@ -1861,6 +1910,7 @@ bool hdd_int_write_partial_block_and_crc(
 			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
+		hdd_int_punch_holes(c, buffer, c->getBlockOffset(blockNum) + offset, size);
 		memcpy(mc->getCrcBuffer(blockNum), crcBuff, crcSize);
 		return size;
 	} else {
@@ -1881,6 +1931,7 @@ bool hdd_int_write_partial_block_and_crc(
 			hdd_report_damaged_chunk(c->chunkid, c->type());
 			return -1;
 		}
+		hdd_int_punch_holes(c, buffer, c->getBlockOffset(blockNum) + offset + crcSize, size);
 		return crcSize + size;
 	}
 }
@@ -3998,6 +4049,8 @@ void hdd_reload(void) {
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
 	zassert(pthread_mutex_unlock(&testlock));
 
+	gPunchHolesInFiles = cfg_getuint32("HDD_PUNCH_HOLES", 0);
+
 	hdd_int_set_chunk_format();
 	char *LeaveFreeStr = cfg_getstr("HDD_LEAVE_SPACE_DEFAULT", gLeaveSpaceDefaultDefaultStrValue);
 	if (hdd_size_parse(LeaveFreeStr,&gLeaveFree)<0) {
@@ -4089,6 +4142,8 @@ int hdd_init(void) {
 
 	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
 	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
+
+	gPunchHolesInFiles = cfg_getuint32("HDD_PUNCH_HOLES", 0);
 
 	MooseFSChunkFormat = true;
 	hdd_int_set_chunk_format();

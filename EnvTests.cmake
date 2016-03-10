@@ -20,6 +20,7 @@ include(CheckIncludes)
 include(CheckLibraryExists)
 include(CheckMembers)
 include(CheckStructHasMember)
+include(CheckSymbolExists)
 include(CheckTypeSize)
 include(TestBigEndian)
 
@@ -63,7 +64,7 @@ endif()
 check_functions("${REQUIRED_FUNCTIONS}" TRUE)
 
 set(OPTIONAL_FUNCTIONS strerror perror pread pwrite readv writev getrusage
-  setitimer posix_fadvise)
+  setitimer posix_fadvise fallocate)
 check_functions("${OPTIONAL_FUNCTIONS}" false)
 
 CHECK_LIBRARY_EXISTS(rt clock_gettime "time.h" LIZARDFS_HAVE_CLOCK_GETTIME)
@@ -89,3 +90,7 @@ check_cxx_source_compiles("${_CHECK_CXX_MULTIVERSION_CODE}" LIZARDFS_HAVE_MULTIV
 if(APPLE)
     set(SOCKET_CONVERT_POLL_TO_SELECT 1)
 endif()
+
+set(CMAKE_REQUIRED_FLAGS "-D_GNU_SOURCE")
+check_symbol_exists(FALLOC_FL_PUNCH_HOLE "fcntl.h" LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE)
+unset(CMAKE_REQUIRED_FLAGS)
