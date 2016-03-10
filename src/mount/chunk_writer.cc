@@ -590,6 +590,10 @@ void ChunkWriter::readBlocks(int block_index, int size, int block_from, int bloc
 	}
 
 	auto plan = planner.buildPlan();
+	if (!read_data_get_prefetchxorstripes()) {
+		plan->disable_prefetch = true;
+	}
+
 	ReadPlanExecutor executor(globalChunkserverStats,
 	locator_->locationInfo().chunkId, locator_->locationInfo().version, std::move(plan));
 

@@ -99,6 +99,10 @@ uint32_t read_data_get_total_read_timeout_ms() {
 	return gChunkserverTotalReadTimeout_ms;
 }
 
+bool read_data_get_prefetchxorstripes() {
+	return gPrefetchXorStripes;
+}
+
 void* read_data_delayed_ops(void *arg) {
 	readrec *rrec,**rrecp;
 	readrec **rrecmap;

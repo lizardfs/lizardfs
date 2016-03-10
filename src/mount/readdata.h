@@ -27,6 +27,7 @@
 uint32_t read_data_get_wave_read_timeout_ms();
 uint32_t read_data_get_connect_timeout_ms();
 uint32_t read_data_get_total_read_timeout_ms();
+bool read_data_get_prefetchxorstripes();
 
 void read_inode_ops(uint32_t inode);
 void* read_data_new(uint32_t inode);
