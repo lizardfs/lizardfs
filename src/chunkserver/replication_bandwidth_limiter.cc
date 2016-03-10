@@ -63,5 +63,5 @@ void ReplicationBandwidthLimiter::ReplicationLimiter::setLimit(uint64_t limit_kB
 }
 
 void ReplicationBandwidthLimiter::ReplicationLimiter::unsetLimit() {
-	database_.setLimits(SteadyClock::now(), {}, 200);
+	database_.setLimits(SteadyClock::now(), IoLimitsConfigLoader::LimitsMap{}, 200);
 }

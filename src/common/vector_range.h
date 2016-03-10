@@ -203,7 +203,7 @@ public:
 		return size_ == max_size();
 	}
 
-	void reserve(size_type n) noexcept {
+	void reserve(size_type /*n*/) noexcept {
 	}
 
 	reference operator[](size_type n) noexcept {
