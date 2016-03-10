@@ -839,7 +839,7 @@ public:
 		return size() == base::storage_.max_size();
 	}
 
-	void reserve(size_type n) {
+	void reserve(size_type /*n*/) {
 	}
 
 	reference operator[](size_type n) noexcept {

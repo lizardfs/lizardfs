@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <memory>
 #include <type_traits>
+#include <vector>
 
 namespace detail {
 

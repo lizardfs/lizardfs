@@ -213,7 +213,7 @@ Goal::Slice parseLabels(std::list<std::string> &tokens, Goal::Slice::Type slice_
 Goal defaultGoal(int goal_id) {
 	int copies = std::min(kMaxCompatibleGoal, goal_id);
 	Goal goal(std::to_string(goal_id));
-	Goal::Slice slice(Goal::Slice::Type(Goal::Slice::Type::kStandard));
+	Goal::Slice slice(Goal::Slice::Type{Goal::Slice::Type::kStandard});
 	slice[0][MediaLabel::kWildcard] = copies;
 	goal.setSlice(std::move(slice));
 
