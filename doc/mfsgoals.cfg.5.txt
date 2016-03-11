@@ -46,8 +46,13 @@ characters: a-z, A-Z, 0-9, _.
 	- **xor**N - for each file using this goal, the system will split the file
 	         into N+1 parts (N ordinary + 1 parity). For reading, any N of
 	         the parts are necessary. If labels are specified, parts will
-	         be kept on chunkservers with this labels. Otherwise default wildcard
-	         labels will be used.
+	         be kept on chunkservers with these labels. Otherwise, default wildcard
+	         labels will be used. N can be in range from 2 to 9.
+	- **ec**(K,M) - for each file using this goal, the system will split the file
+	         into K + M parts (K data parts and M parity). For reading, any K of
+	         the parts are necessary. If labels are specified, parts will
+	         be kept on chunkservers with these labels. Otherwise, default wildcard
+	         labels will be used. K can be in range from 2 to 32 and M from 1 to 32.
 	If the type is unspecified is is assumed to be *std*.
 
 The list of 'labels' is a list of chunkserver labels as defined in
@@ -83,6 +88,12 @@ Some example goal definitions:
 16 fast_read : $xor2 { ssd ssd hdd }
 
 17 xor5 : $xor5 { hdd } # at least one part on hdd
+
+18 first_ec : $ec(3,1)
+
+19 ec32_ssd : $ec(3,2) { ssd ssd ssd ssd ssd } # all parts on ssd
+
+20 ec53_mixed : $ec(5,3) { hdd ssd hdd _ _ _ _ _ } # two parts on hdd and one part on ssd
 
 == SNAPSHOT FILES
 
