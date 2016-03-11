@@ -85,3 +85,7 @@ __attribute__ ((target (\"sse\"))) int test() { return 1; }
 int main() { return test(); }
 ")
 check_cxx_source_compiles("${_CHECK_CXX_MULTIVERSION_CODE}" LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)
+
+if(APPLE)
+    set(SOCKET_CONVERT_POLL_TO_SELECT 1)
+endif()
