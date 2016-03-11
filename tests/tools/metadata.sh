@@ -279,28 +279,28 @@ metadata_generate_filelocks() {
 }
 
 metadata_generate_filelocks_() {
-	for i in {1..20}; do
+	for i in {1..6}; do
 		touch lock_file$i
 		${1} lock_file$i $2 >/dev/null &
 		pid1[$i]=$!
 	done
 
-	for i in {1..20}; do
+	for i in {1..6}; do
 		${1} lock_file$i $3 >/dev/null &
 		pid2[$i]=$!
 	done
 
-	for i in {1..5}; do
+	for i in {1..2}; do
 		kill -s SIGUSR1 ${pid1[$i]}
 	done
-	for i in {6..10}; do
+	for i in {3..4}; do
 		kill -s SIGKILL ${pid1[$i]}
 	done
 
-	for i in {11..15}; do
+	for i in {1..2}; do
 		kill -s SIGUSR1 ${pid2[$i]}
 	done
-	for i in {16..20}; do
+	for i in {3..4}; do
 		kill -s SIGKILL ${pid2[$i]}
 	done
 }
