@@ -63,7 +63,7 @@ public:
 	};
 
 	/*! \brief Default constructor. */
-	ReadPlan() : read_buffer_size(0), block_prefetch(false) {
+	ReadPlan() : read_buffer_size(0), disable_prefetch(false) {
 	}
 
 	/*! \brief Virtual destructor. */
@@ -162,7 +162,7 @@ public:
 
 	int read_buffer_size; /*!< Size of read buffer. */
 
-	bool block_prefetch; /*!< True when prefetch requests should be sent to chunkservers. */
+	bool disable_prefetch; /*!< True when prefetch requests shouldn't be sent to chunkservers. */
 
 	/*! \brief List of read operation to execute for chunk parts. */
 	small_vector<std::pair<ChunkPartType, ReadOperation>, Goal::Slice::kMaxPartsCount/2> read_operations;

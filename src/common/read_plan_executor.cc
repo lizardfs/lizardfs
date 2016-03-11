@@ -181,7 +181,7 @@ int ReadPlanExecutor::startReadsForWave(ExecuteParams &params, int wave) {
  * \param wave Wave index.
  */
 void ReadPlanExecutor::startPrefetchForWave(ExecuteParams &params, int wave) {
-	if (plan_->block_prefetch) {
+	if (plan_->disable_prefetch) {
 		return;
 	}
 

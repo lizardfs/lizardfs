@@ -121,7 +121,7 @@ uint32_t ChunkReader::readData(std::vector<uint8_t>& buffer, uint32_t offset, ui
 			// - it was disabled with a config option
 			// - all chunk parts were read before (in this case we rely on pagecache)
 			// - we're reading the end of a chunk (there is no point in prefetching anything)
-			plan->block_prefetch = true;
+			plan->disable_prefetch = true;
 		}
 		ReadPlanExecutor executor(globalChunkserverStats, location_->chunkId, location_->version,
 				std::move(plan));
