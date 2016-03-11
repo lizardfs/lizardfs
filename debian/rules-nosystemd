@@ -13,4 +13,4 @@ override_dh_strip:
 	dh_strip --dbg-package=lizardfs-dbg
 
 %:
-	dh $@ --with systemd
+	dh $@
