@@ -436,14 +436,11 @@ void ChunkWriter::fillOperation(Operation &operation, int first_block, int first
  * \param stripe_element map of blocks in a stripe
  */
 void ChunkWriter::fillStripe(Operation &operation, int first_block, std::vector<uint8_t *> &stripe_element) {
-	int block_from = operation.journalPositions.front()->from;
-	int block_to = operation.journalPositions.front()->to;
-
 	for (const auto &position : operation.journalPositions) {
 		assert((position->blockIndex % combinedStripeSize_) == (position->blockIndex - first_block));
 		assert(((int)position->blockIndex - first_block) < combinedStripeSize_);
-		assert((int)position->to == block_to);
-		assert((int)position->from == block_from);
+		assert(position->to == operation.journalPositions.front()->to);
+		assert(position->from == operation.journalPositions.front()->from);
 		stripe_element[position->blockIndex - first_block] = position->data();
 	}
 

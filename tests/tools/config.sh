@@ -11,7 +11,7 @@ fi
 : ${MOOSEFS_DIR:=/tmp/LizardFS-autotests-mfs}
 : ${LIZARDFSXX_DIR_BASE:=/tmp/LizardFS-autotests-old}
 : ${LIZARDFS_ROOT:=$HOME/local}
-: ${FIRST_PORT_TO_USE:=25000}
+: ${FIRST_PORT_TO_USE:=9600}
 : ${ERROR_FILE:=}
 : ${RAMDISK_DIR:=/mnt/ramdisk}
 : ${TEST_OUTPUT_DIR:=$TEMP_DIR}
