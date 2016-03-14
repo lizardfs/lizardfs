@@ -160,7 +160,7 @@ int tcpsetacceptfilter(int sock) {
 #ifdef SO_ACCEPTFILTER
 	struct accept_filter_arg afa;
 
-	memset(&ata, 0, sizeof(afa));
+	memset(&afa, 0, sizeof(afa));
 	strcpy(afa.af_name, "dataready");
 	return setsockopt(sock, SOL_SOCKET, SO_ACCEPTFILTER, &afa, sizeof(afa));
 #elif TCP_DEFER_ACCEPT

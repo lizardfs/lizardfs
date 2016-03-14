@@ -65,7 +65,7 @@ foreach(MANPAGE ${MANPAGES})
     set(MANPAGE_SRC_SYMLINK ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE}.txt)
     add_custom_command(OUTPUT ${GENERATED_MANPAGE_PATH}
         COMMAND ln -s -f ${MANPAGE_SRC} ${MANPAGE_SRC_SYMLINK}
-        COMMAND a2x ${ASCIIDOC_VERBOSE} -f manpage ${MANPAGE_SRC_SYMLINK}
+        COMMAND a2x ${ASCIIDOC_VERBOSE} -L -f manpage ${MANPAGE_SRC_SYMLINK}
         DEPENDS ${MANPAGE_SRC})
     # Add this file to the main target's dependencies
     set(GENERATED_MANPAGES ${GENERATED_MANPAGES} ${GENERATED_MANPAGE_PATH})
