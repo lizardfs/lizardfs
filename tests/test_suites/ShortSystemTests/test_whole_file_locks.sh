@@ -4,7 +4,6 @@ USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="enablefilelocks=1" \
 	setup_local_empty_lizardfs info
 
-
 	# Create files
 	cd "${info[mount0]}"
 	mkdir "${info[mount0]}/dir"
@@ -13,38 +12,24 @@ USE_RAMDISK=YES \
 	done
 
 function test_locks() {
-	local locktype=$1
+	locktype=$1
+	logfile=$TEMP_DIR/${locktype}.log
 	opcount=0
 
-	function settype() {
-		if [[ $# -lt 2 ]]; then
-			ltype=${locktype};
-		else
-			ltype=$2;
-		fi
-	}
-
 	function assert_operation_performed() {
-		settype "$@"
-
 		opcount=$((opcount + 1))
-		assert_eventually_prints "$1" "sed -n ${opcount}p ${ltype}.log"
+		assert_eventually_prints "$1" "sed -n ${opcount}p ${logfile}"
 	}
 
 	function readlock() {
-		settype "$@"
-
-		${ltype}cmd $1 r >> ${ltype}.log &
-		assert_operation_performed "read  open:   $1" ${ltype}
+		${locktype}cmd $1 r >> ${logfile} &
+		assert_operation_performed "read  open:   $1"
 	}
 
 	function writelock() {
-		settype "$@"
-
-		${ltype}cmd $1 w >> ${ltype}.log &
-		assert_operation_performed "write open:   $1" ${ltype}
+		${locktype}cmd $1 w >> ${logfile} &
+		assert_operation_performed "write open:   $1"
 	}
-
 
 	function unlock() {
 		kill -s SIGUSR1 $1
@@ -89,7 +74,6 @@ function test_locks() {
 	readlock "dir/file_2M"
 	readlocks[2]=$!
 
-
 	# Remove write lock on second file
 	# Pending read locks should be applied immediately
 	unlock ${writelocks[2]}
@@ -105,7 +89,7 @@ function test_locks() {
 	assert_operation_performed "write lock:   dir/file_4M"
 
 	# Try to create lots of read locks for file 3
-	for i in {1..256}; do
+	for i in {1..64}; do
 		readlock "dir/file_4M"
 		readlocks[i]=$!
 	done
@@ -114,12 +98,12 @@ function test_locks() {
 	# Pending read locks should be applied immediately
 	unlock ${writelocks[1]}
 	assert_operation_performed "write unlock: dir/file_4M"
-	for i in {1..256}; do
+	for i in {1..64}; do
 		assert_operation_performed "read  lock:   dir/file_4M"
 	done
 
 	# Remove all read locks for file3
-	for i in {1..256}; do
+	for i in {1..64}; do
 		unlock ${readlocks[i]}
 		assert_operation_performed "read  unlock: dir/file_4M"
 	done
