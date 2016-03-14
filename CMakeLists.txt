@@ -48,6 +48,8 @@ set(CMAKE_CXX_FLAGS_COVERAGE "-O0 -g --coverage")
 set(CMAKE_CXX_FLAGS_CLANG_ANALYZE "--analyze -Xanalyzer -analyzer-output=text")
 set(CMAKE_CXX_FLAGS_CLANG_SANITIZE_THREAD "-g -O0 -fsanitize=thread")
 
+set(CMAKE_CXX_FLAGS_CXXDEBUG "-O0 -g -D_GLIBCXX_DEBUG")
+
 add_definitions(-D_LARGEFILE_SOURCE)
 add_definitions(-D_FILE_OFFSET_BITS=64)
 add_definitions(-DLIZARDFS_HAVE_CONFIG_H)
