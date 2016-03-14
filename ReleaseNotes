@@ -1,81 +1,63 @@
-We are pleased to announce the release of LizardFS 2.5.0.
+Dear users,
 
-This release adds several major features often requested by our users:
-- high availbility of the whole filesystem
-- disk space and inode quotas for users and groups
-- POSIX Access Control Lists
-- POSIX Extended Attributes
-- I/O bandwidth limiting (globally and per-mountpoint)
-- command line monitoring tool
+please welcome LizardFS 3.10.0-rc!
 
-Other improvements include:
-- high performance CRC checksum implementation
-- reduced overhead of hourly metadata backups
+The package consists of:
+ - erasure code goals (aka K+M goals)
+ - per directory quotas
+ - improved interaction with legacy chunkservers and mounts
+ - ports for OSX and FreeBSD
+ - many fixes
 
+Details:
 
-High availbility
+Erasure code goals
 
-LizardFS 2.5.0 includes the new 'shadow master' server which maintains
-a current copy of filesystem metadata and is prepared to immediately
-replace the master metadata server in case of a failure. This feature
-combined with replication of file data allows LizardFS to remain fully
-operational after crash of any particular machine in the cluster.
+For each file using ec(K+M) goal, the system will split the file into K parts and generate M parity parts. Any K parts are required to be able to reproduce file contents.
 
-Shadow master obtains metadata updates from the master server using the
-old MooseFS/LizardFS metalogger protocol. This facilitates no-downtime
-upgrades from older version of LizardFS and from MooseFS 1.6.27.
+If labels are specified, parts will be kept on chunkservers with these labels. Otherwise, default wildcard labels will be used.
 
+This kind of goal allows M of K+M copies to be lost and the file would still remain accessible. Erasure code goal occupies M/K extra space.
 
-Quotas
+Erasure code goals are in rc version right now and they are here for peer review - please share your opinions and test results with us.
 
-LizardFS 2.5.0 provides a quota mechanism similar to these found in
-common UNIX filesystems. Filesystem administrator can define limits on
-the number of files or amount of disk space owned by users and groups.
+Please note that minimal K value is 2 and minimal M value is 1.
 
-Quotas are controlled by special tools 'mfssetquota' and 'mfsrepquota',
-which work analogously to the generic 'setquota' and 'repquota' tools.
+Examples of new goal configuration:
+5 ec32 : $ec(3,2){ A B _ _ _ }
+6 ec43 : $ec(4,3)
 
 
-POSIX Access Control Lists
+Per directory quotas
 
-ACLs allow fine-grained control over individual users' rights to read
-or modify particular files and directories.
+It is now possible to set inode/size limits per directory.
+In case of multiple quota rules, the most restrictive one is always effective.
+Example:
 
-LizardFS 2.5.0 supports POSIX ACLs on Linux using the generic 'setfacl'
-and 'getfacl' tools. This feature requires our modifed version of fuse
-(kernel module and the library).
+mfssetquota -d 10M 100M 50M 1G /mnt/lizardfs/a/directory
 
+Improved interaction with legacy chunkservers and mounts
 
-POSIX Extended Attributes
-
-LizardFS 2.5.0 supports POSIX xattrs using generic tools.
-
-
-I/O bandwidth limiting
-
-LizardFS 2.5.0 provides an I/O bandwidth limiting mechanism integrated
-with Linux cgroups. Applications reading from the filesystem are
-grouped by their cgroup ID and the administrator can place limits on
-bandwidth consumed to satisfy read and write requests from each group.
-
-The limits can be enforced globally (across multiple mountpoints) or
-locally (on one mountpoint).
+Pre-2.6.0 mounts and chunkservers used to be not fully compatible with 3.9.x servers, which complicated the upgrade process. Those issues are now solved - new mounts are perfectly capable of communicating with legacy chunkservers and vice versa.
+This rule has one exception: for consistency reasons, replication from new chunkservers to old ones is disabled.
 
 
-Command line monitoring tool
+Ports for OSX and FreeBSD
 
-LizardFS 2.5.0 introduces the new 'lizardfs-probe' command line tool
-which queries the master server for various information concerning
-filesystem health and activity.
+LizardFS is now buildable for those systems.
 
 
-High performance CRC checksum implementation
+Fixes
 
-In LizardFS 2.5.0, we switched to a new, three times faster CRC
-implementation to reduce latency and overhead of checksum calculations.
+ - denying replication during scan
+ - atomicity of replication process
+ - sending proper error codes to master
+ - proper handling of replication limits during rebalancing
+ - removal of splice call
 
 
-Reduced overhead of hourly metadata backups
+Presented version is tagged with -rc (release candidate), which roughly means that we would be very grateful for insights, test results, and hopefully not frequent bug reports provided by community.
 
-LizardFS 2.5.0 provides a new metadata backup generation mechanism
-which works fully in background and doesn't affect the master server.
+Best,
+Piotr Sarna
+LizardFS Team

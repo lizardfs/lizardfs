@@ -1,5 +1,12 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.10.0-rc) (2016-03-14)
+  - (all) Added erasure code goals
+  - (all) Added per directory quotas
+  - (all) Improved interaction with legacy version (chunkservers, mounts)
+  - (all) Ports for OSX and FreeBSD
+  - (all) Many fixes
+
  * Lizardfs (3.9.4) (2015-12-02)
   - (master) Removed master server overload on restarting chunkservers
   - (master) Improved global file locks engine
