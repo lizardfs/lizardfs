@@ -1,3 +1,9 @@
+lizardfs (3.10.1) unstable; urgency=low
+
+  * (none) None
+
+ -- Piotr Sarna <contact@lizardfs.org> Thu, 14 Apr 2016 11:00:00 +0200
+
 lizardfs (3.10.0) stable; urgency=medium
 
   * (all) Added erasure code goals
