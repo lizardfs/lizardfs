@@ -465,7 +465,18 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 		std::array<int, Goal::Slice::kMaxPartsCount> shuffle;
 
 		std::iota(shuffle.begin(), shuffle.begin() + slice.size(), 0);
-		std::random_shuffle(shuffle.begin(), shuffle.begin() + slice.size());
+		// Move xor parity to the end of a list
+		if (slice_traits::isXor(slice)) {
+			std::swap(shuffle[0], shuffle[slice.size() - 1]);
+		}
+		// Shuffle data before parity to prioritize data parts before parity in partial writes
+		int data_count = slice_traits::getNumberOfDataParts(slice);
+		assert(std::all_of(shuffle.begin(), shuffle.begin() + data_count,
+				[&slice](int i){
+			return slice_traits::isDataPart(ChunkPartType(slice.getType(), i));
+		}));
+		std::random_shuffle(shuffle.begin(), shuffle.begin() + data_count);
+		std::random_shuffle(shuffle.begin() + data_count, shuffle.begin() + slice.size());
 
 		uint32_t min_version = std::max({
 			slice_traits::isXor(slice) ? kFirstXorVersion : 0,
