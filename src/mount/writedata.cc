@@ -965,11 +965,11 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 		}
 	}
 
-	// We have to write zeros in suitable region to update xor parity parts.
+	// We have to write zeros in suitable region to update xor/ec parity parts.
 	// Let's calculate size of the region to be zeroed
 	uint64_t endOffset = std::min({
 		oldLength,                            // no further than to the end of the file
-		length + slice_traits::xors::kMaxXorLevel * MFSBLOCKSIZE, // no more than the maximal xor stripe
+		length + slice_traits::ec::kMaxDataCount * MFSBLOCKSIZE, // no more than the maximal stripe
 		(length + MFSCHUNKSIZE - 1) / MFSCHUNKSIZE * MFSCHUNKSIZE // no beyond the end of chunk
 	});
 
