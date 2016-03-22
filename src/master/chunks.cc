@@ -33,6 +33,7 @@
 #include <deque>
 
 #include "common/chunks_availability_state.h"
+#include "common/chunk_copies_calculator.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
 #include "common/flat_set.h"
@@ -45,7 +46,6 @@
 #include "common/small_vector.h"
 #include "protocol/MFSCommunication.h"
 #include "master/checksum.h"
-#include "master/chunk_copies_calculator.h"
 #include "master/chunk_goal_counters.h"
 #include "master/filesystem.h"
 #include "master/goal_cache.h"

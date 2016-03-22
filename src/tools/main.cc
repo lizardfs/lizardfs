@@ -36,6 +36,7 @@
 #include <sstream>
 #include <vector>
 
+#include "common/chunk_copies_calculator.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/datapack.h"
 #include "common/goal.h"
@@ -1347,6 +1348,11 @@ int file_info(const char *fileName) {
 					printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 ""
 							" / (id:%" PRIu64 " ver:%" PRIu32 ")\n",
 							chunkIndex, chunkId, chunkVersion, chunkId, chunkVersion);
+					ChunkCopiesCalculator chunk_calculator;
+					for(const auto &part : copies) {
+						chunk_calculator.addPart(part.chunkType, MediaLabel::kWildcard);
+					}
+					chunk_calculator.evalState();
 					if (copies.size() > 0) {
 						std::sort(copies.begin(), copies.end());
 						for (size_t i = 0; i < copies.size(); i++) {
@@ -1355,8 +1361,13 @@ int file_info(const char *fileName) {
 									copies[i].label.c_str(),
 									chunkTypeToString(copies[i].chunkType).c_str());
 						}
-					} else {
-						printf("\t\tno valid copies !!!\n");
+					}
+					if (chunk_calculator.getFullCopiesCount() == 0) {
+						if (copies.size() == 0) {
+							printf("\t\tno valid copies !!!\n");
+						} else {
+							printf("\t\tnot enough parts available\n");
+						}
 					}
 				}
 			}

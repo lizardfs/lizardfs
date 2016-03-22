@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "master/chunk_copies_calculator.h"
+#include "common/chunk_copies_calculator.h"
 
 #include <algorithm>
 #include <gtest/gtest.h>
