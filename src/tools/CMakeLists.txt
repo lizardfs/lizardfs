@@ -22,7 +22,7 @@ set(MFSTOOL_LINKS
 
 collect_sources(TOOLS)
 
-add_executable(mfstools ${TOOLS_MAIN})
+add_executable(mfstools ${TOOLS_MAIN} ${TOOLS_SOURCES})
 target_link_libraries(mfstools mfscommon)
 install(TARGETS mfstools DESTINATION ${BIN_SUBDIR})
 
