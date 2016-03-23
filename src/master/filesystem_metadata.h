@@ -73,6 +73,7 @@ public:
 	uint64_t fsNodesChecksum;
 	uint64_t fsEdgesChecksum;
 	uint64_t xattrChecksum;
+	uint64_t quota_checksum;
 
 	FilesystemMetadata()
 	    : tapeCopies{},
@@ -104,7 +105,8 @@ public:
 	      quota_database{},
 	      fsNodesChecksum{},
 	      fsEdgesChecksum{},
-	      xattrChecksum{} {
+	      xattrChecksum{},
+	      quota_checksum{quota_database.checksum()} {
 	}
 
 	~FilesystemMetadata() {

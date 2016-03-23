@@ -963,6 +963,7 @@ static int fs_loadquotas(FILE *fd, int ignoreflag) {
 			                              entry.entryKey.owner.ownerId, entry.entryKey.rigor,
 			                              entry.entryKey.resource, entry.limit);
 		}
+		gMetadata->quota_checksum = gMetadata->quota_database.checksum();
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading quotas: %s", ex.what());
 		if (!ignoreflag || ex.status() != LIZARDFS_STATUS_OK) {
