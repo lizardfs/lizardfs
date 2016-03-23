@@ -112,4 +112,3 @@ void changelog_enable_flush(void) {
 	gFlush = true;
 	changelog_flush();
 }
-

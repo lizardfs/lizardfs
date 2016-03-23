@@ -238,6 +238,7 @@ uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntr
 		gMetadata->quota_database.set(owner.ownerType, owner.ownerId, entry.entryKey.rigor,
 		                              entry.entryKey.resource, entry.limit);
 		gMetadata->quota_database.removeEmpty(owner.ownerType, owner.ownerId);
+		gMetadata->quota_checksum = gMetadata->quota_database.checksum();
 		fs_changelog(ts, "SETQUOTA(%c,%c,%c,%" PRIu32 ",%" PRIu64 ")",
 		             rigor_name[(int)entry.entryKey.rigor],
 		             resource_name[(int)entry.entryKey.resource], owner_name[(int)owner.ownerType],
@@ -265,6 +266,7 @@ uint8_t fs_apply_setquota(char rigor, char resource, char owner_type, uint32_t o
 	gMetadata->metaversion++;
 	gMetadata->quota_database.set(quotaOwnerType, owner_id, quotaRigor, quotaResource, limit);
 	gMetadata->quota_database.removeEmpty(quotaOwnerType, owner_id);
+	gMetadata->quota_checksum = gMetadata->quota_database.checksum();
 	return LIZARDFS_STATUS_OK;
 }
 
@@ -449,6 +451,7 @@ void fsnodes_quota_update(fsnode *node,
 
 void fsnodes_quota_remove(QuotaOwnerType owner_type, uint32_t owner_id) {
 	gMetadata->quota_database.remove(owner_type, owner_id);
+	gMetadata->quota_checksum = gMetadata->quota_database.checksum();
 }
 
 void fsnodes_quota_adjust_space(fsnode * /*node*/, uint64_t & /*total_space*/,
