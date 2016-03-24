@@ -23,34 +23,16 @@
 
 #include <unistd.h>
 #include <stdint.h>
-#include <sys/types.h>
 #include <stdio.h>
+#include <sys/types.h>
 
 #include "common/sockets.h"
 #include "protocol/MFSCommunication.h"
 
-enum {
-	MFSGETGOAL = 1,
-	MFSSETGOAL,
-	MFSGETTRASHTIME,
-	MFSSETTRASHTIME,
-	MFSCHECKFILE,
-	MFSFILEINFO,
-	MFSAPPENDCHUNKS,
-	MFSDIRINFO,
-	MFSFILEREPAIR,
-	MFSMAKESNAPSHOT,
-	MFSGETEATTR,
-	MFSSETEATTR,
-	MFSDELEATTR,
-	MFSSETQUOTA,
-	MFSREPQUOTA
-};
-
 #define check_usage(f, expressionExpectedToBeFalse, ...) \
 	if (expressionExpectedToBeFalse) {                   \
 		fprintf(stderr, __VA_ARGS__);                    \
-		usage(f);                                        \
+		f();                                             \
 	}
 
 #define tcpread(s, b, l) tcptoread(s, b, l, 10000)
@@ -60,6 +42,8 @@ extern uint8_t humode;
 
 extern const char *eattrtab[EATTR_BITS];
 extern const char *eattrdesc[EATTR_BITS];
+
+void set_humode();
 
 void print_number(const char *prefix, const char *suffix, uint64_t number, uint8_t mode32,
 				  uint8_t bytesflag, uint8_t dflag);
@@ -95,5 +79,3 @@ inline void print_extra_attributes() {
 		}
 	}
 }
-
-void usage(int f);

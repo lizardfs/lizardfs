@@ -19,12 +19,40 @@
 
 #include "common/platform.h"
 
+#include <cstring>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int set_eattr(const char *fname, uint8_t eattr, uint8_t mode) {
+static void del_eattr_usage() {
+	fprintf(stderr,
+	        "delete objects extra attributes\n\nusage: mfsdeleattr [-nhHr] -f attrname [-f "
+	        "attrname ...] "
+	        "name [name ...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	fprintf(stderr, " -f attrname - specify attribute to delete\n");
+	print_extra_attributes();
+	exit(1);
+}
+
+static void set_eattr_usage() {
+	fprintf(
+	    stderr,
+	    "set objects extra attributes\n\nusage: mfsseteattr [-nhHr] -f attrname [-f attrname ...] "
+	    "name [name ...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	fprintf(stderr, " -f attrname - specify attribute to set\n");
+	print_extra_attributes();
+	exit(1);
+}
+
+static int set_eattr(const char *fname, uint8_t eattr, uint8_t mode) {
 	uint8_t reqbuff[22], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode, uid;
@@ -103,4 +131,71 @@ int set_eattr(const char *fname, uint8_t eattr, uint8_t mode) {
 	}
 	free(buff);
 	return 0;
+}
+
+static int gene_eattr_run(int argc, char **argv, uint8_t mode, void (*usage_func)(void)) {
+	int i, found, ch, status;
+	int rflag = 0;
+	uint8_t eattr = 0;
+
+	while ((ch = getopt(argc, argv, "rnhHf:")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'r':
+			rflag = 1;
+			break;
+		case 'f':
+			found = 0;
+			for (i = 0; found == 0 && i < EATTR_BITS; i++) {
+				if (strcmp(optarg, eattrtab[i]) == 0) {
+					found = 1;
+					eattr |= 1 << i;
+				}
+			}
+			if (!found) {
+				fprintf(stderr, "unknown flag\n");
+				usage_func();
+			}
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (eattr == 0 && argc >= 1) {
+		if (mode == SMODE_INCREASE)
+			fprintf(stderr, "no attribute(s) to set\n");
+		else
+			fprintf(stderr, "no attribute(s) to delete\n");
+		usage_func();
+	}
+
+	if (argc < 1) {
+		usage_func();
+	}
+	status = 0;
+	while (argc > 0) {
+		if (set_eattr(*argv, eattr, (rflag) ? (SMODE_RMASK | mode) : mode) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
+}
+
+int set_eattr_run(int argc, char **argv) {
+	return gene_eattr_run(argc, argv, SMODE_INCREASE, set_eattr_usage);
+}
+
+int del_eattr_run(int argc, char **argv) {
+	return gene_eattr_run(argc, argv, SMODE_DECREASE, del_eattr_usage);
 }

@@ -19,14 +19,16 @@
 
 #include "common/platform.h"
 
-#include <limits.h>
-#include <fcntl.h>
+#include "tools/tools_common_functions.h"
+
 #include <errno.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <math.h>
-#include <tools/tools_common_functions.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "common/human_readable_format.h"
 #include "common/mfserr.h"
 
@@ -34,6 +36,30 @@ uint8_t humode = 0;
 
 const char *eattrtab[EATTR_BITS] = {EATTR_STRINGS};
 const char *eattrdesc[EATTR_BITS] = {EATTR_DESCRIPTIONS};
+
+void set_humode() {
+	char *hrformat;
+	hrformat = getenv("MFSHRFORMAT");
+	if (hrformat) {
+		if (hrformat[0] >= '0' && hrformat[0] <= '4') {
+			humode = hrformat[0] - '0';
+		}
+		if (hrformat[0] == 'h') {
+			if (hrformat[1] == '+') {
+				humode = 3;
+			} else {
+				humode = 1;
+			}
+		}
+		if (hrformat[0] == 'H') {
+			if (hrformat[1] == '+') {
+				humode = 4;
+			} else {
+				humode = 2;
+			}
+		}
+	}
+}
 
 void print_number(const char *prefix, const char *suffix, uint64_t number, uint8_t mode32,
 				  uint8_t bytesflag, uint8_t dflag) {
@@ -303,120 +329,4 @@ void dirname_inplace(char *path) {
 	} else {
 		*endp = '\0';
 	}
-}
-
-void usage(int f) {
-	switch (f) {
-	case MFSGETGOAL:
-		fprintf(stderr,
-		        "get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name "
-		        "[name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		break;
-	case MFSSETGOAL:
-		fprintf(stderr,
-		        "set objects goal (desired number of copies)\n\nusage: mfssetgoal <operation> name "
-		        "[name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		fprintf(stderr, "<operation> is one of:\n");
-		fprintf(stderr, " GOAL - set goal to given goal name\n");
-		break;
-	case MFSGETTRASHTIME:
-		fprintf(stderr,
-		        "get objects trashtime (how many seconds file should be left in trash)\n\nusage: "
-		        "mfsgettrashtime [-nhHr] name [name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		break;
-	case MFSSETTRASHTIME:
-		fprintf(stderr,
-		        "set objects trashtime (how many seconds file should be left in trash)\n\nusage: "
-		        "mfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		fprintf(stderr, " SECONDS+ - increase trashtime to given value\n");
-		fprintf(stderr, " SECONDS- - decrease trashtime to given value\n");
-		fprintf(stderr, " SECONDS - just set trashtime to given value\n");
-		break;
-	case MFSCHECKFILE:
-		fprintf(stderr, "check files\n\nusage: mfscheckfile [-nhH] name [name ...]\n");
-		break;
-	case MFSFILEINFO:
-		fprintf(stderr,
-		        "show files info (shows detailed info of each file chunk)\n\nusage: "
-		        "mfsfileinfo name [name ...]\n");
-		break;
-	case MFSAPPENDCHUNKS:
-		fprintf(stderr,
-		        "append file chunks to another file. If destination file doesn't exist then it's "
-		        "created as empty file and then chunks are appended\n\nusage: "
-		        "mfsappendchunks dstfile name [name ...]\n");
-		break;
-	case MFSDIRINFO:
-		fprintf(stderr, "show directories stats\n\nusage: mfsdirinfo [-nhH] name [name ...]\n");
-		print_numberformat_options();
-		fprintf(
-		    stderr,
-		    "\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n "
-		    "'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage "
-		    "(usually size multiplied by current goal)\n");
-		break;
-	case MFSFILEREPAIR:
-		fprintf(stderr,
-		        "repair given file. Use it with caution. It forces file to be readable, so it "
-		        "could erase "
-		        "(fill with zeros) file when chunkservers are not currently connected.\n\nusage: "
-		        "mfsfilerepair [-nhH] name [name ...]\n");
-		print_numberformat_options();
-		break;
-	case MFSMAKESNAPSHOT:
-		fprintf(stderr,
-		        "make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-ofl] src [src ...] dst\n");
-		fprintf(stderr, "-o,-f - allow to overwrite existing objects\n");
-		fprintf(stderr, "-l - wait until snapshot will finish (otherwise there is 60s timeout)\n");
-		break;
-	case MFSGETEATTR:
-		fprintf(stderr,
-		        "get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		break;
-	case MFSSETEATTR:
-		fprintf(stderr,
-		        "set objects extra attributes\n\nusage: "
-		        "mfsseteattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		fprintf(stderr, " -f attrname - specify attribute to set\n");
-		print_extra_attributes();
-		break;
-	case MFSDELEATTR:
-		fprintf(stderr,
-		        "delete objects extra attributes\n\nusage: "
-		        "mfsdeleattr [-nhHr] -f attrname [-f attrname ...] name [name ...]\n");
-		print_numberformat_options();
-		print_recursive_option();
-		fprintf(stderr, " -f attrname - specify attribute to delete\n");
-		print_extra_attributes();
-		break;
-	case MFSREPQUOTA:
-		fprintf(stderr,
-		        "summarize quotas for a user/group or all users and groups\n\n"
-		        "usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
-		        "       mfsrepquota [-nhH] -a <mountpoint-root-path>\n"
-		        "       mfsrepquota [-nhH] -d <directory-path>\n");
-		print_numberformat_options();
-		break;
-	case MFSSETQUOTA:
-		fprintf(stderr,
-		        "set quotas\n\n"
-		        "usage: mfssetquota (-u <uid>|-g <gid> |-d) "
-		        "<soft-limit-size> <hard-limit-size> "
-		        "<soft-limit-inodes> <hard-limit-inodes> <directory-path>\n"
-		        " 0 deletes the limit\n");
-		break;
-	}
-	exit(1);
 }

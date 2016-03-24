@@ -22,9 +22,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int check_file(const char *fname) {
+static void check_file_usage() {
+	fprintf(stderr, "check files\n\nusage: mfscheckfile [-nhH] name [name ...]\n");
+	exit(1);
+}
+
+static int check_file(const char *fname) {
 	uint8_t reqbuff[16], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode;
@@ -112,4 +120,38 @@ int check_file(const char *fname) {
 	}
 	free(buff);
 	return 0;
+}
+
+int check_file_run(int argc, char **argv) {
+	int ch, status;
+
+	while ((ch = getopt(argc, argv, "nhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		check_file_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (check_file(*argv) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
 }

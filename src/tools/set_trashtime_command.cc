@@ -22,9 +22,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int set_trashtime(const char *fname, uint32_t trashtime, uint8_t mode) {
+static void set_trashtime_usage() {
+	fprintf(stderr,
+	        "set objects trashtime (how many seconds file should be left in trash)\n\nusage: "
+	        "mfssettrashtime [-nhHr] SECONDS[-|+] name [name ...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	fprintf(stderr, " SECONDS+ - increase trashtime to given value\n");
+	fprintf(stderr, " SECONDS- - decrease trashtime to given value\n");
+	fprintf(stderr, " SECONDS - just set trashtime to given value\n");
+	exit(1);
+}
+
+static int set_trashtime(const char *fname, uint32_t trashtime, uint8_t mode) {
 	uint8_t reqbuff[25], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode, uid;
@@ -103,4 +118,76 @@ int set_trashtime(const char *fname, uint32_t trashtime, uint8_t mode) {
 	}
 	free(buff);
 	return 0;
+}
+
+static int gene_set_trashtime_run(int argc, char **argv, int rflag) {
+	int ch, status;
+	uint32_t trashtime = 86400;
+	uint8_t smode = SMODE_SET;
+
+	while ((ch = getopt(argc, argv, "rnhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'r':
+			rflag = 1;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc == 0) {
+		set_trashtime_usage();
+	}
+
+	char *p = argv[0];
+	trashtime = 0;
+	while (p[0] >= '0' && p[0] <= '9') {
+		trashtime *= 10;
+		trashtime += (p[0] - '0');
+		p++;
+	}
+	if (p[0] == '\0' || ((p[0] == '-' || p[0] == '+') && p[1] == '\0')) {
+		if (p[0] == '-') {
+			smode = SMODE_DECREASE;
+		} else if (p[0] == '+') {
+			smode = SMODE_INCREASE;
+		}
+	} else {
+		fprintf(
+		    stderr,
+		    "trashtime should be given as number of seconds optionally folowed by '-' or '+'\n");
+		set_trashtime_usage();
+	}
+	argc--;
+	argv++;
+
+	if (argc < 1) {
+		set_trashtime_usage();
+	}
+	status = 0;
+	while (argc > 0) {
+		if (set_trashtime(*argv, trashtime, (rflag) ? (smode | SMODE_RMASK) : smode) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
+}
+
+int rset_trashtime_run(int argc, char **argv) {
+	return gene_set_trashtime_run(argc, argv, 1);
+}
+
+int set_trashtime_run(int argc, char **argv) {
+	return gene_set_trashtime_run(argc, argv, 0);
 }

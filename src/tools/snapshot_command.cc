@@ -20,13 +20,23 @@
 #include "common/platform.h"
 
 #include <errno.h>
-#include <sys/stat.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <string>
+#include <sys/stat.h>
 
+#include "common/datapack.h"
+#include "common/server_connection.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
+
+static void snapshot_usage() {
+	fprintf(stderr,
+	        "make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-ofl] src [src ...] dst\n");
+	fprintf(stderr, "-o,-f - allow to overwrite existing objects\n");
+	fprintf(stderr, "-l - wait until snapshot will finish (otherwise there is 60s timeout)\n");
+	exit(1);
+}
 
 static int make_snapshot(const char *dstdir, const char *dstbase, const char *srcname,
 						 uint32_t srcinode, uint8_t canoverwrite, int long_wait) {
@@ -108,8 +118,8 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 	return 0;
 }
 
-int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelements, uint8_t canowerwrite,
-			 int long_wait) {
+static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelements,
+					uint8_t canowerwrite, int long_wait) {
 	char to[PATH_MAX + 1], base[PATH_MAX + 1], dir[PATH_MAX + 1];
 	char src[PATH_MAX + 1];
 	struct stat sst, dst;
@@ -255,4 +265,28 @@ int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelements, u
 			return status;
 		}
 	}
+}
+
+int snapshot_run(int argc, char **argv) {
+	int ch;
+	int oflag = 0;
+	int lflag = 0;
+
+	while ((ch = getopt(argc, argv, "fo")) != -1) {
+		switch (ch) {
+		case 'f':
+		case 'o':
+			oflag = 1;
+			break;
+		case 'l':
+			lflag = 1;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+	if (argc < 2) {
+		snapshot_usage();
+	}
+	return snapshot(argv[argc - 1], argv, argc - 1, oflag, lflag);
 }

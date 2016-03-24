@@ -22,9 +22,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int dir_info(const char *fname) {
+static void dir_info_usage() {
+	fprintf(stderr, "show directories stats\n\nusage: mfsdirinfo [-nhH] name [name ...]\n");
+	print_numberformat_options();
+	fprintf(stderr,
+	        "\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n"
+	        " 'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage (usually size "
+	        "multiplied by current goal)\n");
+	exit(1);
+}
+
+static int dir_info(const char *fname) {
 	uint8_t reqbuff[16], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode;
@@ -109,4 +122,38 @@ int dir_info(const char *fname) {
 	print_number(" size:         ", "\n", size, 0, 1, 1);
 	print_number(" realsize:     ", "\n", realsize, 0, 1, 1);
 	return 0;
+}
+
+int dir_info_run(int argc, char **argv) {
+	int ch, status;
+
+	while ((ch = getopt(argc, argv, "nhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		dir_info_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (dir_info(*argv) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
 }

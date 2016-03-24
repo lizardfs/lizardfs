@@ -22,9 +22,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/server_connection.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
+static void set_goal_usage() {
+	fprintf(stderr,
+	        "set objects goal (desired number of copies)\n\nusage: mfssetgoal <operation> name "
+	        "[name ...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	fprintf(stderr, "<operation> is one of:\n");
+	fprintf(stderr, " GOAL - set goal to given goal name\n");
+	exit(1);
+}
+
+static int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
 	uint32_t inode;
 	int fd;
 	uint32_t messageId = 0;
@@ -68,4 +83,60 @@ int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
 	}
 	close_master_conn(0);
 	return 0;
+}
+
+static int gene_set_goal_run(int argc, char **argv, int rflag) {
+	int ch, status;
+	std::string goal;
+
+	while ((ch = getopt(argc, argv, "rnhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'r':
+			rflag = 1;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc == 0) {
+		set_goal_usage();
+	}
+
+	goal = argv[0];
+	if (!goal.empty() && (goal.back() == '-' || goal.back() == '+')) {
+		fprintf(stderr, "setgoal doesn't support +/- modifiers anymore\n");
+		set_goal_usage();
+	}
+	argc--;
+	argv++;
+
+	if (argc < 1) {
+		set_goal_usage();
+	}
+	status = 0;
+	while (argc > 0) {
+		if (set_goal(*argv, goal, (rflag) ? (SMODE_SET | SMODE_RMASK) : SMODE_SET) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
+}
+
+int rset_goal_run(int argc, char **argv) {
+	return gene_set_goal_run(argc, argv, 1);
+}
+int set_goal_run(int argc, char **argv) {
+	return gene_set_goal_run(argc, argv, 0);
 }

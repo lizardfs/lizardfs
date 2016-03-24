@@ -19,17 +19,18 @@
 
 #include "common/platform.h"
 
-#include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <string.h>
+#include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <tools/tools_common_functions.h>
+
+#include "common/datapack.h"
 #include "common/mfserr.h"
 #include "common/special_inode_defs.h"
-#include "common/datapack.h"
+#include "tools/tools_common_functions.h"
 
 int master_register_old(int rfd) {
 	uint32_t i;

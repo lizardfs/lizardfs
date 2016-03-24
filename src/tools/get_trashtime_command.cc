@@ -19,13 +19,25 @@
 
 #include "common/platform.h"
 
+#include <algorithm>
 #include <stdio.h>
 #include <stdlib.h>
-#include <algorithm>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int get_trashtime(const char *fname, uint8_t mode) {
+static void get_trashtime_usage() {
+	fprintf(stderr,
+	        "get objects trashtime (how many seconds file should be left in trash)\n\nusage: "
+	        "mfsgettrashtime [-nhHr] name [name ...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	exit(1);
+}
+
+static int get_trashtime(const char *fname, uint8_t mode) {
 	uint8_t reqbuff[17], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode;
@@ -137,4 +149,48 @@ int get_trashtime(const char *fname, uint8_t mode) {
 	}
 	free(buff);
 	return 0;
+}
+
+static int gene_get_trashtime_run(int argc, char **argv, int rflag) {
+	int ch, status;
+	while ((ch = getopt(argc, argv, "rnhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'r':
+			rflag = 1;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		get_trashtime_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (get_trashtime(*argv, (rflag) ? GMODE_RECURSIVE : GMODE_NORMAL) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
+}
+
+int rget_trashtime_run(int argc, char **argv) {
+	return gene_get_trashtime_run(argc, argv, 1);
+}
+
+int get_trashtime_run(int argc, char **argv) {
+	return gene_get_trashtime_run(argc, argv, 0);
 }

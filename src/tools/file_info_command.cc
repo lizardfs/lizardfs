@@ -21,8 +21,18 @@
 
 #include <stdio.h>
 
-#include "tools/tools_commands.h"
 #include "common/chunk_copies_calculator.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
+#include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
+
+static void file_info_usage() {
+	fprintf(stderr,
+	        "show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name "
+	        "[name ...]\n");
+	exit(1);
+}
 
 static std::string chunkTypeToString(ChunkPartType type) {
 	if (slice_traits::isXor(type) || slice_traits::isEC(type)) {
@@ -34,7 +44,7 @@ static std::string chunkTypeToString(ChunkPartType type) {
 	return "";
 }
 
-int file_info(const char *fileName) {
+static int file_info(const char *fileName) {
 	std::vector<uint8_t> buffer;
 	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
 	uint64_t fileLength, chunkId;
@@ -228,4 +238,27 @@ int file_info(const char *fileName) {
 	}
 	close_master_conn(0);
 	return 0;
+}
+
+int file_info_run(int argc, char **argv) {
+	int status;
+
+	while (getopt(argc, argv, "") != -1) {
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		file_info_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (file_info(*argv) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
 }

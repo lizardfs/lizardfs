@@ -21,9 +21,22 @@
 
 #include <stdio.h>
 
+#include "common/server_connection.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int get_goal(const char *fname, uint8_t mode) {
+static void get_goal_usage() {
+	fprintf(stderr,
+	        "get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name "
+	        "...]\n");
+	print_numberformat_options();
+	print_recursive_option();
+	exit(1);
+}
+
+static int get_goal(const char *fname, uint8_t mode) {
 	uint32_t inode;
 	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
 	if (fd < 0) {
@@ -72,4 +85,49 @@ int get_goal(const char *fname, uint8_t mode) {
 	}
 	close_master_conn(0);
 	return 0;
+}
+
+static int gene_get_goal_run(int argc, char **argv, int rflag) {
+	int ch, status;
+
+	while ((ch = getopt(argc, argv, "rnhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'r':
+			rflag = 1;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		get_goal_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (get_goal(*argv, (rflag) ? GMODE_RECURSIVE : GMODE_NORMAL) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
+}
+
+int rget_goal_run(int argc, char **argv) {
+	return gene_get_goal_run(argc, argv, 1);
+}
+
+int get_goal_run(int argc, char **argv) {
+	return gene_get_goal_run(argc, argv, 0);
 }

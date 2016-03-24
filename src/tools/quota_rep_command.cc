@@ -23,9 +23,25 @@
 #include <vector>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 
-#include "tools/tools_commands.h"
 #include "common/chunk_with_address_and_label.h"
+#include "common/server_connection.h"
+#include "master/quota_database.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
+#include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
+
+static void quota_rep_usage() {
+	fprintf(stderr,
+	        "summarize quotas for a user/group or all users and groups\n\n"
+	        "usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
+	        "       mfsrepquota [-nhH] -a <mountpoint-root-path>\n"
+	        "       mfsrepquota [-nhH] -d <directory-path>\n");
+	print_numberformat_options();
+	exit(1);
+}
 
 static void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard_limit) {
 	if ((soft_limit > 0) && (usage > soft_limit)) {
@@ -86,7 +102,7 @@ static void quota_print_entry(const std::string &path, uint32_t path_inode, int 
 }
 
 static void quota_print_rep(const std::string &path, uint32_t path_inode,
-						    const std::vector<QuotaEntry> &quota_entries,
+							const std::vector<QuotaEntry> &quota_entries,
 							const std::vector<std::string> &quota_info) {
 	std::vector<std::size_t> ordering;
 
@@ -144,8 +160,8 @@ static void quota_print_rep(const std::string &path, uint32_t path_inode,
 	                  limits_value);
 }
 
-int quota_rep(const std::string &path, std::vector<int> requested_uids,
-			  std::vector<int> requested_gid, bool report_all, bool per_directory_quota) {
+static int quota_rep(const std::string &path, std::vector<int> requested_uids,
+					 std::vector<int> requested_gid, bool report_all, bool per_directory_quota) {
 	std::vector<uint8_t> request;
 	uint32_t uid = getuid();
 	uint32_t gid = getgid();
@@ -160,7 +176,7 @@ int quota_rep(const std::string &path, std::vector<int> requested_uids,
 		return -1;
 	}
 	if (!per_directory_quota) {
-		check_usage(MFSREPQUOTA, inode != 1, "Mount root path expected\n");
+		check_usage(quota_rep_usage, inode != 1, "Mount root path expected\n");
 	}
 
 	if (report_all) {
@@ -200,4 +216,56 @@ int quota_rep(const std::string &path, std::vector<int> requested_uids,
 	}
 	close_master_conn(0);
 	return 0;
+}
+
+int quota_rep_run(int argc, char **argv) {
+	std::vector<int> uid;
+	std::vector<int> gid;
+	bool reportAll = false;
+	bool per_directory_quota = false;
+	char *endptr = nullptr;
+	std::string dir_path;
+	int ch;
+
+	while ((ch = getopt(argc, argv, "nhHdu:g:a")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		case 'u':
+			uid.push_back(strtol(optarg, &endptr, 10));
+			check_usage(quota_rep_usage, *endptr, "invalid uid: %s\n", optarg);
+			break;
+		case 'g':
+			gid.push_back(strtol(optarg, &endptr, 10));
+			check_usage(quota_rep_usage, *endptr, "invalid gid: %s\n", optarg);
+			break;
+		case 'd':
+			per_directory_quota = true;
+			break;
+		case 'a':
+			reportAll = true;
+			break;
+		default:
+			fprintf(stderr, "invalid argument: %c", (char)ch);
+			quota_rep_usage();
+		}
+	}
+	check_usage(quota_rep_usage,
+	            !((uid.size() + gid.size() != 0) ^ (reportAll || per_directory_quota)),
+	            "provide either -a flag or uid/gid\n");
+
+	argc -= optind;
+	argv += optind;
+
+	check_usage(quota_rep_usage, argc != 1, "expected parameter: <mountpoint-root-path>\n");
+	dir_path = argv[0];
+
+	return quota_rep(dir_path, uid, gid, reportAll, per_directory_quota);
 }

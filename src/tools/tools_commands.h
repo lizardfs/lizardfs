@@ -21,35 +21,26 @@
 
 #include "common/platform.h"
 
-#include <string>
-#include <stdint.h>
-#include <tools/tools_common_functions.h>
-#include "master/quota_database.h"
-#include "protocol/matocl.h"
-#include "protocol/cltoma.h"
-#include "protocol/MFSCommunication.h"
-#include "common/server_connection.h"
-#include "common/datapack.h"
-#include "common/mfserr.h"
+int append_file_run(int argc, char **argv);
+int check_file_run(int argc, char **argv);
+int dir_info_run(int argc, char **argv);
+int file_info_run(int argc, char **argv);
+int file_repair_run(int argc, char **argv);
+int snapshot_run(int argc, char **argv);
 
-int append_file(const char *fname, const char *afname);
-int check_file(const char *fname);
-int dir_info(const char *fname);
-int file_info(const char *fileName);
-int file_repair(const char *fname);
-int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelements, uint8_t canowerwrite,
-			 int long_wait);
+int get_eattr_run(int argc, char **argv);
+int del_eattr_run(int argc, char **argv);
+int set_eattr_run(int argc, char **argv);
 
-int get_eattr(const char *fname, uint8_t mode);
-int set_eattr(const char *fname, uint8_t eattr, uint8_t mode);
+int get_goal_run(int argc, char **argv);
+int rget_goal_run(int argc, char **argv);
+int set_goal_run(int argc, char **argv);
+int rset_goal_run(int argc, char **argv);
 
-int get_goal(const char *fname, uint8_t mode);
-int set_goal(const char *fname, const std::string &goal, uint8_t mode);
+int get_trashtime_run(int argc, char **argv);
+int rget_trashtime_run(int argc, char **argv);
+int set_trashtime_run(int argc, char **argv);
+int rset_trashtime_run(int argc, char **argv);
 
-int get_trashtime(const char *fname, uint8_t mode);
-int set_trashtime(const char *fname, uint32_t trashtime, uint8_t mode);
-
-int quota_rep(const std::string &path, std::vector<int> requested_uids,
-			  std::vector<int> requested_gid, bool report_all, bool per_directory_quota);
-int quota_set(const std::string &path, QuotaOwner owner, uint64_t soft_inodes, uint64_t hard_inodes,
-			  uint64_t soft_size, uint64_t hard_size);
+int quota_rep_run(int argc, char **argv);
+int quota_set_run(int argc, char **argv);

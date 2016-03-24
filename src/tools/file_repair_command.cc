@@ -22,9 +22,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int file_repair(const char *fname) {
+static void file_repair_usage() {
+	fprintf(
+	    stderr,
+	    "repair given file. Use it with caution. It forces file to be readable, so it could erase "
+	    "(fill with zeros) file when chunkservers are not currently connected.\n\n"
+	    "usage: mfsfilerepair [-nhH] name [name ...]\n");
+	print_numberformat_options();
+	exit(1);
+}
+
+static int file_repair(const char *fname) {
 	uint8_t reqbuff[24], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode;
@@ -96,4 +109,37 @@ int file_repair(const char *fname) {
 	print_number(" chunks erased:      ", "\n", erased, 1, 0, 1);
 	print_number(" chunks repaired:    ", "\n", repaired, 1, 0, 1);
 	return 0;
+}
+
+int file_repair_run(int argc, char **argv) {
+	int ch, status;
+
+	while ((ch = getopt(argc, argv, "nhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		file_repair_usage();
+	}
+	status = 0;
+	while (argc > 0) {
+		if (file_repair(*argv) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
 }

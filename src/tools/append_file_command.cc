@@ -24,9 +24,21 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include "common/datapack.h"
+#include "common/mfserr.h"
 #include "tools/tools_commands.h"
+#include "tools/tools_common_functions.h"
 
-int append_file(const char *fname, const char *afname) {
+static void append_file_usage() {
+	fprintf(
+	    stderr,
+	    "append file chunks to another file. If destination file doesn't exist then it's created"
+	    " as empty file and then chunks are appended\n\nusage: mfsappendchunks dstfile name [name "
+	    "...]\n");
+	exit(1);
+}
+
+static int append_file(const char *fname, const char *afname) {
 	uint8_t reqbuff[28], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode, ainode, uid, gid;
@@ -103,4 +115,41 @@ int append_file(const char *fname, const char *afname) {
 	}
 	free(buff);
 	return 0;
+}
+
+int append_file_run(int argc, char **argv) {
+	char *appendfname = nullptr;
+	int i, status;
+
+	while (getopt(argc, argv, "") != -1) {
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc <= 1) {
+		append_file_usage();
+	}
+	appendfname = argv[0];
+	i = open(appendfname, O_RDWR | O_CREAT, 0666);
+	if (i < 0) {
+		fprintf(stderr, "can't create/open file: %s\n", appendfname);
+		return 1;
+	}
+	close(i);
+	argc--;
+	argv++;
+
+	if (argc < 1) {
+		append_file_usage();
+	}
+
+	status = 0;
+	while (argc > 0) {
+		if (append_file(appendfname, *argv) < 0) {
+			status = 1;
+		}
+		argc--;
+		argv++;
+	}
+	return status;
 }
