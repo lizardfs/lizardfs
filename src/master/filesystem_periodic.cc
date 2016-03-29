@@ -698,9 +698,7 @@ static InodeInfo fs_do_emptytrash(uint32_t ts) {
 	while (e) {
 		p = e->child;
 		e = e->nextchild;
-		if (((uint64_t)(p->atime) + (uint64_t)(p->trashtime) < (uint64_t)ts) &&
-		    ((uint64_t)(p->mtime) + (uint64_t)(p->trashtime) < (uint64_t)ts) &&
-		    ((uint64_t)(p->ctime) + (uint64_t)(p->trashtime) < (uint64_t)ts)) {
+		if (((uint64_t)(p->atime) + p->trashtime < (uint64_t)ts)) {
 			if (fsnodes_purge(ts, p)) {
 				ii.free++;
 			} else {

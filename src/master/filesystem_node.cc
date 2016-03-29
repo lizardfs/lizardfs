@@ -1163,7 +1163,7 @@ void fsnodes_unlink(uint32_t ts, fsedge *e) {
 		if (child->type == TYPE_FILE) {
 			if (child->trashtime > 0) {
 				child->type = TYPE_TRASH;
-				child->ctime = ts;
+				child->atime = ts;
 				fsnodes_update_checksum(child);
 				e = new fsedge;
 				e->nleng = pleng;
