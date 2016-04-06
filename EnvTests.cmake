@@ -83,6 +83,7 @@ check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
 set(_CHECK_CXX_MULTIVERSION_CODE "
 __attribute__ ((target (\"default\"))) int test() { return 0; }
 __attribute__ ((target (\"sse\"))) int test() { return 1; }
+__attribute__ ((target (\"ssse3\"))) int test() { return 2; }
 int main() { return test(); }
 ")
 check_cxx_source_compiles("${_CHECK_CXX_MULTIVERSION_CODE}" LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)
