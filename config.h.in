@@ -37,7 +37,6 @@
 
 /* [CMake] Includes */
 #cmakedefine LIZARDFS_HAVE_ARPA_INET_H
-#cmakedefine LIZARDFS_HAVE_ENDIAN_H
 #cmakedefine LIZARDFS_HAVE_FCNTL_H
 #cmakedefine LIZARDFS_HAVE_INTTYPES_H
 #cmakedefine LIZARDFS_HAVE_LIMITS_H
@@ -46,7 +45,6 @@
 #cmakedefine LIZARDFS_HAVE_STDDEF_H
 #cmakedefine LIZARDFS_HAVE_STDLIB_H
 #cmakedefine LIZARDFS_HAVE_STRING_H
-#cmakedefine LIZARDFS_HAVE_SYS_ENDIAN_H
 #cmakedefine LIZARDFS_HAVE_SYS_MMAN_H
 #cmakedefine LIZARDFS_HAVE_SYS_RESOURCE_H
 #cmakedefine LIZARDFS_HAVE_SYS_SOCKET_H

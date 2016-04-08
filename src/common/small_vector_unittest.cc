@@ -20,6 +20,7 @@
 #include "common/small_vector.h"
 
 #include <algorithm>
+#include <numeric>
 #include <gtest/gtest.h>
 
 template <typename T, std::size_t N>

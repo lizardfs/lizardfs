@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <sys/types.h>
 
 #include "chunkserver/chunk_format.h"
 #include "common/chunk_part_type.h"

@@ -4,7 +4,9 @@ install(PROGRAMS cpp-interpreter.sh DESTINATION ${BIN_SUBDIR})
 
 # a library which causes pread/pwrite/close on chunks to return EIO
 add_library(chunk_operations_eio SHARED chunk_operations_eio.c)
-target_link_libraries(chunk_operations_eio dl)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+  target_link_libraries(chunk_operations_eio dl)
+endif()
 install(TARGETS chunk_operations_eio DESTINATION ${LIB_SUBDIR})
 
 # converter to xor chunks
@@ -19,7 +21,9 @@ install(TARGETS crc_converter RUNTIME DESTINATION ${BIN_SUBDIR})
 
 # redirecting bind library
 add_library(redirect_bind SHARED redirect_bind.c)
-target_link_libraries(redirect_bind dl)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+  target_link_libraries(redirect_bind dl)
+endif()
 install(TARGETS redirect_bind DESTINATION ${LIB_SUBDIR})
 
 # test files generator

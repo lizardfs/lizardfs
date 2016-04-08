@@ -19,6 +19,7 @@
 #pragma once
 #include "common/platform.h"
 
+#include <cstdarg>
 #include <fstream>
 #include <sstream>
 #include <memory>

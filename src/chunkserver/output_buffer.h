@@ -24,6 +24,7 @@
 #include <cstdint>
 #include <cstring>
 #include <vector>
+#include <sys/types.h>
 
 class OutputBuffer {
 public:

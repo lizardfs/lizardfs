@@ -28,13 +28,7 @@
 #include <stdexcept>
 #include <vector>
 
-#if defined (LIZARDFS_HAVE_ENDIAN_H)
-# include <endian.h>
-#elif defined (LIZARDFS_HAVE_SYS_ENDIAN_H)
-# include <sys/endian.h>
-#else
-#error Missing endian.h header.
-#endif
+#include "common/portable_endian.h"
 
 #include "utils/asserts.h"
 #include "utils/configuration.h"

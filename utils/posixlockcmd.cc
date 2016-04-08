@@ -15,6 +15,7 @@
    You should have received a copy of the GNU General Public License
    along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "common/platform.h"
 
 #include <cstdio>
 #include <cstdlib>

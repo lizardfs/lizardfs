@@ -35,25 +35,31 @@ TEST(TimeUtilsTests, TimerAndTimeout) {
 	Timer timer;
 	Timeout timeout(std::chrono::milliseconds(200));
 
-	usleep(50*1000);
+#if defined(__APPLE__) || defined(__FreeBSD__)
+	long long accuracy = 15;
+#else
+	long long accuracy = 10;
+#endif
+
+	usleep(50* 1000 - timer.elapsed_us());
 
 	EXPECT_EQ(0, timer.elapsed_s());
-	EXPECT_NEAR(timer.elapsed_ms(), 50,           10);
-	EXPECT_NEAR(timer.elapsed_us(), 50*1000,      10*1000);
-	EXPECT_NEAR(timer.elapsed_ns(), 50*1000*1000, 10*1000*1000);
+	EXPECT_NEAR(timer.elapsed_ms(), 50, accuracy);
+	EXPECT_NEAR(timer.elapsed_us(), 50 * 1000, accuracy * 1000);
+	EXPECT_NEAR(timer.elapsed_ns(), 50 * 1000 * 1000, accuracy * 1000 * 1000);
 
 	EXPECT_EQ(0, timeout.remaining_s());
-	EXPECT_NEAR(timeout.remaining_ms(), 150,           10);
-	EXPECT_NEAR(timeout.remaining_us(), 150*1000,      10*1000);
-	EXPECT_NEAR(timeout.remaining_ns(), 150*1000*1000, 10*1000*1000);
+	EXPECT_NEAR(timeout.remaining_ms(), 150, accuracy);
+	EXPECT_NEAR(timeout.remaining_us(), 150 * 1000, accuracy * 1000);
+	EXPECT_NEAR(timeout.remaining_ns(), 150 * 1000 * 1000, accuracy * 1000 * 1000);
 	EXPECT_FALSE(timeout.expired());
 
-	usleep(160*1000);
+	usleep(210 * 1000 - timer.elapsed_us());
 
 	EXPECT_EQ(0, timer.elapsed_s());
-	EXPECT_NEAR(timer.elapsed_ms(), 210,           10);
-	EXPECT_NEAR(timer.elapsed_us(), 210*1000,      10*1000);
-	EXPECT_NEAR(timer.elapsed_ns(), 210*1000*1000, 10*1000*1000);
+	EXPECT_NEAR(timer.elapsed_ms(), 210, accuracy);
+	EXPECT_NEAR(timer.elapsed_us(), 210 * 1000, accuracy * 1000);
+	EXPECT_NEAR(timer.elapsed_ns(), 210 * 1000 * 1000, accuracy * 1000 * 1000);
 
 	EXPECT_EQ(0, timeout.remaining_s());
 	EXPECT_EQ(0, timeout.remaining_ms());

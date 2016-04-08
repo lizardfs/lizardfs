@@ -22,18 +22,18 @@
 #include <gtest/gtest.h>
 
 #define sneakyPartType(type) \
-	Goal::Slice::Type(Goal::Slice::Type:: type)
+	Goal::Slice::Type{Goal::Slice::Type:: type}
 
 TEST(GoalTests, BasicSliceOperations) {
-	Goal::Slice std(Goal::Slice::Type(Goal::Slice::Type::kStandard));
-	Goal::Slice xor3(Goal::Slice::Type(Goal::Slice::Type::kXor3));
+	Goal::Slice std_goal(Goal::Slice::Type{Goal::Slice::Type::kStandard});
+	Goal::Slice xor3(Goal::Slice::Type{Goal::Slice::Type::kXor3});
 
-	EXPECT_EQ(1, std.size());
+	EXPECT_EQ(1, std_goal.size());
 	EXPECT_EQ(4, xor3.size());
 
-	std[0][MediaLabel("A")] = 1;
-	std[0][MediaLabel("B")] = 1;
-	std[0][MediaLabel("_")] = 3;
+	std_goal[0][MediaLabel("A")] = 1;
+	std_goal[0][MediaLabel("B")] = 1;
+	std_goal[0][MediaLabel("_")] = 3;
 
 	xor3[0][MediaLabel("A")] = 2;
 	xor3[1][MediaLabel("B")] = 1;
@@ -41,25 +41,25 @@ TEST(GoalTests, BasicSliceOperations) {
 	xor3[3][MediaLabel("B")] = 1;
 	xor3[3][MediaLabel("_")] = 1;
 
-	EXPECT_EQ(5, Goal::Slice::countLabels(std[0]));
-	EXPECT_EQ(5, std.getExpectedCopies());
+	EXPECT_EQ(5, Goal::Slice::countLabels(std_goal[0]));
+	EXPECT_EQ(5, std_goal.getExpectedCopies());
 	EXPECT_EQ(6, xor3.getExpectedCopies());
 
-	EXPECT_TRUE(std == std);
-	EXPECT_FALSE(std == xor3);
-	EXPECT_TRUE(std != xor3);
+	EXPECT_TRUE(std_goal == std_goal);
+	EXPECT_FALSE(std_goal == xor3);
+	EXPECT_TRUE(std_goal != xor3);
 
-	EXPECT_EQ(Goal::Slice::Type(Goal::Slice::Type::kStandard), std.getType());
-	EXPECT_EQ(Goal::Slice::Type(Goal::Slice::Type::kXor3), xor3.getType());
+	EXPECT_EQ(Goal::Slice::Type{Goal::Slice::Type::kStandard}, std_goal.getType());
+	EXPECT_EQ(Goal::Slice::Type{Goal::Slice::Type::kXor3}, xor3.getType());
 
-	EXPECT_EQ("$std {A B _ _ _}", to_string(std));
+	EXPECT_EQ("$std {A B _ _ _}", to_string(std_goal));
 	EXPECT_EQ("$xor3 {{A A} B C {B _}}", to_string(xor3));
 }
 
 TEST(GoalTests, BasicSliceMerge) {
-	Goal::Slice std_1(Goal::Slice::Type(Goal::Slice::Type::kStandard));
-	Goal::Slice std_2(Goal::Slice::Type(Goal::Slice::Type::kStandard));
-	Goal::Slice res(Goal::Slice::Type(Goal::Slice::Type::kStandard));
+	Goal::Slice std_1(Goal::Slice::Type{Goal::Slice::Type::kStandard});
+	Goal::Slice std_2(Goal::Slice::Type{Goal::Slice::Type::kStandard});
+	Goal::Slice res(Goal::Slice::Type{Goal::Slice::Type::kStandard});
 
 	std_1[0][MediaLabel("A")] = 1;
 	std_1[0][MediaLabel("B")] = 1;
@@ -78,9 +78,9 @@ TEST(GoalTests, BasicSliceMerge) {
 }
 
 TEST(GoalTests, BasicXorMerge) {
-	Goal::Slice x1(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice x2(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice res(Goal::Slice::Type(Goal::Slice::Type::kXor2));
+	Goal::Slice x1(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice x2(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice res(Goal::Slice::Type{Goal::Slice::Type::kXor2});
 
 	x1[0][MediaLabel("A")] = 1;
 	x1[1][MediaLabel("B")] = 1;
@@ -100,9 +100,9 @@ TEST(GoalTests, BasicXorMerge) {
 }
 
 TEST(GoalTests, BasicXorMerge2) {
-	Goal::Slice x1(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice x2(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice res(Goal::Slice::Type(Goal::Slice::Type::kXor2));
+	Goal::Slice x1(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice x2(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice res(Goal::Slice::Type{Goal::Slice::Type::kXor2});
 
 	x1[0][MediaLabel("A")] = 1;
 	x1[0][MediaLabel("_")] = 1;
@@ -124,9 +124,9 @@ TEST(GoalTests, BasicXorMerge2) {
 }
 
 TEST(GoalTests, BasicXorMerge3) {
-	Goal::Slice x1(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice x2(Goal::Slice::Type(Goal::Slice::Type::kXor2));
-	Goal::Slice res(Goal::Slice::Type(Goal::Slice::Type::kXor2));
+	Goal::Slice x1(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice x2(Goal::Slice::Type{Goal::Slice::Type::kXor2});
+	Goal::Slice res(Goal::Slice::Type{Goal::Slice::Type::kXor2});
 
 	x1[0][MediaLabel("A")] = 1;
 	x1[0][MediaLabel("_")] = 1;
@@ -148,9 +148,9 @@ TEST(GoalTests, BasicXorMerge3) {
 }
 
 TEST(GoalTests, BasicXorMerge4) {
-	Goal::Slice x1(Goal::Slice::Type(Goal::Slice::Type::kXor3));
-	Goal::Slice x2(Goal::Slice::Type(Goal::Slice::Type::kXor3));
-	Goal::Slice res(Goal::Slice::Type(Goal::Slice::Type::kXor3));
+	Goal::Slice x1(Goal::Slice::Type{Goal::Slice::Type::kXor3});
+	Goal::Slice x2(Goal::Slice::Type{Goal::Slice::Type::kXor3});
+	Goal::Slice res(Goal::Slice::Type{Goal::Slice::Type::kXor3});
 
 	x1[0][MediaLabel("A")] = 1;
 	x1[0][MediaLabel("_")] = 2;
@@ -181,7 +181,7 @@ TEST(GoalTests, GoalMerge) {
 	Goal goal1("1");
 	EXPECT_EQ(0, goal1.size());
 
-	Goal::Slice slice11(Goal::Slice::Type(Goal::Slice::Type::kXor3));
+	Goal::Slice slice11(Goal::Slice::Type{Goal::Slice::Type::kXor3});
 	slice11[0][MediaLabel("B")] = 1;
 	slice11[1][MediaLabel("C")] = 1;
 	slice11[2][MediaLabel("_")] = 1;
@@ -189,7 +189,7 @@ TEST(GoalTests, GoalMerge) {
 	goal1.setSlice(slice11);
 	EXPECT_EQ(1, goal1.size());
 
-	Goal::Slice slice12(Goal::Slice::Type(Goal::Slice::Type::kStandard));
+	Goal::Slice slice12(Goal::Slice::Type{Goal::Slice::Type::kStandard});
 	slice12[0][MediaLabel("_")] = 1;
 	slice12[0][MediaLabel("A")] = 1;
 	goal1.setSlice(slice12);
@@ -199,14 +199,14 @@ TEST(GoalTests, GoalMerge) {
 	Goal goal2("2");
 	EXPECT_EQ(0, goal2.size());
 
-	Goal::Slice slice21(Goal::Slice::Type(Goal::Slice::Type::kXor2));
+	Goal::Slice slice21(Goal::Slice::Type{Goal::Slice::Type::kXor2});
 	slice21[0][MediaLabel("A")] = 1;
 	slice21[1][MediaLabel("_")] = 1;
 	slice21[2][MediaLabel("B")] = 1;
 	goal2.setSlice(slice21);
 	EXPECT_EQ(1, goal2.size());
 
-	Goal::Slice slice22(Goal::Slice::Type(Goal::Slice::Type::kXor3));
+	Goal::Slice slice22(Goal::Slice::Type{Goal::Slice::Type::kXor3});
 	slice22[0][MediaLabel("C")] = 1;
 	slice22[1][MediaLabel("_")] = 1;
 	slice22[2][MediaLabel("A")] = 1;

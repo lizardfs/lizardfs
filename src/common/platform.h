@@ -20,7 +20,7 @@
 #include "config.h"
 
 /* Workaround for Debian/kFreeBSD which does not define ENODATA */
-#if defined(__FreeBSD_kernel__)
+#if defined(__FreeBSD_kernel__) || defined(__FreeBSD__)
 #ifndef ENODATA
 #define ENODATA ENOATTR
 #endif
@@ -34,7 +34,7 @@
 namespace std {
 
 template<typename T>
-inline std::string to_string(const T& val) {
+inline std::string to_string(const T val) {
 	std::stringstream ss;
 	ss << val;
 	return ss.str();

@@ -29,8 +29,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 set(CXX_STD c++0x)
-if(CYGWIN)
-  set(CXX_STD gnu++11)
+if(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang.*")
+  set(CXX_STD c++11)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64" )
@@ -212,6 +212,10 @@ if(ENABLE_REQUEST_LOG)
 endif()
 
 set(CHARTS_CSV_CHARTID_BASE 90000)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+  include_directories("/usr/local/include")
+endif()
 
 if(THROW_INSTEAD_OF_ABORT)
   add_definitions(-DTHROW_INSTEAD_OF_ABORT)
