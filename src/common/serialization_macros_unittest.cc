@@ -44,7 +44,7 @@ SERIALIZABLE_CLASS_BODY(
 	SomeClass,
 	int   , fieldA,
 	short , fieldB,
-	long  , fieldC
+	int64_t , fieldC
 )
 	void myMethod() {
 		fieldA = 5;
@@ -63,7 +63,7 @@ SERIALIZABLE_CLASS_BODY(
 	Class,
 	int   , A,
 	short , B,
-	long  , C,
+	int64_t , C,
 	std::string             , D,
 	std::vector<std::string>, E
 )
