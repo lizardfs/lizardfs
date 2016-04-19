@@ -29,7 +29,13 @@ TEST(OutputBufferTests, outputBuffersTest) {
 	OutputBuffer outputBuffer(512*1024);
 
 	int auxPipeFileDescriptors[2];
+
+#if defined(__APPLE__)
+	ASSERT_NE(pipe(auxPipeFileDescriptors), -1);
+#else
 	ASSERT_NE(pipe2(auxPipeFileDescriptors, O_NONBLOCK), -1);
+#endif
+
 #ifdef F_SETPIPE_SZ
 	ASSERT_NE(fcntl(auxPipeFileDescriptors[1], F_SETPIPE_SZ, 512*1024), -1);
 #endif
@@ -56,7 +62,6 @@ TEST(OutputBufferTests, outputBuffersTest) {
 	for (unsigned j = 0; j < WRITE_SIZE; ++j) {
 		ASSERT_EQ(VALUE, buf[j]) << "Byte " << j << " in block doesn't match";
 	}
-
 	close(auxPipeFileDescriptors[0]);
 	close(auxPipeFileDescriptors[1]);
 }

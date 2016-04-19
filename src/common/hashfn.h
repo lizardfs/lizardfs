@@ -25,6 +25,8 @@
 #include <stdexcept>
 #include <tuple>
 
+#include "common/integer_sequence.h"
+
 /* fast integer hash functions by Thomas Wang */
 /* all of them pass the avalanche test */
 
@@ -167,24 +169,14 @@ struct AlmostGenericTupleHash {
 
 	uint64_t operator()(const Tuple& t) const noexcept {
 		uint64_t seed = 0;
-		tupleHashCombine(seed, t);
+		combine(seed, t, make_index_sequence<sizeof...(Args)>());
 		return seed;
 	}
 
 private:
-	template<uint64_t> struct int_{};
-
-	template <size_t Position>
-	void tupleHashCombine(uint64_t& seed, const Tuple& t, int_<Position>) const noexcept {
-		hashCombineRaw(seed, std::get<Position>(t));
-		tupleHashCombine(seed, t, int_<Position + 1>());
-	}
-
-	void tupleHashCombine(uint64_t&, const Tuple&,
-			int_<std::tuple_size<Tuple>::value>) const noexcept {
-	}
-
-	void tupleHashCombine(uint64_t& seed, const Tuple& t) const noexcept {
-		tupleHashCombine(seed, t, int_<0>());
+	template<std::size_t... Is>
+	void combine(uint64_t &seed, const Tuple& t, index_sequence<Is...>) const {
+		hashCombine(seed, std::get<Is>(t)...);
 	}
 };
+

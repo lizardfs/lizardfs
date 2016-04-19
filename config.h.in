@@ -26,7 +26,7 @@
 /* Fixes for ancient compilers */
 
 // GCC 4.6
-#if defined(__GNUC__) && defined(__GNUC_MINOR__)
+#if defined(__GNUC__) && defined(__GNUC_MINOR__) && !defined(__clang__)
 #  if (__GNUC__ == 4 && __GNUC_MINOR__ <= 6)
 
 // remove uses of the C++11 override specifier, gcc 4.6 doesn't support it

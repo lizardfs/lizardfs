@@ -241,7 +241,8 @@ public:
 	}
 
 	void set_ptr(pointer p) {
-		assert((reinterpret_cast<uint64_t>(p) & size_mask) == 0);
+		assert((reinterpret_cast<uint64_t>(p) & ((static_cast<uint64_t>(1) << ptr_shift) - 1)) == 0);
+		assert(((reinterpret_cast<uint64_t>(p) >> ptr_shift) & size_mask) == 0);
 		assert((reinterpret_cast<uint64_t>(p) &
 		        ((static_cast<uint64_t>(1) << ptr_shift) - 1)) == 0);
 		ptr_ = ((reinterpret_cast<uint64_t>(p) >> ptr_shift) & ptr_mask) |
