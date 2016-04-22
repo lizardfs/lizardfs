@@ -285,7 +285,7 @@ int do_session(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) 
 	return fs_apply_session(cuid);
 }
 
-int do_emptytrash(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+int do_emptytrash_deprecated(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	uint32_t reservedinodes,freeinodes;
 	EAT(ptr,filename,lv,'(');
 	EAT(ptr,filename,lv,')');
@@ -293,7 +293,7 @@ int do_emptytrash(const char *filename, uint64_t lv, uint32_t ts, const char *pt
 	GETU32(freeinodes,ptr);
 	EAT(ptr,filename,lv,',');
 	GETU32(reservedinodes,ptr);
-	return fs_apply_emptytrash(ts,freeinodes,reservedinodes);
+	return fs_apply_emptytrash_deprecated(ts,freeinodes,reservedinodes);
 }
 
 int do_emptyreserved(const char *filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -835,7 +835,7 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 			break;
 		case 'E':
 			if (strncmp(ptr,"EMPTYTRASH",10)==0) {
-				status = do_emptytrash(filename,lv,ts,ptr+10);
+				status = do_emptytrash_deprecated(filename,lv,ts,ptr+10);
 			} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
 				status = do_emptyreserved(filename,lv,ts,ptr+13);
 			}

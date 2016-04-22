@@ -427,7 +427,34 @@ struct InodeInfo {
 	uint32_t reserved;
 };
 
-static InodeInfo fs_do_emptytrash(uint32_t ts) {
+#ifndef METARESTORE
+static void fs_do_emptytrash(uint32_t ts) {
+	auto it = gMetadata->trash.cbegin();
+	while (it != gMetadata->trash.cend()) {
+		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+
+		assert(node->type == FSNode::kTrash);
+
+		++it;
+
+		if (((uint64_t)(node->atime) + node->trashtime < (uint64_t)ts)) {
+			uint32_t node_id = node->id;
+			fsnodes_purge(ts, node);
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+			it.reload();
+#else
+			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
+			              "Iterator must internally be a pointer to contiguous structure");
+			--it;
+#endif
+			// Purge operation should be performed anyway - if it fails, inode will be reserved
+			fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
+		}
+	}
+}
+#endif
+
+static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 	InodeInfo ii{0, 0};
 
 	auto it = gMetadata->trash.cbegin();
@@ -448,28 +475,23 @@ static InodeInfo fs_do_emptytrash(uint32_t ts) {
 			it.reload();
 #else
 			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-			              "Iterator must internally be a pointer to contiguous structure");
+						  "Iterator must internally be a pointer to contiguous structure");
 			--it;
 #endif
 		}
 	}
-
 	return ii;
 }
 
 #ifndef METARESTORE
 void fs_periodic_emptytrash(void) {
 	uint32_t ts = main_time();
-	ChecksumUpdater cu(ts);
-	InodeInfo ii = fs_do_emptytrash(ts);
-	if (ii.free > 0 || ii.reserved > 0) {
-		fs_changelog(ts, "EMPTYTRASH():%" PRIu32 ",%" PRIu32, ii.free, ii.reserved);
-	}
+	fs_do_emptytrash(ts);
 }
 #endif
 
-uint8_t fs_apply_emptytrash(uint32_t ts, uint32_t freeinodes, uint32_t reservedinodes) {
-	InodeInfo ii = fs_do_emptytrash(ts);
+uint8_t fs_apply_emptytrash_deprecated(uint32_t ts, uint32_t freeinodes, uint32_t reservedinodes) {
+	InodeInfo ii = fs_do_emptytrash_deprecated(ts);
 	gMetadata->metaversion++;
 	if ((freeinodes != ii.free) || (reservedinodes != ii.reserved)) {
 		return LIZARDFS_ERROR_MISMATCH;

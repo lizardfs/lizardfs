@@ -80,6 +80,7 @@ metadata_generate_trash_ops() {
 		for i in 1 2 3 4 5; do
 				mfsmakesnapshot trashed_file trashed_file_$i
 		done
+		trashed_file_4_inode=inode_of "trashed_file_4"
 		mfssettrashtime 60 trashed_file*
 		mfssettrashtime 1 trashed_file_4
 		mfssettrashtime 0 trashed_file_5
@@ -94,11 +95,10 @@ metadata_generate_trash_ops() {
 		mv "$MFS_META_MOUNT_PATH"/trash/*untrashed_file "$MFS_META_MOUNT_PATH"/trash/undel
 		mv "$MFS_META_MOUNT_PATH"/trash/*trashed_file_1 "$MFS_META_MOUNT_PATH"/trash/undel
 		rm "$MFS_META_MOUNT_PATH"/trash/*trashed_file_2
-		# Wait for generation of EMPTYTRASH for trashed_file_4
-		assert_eventually 'grep EMPTYTRASH "${CHANGELOG}"'
+		# Wait for generation of PURGE for trashed_file_4
+		assert_eventually 'grep PURGE "${CHANGELOG}" | grep ${trashed_file_4_inode}'
 		assert_eventually 'grep EMPTYRESERVED "${CHANGELOG}"'
 		local changelog=$(cat ${CHANGELOG})
-		assert_awk_finds '/EMPTYTRASH/' "$changelog"
 		assert_awk_finds '/RELEASE/' "$changelog"
 		assert_awk_finds '/EMPTYRESERVED/' "$changelog"
 		assert_awk_finds '/SETPATH/' "$changelog"

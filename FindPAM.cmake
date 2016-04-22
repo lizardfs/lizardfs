@@ -12,5 +12,5 @@ if(PAM_LIBRARY AND PAM_MISC_LIBRARY)
   set(PAM_LIBRARIES ${PAM_LIBRARY} ${PAM_MISC_LIBRARY})
 endif()
 
-find_package_handle_standard_args(PAM FOUND_VAR PAM_FOUND
+find_package_handle_standard_args(PAM
                                   REQUIRED_VARS PAM_LIBRARY PAM_MISC_LIBRARY PAM_INCLUDE_DIR)
