@@ -23,7 +23,7 @@
 #include <cassert>
 #include <random>
 
-typedef std::ranlux48 RandomEngine;
+typedef std::mt19937 RandomEngine;
 
 extern RandomEngine kRandomEngine;
 
