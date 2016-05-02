@@ -50,10 +50,10 @@ truncate -s 0 "$TEMP_DIR/log"
 # This test is non-deterministic and below sometimes fails. If that is the case it should be rerun.
 # Really important check is that debug log doesn't contain master.fs.checksum.mismatch.
 touch "$TEMP_DIR/log"
-expect_eventually_prints 8 'grep -o "changing.*" "$TEMP_DIR/log" | sort | uniq -c | wc -l' "40 seconds"
+expect_eventually_prints 6 'grep -o "changing.*" "$TEMP_DIR/log" | sort | uniq -c | wc -l' "40 seconds"
 # Tell which objects were seen and which weren't
 log=$(cat "$TEMP_DIR/log" | sort | uniq -c)
-for object in {recalculated,not_recalculated}_{edge,node,xattr,chunk}; do
+for object in {recalculated,not_recalculated}_{node,xattr,chunk}; do
 	expect_awk_finds "/master.fs.checksum.changing_$object/" "$log"
 done
 

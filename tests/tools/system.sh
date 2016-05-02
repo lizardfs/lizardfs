@@ -10,3 +10,7 @@ is_program_installed() {
 system_init() {
 	ulimit -n 10000
 }
+
+inode_of() {
+	ls -i $1 | cut -d' ' -f1
+}
