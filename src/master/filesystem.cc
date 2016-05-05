@@ -42,7 +42,6 @@ FilesystemMetadata* gMetadata = nullptr;
 
 #ifndef METARESTORE
 
-static void* gEmptyTrashHook;
 static bool gAutoRecovery = false;
 bool gMagicAutoFileRepair = false;
 bool gAtimeDisabled = false;
@@ -245,9 +244,7 @@ void fs_become_master() {
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
 	main_eachloopregister(fs_background_checksum_recalculation_a_bit);
 	main_eachloopregister(fs_background_snapshot_work);
-	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
-			0, fs_periodic_emptytrash);
+	main_timeregister_ms(100, fs_periodic_emptytrash);
 	return;
 }
 
@@ -319,10 +316,6 @@ void fs_reload(void) {
 		fs_read_config_file();
 	} catch (Exception& ex) {
 		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
-	}
-	if (metadataserver::isMaster()) {
-		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
-				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
 	}
 }
 

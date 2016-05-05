@@ -29,6 +29,7 @@
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_operations.h"
+#include "master/loop_watchdog.h"
 #include "master/matoclserv.h"
 
 #define MSGBUFFSIZE 1000000
@@ -429,14 +430,18 @@ struct InodeInfo {
 
 #ifndef METARESTORE
 static void fs_do_emptytrash(uint32_t ts) {
-	auto it = gMetadata->trash.cbegin();
+	static uint32_t last_node_key = 0;
+	static SignalLoopWatchdog watchdog;
+
+	NodePathContainer::const_iterator it = gMetadata->trash.lower_bound(last_node_key);
+
+	watchdog.start();
 	while (it != gMetadata->trash.cend()) {
 		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
 
 		assert(node->type == FSNode::kTrash);
 
 		++it;
-
 		if (((uint64_t)(node->atime) + node->trashtime < (uint64_t)ts)) {
 			uint32_t node_id = node->id;
 			fsnodes_purge(ts, node);
@@ -450,7 +455,15 @@ static void fs_do_emptytrash(uint32_t ts) {
 			// Purge operation should be performed anyway - if it fails, inode will be reserved
 			fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
 		}
+		if (watchdog.expired()) {
+			if (it == gMetadata->trash.cend()) {
+				break;
+			}
+			last_node_key = (*it).first;
+			return;
+		}
 	}
+	last_node_key = 0;
 }
 #endif
 

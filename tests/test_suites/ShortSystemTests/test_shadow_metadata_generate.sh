@@ -1,8 +1,6 @@
 timeout_set 2 minutes
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
-master_cfg+="|EMPTY_TRASH_PERIOD = 1"
-master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
 
 CHUNKSERVERS=3 \
 	MASTERSERVERS=2 \

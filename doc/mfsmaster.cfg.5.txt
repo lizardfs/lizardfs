@@ -158,12 +158,6 @@ A maximum difference between disk usage on chunkservers that doesn't trigger chu
 When balancing disk usage, allow moving chunks between servers with different labels
 (default is 0, i.e. chunks will be moved only between servers with the same label).
 
-*EMPTY_TRASH_PERIOD*::
-Interval of removing files from trash in seconds (default is 300)
-
-*EMPTY_RESERVED_INODES_PERIOD*::
-Interval of removing reserved files in seconds (default is 60)
-
 *REJECT_OLD_CLIENTS*::
 Reject **mfsmount**s older than 1.6.0 (0 or 1, default is 0). Note that *mfsexports* access control
 is NOT used for those old clients.

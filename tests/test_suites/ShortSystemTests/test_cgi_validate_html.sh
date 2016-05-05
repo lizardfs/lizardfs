@@ -13,7 +13,6 @@ CHUNKSERVERS=3 \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
 	MOUNT_2_EXTRA_EXPORTS="mingoal=1,maxgoal=10,maxtrashtime=2w" \
-	MASTER_EXTRA_CONFIG="EMPTY_TRASH_PERIOD = 1|EMPTY_RESERVED_INODES_PERIOD = 1" \
 	setup_local_empty_lizardfs info
 
 # Save path of meta-mount in MFS_META_MOUNT_PATH for metadata generators

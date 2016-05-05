@@ -3,8 +3,6 @@ timeout_set 1 minute
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 master_cfg+="|REPLICATIONS_DELAY_INIT = 1"
 master_cfg+="|CHUNKS_LOOP_TIME = 1"
-master_cfg+="|EMPTY_TRASH_PERIOD = 1"
-master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
 master_cfg+="|BACK_META_KEEP_PREVIOUS = 0"
 
 CHUNKSERVERS=3 \

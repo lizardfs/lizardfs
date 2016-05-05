@@ -161,14 +161,6 @@
 ## (Default: 0)
 # CHUNKS_REBALANCING_BETWEEN_LABELS = 0
 
-## Interval of removing files from trash in seconds.
-## (Default: 300)
-# EMPTY_TRASH_PERIOD = 300
-
-## Interval of removing reserved files in seconds.
-## (Default: 60)
-# EMPTY_RESERVED_INODES_PERIOD = 60
-
 ## Interval of freeing inodes being unused for longer than 24 hours in seconds.
 ## (Default: 60)
 # FREE_INODES_PERIOD = 60
