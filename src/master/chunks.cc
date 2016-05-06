@@ -35,6 +35,7 @@
 #include "common/chunks_availability_state.h"
 #include "common/chunk_copies_calculator.h"
 #include "common/compact_vector.h"
+#include "common/coroutine.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
 #include "common/flat_set.h"
@@ -50,6 +51,7 @@
 #include "master/chunk_goal_counters.h"
 #include "master/filesystem.h"
 #include "master/goal_cache.h"
+#include "master/loop_watchdog.h"
 #include "protocol/MFSCommunication.h"
 
 #ifdef METARESTORE
@@ -197,7 +199,6 @@ static uint32_t ChunksLoopTimeout;
 static double   AcceptableDifference;
 static bool     RebalancingBetweenLabels = false;
 
-static uint32_t jobshpos;
 static uint32_t jobsnorepbefore;
 
 static uint32_t starttime;
@@ -1794,15 +1795,30 @@ void chunk_store_info(uint8_t *buff) {
 
 //jobs state: jobshpos
 
-class ChunkWorker {
+class ChunkWorker : public coroutine {
 public:
 	ChunkWorker();
 	void doEveryLoopTasks();
 	void doEverySecondTasks();
 	void doChunkJobs(Chunk *c, uint16_t serverCount);
+	void mainLoop();
 
 private:
 	typedef std::vector<ServerWithUsage> ServersWithUsage;
+
+	struct MainLoopStack {
+		uint32_t current_bucket;
+		uint16_t usable_server_count;
+		uint32_t chunks_done_count;
+		uint32_t buckets_done_count;
+		std::size_t endangered_to_serve;
+		Chunk* node;
+		Chunk* prev;
+		ActiveLoopWatchdog work_limit;
+		SignalLoopWatchdog watchdog;
+	};
+
+	bool deleteUnusedChunks();
 
 	uint32_t getMinChunkserverVersion(Chunk *c, ChunkPartType type);
 	bool tryReplication(Chunk *c, ChunkPartType type, matocsserventry *destinationServer);
@@ -1824,6 +1840,8 @@ private:
 
 	/// For each label, all servers with this label sorted by disk usage.
 	std::map<MediaLabel, ServersWithUsage> labeledSortedServers_;
+
+	MainLoopStack stack_;
 };
 
 ChunkWorker::ChunkWorker()
@@ -1832,6 +1850,7 @@ ChunkWorker::ChunkWorker()
 		  prevToDeleteCount_(0),
 		  deleteLoopCount_(0) {
 	memset(&inforec_,0,sizeof(loop_info));
+	stack_.current_bucket = 0;
 }
 
 void ChunkWorker::doEveryLoopTasks() {
@@ -2352,80 +2371,146 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	rebalanceChunkParts(c, calc, false);
 }
 
+bool ChunkWorker::deleteUnusedChunks() {
+	while (stack_.node != nullptr) {
+		chunk_handle_disconnected_copies(stack_.node);
+		if (stack_.node->fileCount() == 0 && stack_.node->parts.empty()) {
+			// Something could be inserted between prev and node (when we yielded)
+			// so we need to make prev valid.
+			while (stack_.prev && stack_.prev->next != stack_.node) {
+				stack_.prev = stack_.prev->next;
+			}
+
+			assert((!stack_.prev && gChunksMetadata->chunkhash[stack_.current_bucket] == stack_.node) ||
+			       (stack_.prev && stack_.prev->next == stack_.node));
+
+			if (stack_.prev) {
+				stack_.prev->next = stack_.node->next;
+			} else {
+				gChunksMetadata->chunkhash[stack_.current_bucket] =
+				        stack_.node->next;
+			}
+
+			Chunk *tmp = stack_.node->next;
+			chunk_delete(stack_.node);
+			stack_.node = tmp;
+		} else {
+			stack_.prev = stack_.node;
+			stack_.node = stack_.node->next;
+		}
+
+		if (stack_.watchdog.expired()) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void ChunkWorker::mainLoop() {
+	Chunk *c;
+
+	reenter(this) {
+		stack_.work_limit.setMaxDuration(std::chrono::milliseconds(ChunksLoopTimeout));
+		stack_.work_limit.start();
+		stack_.watchdog.start();
+		stack_.chunks_done_count = 0;
+		stack_.buckets_done_count = 0;
+
+		if (starttime + ReplicationsDelayInit > main_time()) {
+			return;
+		}
+
+		double min_usage, max_usage;
+		matocsserv_usagedifference(&min_usage, &max_usage, &stack_.usable_server_count,
+		                           nullptr);
+
+		if (min_usage > max_usage) {
+			return;
+		}
+
+		doEverySecondTasks();
+
+		if (jobsnorepbefore < main_time()) {
+			stack_.endangered_to_serve = gEndangeredChunksServingLimit;
+			while (stack_.endangered_to_serve > 0 && !Chunk::endangeredChunks.empty()) {
+				c = Chunk::endangeredChunks.front();
+				Chunk::endangeredChunks.pop_front();
+				c->inEndangeredQueue = 0;
+				doChunkJobs(c, stack_.usable_server_count);
+				--stack_.endangered_to_serve;
+
+				if (stack_.watchdog.expired()) {
+					yield;
+					stack_.watchdog.start();
+				}
+			}
+		}
+
+		while (stack_.buckets_done_count < HashSteps &&
+		       stack_.chunks_done_count < HashCPS) {
+			if (stack_.current_bucket == 0) {
+				doEveryLoopTasks();
+			}
+
+			if (stack_.watchdog.expired()) {
+				yield;
+				stack_.watchdog.start();
+			}
+
+			// delete unused chunks
+			stack_.prev = nullptr;
+			stack_.node = gChunksMetadata->chunkhash[stack_.current_bucket];
+			while (!deleteUnusedChunks()) {
+				yield;
+				stack_.watchdog.start();
+			}
+
+			// regenerate usable_server_count
+			matocsserv_usagedifference(nullptr, nullptr, &stack_.usable_server_count,
+			                           nullptr);
+
+			stack_.node = gChunksMetadata->chunkhash[stack_.current_bucket];
+			while (stack_.node) {
+				doChunkJobs(stack_.node, stack_.usable_server_count);
+				++stack_.chunks_done_count;
+				stack_.node = stack_.node->next;
+
+				if (stack_.watchdog.expired()) {
+					yield;
+					stack_.watchdog.start();
+					matocsserv_usagedifference(nullptr, nullptr,
+					                           &stack_.usable_server_count,
+					                           nullptr);
+				}
+			}
+
+			stack_.current_bucket +=
+			        123;  // if HASHSIZE is any power of 2 then any odd number is
+			              // good here
+			stack_.current_bucket %= HASHSIZE;
+			++stack_.buckets_done_count;
+
+			if (stack_.work_limit.expired()) {
+				break;
+			}
+		}
+	}
+}
+
 static std::unique_ptr<ChunkWorker> gChunkWorker;
 
 void chunk_jobs_main(void) {
-	uint32_t i,l,lc,r;
-	uint16_t usableServerCount;
-	double minUsage, maxUsage;
-	Chunk *c,**cp;
-	Timeout work_limit{std::chrono::milliseconds(ChunksLoopTimeout)};
-
-	if (starttime + ReplicationsDelayInit > main_time()) {
-		return;
+	if (gChunkWorker->is_complete()) {
+		gChunkWorker->reset();
 	}
+}
 
-	matocsserv_usagedifference(&minUsage, &maxUsage, &usableServerCount, nullptr);
-
-	if (minUsage > maxUsage) {
-		return;
-	}
-
-	gChunkWorker->doEverySecondTasks();
-
-	// Serve endangered chunks first if it is possible to replicate
-	size_t endangeredToServe = 0;
-	if (jobsnorepbefore < main_time()) {
-		endangeredToServe = std::min<uint64_t>(
-				gEndangeredChunksServingLimit,
-				Chunk::endangeredChunks.size());
-		for (uint64_t served = 0; served < endangeredToServe; ++served) {
-			c = Chunk::endangeredChunks.front();
-			Chunk::endangeredChunks.pop_front();
-			c->inEndangeredQueue = 0;
-			gChunkWorker->doChunkJobs(c, usableServerCount);
-		}
-	}
-	lc = 0;
-	for (i = 0 ; i < HashSteps - endangeredToServe && lc < HashCPS ; i++) {
-		if (jobshpos==0) {
-			gChunkWorker->doEveryLoopTasks();
-		}
-		// Delete unused chunks from structures
-		l=0;
-		cp = &(gChunksMetadata->chunkhash[jobshpos]);
-		while ((c=*cp)!=NULL) {
-			chunk_handle_disconnected_copies(c);
-			if (c->fileCount()==0 && c->parts.empty()) {
-				*cp = (c->next);
-				chunk_delete(c);
-			} else {
-				cp = &(c->next);
-				l++;
-				lc++;
-			}
-		}
-		if (l>0) {
-			r = rnd_ranged<uint32_t>(l);
-			l=0;
-			// do jobs on rest of them
-			for (c=gChunksMetadata->chunkhash[jobshpos] ; c ; c=c->next) {
-				if (l>=r) {
-					gChunkWorker->doChunkJobs(c, usableServerCount);
-				}
-				l++;
-			}
-			l=0;
-			for (c=gChunksMetadata->chunkhash[jobshpos] ; l<r && c ; c=c->next) {
-				gChunkWorker->doChunkJobs(c, usableServerCount);
-				l++;
-			}
-		}
-		jobshpos+=123; // if HASHSIZE is any power of 2 then any odd number is good here
-		jobshpos%=HASHSIZE;
-
-		if(work_limit.expired()) {
-			break;
+void chunk_jobs_process_bit(void) {
+	if (!gChunkWorker->is_complete()) {
+		gChunkWorker->mainLoop();
+		if (!gChunkWorker->is_complete()) {
+			main_make_next_poll_nonblocking();
 		}
 	}
 }
@@ -2562,6 +2647,7 @@ void chunk_become_master() {
 	jobsnorepbefore = starttime + ReplicationsDelayInit;
 	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
 	gChunkLoopEventHandle = main_timeregister_ms(ChunksLoopPeriod, chunk_jobs_main);
+	main_eachloopregister(chunk_jobs_process_bit);
 	return;
 }
 
@@ -2717,7 +2803,6 @@ int chunk_strinit(void) {
 	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", static_cast<uint64_t>(1024*1024UL));
 	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
-	jobshpos = 0;
 	main_reloadregister(chunk_reload);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);

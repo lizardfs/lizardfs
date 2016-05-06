@@ -7,7 +7,7 @@ USE_RAMDISK=YES \
 	CHUNKSERVERS=4 \
 	CHUNKSERVER_LABELS="0,1:ssd" \
 	MASTER_CUSTOM_GOALS="1 default: ssd _" \
-	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
 			`|ACCEPTABLE_DIFFERENCE = 1.0`
 			`|CHUNKS_WRITE_REP_LIMIT = 5`
 			`|REPLICATIONS_DELAY_INIT = 0`
@@ -44,4 +44,9 @@ lizardfs_wait_for_ready_chunkservers 3
 
 # Replication should start immediately
 assert_eventually_prints 20 'find_chunkserver_chunks 1 | wc -l' "4 seconds"
+
+# Replication loop is no longer atomic, so we need some time to ensure
+# that chunk loop tested all chunks.
+sleep 2
+
 assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)
