@@ -80,7 +80,6 @@ double matocsserv_get_usage(matocsserventry* e);
 std::vector<ServerWithUsage> matocsserv_getservers_sorted();
 
 uint32_t matocsserv_get_version(matocsserventry* e);
-void matocsserv_remove_server(matocsserventry* ptr);
 void matocsserv_usagedifference(double* minusage, double* maxusage,
 		uint16_t* usablescount, uint16_t* totalscount);
 std::vector<std::pair<matocsserventry*, ChunkPartType>> matocsserv_getservers_for_new_chunk(

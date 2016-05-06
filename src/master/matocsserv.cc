@@ -1696,14 +1696,11 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 				free(eptr->servstrip);
 			}
 			*kptr = eptr->next;
+			delete eptr;
 		} else {
 			kptr = &(eptr->next);
 		}
 	}
-}
-
-void matocsserv_remove_server(matocsserventry *ptr) {
-	delete ptr;
 }
 
 void matocsserv_reload(void) {

@@ -178,8 +178,6 @@ struct ChunkPart {
 	}
 };
 
-static std::vector<matocsserventry*> zombieServersHandledInThisLoop;
-static std::vector<matocsserventry*> zombieServersToBeHandledInNextLoop;
 static void*                         gChunkLoopEventHandle = NULL;
 
 static uint32_t ReplicationsDelayDisconnect=3600;
@@ -1597,11 +1595,7 @@ void chunk_lost(matocsserventry *ptr,uint64_t chunkid, ChunkPartType chunk_type)
 	}
 }
 
-void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label) {
-	zombieServersToBeHandledInNextLoop.push_back(ptr);
-	if (zombieServersHandledInThisLoop.empty()) {
-		std::swap(zombieServersToBeHandledInNextLoop, zombieServersHandledInThisLoop);
-	}
+void chunk_server_disconnected(matocsserventry */*ptr*/, const MediaLabel &label) {
 	replicationDelayInfoForAll.serverDisconnected();
 	if (label != MediaLabel::kWildcard) {
 		replicationDelayInfoForLabel[label].serverDisconnected();
@@ -1631,44 +1625,20 @@ void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabe
  * A function that is called in every main loop iteration, that cleans chunk structs
  */
 void chunk_clean_zombie_servers_a_bit() {
-	static uint32_t currentPosition = 0;
-	if (zombieServersHandledInThisLoop.empty()) {
-		return;
-	}
+	static uint32_t current_position = 0;
+	//TODO: Change it to watchdog after rebasing and remove magic 100
 	for (auto i = 0; i < 100 ; ++i) {
-		if (currentPosition < HASHSIZE) {
-			Chunk *c;
-			for (c=gChunksMetadata->chunkhash[currentPosition] ; c ; c=c->next) {
-				chunk_handle_disconnected_copies(c);
-			}
-			++currentPosition;
-		} else {
-			for (auto& server : zombieServersHandledInThisLoop) {
-				matocsserv_remove_server(server);
-			}
-			zombieServersHandledInThisLoop.clear();
-			std::swap(zombieServersHandledInThisLoop, zombieServersToBeHandledInNextLoop);
-			currentPosition = 0;
+		if (current_position >= HASHSIZE) {
+			current_position = 0;
 			break;
 		}
+		Chunk* c;
+		for (c=gChunksMetadata->chunkhash[current_position] ; c ; c=c->next) {
+			chunk_handle_disconnected_copies(c);
+		}
+		++current_position;
 	}
 	main_make_next_poll_nonblocking();
-}
-
-void chunk_clean_zombie_servers() {
-	for (auto& server : zombieServersHandledInThisLoop) {
-		matocsserv_remove_server(server);
-	}
-	for (auto& server : zombieServersToBeHandledInNextLoop) {
-		matocsserv_remove_server(server);
-	}
-}
-
-int chunk_canexit(void) {
-	if (zombieServersHandledInThisLoop.size() + zombieServersToBeHandledInNextLoop.size() > 0) {
-		return 0;
-	}
-	return 1;
 }
 
 void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkPartType chunkType, uint8_t /*status*/) {
@@ -2741,9 +2711,7 @@ int chunk_strinit(void) {
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
 	jobshpos = 0;
 	main_reloadregister(chunk_reload);
-	main_destructregister(chunk_clean_zombie_servers);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
-	main_canexitregister(chunk_canexit);
 	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {
 		chunk_become_master();
