@@ -17,12 +17,13 @@
  */
 
 #include "common/platform.h"
+
+#ifdef LIZARDFS_HAVE_JUDY
 #include "common/judy_map.h"
 
 #include <algorithm>
 #include <gtest/gtest.h>
 
-#include "common/judy_map.h"
 
 
 static void fill_map(judy_map<int, int> &m) {
@@ -180,3 +181,5 @@ TEST(JudyMapTest, GeneralBehaviour) {
 	EXPECT_EQ(map.size(), 0U);
 	EXPECT_EQ(map.empty(), true);
 }
+
+#endif //LIZARDFS_HAVE_JUDY

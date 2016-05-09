@@ -46,8 +46,8 @@ public:
 	xattr_inode_entry *xattr_inode_hash[XATTR_INODE_HASH_SIZE];
 	xattr_data_entry *xattr_data_hash[XATTR_DATA_HASH_SIZE];
 	IdPoolDetainer<uint32_t, uint32_t> inode_pool;
-	judy_map<uint32_t, hstorage::Handle> trash;
-	judy_map<uint32_t, hstorage::Handle> reserved;
+	NodePathContainer trash;
+	NodePathContainer reserved;
 	FSNodeDirectory *root;
 	FSNode *nodehash[NODEHASHSIZE];
 	SnapshotManager snapshot_manager;

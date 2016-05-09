@@ -3,7 +3,7 @@
 #include "common/platform.h"
 #include "common/id_pool.h"
 
-#if defined(LIZARDFS_HAVE_JUDY_H)
+#ifdef LIZARDFS_HAVE_JUDY
 #include <Judy.h>
 #include <iterator>
 #else
@@ -17,7 +17,7 @@
 
 namespace detail {
 
-#if defined(LIZARDFS_HAVE_JUDY_H)
+#ifdef LIZARDFS_HAVE_JUDY
 
 /*! \brief Implementation of SparseBitset based on Judy array.
  *

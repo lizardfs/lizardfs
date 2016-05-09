@@ -27,7 +27,7 @@ include(TestBigEndian)
 set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h
     netinet/in.h stddef.h stdlib.h string.h sys/mman.h
     sys/resource.h sys/rusage.h sys/socket.h sys/statvfs.h sys/time.h
-    syslog.h unistd.h stdbool.h Judy.h isa-l/erasure_code.h
+    syslog.h unistd.h stdbool.h isa-l/erasure_code.h
 )
 
 

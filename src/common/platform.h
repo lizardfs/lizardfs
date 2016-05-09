@@ -63,3 +63,7 @@ inline unsigned long long stoull(const std::string& s, std::size_t* pos = 0, int
 }
 
 #endif /* #ifndef LIZARDFS_HAVE_STD_STOULL */
+
+#if defined(LIZARDFS_HAVE_JUDY) && (__WORDSIZE == 64 || _WIN64 || __x86_64__)
+#  define LIZARDFS_HAVE_64BIT_JUDY
+#endif

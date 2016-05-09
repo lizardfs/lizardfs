@@ -143,8 +143,10 @@ if(ENABLE_TESTS)
 endif()
 
 # Find Judy
-find_library(JUDY_LIBRARY Judy)
-message(STATUS "JUDY_LIBRARY: ${JUDY_LIBRARY}")
+find_package(Judy)
+if(JUDY_FOUND)
+  set(LIZARDFS_HAVE_JUDY YES)
+endif()
 
 # Find PAM libraries
 find_package(PAM)

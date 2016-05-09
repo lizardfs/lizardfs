@@ -671,7 +671,7 @@ void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path) 
 
 #ifndef METARESTORE
 
-uint32_t fsnodes_getdetachedsize(const judy_map<uint32_t, hstorage::Handle> &data) {
+uint32_t fsnodes_getdetachedsize(const NodePathContainer &data) {
 	uint32_t result = 0;
 	std::string name;
 	for (const auto &entry : data) {
@@ -685,7 +685,7 @@ uint32_t fsnodes_getdetachedsize(const judy_map<uint32_t, hstorage::Handle> &dat
 	return result;
 }
 
-void fsnodes_getdetacheddata(const judy_map<uint32_t, hstorage::Handle> &data, uint8_t *dbuff) {
+void fsnodes_getdetacheddata(const NodePathContainer &data, uint8_t *dbuff) {
 	uint8_t *sptr;
 	uint8_t c;
 	std::string name;

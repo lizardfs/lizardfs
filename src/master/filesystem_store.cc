@@ -764,7 +764,7 @@ void fs_storeedgelist(FSNodeDirectory *parent, FILE *fd) {
 	}
 }
 
-void fs_storeedgelist(const judy_map<uint32_t, hstorage::Handle> &data, FILE *fd) {
+void fs_storeedgelist(const NodePathContainer &data, FILE *fd) {
 	for (const auto &entry : data) {
 		FSNode *child = fsnodes_id_to_node(entry.first);
 		fs_storeedge(nullptr, child, (std::string)entry.second, fd);

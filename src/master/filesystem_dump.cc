@@ -133,7 +133,7 @@ void fs_dumpedgelist(FSNodeDirectory *parent) {
 	}
 }
 
-void fs_dumpedgelist(const judy_map<uint32_t, hstorage::Handle> &data) {
+void fs_dumpedgelist(const NodePathContainer &data) {
 	for (const auto &entry : data) {
 		FSNode *child = fsnodes_id_to_node(entry.first);
 		fs_dumpedge(nullptr, child, (std::string)entry.second);

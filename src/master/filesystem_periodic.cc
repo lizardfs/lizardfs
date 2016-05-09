@@ -21,6 +21,7 @@
 #include "master/filesystem_periodic.h"
 
 #include <cstdint>
+#include <type_traits>
 
 #include "common/main.h"
 #include "master/filesystem_checksum.h"
@@ -443,8 +444,13 @@ static InodeInfo fs_do_emptytrash(uint32_t ts) {
 			} else {
 				ii.reserved++;
 			}
-
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
 			it.reload();
+#else
+			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
+			              "Iterator must internally be a pointer to contiguous structure");
+			--it;
+#endif
 		}
 	}
 
@@ -484,7 +490,13 @@ uint32_t fs_do_emptyreserved(uint32_t ts) {
 		if (node && node->sessionid.empty()) {
 			fsnodes_purge(ts,node);
 			fi++;
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
 			it.reload();
+#else
+			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
+			              "Iterator must internally be a pointer to contiguous structure");
+			--it;
+#endif
 		}
 	}
 	return fi;

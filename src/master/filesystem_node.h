@@ -32,7 +32,13 @@
 #include "common/extended_acl.h"
 #include "common/goal.h"
 #include "common/compact_vector.h"
-#include "common/judy_map.h"
+
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+#  include "common/judy_map.h"
+#else
+#  include "common/flat_map.h"
+#endif
+
 #include "master/fs_context.h"
 #include "master/hstring_storage.h"
 
@@ -47,6 +53,12 @@
 #define EDGECHECKSUMSEED 1231241261
 
 #define MAX_INDEX 0x7FFFFFFF
+
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+typedef judy_map<uint32_t, hstorage::Handle> NodePathContainer;
+#else
+typedef flat_map<uint32_t, hstorage::Handle> NodePathContainer;
+#endif
 
 enum class AclInheritance { kInheritAcl, kDontInheritAcl };
 
@@ -187,9 +199,20 @@ struct FSNodeDevice : public FSNode {
  * Avg size (10 files) ~ 330B (33B per file)
  */
 struct FSNodeDirectory : public FSNode {
-	typedef judy_map<hstorage::Handle, FSNode*> EntriesContainer;
-	typedef judy_map<hstorage::Handle, FSNode*>::iterator iterator;
-	typedef judy_map<hstorage::Handle, FSNode*>::const_iterator const_iterator;
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+	typedef judy_map<hstorage::Handle, FSNode *> EntriesContainer;
+#else
+	struct HandleCompare {
+		bool operator()(const hstorage::Handle &a, const hstorage::Handle &b) const {
+			return a.data() < b.data();
+		}
+	};
+	typedef flat_map<hstorage::Handle, FSNode *, std::vector<std::pair<hstorage::Handle, FSNode *>>,
+	HandleCompare> EntriesContainer;
+#endif
+
+	typedef EntriesContainer::iterator iterator;
+	typedef EntriesContainer::const_iterator const_iterator;
 
 	std::unique_ptr<AccessControlList> defaultAcl; /*!< Default access control list for directory. */
 	EntriesContainer entries; /*!< Directory entries (entry: name + pointer to child node). */
@@ -216,9 +239,9 @@ struct FSNodeDirectory : public FSNode {
 	iterator find(const HString& name) {
 		uint64_t name_hash = (hstorage::Handle::HashType)name.hash();
 
-		auto it = entries.lower_bound_index(name_hash << hstorage::Handle::kHashShift);
+		auto it = entries.lower_bound(hstorage::Handle(name_hash << hstorage::Handle::kHashShift));
 		for (; it != entries.end(); ++it) {
-			if (((*it).getIndex() >> hstorage::Handle::kHashShift) != name_hash) {
+			if (((*it).first.data() >> hstorage::Handle::kHashShift) != name_hash) {
 				break;
 			}
 			if ((*it).first == name) {
@@ -352,8 +375,8 @@ NodeType *fsnodes_id_to_node(uint32_t id) {
 
 std::string fsnodes_escape_name(const std::string &name);
 int fsnodes_purge(uint32_t ts, FSNode *p);
-uint32_t fsnodes_getdetachedsize(const judy_map<uint32_t, hstorage::Handle> &data);
-void fsnodes_getdetacheddata(const judy_map<uint32_t, hstorage::Handle> &data, uint8_t *dbuff);
+uint32_t fsnodes_getdetachedsize(const NodePathContainer &data);
+void fsnodes_getdetacheddata(const NodePathContainer &data, uint8_t *dbuff);
 void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path);
 void fsnodes_fill_attr(FSNode *node, FSNode *parent, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, Attributes &attr);
