@@ -41,7 +41,10 @@ lizardfs_wait_for_all_ready_chunkservers
 new_metadata_version=$(metadata_get_version "$metadata_file")
 assert_less_than "$metadata_version" "$new_metadata_version"
 
-assert_awk_finds_no '/CREATE.*:20$/' "$(cat "$changelog_file")"
+if [ -f "$changelog_file" ]; then
+	assert_awk_finds_no '/CREATE.*:20$/' "$(cat "$changelog_file")"
+fi
+
 touch "${info[mount0]}"/file{0000..099}
 assert_awk_finds    '/CREATE.*:20$/' "$(cat "$changelog_file")" # Make sure that inode 20 was reused
 

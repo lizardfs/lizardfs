@@ -296,13 +296,13 @@ int do_emptytrash_deprecated(const char *filename, uint64_t lv, uint32_t ts, con
 	return fs_apply_emptytrash_deprecated(ts,freeinodes,reservedinodes);
 }
 
-int do_emptyreserved(const char *filename, uint64_t lv, uint32_t ts, const char* ptr) {
+int do_emptyreserved_deprecated(const char *filename, uint64_t lv, uint32_t ts, const char* ptr) {
 	uint32_t freeinodes;
 	EAT(ptr,filename,lv,'(');
 	EAT(ptr,filename,lv,')');
 	EAT(ptr,filename,lv,':');
 	GETU32(freeinodes,ptr);
-	return fs_apply_emptyreserved(ts,freeinodes);
+	return fs_apply_emptyreserved_deprecated(ts,freeinodes);
 }
 
 int do_freeinodes(const char *filename, uint64_t lv, uint32_t ts, const char* ptr) {
@@ -837,7 +837,7 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 			if (strncmp(ptr,"EMPTYTRASH",10)==0) {
 				status = do_emptytrash_deprecated(filename,lv,ts,ptr+10);
 			} else if (strncmp(ptr,"EMPTYRESERVED",13)==0) {
-				status = do_emptyreserved(filename,lv,ts,ptr+13);
+				status = do_emptyreserved_deprecated(filename,lv,ts,ptr+13);
 			}
 			break;
 		case 'F':

@@ -499,47 +499,6 @@ uint8_t fs_apply_emptytrash_deprecated(uint32_t ts, uint32_t freeinodes, uint32_
 	return LIZARDFS_STATUS_OK;
 }
 
-uint32_t fs_do_emptyreserved(uint32_t ts) {
-	uint32_t fi = 0;
-	auto it = gMetadata->reserved.cbegin();
-	while (it != gMetadata->reserved.cend()) {
-		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
-
-		assert(node->type == FSNode::kReserved);
-
-		++it;
-
-		if (node && node->sessionid.empty()) {
-			fsnodes_purge(ts,node);
-			fi++;
-#ifdef LIZARDFS_HAVE_64BIT_JUDY
-			it.reload();
-#else
-			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-			              "Iterator must internally be a pointer to contiguous structure");
-			--it;
-#endif
-		}
-	}
-	return fi;
-}
-
-#ifndef METARESTORE
-void fs_periodic_emptyreserved(void) {
-	uint32_t ts = main_time();
-	ChecksumUpdater cu(ts);
-	uint32_t fi = fs_do_emptyreserved(ts);
-	if (fi>0) {
-		fs_changelog(ts, "EMPTYRESERVED():%" PRIu32,fi);
-	}
-}
-#endif
-
-uint8_t fs_apply_emptyreserved(uint32_t ts,uint32_t freeinodes) {
-	uint32_t fi = fs_do_emptyreserved(ts);
-	gMetadata->metaversion++;
-	if (freeinodes!=fi) {
-		return LIZARDFS_ERROR_MISMATCH;
-	}
+uint8_t fs_apply_emptyreserved_deprecated(uint32_t /*ts*/,uint32_t /*freeinodes*/) {
 	return LIZARDFS_STATUS_OK;
 }

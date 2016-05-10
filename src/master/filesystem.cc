@@ -43,7 +43,6 @@ FilesystemMetadata* gMetadata = nullptr;
 #ifndef METARESTORE
 
 static void* gEmptyTrashHook;
-static void* gEmptyReservedHook;
 static bool gAutoRecovery = false;
 bool gMagicAutoFileRepair = false;
 bool gAtimeDisabled = false;
@@ -249,9 +248,6 @@ void fs_become_master() {
 	gEmptyTrashHook = main_timeregister(TIMEMODE_RUN_LATE,
 			cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1),
 			0, fs_periodic_emptytrash);
-	gEmptyReservedHook = main_timeregister(TIMEMODE_RUN_LATE,
-			cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1),
-			0, fs_periodic_emptyreserved);
 	return;
 }
 
@@ -327,8 +323,6 @@ void fs_reload(void) {
 	if (metadataserver::isMaster()) {
 		main_timechange(gEmptyTrashHook, TIMEMODE_RUN_LATE,
 				cfg_get_minvalue<uint32_t>("EMPTY_TRASH_PERIOD", 300, 1), 0);
-		main_timechange(gEmptyReservedHook, TIMEMODE_RUN_LATE,
-				cfg_get_minvalue<uint32_t>("EMPTY_RESERVED_INODES_PERIOD", 60, 1), 0);
 	}
 }
 

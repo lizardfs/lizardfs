@@ -41,7 +41,6 @@ void fs_broadcast_metadata_saved(uint8_t status);
 void fs_changelog(uint32_t ts, const char *format, ...) __attribute__((__format__(__printf__, 2, 3)));
 void fs_add_files_to_chunks();
 
-uint32_t fs_do_emptyreserved(uint32_t ts);
 uint64_t fs_getversion();
 uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t uid, uint32_t gid,
 			uint32_t *notchanged, uint32_t *erased, uint32_t *repaired);

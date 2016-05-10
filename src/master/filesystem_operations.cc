@@ -1993,6 +1993,11 @@ uint8_t fs_release(const FsContext &context, uint32_t inode, uint32_t sessionid)
 	auto it = std::find(p->sessionid.begin(), p->sessionid.end(), sessionid);
 	if (it != p->sessionid.end()) {
 		p->sessionid.erase(it);
+		if (p->type == FSNode::kReserved && p->sessionid.empty()) {
+			fsnodes_purge(context.ts(), p);
+		} else {
+			fsnodes_update_checksum(p);
+		}
 #ifndef METARESTORE
 		if (context.isPersonalityShadow()) {
 			matoclserv_remove_open_file(sessionid, inode);
@@ -2003,7 +2008,6 @@ uint8_t fs_release(const FsContext &context, uint32_t inode, uint32_t sessionid)
 		} else {
 			gMetadata->metaversion++;
 		}
-		fsnodes_update_checksum(p);
 		return LIZARDFS_STATUS_OK;
 	}
 #ifndef METARESTORE
