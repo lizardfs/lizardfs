@@ -69,6 +69,8 @@ public:
 		*reinterpret_cast<Word_t *>(first_data.data()) = a;
 	}
 
+	judy_pair& operator=(const judy_pair& other) = delete;
+
 	bool operator==(const judy_pair &other) const {
 		return first == other.first && second == other.second;
 	}
@@ -298,30 +300,36 @@ public:
 	 *
 	 * \param value Element to insert.
 	 * \param no_check When true then check if element exists in map is not performed.
-	 * \return Iterator to newly created element.
+	 * \return A pair, with first element set to an iterator pointing to either
+	 *         the newly inserted element or to the element with an equivalent key in the map.
+	 *         The second element in the pair is set to true if a new element
+	 *         was inserted or false if an equivalent key already existed.
 	 */
-	iterator insert(const value_type &value, bool no_check = false) {
+	std::pair<iterator, bool> insert(const value_type &value, bool no_check = false) {
 		if (!no_check) {
 			auto it = find(value.first);
 			if (it != end()) {
-				return it;
+				return std::make_pair(it, false);
 			}
 		}
 
-		return insert_element(value);
+		return std::make_pair(insert_element(value), true);
 	}
 
 	/*! \brief Inserts element to judy_map.
 	 *
 	 * \param value Element to insert.
 	 * \param no_check When true then check if element exists in map is not performed.
-	 * \return Iterator to newly created element.
+	 * \return A pair, with first element set to an iterator pointing to either
+	 *         the newly inserted element or to the element with an equivalent key in the map.
+	 *         The second element in the pair is set to true if a new element
+	 *         was inserted or false if an equivalent key already existed.
 	 */
-	iterator insert(value_type &&value, bool no_check = false) {
+	std::pair<iterator, bool> insert(value_type &&value, bool no_check = false) {
 		if (!no_check) {
 			auto it = find(value.first);
 			if (it != end()) {
-				return it;
+				return std::make_pair(it, false);
 			}
 		}
 
@@ -349,7 +357,7 @@ public:
 			throw;
 		}
 
-		return iterator(&data_, key, pvalue);
+		return std::make_pair(iterator(&data_, key, pvalue), true);
 	}
 
 	template <class InputIterator>
@@ -506,7 +514,7 @@ public:
 	mapped_type &operator[](const key_type &key) {
 		auto it = find(key);
 		if (it == end()) {
-			it = insert({key, mapped_type()}, true);
+			it = insert({key, mapped_type()}, true).first;
 		}
 		return *(it.pvalue_);
 	}
@@ -514,7 +522,7 @@ public:
 	mapped_type &operator[](key_type &&key) {
 		auto it = find(key);
 		if (it == end()) {
-			it = insert({std::move(key), mapped_type()}, true);
+			it = insert({std::move(key), mapped_type()}, true).first;
 		}
 		return *it.pvalue_;
 	}
