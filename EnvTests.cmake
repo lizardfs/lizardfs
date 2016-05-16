@@ -80,13 +80,13 @@ unset(CMAKE_REQUIRED_FLAGS)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
 
-set(_CHECK_CXX_MULTIVERSION_CODE "
-__attribute__ ((target (\"default\"))) int test() { return 0; }
-__attribute__ ((target (\"sse\"))) int test() { return 1; }
-__attribute__ ((target (\"ssse3\"))) int test() { return 2; }
-int main() { return test(); }
+set(_CHECK_CXX_CPU_CHECK_CODE "
+__attribute__ ((target (\"default\"))) int test_default() { return 0; }
+__attribute__ ((target (\"sse\"))) int test_sse() { return 1; }
+__attribute__ ((target (\"ssse3\"))) int test_ssse3() { return 2; }
+int main() { if (__builtin_cpu_supports(\"ssse3\")) return test_ssse3(); else return test_default(); }
 ")
-check_cxx_source_compiles("${_CHECK_CXX_MULTIVERSION_CODE}" LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)
+check_cxx_source_compiles("${_CHECK_CXX_CPU_CHECK_CODE}" LIZARDFS_HAVE_CPU_CHECK)
 
 if(APPLE)
     set(SOCKET_CONVERT_POLL_TO_SELECT 1)

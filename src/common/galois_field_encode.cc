@@ -23,10 +23,9 @@
 
 #if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >=8)
 
-#if defined(LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)
+#if defined(LIZARDFS_HAVE_CPU_CHECK)
 
-__attribute__((target("default")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
+void ec_encode_data_default(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
 	for (int l = 0; l < dests; l++) {
 		for (int i = 0; i < len; i++) {
 			uint8_t s = 0;
@@ -48,7 +47,7 @@ void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uin
 }
 
 __attribute__((target("ssse3")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
+void ec_encode_data_ssse3(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
 	typedef uint8_t v16u __attribute__((vector_size(16)));
 	typedef uint16_t v8ui __attribute__((vector_size(16)));
 	typedef uint8_t v16u_unaligned __attribute__((vector_size(16), aligned(1)));
@@ -96,7 +95,7 @@ void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uin
 }
 
 __attribute__((target("avx")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
+void ec_encode_data_avx(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
 	typedef uint8_t v16u __attribute__((vector_size(16)));
 	typedef uint16_t v8ui __attribute__((vector_size(16)));
 	typedef uint8_t v16u_unaligned __attribute__((vector_size(16), aligned(1)));
@@ -149,7 +148,7 @@ void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uin
 #include "immintrin.h"
 
 __attribute__((target("avx2")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
+void ec_encode_data_avx2(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
 	typedef uint8_t v32u __attribute__((vector_size(32)));
 	typedef uint16_t v16ui __attribute__((vector_size(32)));
 	typedef uint8_t v32u_unaligned __attribute__((vector_size(32), aligned(1)));
@@ -202,6 +201,32 @@ void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uin
 }
 
 #endif
+
+typedef void (*encode_function_type)(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
+
+static encode_function_type ec_get_encode_function() {
+	__builtin_cpu_init();
+
+#if __GNUC__ >= 5
+	if (__builtin_cpu_supports("avx2")) {
+		return ec_encode_data_avx2;
+	}
+#endif
+	if (__builtin_cpu_supports("avx")) {
+		return ec_encode_data_avx;
+	}
+	if (__builtin_cpu_supports("ssse3")) {
+		return ec_encode_data_ssse3;
+	}
+
+	return ec_encode_data_default;
+}
+
+static encode_function_type gEncodeFunction = ec_get_encode_function();
+
+void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest) {
+	gEncodeFunction(len, srcs, dests, v, src, dest);
+}
 
 #else
 

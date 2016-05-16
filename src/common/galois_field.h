@@ -57,19 +57,6 @@ int gf_invert_matrix(uint8_t *in_mat, uint8_t *out_mat, const int n);
  */
 void ec_init_tables(int k, int rows, uint8_t *a, uint8_t *g_tbls);
 
-#if defined(LIZARDFS_HAVE_MULTIVERSION_FUNCTIONS)
-__attribute__((target("default")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
-__attribute__((target("ssse3")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
-__attribute__((target("avx")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
-#if __GNUC__ >= 5
-__attribute__((target("avx2")))
-void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
-#endif
-#else
-
 /*! \brief Generate or decode erasure codes on blocks of data.
  *
  * Given a list of source data blocks, generate one or multiple blocks of
@@ -86,4 +73,3 @@ void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uin
  * \param coding Array of pointers to coded output buffers.
  */
 void ec_encode_data(int len, int srcs, int dests, uint8_t *v, uint8_t **src, uint8_t **dest);
-#endif
