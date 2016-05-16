@@ -1891,7 +1891,7 @@ void hdd_int_punch_holes(Chunk *c, const uint8_t *buffer, uint32_t offset, uint3
 /**
  * Returns number of written bytes on success, -1 on failure.
  */
-bool hdd_int_write_partial_block_and_crc(
+int hdd_int_write_partial_block_and_crc(
 		Chunk* c,
 		const uint8_t* buffer,
 		uint32_t offset,
@@ -1936,7 +1936,7 @@ bool hdd_int_write_partial_block_and_crc(
 	}
 }
 
-bool hdd_int_write_block_and_crc(
+int hdd_int_write_block_and_crc(
 		Chunk* c,
 		const uint8_t* buffer,
 		const uint8_t* crcBuff,
@@ -1989,7 +1989,7 @@ int hdd_write(Chunk* chunk, uint32_t version,
 		memcpy(blockbuffer, crcBuff, 4);
 		memcpy(blockbuffer + 4, buffer, MFSBLOCKSIZE);
 
-		auto written =
+		int written =
 		    hdd_int_write_block_and_crc(chunk, buffer, crcBuff, blocknum, "write_block_to_chunk");
 		if (written < 0) {
 			return LIZARDFS_ERROR_IO;
@@ -2058,7 +2058,7 @@ int hdd_write(Chunk* chunk, uint32_t version,
 		}
 		uint8_t *crcBuffPointer = crcBuff;
 		put32bit(&crcBuffPointer, combinedcrc);
-		auto written = hdd_int_write_partial_block_and_crc(chunk, buffer, offset, size, crcBuff,
+		int written = hdd_int_write_partial_block_and_crc(chunk, buffer, offset, size, crcBuff,
 		                                                   blocknum, "write_block_to_chunk");
 		if (written < 0) {
 			return LIZARDFS_ERROR_IO;
