@@ -43,7 +43,7 @@ public:
 		}
 	}
 
-	std::string getValue() const {
+	std::string getValue() const override {
 		std::stringstream ss;
 		ss << std::boolalpha << value_->load();
 		return ss.str();

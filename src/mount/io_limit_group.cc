@@ -74,11 +74,14 @@ IoLimitGroupId getIoLimitGroupId(std::istream& input, const std::string& subsyst
 				throw GetIoLimitGroupIdException("Parse error");
 			}
 		}
-	} catch (std::ios_base::failure&) {
+	} catch (std::exception&) {
+		// Under clang std::getline can throw other exception
+		// than std::ios_base::failure when encountering eof.
 		if (!input.eof()) {
 			throw;
 		}
 	}
+
 	throw GetIoLimitGroupIdException("Can't find subsystem '" + subsystem + "'");
 }
 

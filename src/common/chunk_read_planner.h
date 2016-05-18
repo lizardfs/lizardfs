@@ -158,7 +158,7 @@ public:
 		plan->postprocess_operations.push_back(
 		    std::make_pair(chunk_block_count_ * MFSBLOCKSIZE, std::move(conv)));
 
-		return std::move(plan);
+		return plan;
 	}
 
 protected:

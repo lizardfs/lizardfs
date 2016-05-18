@@ -134,8 +134,8 @@ static void quota_print_rep(const std::string &path, uint32_t path_inode,
 		}
 
 		// Store only known values in limit table that quota_print_entry function can print.
-		if ((int)entry.entryKey.rigor < limits_value.size() &&
-		    (int)entry.entryKey.resource < limits_value[(int)entry.entryKey.rigor].size()) {
+		if ((unsigned)entry.entryKey.rigor < limits_value.size() &&
+		    (unsigned)entry.entryKey.resource < limits_value[(int)entry.entryKey.rigor].size()) {
 			limits_value[(int)entry.entryKey.rigor][(int)entry.entryKey.resource] = entry.limit;
 		}
 	}

@@ -157,7 +157,7 @@ std::vector<WriteExecutor::Status> WriteExecutor::receiveData() {
 		}
 		receiveBuffer_.removeMessage();
 	}
-	return std::move(statuses);
+	return statuses;
 }
 
 bool WriteExecutor::serverTimedOut() const {

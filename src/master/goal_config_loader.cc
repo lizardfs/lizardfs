@@ -280,7 +280,7 @@ std::map<int, Goal> load(std::istream& stream) {
 	for (int goal_id = GoalId::kMin; goal_id <= GoalId::kMax; ++goal_id) {
 		auto it = goals.find(goal_id);
 		if (it == goals.end()) {
-			goals[goal_id] = std::move(defaultGoal(goal_id));
+			goals[goal_id] = defaultGoal(goal_id);
 		}
 	}
 

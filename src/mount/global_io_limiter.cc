@@ -159,8 +159,8 @@ void LimiterProxy::reconfigure(uint32_t delta_us, const std::string& subsystem,
 				oldIter->first > newIter->get()) {
 			// new group has been added
 			const std::string& groupId = newIter->get();
-			oldIter = groups_.insert(oldIter, std::move(std::make_pair(groupId,
-					std::move(std::make_shared<Group>(shared_, groupId, clock_)))));
+			oldIter = groups_.insert(oldIter, std::make_pair(groupId,
+					std::make_shared<Group>(shared_, groupId, clock_)));
 		} else {
 			// existing group with the same name
 			if (differentSubsystem) {
@@ -169,7 +169,7 @@ void LimiterProxy::reconfigure(uint32_t delta_us, const std::string& subsystem,
 				oldIter->second->die();
 				// unreference the old group and create a new one
 				const std::string& groupId = newIter->get();
-				oldIter->second = std::move(std::make_shared<Group>(shared_, groupId, clock_));
+				oldIter->second = std::make_shared<Group>(shared_, groupId, clock_);
 			}
 		}
 		newIter++;

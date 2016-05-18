@@ -55,13 +55,17 @@ public:
 	typedef T1 first_type;
 	typedef T2 second_type;
 
+private:
+	std::array<uint8_t, sizeof(Word_t)> first_data;
+
+public:
 	const first_type &first;
 	second_type &second;
 
 	judy_pair(const judy_pair &other)
-	    : first(*reinterpret_cast<first_type *>(first_data.data())),
-	      second(other.second),
-	      first_data(other.first_data) {
+	    : first_data(other.first_data),
+	      first(*reinterpret_cast<first_type *>(first_data.data())),
+	      second(other.second) {
 	}
 
 	judy_pair(Word_t a, second_type &b)
@@ -86,9 +90,6 @@ public:
 	Word_t getIndex() const {
 		return *(Word_t *)first_data.data();
 	}
-
-private:
-	std::array<uint8_t, sizeof(Word_t)> first_data;
 };
 
 /*! \brief Forward iterator for judy_map. */

@@ -23,7 +23,7 @@
 
 #include "protocol/chunkserver_list_entry.h"
 
-class matocsserventry;
+struct matocsserventry;
 
 /*! \brief Structure keeping extra information for chunkserver. */
 struct csdbentry {
