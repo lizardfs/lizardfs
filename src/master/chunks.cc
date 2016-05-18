@@ -81,6 +81,7 @@
 
 static uint64_t gEndangeredChunksServingLimit;
 static uint64_t gEndangeredChunksMaxCapacity;
+static uint64_t gDisconnectedCounter = 0;
 
 struct ChunkPart {
 	enum {
@@ -1600,6 +1601,9 @@ void chunk_server_disconnected(matocsserventry */*ptr*/, const MediaLabel &label
 	if (label != MediaLabel::kWildcard) {
 		replicationDelayInfoForLabel[label].serverDisconnected();
 	}
+	// If chunkserver disconnects, we can assure it was processed by zombie server loop
+	// only if the loop was executed at least twice.
+	gDisconnectedCounter = 2;
 	main_make_next_poll_nonblocking();
 	fs_cs_disconnected();
 	gChunksMetadata->lastchunkid = 0;
@@ -1626,9 +1630,13 @@ void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabe
  */
 void chunk_clean_zombie_servers_a_bit() {
 	static uint32_t current_position = 0;
+	if (gDisconnectedCounter == 0) {
+		return;
+	}
 	//TODO: Change it to watchdog after rebasing and remove magic 100
 	for (auto i = 0; i < 100 ; ++i) {
 		if (current_position >= HASHSIZE) {
+			--gDisconnectedCounter;
 			current_position = 0;
 			break;
 		}
