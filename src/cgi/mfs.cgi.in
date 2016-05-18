@@ -594,10 +594,6 @@ print """<div id="container">"""
 
 if "IN" in sectionset:
 	try:
-		INmatrix = int(fields.getvalue("INmatrix"))
-	except Exception:
-		INmatrix = 0
-	try:
 		out = []
 		s = socket.socket()
 		s.connect((masterhost,masterport))
@@ -766,7 +762,7 @@ if "IN" in sectionset:
 			s = socket.socket()
 			s.connect((masterhost,masterport))
 			if masterversion>=(1,6,10):
-				mysend(s,struct.pack(">LLB",CLTOMA_CHUNKS_MATRIX,1,INmatrix))
+				mysend(s,struct.pack(">LLB",CLTOMA_CHUNKS_MATRIX,1,0))
 			else:
 				mysend(s,struct.pack(">LL",CLTOMA_CHUNKS_MATRIX,0))
 			header = myrecv(s,8)
@@ -778,10 +774,7 @@ if "IN" in sectionset:
 					matrix.append(list(struct.unpack(">LLLLLLLLLLL",data)))
 				out.append("""<table class="FR" cellspacing="0" summary="Chunks state matrix">""")
 				if masterversion>=(1,6,10):
-					if INmatrix==0:
-						out.append("""	<tr><th colspan="13">All chunks state matrix (counts 'regular' hdd space and 'marked for removal' hdd space : <a href="%s" class="VISIBLELINK">switch to 'regular'</a>)</th></tr>""" % (createlink({"INmatrix":"1"})))
-					else:
-						out.append("""	<tr><th colspan="13">Regular chunks state matrix (counts only 'regular' hdd space : <a href="%s" class="VISIBLELINK">switch to 'all'</a>)</th></tr>""" % (createlink({"INmatrix":"0"})))
+					out.append("""	<tr><th colspan="13">All chunks state matrix </th></tr>""")
 				else:
 					out.append("""	<tr><th colspan="13">Chunk state matrix</th></tr>""")
 				out.append("""	<tr>""")
@@ -978,17 +971,8 @@ if "IN" in sectionset:
 
 if "CH" in sectionset:
 	try:
-		CHregular = int(fields.getvalue("CHregular"))
-	except Exception:
-		CHregular = 0
-	try:
 		# Get data for our tables
-		availability, replication, deletion = cltoma_chunks_health(CHregular)
-		switch = """(counts %s hdd space: <a class="VISIBLELINK" href="%s">switch to '%s'</a>)""" % (
-				"only 'regular'" if CHregular == 1 else "'regular' hdd space and 'marked for removal'",
-				createlink({"CHregular" : "0" if CHregular == 1 else "1"}),
-				"all" if CHregular == 1 else "regular"
-		)
+		availability, replication, deletion = cltoma_chunks_health(0)
 
 		def make_cell(value, css_class=None):
 			""" Converts value to a string which should be placed in a cell """
@@ -1004,7 +988,7 @@ if "CH" in sectionset:
 		# Chunks availability table
 		headers = ["goal", "all<br/>chunks", "safe<br/>chunks", "endangered<br/>chunks", "missing<br/>chunks"]
 		out.append("""<table class="FR" cellspacing="0" style="width:650px" summary="Statistics of chunks">""")
-		out.append("""	<tr><th colspan="5">Statistics of chunks %s</th></tr>""" % switch)
+		out.append("""	<tr><th colspan="5">Statistics of chunks </th></tr>""")
 		out.append(make_table_row('<th class="PERC20">', '</th>', headers))
 		sums = 3 * [0]
 		i = 0
@@ -1031,7 +1015,7 @@ if "CH" in sectionset:
 		def add_repl_del_state(out, title, table):
 			""" Appends a table (replication state or deletion state) to out """
 			out.append("""<table class="FR" summary="Chunks which need replication/deletion">""")
-			out.append("""	<tr><th colspan="12">Chunks which need %sion %s</th></tr>""" % (title, switch))
+			out.append("""	<tr><th colspan="12">Chunks which need %sion</th></tr>""" % (title,))
 			cell_format = """<th class="PERC8">%s<br/>to """ + title + """e</th>"""
 			out.append(("""	<tr><th>goal</th>""" + 11 * cell_format + """</tr>""") %
 				("0 copies", "1 copy", "2 copies", "3 copies", "4 copies",

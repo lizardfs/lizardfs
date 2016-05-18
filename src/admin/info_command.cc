@@ -66,7 +66,7 @@ void InfoCommand::run(const Options& options) const {
 				<< ' ' << info.fileNodes
 				<< ' ' << info.chunks
 				<< ' ' << info.chunkCopies
-				<< ' ' << info.regularCopies
+				<< ' ' << info.chunkCopies // deprecated 'regular' copies
 				<< std::endl;
 	} else {
 		std::cout << "LizardFS v" << lizardfsVersionToString(info.version) << '\n'
@@ -82,6 +82,6 @@ void InfoCommand::run(const Options& options) const {
 				<< "Files:\t" << info.fileNodes << '\n'
 				<< "Chunks:\t" << info.chunks << '\n'
 				<< "Chunk copies:\t" << info.chunkCopies << '\n'
-				<< "Regular copies:\t" << info.regularCopies << std::endl;
+				<< "Regular copies (deprecated):\t" << info.chunkCopies << std::endl;
 	}
 }
