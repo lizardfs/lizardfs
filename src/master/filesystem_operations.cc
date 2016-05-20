@@ -208,7 +208,7 @@ uint8_t fs_gettrashpath(uint32_t rootinode, uint8_t sesflags, uint32_t inode, st
 	if (p->type != FSNode::kTrash) {
 		return LIZARDFS_ERROR_ENOENT;
 	}
-	path = (std::string)gMetadata->trash.at(inode);
+	path = (std::string)gMetadata->trash.at(TrashPathKey(p));
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -235,7 +235,7 @@ uint8_t fs_settrashpath(const FsContext &context, uint32_t inode, const std::str
 		}
 	}
 
-	gMetadata->trash[inode] = HString(path);
+	gMetadata->trash[TrashPathKey(p)] = HString(path);
 
 	if (context.isPersonalityMaster()) {
 		fs_changelog(context.ts(), "SETPATH(%" PRIu32 ",%s)", p->id,

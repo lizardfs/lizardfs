@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
+#include <type_traits>
 
 #include "common/attributes.h"
 #include "common/massert.h"
@@ -671,7 +672,10 @@ void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path) 
 
 #ifndef METARESTORE
 
-uint32_t fsnodes_getdetachedsize(const NodePathContainer &data) {
+template<class T>
+static inline uint32_t getdetachedsize(const T &data) {
+	static_assert(std::is_same<T, TrashPathContainer>::value
+	              || std::is_same<T, ReservedPathContainer>::value, "unsupported container");
 	uint32_t result = 0;
 	std::string name;
 	for (const auto &entry : data) {
@@ -685,7 +689,19 @@ uint32_t fsnodes_getdetachedsize(const NodePathContainer &data) {
 	return result;
 }
 
-void fsnodes_getdetacheddata(const NodePathContainer &data, uint8_t *dbuff) {
+static inline uint32_t getdetacheddata_getNodeId(const TrashPathContainer::key_type &key) {
+	return key.id;
+}
+
+static inline uint32_t getdetacheddata_getNodeId(const uint32_t &key) {
+	return key;
+}
+
+template<class T>
+static inline void getdetacheddata(const T &data, uint8_t *dbuff) {
+	static_assert(std::is_same<T, TrashPathContainer>::value
+	              || std::is_same<T, ReservedPathContainer>::value, "unsupported container");
+
 	uint8_t *sptr;
 	uint8_t c;
 	std::string name;
@@ -721,8 +737,26 @@ void fsnodes_getdetacheddata(const NodePathContainer &data, uint8_t *dbuff) {
 				dbuff++;
 			}
 		}
-		put32bit(&dbuff, entry.first);
+		put32bit(&dbuff, getdetacheddata_getNodeId(entry.first));
 	}
+}
+
+uint32_t fsnodes_getdetachedsize(const TrashPathContainer &data)
+{
+	return getdetachedsize(data);
+}
+
+void fsnodes_getdetacheddata(const TrashPathContainer &data, uint8_t *dbuff)
+{
+	getdetacheddata(data, dbuff);
+}
+
+uint32_t fsnodes_getdetachedsize(const ReservedPathContainer &data) {
+	return getdetachedsize(data);
+}
+
+void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint8_t *dbuff) {
+	getdetacheddata(data, dbuff);
 }
 
 uint32_t fsnodes_getdirsize(const FSNodeDirectory *p, uint8_t withattr) {
@@ -1054,7 +1088,7 @@ void fsnodes_unlink(uint32_t ts, FSNodeDirectory *parent, const HString &child_n
 			child->atime = ts;
 			fsnodes_update_checksum(child);
 
-			gMetadata->trash.insert({child->id, hstorage::Handle(path)});
+			gMetadata->trash.insert({TrashPathKey(child), hstorage::Handle(path)});
 
 			gMetadata->trashspace += file_node->length;
 			gMetadata->trashnodes++;
@@ -1079,20 +1113,20 @@ int fsnodes_purge(uint32_t ts, FSNode *p) {
 		FSNodeFile *file_node = static_cast<FSNodeFile*>(p);
 		gMetadata->trashspace -= file_node->length;
 		gMetadata->trashnodes--;
+
 		if (!file_node->sessionid.empty()) {
 			file_node->type = FSNode::kReserved;
 			fsnodes_update_checksum(file_node);
 			gMetadata->reservedspace += file_node->length;
 			gMetadata->reservednodes++;
+			hstorage::Handle name_handle = std::move(gMetadata->trash.at(TrashPathKey(p)));
+			gMetadata->trash.erase(TrashPathKey(p));
 
-			auto name_handle = gMetadata->trash.at(file_node->id);
-			gMetadata->trash.erase(file_node->id);
-
-			gMetadata->reserved.insert({file_node->id, name_handle});
+			gMetadata->reserved.insert({file_node->id, std::move(name_handle)});
 
 			return 0;
 		} else {
-			gMetadata->trash.erase(file_node->id);
+			gMetadata->trash.erase(TrashPathKey(p));
 
 			p->ctime = ts;
 			fsnodes_update_checksum(p);
@@ -1119,11 +1153,10 @@ int fsnodes_purge(uint32_t ts, FSNode *p) {
 uint8_t fsnodes_undel(uint32_t ts, FSNodeFile *node) {
 	uint8_t is_new;
 	uint32_t i, partleng, dots;
-
 	/* check path */
 	std::string path_str;
 	if (node->type == FSNode::kTrash) {
-		path_str = (std::string)gMetadata->trash.at(node->id);
+		path_str = (std::string)gMetadata->trash.at(TrashPathKey(node));
 	} else {
 		assert(node->type == FSNode::kReserved);
 		path_str = (std::string)gMetadata->reserved.at(node->id);
@@ -1189,7 +1222,7 @@ uint8_t fsnodes_undel(uint32_t ts, FSNodeFile *node) {
 			}
 			// remove from trash and link to new parent
 			if (node->type == FSNode::kTrash) {
-				gMetadata->trash.erase(node->id);
+				gMetadata->trash.erase(TrashPathKey(node));
 			} else {
 				gMetadata->reserved.erase(node->id);
 			}
@@ -1383,6 +1416,7 @@ void fsnodes_settrashtime_recursive(FSNode *node, uint32_t ts, uint32_t uid, uin
 			(*nsinodes)++;
 		} else {
 			set = 0;
+			auto old_trash_key = TrashPathKey(node);
 			switch (smode & SMODE_TMASK) {
 			case SMODE_SET:
 				if (node->trashtime != trashtime) {
@@ -1406,6 +1440,11 @@ void fsnodes_settrashtime_recursive(FSNode *node, uint32_t ts, uint32_t uid, uin
 			if (set) {
 				(*sinodes)++;
 				node->ctime = ts;
+				if (node->type == FSNode::kTrash) {
+					hstorage::Handle path = std::move(gMetadata->trash.at(old_trash_key));
+					gMetadata->trash.erase(old_trash_key);
+					gMetadata->trash.insert({TrashPathKey(node), std::move(path)});
+				}
 				fsnodes_update_checksum(node);
 			} else {
 				(*ncinodes)++;

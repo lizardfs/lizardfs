@@ -54,12 +54,6 @@
 
 #define MAX_INDEX 0x7FFFFFFF
 
-#ifdef LIZARDFS_HAVE_64BIT_JUDY
-typedef judy_map<uint32_t, hstorage::Handle> NodePathContainer;
-#else
-typedef flat_map<uint32_t, hstorage::Handle> NodePathContainer;
-#endif
-
 enum class AclInheritance { kInheritAcl, kDontInheritAcl };
 
 // Arguments for verify_session
@@ -317,6 +311,38 @@ struct FSNodeDirectory : public FSNode {
 	}
 };
 
+struct TrashPathKey {
+	explicit TrashPathKey(const FSNode *node) :
+#ifdef WORDS_BIGENDIAN
+	    timestamp(std::min((uint64_t)node->atime + node->trashtime, (uint64_t)UINT32_MAX)),
+	    id(node->id)
+#else
+	    id(node->id),
+	    timestamp(std::min((uint64_t)node->atime + node->trashtime, (uint64_t)UINT32_MAX))
+#endif
+	{}
+
+	bool operator<(const TrashPathKey &other) const {
+		return std::make_pair(timestamp, id) < std::make_pair(other.timestamp, other.id);
+	}
+
+#ifdef WORDS_BIGENDIAN
+	uint32_t timestamp;
+	uint32_t id;
+#else
+	uint32_t id;
+	uint32_t timestamp;
+#endif
+};
+
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+typedef judy_map<TrashPathKey, hstorage::Handle> TrashPathContainer;
+typedef judy_map<uint32_t, hstorage::Handle> ReservedPathContainer;
+#else
+typedef flat_map<TrashPathKey, hstorage::Handle> TrashPathContainer;
+typedef flat_map<uint32_t, hstorage::Handle> ReservedPathContainer;
+#endif
+
 inline uint32_t fsnodes_hash(uint32_t parentid, const hstorage::Handle &name) {
 	return (parentid * 0x5F2318BD) + name.hash();
 }
@@ -375,8 +401,10 @@ NodeType *fsnodes_id_to_node(uint32_t id) {
 
 std::string fsnodes_escape_name(const std::string &name);
 int fsnodes_purge(uint32_t ts, FSNode *p);
-uint32_t fsnodes_getdetachedsize(const NodePathContainer &data);
-void fsnodes_getdetacheddata(const NodePathContainer &data, uint8_t *dbuff);
+uint32_t fsnodes_getdetachedsize(const TrashPathContainer &data);
+void fsnodes_getdetacheddata(const TrashPathContainer &data, uint8_t *dbuff);
+uint32_t fsnodes_getdetachedsize(const ReservedPathContainer &data);
+void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint8_t *dbuff);
 void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path);
 void fsnodes_fill_attr(FSNode *node, FSNode *parent, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, Attributes &attr);
@@ -445,4 +473,3 @@ uint32_t fsnodes_getpath_size(FSNodeDirectory *parent, FSNode *child);
 void fsnodes_getpath_data(FSNodeDirectory *parent, FSNode *child, uint8_t *path, uint32_t size);
 
 int64_t fsnodes_get_size(FSNode *node);
-

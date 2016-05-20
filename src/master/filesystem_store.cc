@@ -393,7 +393,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 
 	if (parent_id == 0) {
 		if (child->type == FSNode::kTrash) {
-			gMetadata->trash.insert({child->id, hstorage::Handle(name)});
+			gMetadata->trash.insert({TrashPathKey(child), hstorage::Handle(name)});
 
 			gMetadata->trashspace += static_cast<FSNodeFile*>(child)->length;
 			gMetadata->trashnodes++;
@@ -764,7 +764,14 @@ void fs_storeedgelist(FSNodeDirectory *parent, FILE *fd) {
 	}
 }
 
-void fs_storeedgelist(const NodePathContainer &data, FILE *fd) {
+void fs_storeedgelist(const TrashPathContainer &data, FILE *fd) {
+	for (const auto &entry : data) {
+		FSNode *child = fsnodes_id_to_node(entry.first.id);
+		fs_storeedge(nullptr, child, (std::string)entry.second, fd);
+	}
+}
+
+void fs_storeedgelist(const ReservedPathContainer &data, FILE *fd) {
 	for (const auto &entry : data) {
 		FSNode *child = fsnodes_id_to_node(entry.first);
 		fs_storeedge(nullptr, child, (std::string)entry.second, fd);

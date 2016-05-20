@@ -304,7 +304,7 @@ void fs_periodic_test_files() {
 					mfiles++;
 					if (f->type == FSNode::kTrash) {
 						if (errors < ERRORS_LOG_MAX) {
-							std::string name = (std::string)gMetadata->trash.at(f->id);
+							std::string name = (std::string)gMetadata->trash.at(TrashPathKey(f));
 
 							syslog(LOG_ERR,
 							       "- currently unavailable file in "
@@ -430,40 +430,33 @@ struct InodeInfo {
 
 #ifndef METARESTORE
 static void fs_do_emptytrash(uint32_t ts) {
-	static uint32_t last_node_key = 0;
 	static SignalLoopWatchdog watchdog;
 
-	NodePathContainer::const_iterator it = gMetadata->trash.lower_bound(last_node_key);
-
+	auto it = gMetadata->trash.cbegin();
 	watchdog.start();
-	while (it != gMetadata->trash.cend()) {
-		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+	while (it != gMetadata->trash.cend() && ((*it).first.timestamp < ts)) {
+		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first.id);
 
 		assert(node->type == FSNode::kTrash);
 
 		++it;
-		if (((uint64_t)(node->atime) + node->trashtime < (uint64_t)ts)) {
-			uint32_t node_id = node->id;
-			fsnodes_purge(ts, node);
+
+		uint32_t node_id = node->id;
+		fsnodes_purge(ts, node);
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
-			it.reload();
+		it.reload();
 #else
-			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-			              "Iterator must internally be a pointer to contiguous structure");
-			--it;
+		static_assert(std::is_same<ReservedPathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
+		              "Iterator must internally be a pointer to contiguous structure");
+		--it;
 #endif
-			// Purge operation should be performed anyway - if it fails, inode will be reserved
-			fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
-		}
+		// Purge operation should be performed anyway - if it fails, inode will be reserved
+		fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
+
 		if (watchdog.expired()) {
-			if (it == gMetadata->trash.cend()) {
-				break;
-			}
-			last_node_key = (*it).first;
-			return;
+			break;
 		}
 	}
-	last_node_key = 0;
 }
 #endif
 
@@ -471,27 +464,25 @@ static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 	InodeInfo ii{0, 0};
 
 	auto it = gMetadata->trash.cbegin();
-	while (it != gMetadata->trash.cend()) {
-		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+	while (it != gMetadata->trash.cend() && ((*it).first.timestamp < ts)) {
+		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first.id);
 
 		assert(node->type == FSNode::kTrash);
 
 		++it;
 
-		if (((uint64_t)(node->atime) + node->trashtime < (uint64_t)ts)) {
-			if (fsnodes_purge(ts, node)) {
-				ii.free++;
-			} else {
-				ii.reserved++;
-			}
-#ifdef LIZARDFS_HAVE_64BIT_JUDY
-			it.reload();
-#else
-			static_assert(std::is_same<NodePathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-						  "Iterator must internally be a pointer to contiguous structure");
-			--it;
-#endif
+		if (fsnodes_purge(ts, node)) {
+			ii.free++;
+		} else {
+			ii.reserved++;
 		}
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+		it.reload();
+#else
+		static_assert(std::is_same<ReservedPathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
+		              "Iterator must internally be a pointer to contiguous structure");
+		--it;
+#endif
 	}
 	return ii;
 }
