@@ -371,7 +371,7 @@ public:
 			if (!part.is_valid()) {
 				continue;
 			}
-			all.addPart(part.type, matocsserv_get_label(part.server()));
+			all.addPart(part.type, csdb_find(part.csid)->label);
 		}
 
 		all.optimize();

@@ -468,6 +468,7 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 }
 
 const MediaLabel& matocsserv_get_label(matocsserventry* e) {
+	assert(e);
 	return e->label;
 }
 
@@ -1280,12 +1281,19 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 		eptr->mode = KILL;
 		return;
 	}
+	if (eptr->csdb == nullptr) {
+		syslog(LOG_NOTICE,"LIZ_CSTOMA_REGISTER_LABEL - setting label is possible for registered connections only "
+		                  "(ip: %s, port %" PRIu16 ")", eptr->servstrip, eptr->servport);
+		eptr->mode = KILL;
+		return;
+	}
 	if (label != static_cast<std::string>(eptr->label)) {
 		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
 				"changed its label from '%s' to '%s'",
 				eptr->servstrip, eptr->servport, static_cast<std::string>(eptr->label).c_str(), label.c_str());
 		chunk_server_label_changed(eptr->label, MediaLabel(label));
 		eptr->label = MediaLabel(label);
+		eptr->csdb->label = eptr->label;
 	}
 }
 

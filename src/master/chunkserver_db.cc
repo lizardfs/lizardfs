@@ -94,6 +94,7 @@ int csdb_new_connection(uint32_t ip, uint16_t port, matocsserventry *eptr) {
 
 	entry.csid = new_id;
 	entry.eptr = eptr;
+	entry.label = matocsserv_get_label(eptr);
 
 	assert(!gIdToCSEntry[new_id]);
 	gIdToCSEntry[new_id] = &entry;

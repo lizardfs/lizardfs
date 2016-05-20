@@ -21,6 +21,7 @@
 
 #include "common/platform.h"
 
+#include "common/media_label.h"
 #include "protocol/chunkserver_list_entry.h"
 
 struct matocsserventry;
@@ -34,8 +35,9 @@ struct csdbentry {
 
 	uint16_t csid;
 
-	csdbentry() : eptr(), csid() {}
-	explicit csdbentry(matocsserventry *eptr) : eptr(eptr), csid() {}
+	MediaLabel label;
+
+	csdbentry() : eptr(), csid(), label(MediaLabel::kWildcard) {}
 };
 
 extern std::array<csdbentry *, csdbentry::kMaxIdCount> gIdToCSEntry;
