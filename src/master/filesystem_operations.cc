@@ -1,5 +1,6 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2016 Skytechnology sp. z o.o..
 
    This file is part of LizardFS.
 

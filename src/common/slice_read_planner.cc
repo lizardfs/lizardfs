@@ -20,6 +20,8 @@
 
 #include "common/slice_read_planner.h"
 
+#include <cmath>
+
 /*!
  * Prepares read planner for serving selected parts of a slice type.
  * Firstly, function checks if:
