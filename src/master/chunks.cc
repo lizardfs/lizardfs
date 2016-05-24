@@ -547,6 +547,9 @@ static ChunksMetadata *gChunksMetadata;
 #define UNUSED_DELETE_TIMEOUT (86400*7)
 
 #ifndef METARESTORE
+
+static Chunk *gCurrentChunkInZombieLoop = nullptr;
+
 class ReplicationDelayInfo {
 public:
 	ReplicationDelayInfo()
@@ -1630,22 +1633,31 @@ void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabe
  * A function that is called in every main loop iteration, that cleans chunk structs
  */
 void chunk_clean_zombie_servers_a_bit() {
-	static uint32_t current_position = 0;
+	static SignalLoopWatchdog watchdog;
+	static uint32_t current_position = HASHSIZE;
+
 	if (gDisconnectedCounter == 0) {
 		return;
 	}
-	//TODO: Change it to watchdog after rebasing and remove magic 100
-	for (auto i = 0; i < 100 ; ++i) {
-		if (current_position >= HASHSIZE) {
-			--gDisconnectedCounter;
-			current_position = 0;
-			break;
-		}
-		Chunk* c;
-		for (c=gChunksMetadata->chunkhash[current_position] ; c ; c=c->next) {
-			chunk_handle_disconnected_copies(c);
+
+	watchdog.start();
+	while (current_position < HASHSIZE) {
+		for (; gCurrentChunkInZombieLoop; gCurrentChunkInZombieLoop = gCurrentChunkInZombieLoop->next) {
+			chunk_handle_disconnected_copies(gCurrentChunkInZombieLoop);
+			if (watchdog.expired()) {
+				main_make_next_poll_nonblocking();
+				return;
+			}
 		}
 		++current_position;
+		if (current_position < HASHSIZE) {
+			gCurrentChunkInZombieLoop = gChunksMetadata->chunkhash[current_position];
+		}
+	}
+	if (current_position >= HASHSIZE) {
+		--gDisconnectedCounter;
+		current_position = 0;
+		gCurrentChunkInZombieLoop = gChunksMetadata->chunkhash[0];
 	}
 	main_make_next_poll_nonblocking();
 }
@@ -2375,6 +2387,11 @@ bool ChunkWorker::deleteUnusedChunks() {
 	while (stack_.node != nullptr) {
 		chunk_handle_disconnected_copies(stack_.node);
 		if (stack_.node->fileCount() == 0 && stack_.node->parts.empty()) {
+			// If current chunk in zombie loop is to be deleted, it must be updated
+			// to the next chunk
+			if (stack_.node == gCurrentChunkInZombieLoop) {
+				gCurrentChunkInZombieLoop = gCurrentChunkInZombieLoop->next;
+			}
 			// Something could be inserted between prev and node (when we yielded)
 			// so we need to make prev valid.
 			while (stack_.prev && stack_.prev->next != stack_.node) {
