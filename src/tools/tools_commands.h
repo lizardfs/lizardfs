@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -55,3 +55,5 @@ int rset_trashtime_run(int argc, char **argv);
 
 int quota_rep_run(int argc, char **argv);
 int quota_set_run(int argc, char **argv);
+
+int recursive_remove_run(int argc, char **argv);

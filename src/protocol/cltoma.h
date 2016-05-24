@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -330,6 +330,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, wholePathLookup, LIZ_CLTOMA_WHOLE_P
 		uint32_t, messageId,
 		uint32_t, inode,
 		std::string, name,
+		uint32_t, uid,
+		uint32_t, gid)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, recursiveRemove, LIZ_CLTOMA_RECURSIVE_REMOVE, 0,
+		uint32_t, msgid,
+		uint32_t, inode,
+		std::string, file_name,
 		uint32_t, uid,
 		uint32_t, gid)
 

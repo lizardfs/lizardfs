@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -123,6 +123,7 @@ uint8_t fs_mknod(const FsContext &context,uint32_t parent,const HString &name,ui
 uint8_t fs_mkdir(const FsContext &context,uint32_t parent,const HString &name,uint16_t mode,uint16_t umask,uint8_t copysgid,uint32_t *inode,Attributes& attr);
 uint8_t fs_repair(const FsContext &context,uint32_t inode,uint8_t correct_only,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);
 uint8_t fs_rmdir(const FsContext &context,uint32_t parent,const HString &name);
+uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent, const HString &name, const std::function<void(int)> &callback);
 uint8_t fs_readdir_size(const FsContext &context,uint32_t inode,uint8_t flags,void **dnode,uint32_t *dbuffsize);
 void fs_readdir_data(const FsContext &context,uint8_t flags,void *dnode,uint8_t *dbuff);
 uint8_t fs_checkfile(const FsContext &context,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]);

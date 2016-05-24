@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file is part of LizardFS.
 
@@ -36,6 +36,8 @@
 #include "master/matocsserv.h"
 #include "master/matoclserv.h"
 #include "master/matomlserv.h"
+#include "master/recursive_remove_task.h"
+#include "master/task_manager.h"
 #include "protocol/matocl.h"
 
 std::array<uint32_t, FsStats::Size> gFsStatsArray = {{}};
@@ -1065,6 +1067,27 @@ uint8_t fs_unlink(const FsContext &context, uint32_t parent, const HString &name
 	fsnodes_unlink(ts, static_cast<FSNodeDirectory*>(wd), name, child);
 	++gFsStatsArray[FsStats::Unlink];
 	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent,
+			    const HString &name, const std::function<void(int)> &callback) {
+	ChecksumUpdater cu(context.ts());
+	FSNode *wd_tmp;
+
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kDirectory, MODE_MASK_W,
+	                                        parent, &wd_tmp);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	auto shared_context = std::make_shared<FsContext>(context);
+	auto task = new RemoveTask({name}, wd_tmp->id, shared_context);
+
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
+	                                          task, callback);
 }
 
 uint8_t fs_rmdir(const FsContext &context, uint32_t parent, const HString &name) {

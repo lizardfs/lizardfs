@@ -41,6 +41,7 @@ usr/share/man/man1/lizardfs-setgoal.1
 usr/share/man/man1/lizardfs-seteattr.1
 usr/share/man/man1/lizardfs-setquota.1
 usr/share/man/man1/lizardfs-settrashtime.1
+usr/share/man/man1/lizardfs-rremove.1
 usr/share/man/man1/lizardfs.1
 usr/share/man/man7/mfs.7
 usr/share/man/man7/moosefs.7

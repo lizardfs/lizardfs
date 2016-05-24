@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -393,6 +393,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, messageId,
 		uint32_t, inode,
 		Attributes, attr)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, recursiveRemove, LIZ_MATOCL_RECURSIVE_REMOVE, 0,
+		uint32_t, msgid,
+		uint8_t, status)
 
 namespace matocl {
 

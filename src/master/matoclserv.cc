@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -2750,6 +2750,35 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	}
 }
 
+void matoclserv_fuse_recursive_remove_wake_up(uint32_t session_id, uint32_t msgid, int status) {
+	matoclserventry *eptr = matoclserv_find_connection(session_id);
+	if (!eptr) {
+		return;
+	}
+	matoclserv_createpacket(eptr, matocl::recursiveRemove::build(msgid, status));
+}
+
+void matoclserv_fuse_recursive_remove(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t parent_inode, uid, gid;
+	uint32_t msgid;
+	uint8_t status;
+
+	std::string name;
+	cltoma::recursiveRemove::deserialize(data, length, msgid, parent_inode, name, uid, gid);
+
+	status = matoclserv_check_group_cache(eptr, gid);
+	if (status == LIZARDFS_STATUS_OK) {
+		FsContext context = matoclserv_get_context(eptr, uid, gid);
+
+		status = fs_recursive_remove(context, parent_inode, HString(name),
+					    std::bind(matoclserv_fuse_recursive_remove_wake_up,
+				      eptr->sesdata->sessionid, msgid, std::placeholders::_1));
+	}
+	if (status != LIZARDFS_ERROR_WAITING) {
+		matoclserv_createpacket(eptr, matocl::recursiveRemove::build(msgid, status));
+	}
+}
+
 void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t nleng;
@@ -5081,6 +5110,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_locks_interrupt(
 						eptr, data, length,
 						(uint8_t)lzfs_locks::Type::kPosix);
+					break;
+				case LIZ_CLTOMA_RECURSIVE_REMOVE:
+					matoclserv_fuse_recursive_remove(eptr, data, length);
 					break;
 				case LIZ_CLTOMA_UPDATE_CREDENTIALS:
 					matoclserv_update_credentials(eptr, data, length);

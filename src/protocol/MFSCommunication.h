@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -1525,14 +1525,6 @@ enum class SugidClearMode {
 #define MATOCL_MLOG_LIST (PROTO_BASE+523)
 // N * [ version:32 ip:32 ]
 
-// 0x05F2
-#define LIZ_CLTOMA_METADATASERVERS_LIST (1000U + 522U)
-/// -
-
-// 0x05F3
-#define LIZ_MATOCL_METADATASERVERS_LIST (1000U + 523U)
-// masterversion:32 data:(N * [ ip:32 hostname:STDSTRING version:32])
-
 // 0x0020C
 #define CLTOMA_CSSERV_REMOVESERV (PROTO_BASE+524)
 /// ip:32 port:16
@@ -1540,6 +1532,14 @@ enum class SugidClearMode {
 // 0x0020D
 #define MATOCL_CSSERV_REMOVESERV (PROTO_BASE+525)
 /// -
+
+// 0x05F2
+#define LIZ_CLTOMA_METADATASERVERS_LIST (1000U + 522U)
+/// -
+
+// 0x05F3
+#define LIZ_MATOCL_METADATASERVERS_LIST (1000U + 523U)
+// masterversion:32 data:(N * [ ip:32 hostname:STDSTRING version:32])
 
 // 0x05F6
 #define LIZ_CLTOMA_CHUNKS_HEALTH (1000U + 526U)
@@ -1794,6 +1794,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_WHOLE_PATH_LOOKUP (1000U + 584U)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
+
+// 0x631
+#define LIZ_CLTOMA_RECURSIVE_REMOVE (1000U + 585U)
+/// msgid:32 inode:32 name:NAME uid:32 gid:32
+
+// 0x632
+#define LIZ_MATOCL_RECURSIVE_REMOVE (1000U + 586U)
+/// msgid:32 status:8
 
 // CHUNKSERVER STATS
 

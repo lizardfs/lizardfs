@@ -413,6 +413,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/lizardfs-setgoal.1*
 %{_mandir}/man1/lizardfs-setquota.1*
 %{_mandir}/man1/lizardfs-settrashtime.1*
+%{_mandir}/man1/lizardfs-rremove.1*
 %{_mandir}/man1/lizardfs.1*
 %{_mandir}/man5/iolimits.cfg.5*
 %{_mandir}/man7/mfs.7*

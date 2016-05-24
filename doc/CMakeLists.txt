@@ -26,6 +26,7 @@ set(MANPAGES
     lizardfs-rgettrashtime.1  # not a source
     lizardfs-rsettrashtime.1  # not a source
     lizardfs-makesnapshot.1
+    lizardfs-rremove.1
     mfsmount.1
     lizardfs-repquota.1
     lizardfs-setquota.1       # not a source

@@ -66,6 +66,9 @@ lizardfs - open prompt to perform LizardFS-specific operations
 [verse]
 *lizardfs makesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
 
+[verse]
+*lizardfs rremove* [*-l*] 'OBJECT'...
+
 == DESCRIPTION
 
 See respective documents.
@@ -124,4 +127,4 @@ You should have received a copy of the GNU General Public License along with Liz
 mfsmount(1), lizardfs-appendchunks(1), lizardfs-checkfile(1), lizardfs-deleattr(1), lizardfs-dirinfo(1), lizardfs-fileinfo(1),
 lizardfs-filerepair(1), lizardfs-geteattr(1), lizardfs-getgoal(1), lizardfs-gettrashtime(1), lizardfs-makesnapshot(1),
 lizardfs-rgetgoal(1), lizardfs-rgettrashtime(1), lizardfs-rsetgoal(1), lizardfs-rsettrashtime(1), lizardfs-seteattr(1),
-lizardfs-setgoal(1), lizardfs-settrashtime(1), lizardfs-repquota(1), lizardfs-setquota(1), moosefs(7)
+lizardfs-setgoal(1), lizardfs-settrashtime(1), lizardfs-rremove(1), lizardfs-repquota(1), lizardfs-setquota(1), moosefs(7)

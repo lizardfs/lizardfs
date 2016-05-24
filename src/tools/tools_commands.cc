@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2016 Skytechnology sp. z o.o..
+   Copyright 2013-2017 Skytechnology sp. z o.o..
 
    This file is part of LizardFS.
 
@@ -49,6 +49,7 @@ void printTools() {
 	fprintf(stderr, "\tappendchunks\n\tdirinfo\n");
 	fprintf(stderr, "\tfilerepair\n\tmakesnapshot\n");
 	fprintf(stderr, "\trepquota\n\tsetquota\n");
+	fprintf(stderr, "\trremove\n");
 	fprintf(stderr, "\thelp [tool name]\n");
 	fprintf(stderr, "deprecated tools:\n");
 	fprintf(stderr, "\trgetgoal = getgoal -r\n");
@@ -106,6 +107,7 @@ static std::unordered_map<std::string, std::function<int(int, char **)>> lizard_
 	{"makesnapshot", snapshot_run},
 	{"repquota", quota_rep_run},
 	{"setquota", quota_set_run},
+	{"rremove", recursive_remove_run},
 	{"help", printUsage},
 	{"cd", cd_func},
 	{"ls", ls_func},
