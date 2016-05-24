@@ -32,11 +32,10 @@
 static void quota_set_usage() {
 	fprintf(stderr,
 	        "set quotas\n\n"
-	        "usage: mfssetquota (-u <uid>|-g <gid> |-d) "
+	        "usage:\n lizardfs setquota (-u <uid>|-g <gid> |-d) "
 	        "<soft-limit-size> <hard-limit-size> "
 	        "<soft-limit-inodes> <hard-limit-inodes> <directory-path>\n"
 	        " 0 deletes the limit\n");
-	exit(1);
 }
 
 static int quota_set(const std::string &path, QuotaOwner owner, uint64_t soft_inodes,
@@ -64,7 +63,9 @@ static int quota_set(const std::string &path, QuotaOwner owner, uint64_t soft_in
 	uint32_t message_id = 0;
 	auto request = cltoma::fuseSetQuota::build(message_id, uid, gid, quota_entries);
 	if (owner.ownerType != QuotaOwnerType::kInode) {
-		check_usage(quota_set_usage, inode != 1, "Mount root path expected\n");
+		if (check_usage(quota_set_usage, inode != 1, "Mount root path expected\n")) {
+			return 1;
+		}
 	}
 	try {
 		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SET_QUOTA);
@@ -95,11 +96,15 @@ int quota_set_run(int argc, char **argv) {
 		switch (ch) {
 		case 'u':
 			uid.push_back(strtol(optarg, &endptr, 10));
-			check_usage(quota_set_usage, *endptr, "invalid uid: %s\n", optarg);
+			if (check_usage(quota_set_usage, *endptr, "invalid uid: %s\n", optarg)) {
+				return 1;
+			}
 			break;
 		case 'g':
 			gid.push_back(strtol(optarg, &endptr, 10));
-			check_usage(quota_set_usage, *endptr, "invalid gid: %s\n", optarg);
+			if (check_usage(quota_set_usage, *endptr, "invalid gid: %s\n", optarg)) {
+				return 1;
+			}
 			break;
 		case 'd':
 			per_directory_quota = true;
@@ -107,29 +112,44 @@ int quota_set_run(int argc, char **argv) {
 		default:
 			fprintf(stderr, "invalid argument: %c", (char)ch);
 			quota_set_usage();
+			return 1;
 		}
 	}
-	check_usage(quota_set_usage,
+	if (check_usage(quota_set_usage,
 	            !((uid.size() + gid.size() != 0) ^ (reportAll || per_directory_quota)),
-	            "provide either -a flag or uid/gid\n");
-	check_usage(quota_set_usage, !per_directory_quota && (uid.size() + gid.size() != 1),
-	            "provide a single user/group id\n");
+	            "provide either -a flag or uid/gid\n")) {
+		return 1;
+	}
+	if (check_usage(quota_set_usage, !per_directory_quota && (uid.size() + gid.size() != 1),
+	            "provide a single user/group id\n")) {
+		return 1;
+	}
 
 	argc -= optind;
 	argv += optind;
 
-	check_usage(quota_set_usage, argc != 5,
+	if (check_usage(quota_set_usage, argc != 5,
 	            "expected parameters: <hard-limit-size> <soft-limit-size> "
-	            "<hard-limit-inodes> <soft-limit-inodes> <mountpoint-root-path>\n");
+	            "<hard-limit-inodes> <soft-limit-inodes> <mountpoint-root-path>\n")) {
+		return 1;
+	}
 	uint64_t quotaSoftInodes = 0, quotaHardInodes = 0, quotaSoftSize = 0, quotaHardSize = 0;
-	check_usage(quota_set_usage, my_get_number(argv[0], &quotaSoftSize, UINT64_MAX, 1) < 0,
-	            "soft-limit-size bad value\n");
-	check_usage(quota_set_usage, my_get_number(argv[1], &quotaHardSize, UINT64_MAX, 1) < 0,
-	            "hard-limit-size bad value\n");
-	check_usage(quota_set_usage, my_get_number(argv[2], &quotaSoftInodes, UINT64_MAX, 0) < 0,
-	            "soft-limit-inodes bad value\n");
-	check_usage(quota_set_usage, my_get_number(argv[3], &quotaHardInodes, UINT64_MAX, 0) < 0,
-	            "hard-limit-inodes bad value\n");
+	if (check_usage(quota_set_usage, my_get_number(argv[0], &quotaSoftSize, UINT64_MAX, 1) < 0,
+	            "soft-limit-size bad value\n")) {
+		return 1;
+	}
+	if (check_usage(quota_set_usage, my_get_number(argv[1], &quotaHardSize, UINT64_MAX, 1) < 0,
+	            "hard-limit-size bad value\n")) {
+		return 1;
+	}
+	if (check_usage(quota_set_usage, my_get_number(argv[2], &quotaSoftInodes, UINT64_MAX, 0) < 0,
+	            "soft-limit-inodes bad value\n")) {
+		return 1;
+	}
+	if (check_usage(quota_set_usage, my_get_number(argv[3], &quotaHardInodes, UINT64_MAX, 0) < 0,
+	            "hard-limit-inodes bad value\n")) {
+		return 1;
+	}
 
 	QuotaOwner quotaOwner;
 	if (!per_directory_quota) {

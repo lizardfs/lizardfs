@@ -285,3 +285,12 @@ void close_master_conn(int err) {
 		current_device = 0;
 	}
 }
+
+void force_master_conn_close() {
+	if (current_master < 0) {
+		return;
+	}
+	close(current_master);
+	current_master = -1;
+	current_device = 0;
+}

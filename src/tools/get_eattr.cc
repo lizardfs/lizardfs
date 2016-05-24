@@ -28,10 +28,9 @@
 #include "tools/tools_common_functions.h"
 
 static void get_eattr_usage() {
-	fprintf(stderr, "get objects extra attributes\n\nusage: mfsgeteattr [-nhHr] name [name ...]\n");
+	fprintf(stderr, "get objects extra attributes\n\nusage:\n lizardfs geteattr [-nhHr] name [name ...]\n");
 	print_numberformat_options();
 	print_recursive_option();
-	exit(1);
 }
 
 static int get_eattr(const char *fname, uint8_t mode) {
@@ -203,6 +202,7 @@ int get_eattr_run(int argc, char **argv) {
 
 	if (argc < 1) {
 		get_eattr_usage();
+		return 1;
 	}
 
 	status = 0;

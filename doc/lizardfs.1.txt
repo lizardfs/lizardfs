@@ -1,70 +1,70 @@
-mfstools(1)
+lizardfs(1)
 ===========
 
 == NAME
 
-mfstools - perform LizardFS-specific operations
+lizardfs - open prompt to perform LizardFS-specific operations
 
 == SYNOPSIS
 
 [verse]
-*mfsgetgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs getgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs rgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] 'NAME' 'OBJECT'...
+*lizardfs setgoal* [*-r*] [*-n*|*-h*|*-H*] 'NAME' 'OBJECT'...
 
 [verse]
-*mfsrsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
+*lizardfs rsetgoal* [*-n*|*-h*|*-H*] [*+*|*-*]N 'OBJECT'...
 
 [verse]
-*mfssetquota* (*-u* 'UID' | *-g* 'GID') 'SOFT-LIMIT-SIZE' 'HARD-LIMIT-SIZE'
+*lizardfs setquota* (*-u* 'UID' | *-g* 'GID') 'SOFT-LIMIT-SIZE' 'HARD-LIMIT-SIZE'
               'SOFT-LIMIT-INODES' 'HARD-LIMIT-INODES' 'MOUNTPOINT-ROOT-PATH'
 
 [verse]
-*mfsrepquota* [*-nhH*] (*-u* 'UID' | *-g* 'GID')+ 'MOUNTPOINT-ROOT-PATH'
-*mfsrepquota* [*-nhH*] -a 'MOUNTPOINT-ROOT-PATH'
+*lizardfs repquota* [*-nhH*] (*-u* 'UID' | *-g* 'GID')+ 'MOUNTPOINT-ROOT-PATH'
+*lizardfs repquota* [*-nhH*] -a 'MOUNTPOINT-ROOT-PATH'
 
 [verse]
-*mfsgettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs gettrashtime* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfsrgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs rgettrashtime* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssettrashtime* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+*lizardfs settrashtime* [*-r*] [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
 
 [verse]
-*mfsrsettrashtime* [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
+*lizardfs rsettrashtime* [*-n*|*-h*|*-H*] [*+*|*-*]SECONDS 'OBJECT'...
 
 [verse]
-*mfsgeteattr* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs geteattr* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfsseteattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+*lizardfs seteattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
 
 [verse]
-*mfsdeleattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
+*lizardfs deleattr* [*-r*] [*-n*|*-h*|*-H*] *-f* 'ATTRNAME' [*-f* 'ATTRNAME' ...] 'OBJECT'...
 
 [verse]
-*mfscheckfile* 'FILE'...
+*lizardfs checkfile* 'FILE'...
 
 [verse]
-*mfsfileinfo* 'FILE'...
+*lizardfs fileinfo* 'FILE'...
 
 [verse]
-*mfsdirinfo* [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs dirinfo* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfsfilerepair* [*-n*|*-h*|*-H*] 'FILE'...
+*lizardfs filerepair* [*-n*|*-h*|*-H*] 'FILE'...
 
 [verse]
-*mfsappendchunks* 'SNAPSHOT_FILE' 'OBJECT'...
+*lizardfs appendchunks* 'SNAPSHOT_FILE' 'OBJECT'...
 
 [verse]
-*mfsmakesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
+*lizardfs makesnapshot* [*-o*] 'SOURCE'... 'DESTINATION'
 
 == DESCRIPTION
 
@@ -72,7 +72,7 @@ See respective documents.
 
 == GENERAL OPTIONS
 
-Most of *mfstools* use following options to select format of printed numbers:
+Most of *lizardfs* operations use following options to select format of printed numbers:
 
 *-n*::
 Print exact numbers (e.g. 1024).
@@ -107,7 +107,7 @@ Report bugs to <contact@lizardfs.org>.
 
 == COPYRIGHT
 
-Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.
+Copyright 2008-2009 Gemius SA, 2013-2016 Skytechnology sp. z o.o.
 
 LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, version 3.
@@ -121,7 +121,7 @@ You should have received a copy of the GNU General Public License along with Liz
 
 == SEE ALSO
 
-mfsmount(1), mfsappendchunks(1), mfscheckfile(1), mfsdeleattr(1), mfsdirinfo(1), mfsfileinfo(1),
-mfsfilerepair(1), mfsgeteattr(1), mfsgetgoal(1), mfsgettrashtime(1), mfsmakesnapshot(1),
-mfsrgetgoal(1), mfsrgettrashtime(1), mfsrsetgoal(1), mfsrsettrashtime(1), mfsseteattr(1),
-mfssetgoal(1), mfssettrashtime(1), mfsrepquota(1), mfssetquota(1), moosefs(7)
+mfsmount(1), lizardfs-appendchunks(1), lizardfs-checkfile(1), lizardfs-deleattr(1), lizardfs-dirinfo(1), lizardfs-fileinfo(1),
+lizardfs-filerepair(1), lizardfs-geteattr(1), lizardfs-getgoal(1), lizardfs-gettrashtime(1), lizardfs-makesnapshot(1),
+lizardfs-rgetgoal(1), lizardfs-rgettrashtime(1), lizardfs-rsetgoal(1), lizardfs-rsettrashtime(1), lizardfs-seteattr(1),
+lizardfs-setgoal(1), lizardfs-settrashtime(1), lizardfs-repquota(1), lizardfs-setquota(1), moosefs(7)

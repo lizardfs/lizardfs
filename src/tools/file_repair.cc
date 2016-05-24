@@ -32,9 +32,8 @@ static void file_repair_usage() {
 	    stderr,
 	    "repair given file. Use it with caution. It forces file to be readable, so it could erase "
 	    "(fill with zeros) file when chunkservers are not currently connected.\n\n"
-	    "usage: mfsfilerepair [-nhH] name [name ...]\n");
+	    "usage:\n lizardfs filerepair [-nhH] name [name ...]\n");
 	print_numberformat_options();
-	exit(1);
 }
 
 static int file_repair(const char *fname) {
@@ -132,6 +131,7 @@ int file_repair_run(int argc, char **argv) {
 
 	if (argc < 1) {
 		file_repair_usage();
+		return 1;
 	}
 	status = 0;
 	while (argc > 0) {

@@ -31,10 +31,9 @@
 static void get_trashtime_usage() {
 	fprintf(stderr,
 	        "get objects trashtime (how many seconds file should be left in trash)\n\nusage: "
-	        "mfsgettrashtime [-nhHr] name [name ...]\n");
+	        "\n lizardfs gettrashtime [-nhHr] name [name ...]\n");
 	print_numberformat_options();
 	print_recursive_option();
-	exit(1);
 }
 
 static int get_trashtime(const char *fname, uint8_t mode) {
@@ -174,6 +173,7 @@ static int gene_get_trashtime_run(int argc, char **argv, int rflag) {
 
 	if (argc < 1) {
 		get_trashtime_usage();
+		return 1;
 	}
 
 	status = 0;

@@ -36,11 +36,10 @@
 static void quota_rep_usage() {
 	fprintf(stderr,
 	        "summarize quotas for a user/group or all users and groups\n\n"
-	        "usage: mfsrepquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
-	        "       mfsrepquota [-nhH] -a <mountpoint-root-path>\n"
-	        "       mfsrepquota [-nhH] -d <directory-path>\n");
+	        "usage: \n lizardfs repquota [-nhH] (-u <uid>|-g <gid>)+ <mountpoint-root-path>\n"
+	        " lizardfs repquota [-nhH] -a <mountpoint-root-path>\n"
+	        " lizardfs repquota [-nhH] -d <directory-path>\n");
 	print_numberformat_options();
-	exit(1);
 }
 
 static void quota_putc_plus_or_minus(uint64_t usage, uint64_t soft_limit, uint64_t hard_limit) {
@@ -176,7 +175,9 @@ static int quota_rep(const std::string &path, std::vector<int> requested_uids,
 		return -1;
 	}
 	if (!per_directory_quota) {
-		check_usage(quota_rep_usage, inode != 1, "Mount root path expected\n");
+		if (check_usage(quota_rep_usage, inode != 1, "Mount root path expected\n")) {
+			return 1;
+		}
 	}
 
 	if (report_all) {
@@ -240,11 +241,15 @@ int quota_rep_run(int argc, char **argv) {
 			break;
 		case 'u':
 			uid.push_back(strtol(optarg, &endptr, 10));
-			check_usage(quota_rep_usage, *endptr, "invalid uid: %s\n", optarg);
+			if (check_usage(quota_rep_usage, *endptr, "invalid uid: %s\n", optarg)) {
+				return 1;
+			}
 			break;
 		case 'g':
 			gid.push_back(strtol(optarg, &endptr, 10));
-			check_usage(quota_rep_usage, *endptr, "invalid gid: %s\n", optarg);
+			if (check_usage(quota_rep_usage, *endptr, "invalid gid: %s\n", optarg)) {
+				return 1;
+			}
 			break;
 		case 'd':
 			per_directory_quota = true;
@@ -255,16 +260,21 @@ int quota_rep_run(int argc, char **argv) {
 		default:
 			fprintf(stderr, "invalid argument: %c", (char)ch);
 			quota_rep_usage();
+			return 1;
 		}
 	}
-	check_usage(quota_rep_usage,
+	if (check_usage(quota_rep_usage,
 	            !((uid.size() + gid.size() != 0) ^ (reportAll || per_directory_quota)),
-	            "provide either -a flag or uid/gid\n");
+	            "provide either -a flag or uid/gid\n")) {
+		return 1;
+	}
 
 	argc -= optind;
 	argv += optind;
 
-	check_usage(quota_rep_usage, argc != 1, "expected parameter: <mountpoint-root-path>\n");
+	if (check_usage(quota_rep_usage, argc != 1, "expected parameter: <mountpoint-root-path>\n")) {
+		return 1;
+	}
 	dir_path = argv[0];
 
 	return quota_rep(dir_path, uid, gid, reportAll, per_directory_quota);

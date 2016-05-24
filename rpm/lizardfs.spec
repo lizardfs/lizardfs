@@ -370,9 +370,10 @@ rm -rf $RPM_BUILD_ROOT
 %files client
 %defattr(644,root,root,755)
 %doc NEWS README UPGRADE
-%attr(755,root,root) %{_bindir}/mfstools
+%attr(755,root,root) %{_bindir}/lizardfs
 %attr(755,root,root) %{_bindir}/mfsmount
 %attr(755,root,root) %{_bindir}/mfssnapshot
+%attr(755,root,root) %{_bindir}/mfstools.sh
 %{_bindir}/mfsappendchunks
 %{_bindir}/mfscheckfile
 %{_bindir}/mfsdeleattr
@@ -392,26 +393,26 @@ rm -rf $RPM_BUILD_ROOT
 %{_bindir}/mfssetgoal
 %{_bindir}/mfssetquota
 %{_bindir}/mfssettrashtime
-%{_mandir}/man1/mfsappendchunks.1*
-%{_mandir}/man1/mfscheckfile.1*
-%{_mandir}/man1/mfsdeleattr.1*
-%{_mandir}/man1/mfsdirinfo.1*
-%{_mandir}/man1/mfsfileinfo.1*
-%{_mandir}/man1/mfsfilerepair.1*
-%{_mandir}/man1/mfsgeteattr.1*
-%{_mandir}/man1/mfsgetgoal.1*
-%{_mandir}/man1/mfsgettrashtime.1*
-%{_mandir}/man1/mfsmakesnapshot.1*
-%{_mandir}/man1/mfsrepquota.1*
-%{_mandir}/man1/mfsrgetgoal.1*
-%{_mandir}/man1/mfsrgettrashtime.1*
-%{_mandir}/man1/mfsrsetgoal.1*
-%{_mandir}/man1/mfsrsettrashtime.1*
-%{_mandir}/man1/mfsseteattr.1*
-%{_mandir}/man1/mfssetgoal.1*
-%{_mandir}/man1/mfssetquota.1*
-%{_mandir}/man1/mfssettrashtime.1*
-%{_mandir}/man1/mfstools.1*
+%{_mandir}/man1/lizardfs-appendchunks.1*
+%{_mandir}/man1/lizardfs-checkfile.1*
+%{_mandir}/man1/lizardfs-deleattr.1*
+%{_mandir}/man1/lizardfs-dirinfo.1*
+%{_mandir}/man1/lizardfs-fileinfo.1*
+%{_mandir}/man1/lizardfs-filerepair.1*
+%{_mandir}/man1/lizardfs-geteattr.1*
+%{_mandir}/man1/lizardfs-getgoal.1*
+%{_mandir}/man1/lizardfs-gettrashtime.1*
+%{_mandir}/man1/lizardfs-makesnapshot.1*
+%{_mandir}/man1/lizardfs-repquota.1*
+%{_mandir}/man1/lizardfs-rgetgoal.1*
+%{_mandir}/man1/lizardfs-rgettrashtime.1*
+%{_mandir}/man1/lizardfs-rsetgoal.1*
+%{_mandir}/man1/lizardfs-rsettrashtime.1*
+%{_mandir}/man1/lizardfs-seteattr.1*
+%{_mandir}/man1/lizardfs-setgoal.1*
+%{_mandir}/man1/lizardfs-setquota.1*
+%{_mandir}/man1/lizardfs-settrashtime.1*
+%{_mandir}/man1/lizardfs.1*
 %{_mandir}/man5/iolimits.cfg.5*
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*

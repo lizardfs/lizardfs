@@ -29,11 +29,10 @@
 
 static void get_goal_usage() {
 	fprintf(stderr,
-	        "get objects goal (desired number of copies)\n\nusage: mfsgetgoal [-nhHr] name [name "
+	        "get objects goal (desired number of copies)\n\nusage:\n lizardfs getgoal [-nhHr] name [name "
 	        "...]\n");
 	print_numberformat_options();
 	print_recursive_option();
-	exit(1);
 }
 
 static int get_goal(const char *fname, uint8_t mode) {
@@ -111,6 +110,7 @@ static int gene_get_goal_run(int argc, char **argv, int rflag) {
 
 	if (argc < 1) {
 		get_goal_usage();
+		return 1;
 	}
 
 	status = 0;

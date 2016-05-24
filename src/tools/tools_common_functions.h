@@ -21,19 +21,15 @@
 
 #include "common/platform.h"
 
+#include <functional>
 #include <unistd.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
 
 #include "common/sockets.h"
 #include "protocol/MFSCommunication.h"
-
-#define check_usage(f, expressionExpectedToBeFalse, ...) \
-	if (expressionExpectedToBeFalse) {                   \
-		fprintf(stderr, __VA_ARGS__);                    \
-		f();                                             \
-	}
 
 #define tcpread(s, b, l) tcptoread(s, b, l, 10000)
 #define tcpwrite(s, b, l) tcptowrite(s, b, l, 10000)
@@ -42,6 +38,8 @@ extern uint8_t humode;
 
 extern const char *eattrtab[EATTR_BITS];
 extern const char *eattrdesc[EATTR_BITS];
+
+bool check_usage(std::function<void()> f, bool expressionExpectedToBeFalse, const char *format, ...);
 
 void set_humode();
 
@@ -59,6 +57,7 @@ int master_register(int rfd, uint32_t cuid);
 int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t needsamedev,
 					 uint8_t needrwfs);
 void close_master_conn(int err);
+void force_master_conn_close();
 
 inline void print_numberformat_options() {
 	fprintf(stderr, " -n - show numbers in plain format\n");

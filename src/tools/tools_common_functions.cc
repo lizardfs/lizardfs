@@ -37,6 +37,18 @@ uint8_t humode = 0;
 const char *eattrtab[EATTR_BITS] = {EATTR_STRINGS};
 const char *eattrdesc[EATTR_BITS] = {EATTR_DESCRIPTIONS};
 
+bool check_usage(std::function<void()> f, bool expressionExpectedToBeFalse, const char *format, ...) {
+	if (expressionExpectedToBeFalse) {
+		va_list args;
+		va_start(args, format);
+		vfprintf(stderr, format, args);
+		va_end(args);
+		f();
+		return true;
+	}
+	return false;
+}
+
 void set_humode() {
 	char *hrformat;
 	hrformat = getenv("MFSHRFORMAT");

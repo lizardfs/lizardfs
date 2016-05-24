@@ -19,58 +19,35 @@
 
 #include "common/platform.h"
 
-#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 
 #include "common/datapack.h"
 #include "common/mfserr.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 
-static void append_file_usage() {
-	fprintf(
-	    stderr,
-	    "append file chunks to another file. If destination file doesn't exist then it's created"
-	    " as empty file and then chunks are appended\n\nusage: mfsappendchunks dstfile name [name "
-	    "...]\n");
-	exit(1);
+static void check_file_usage() {
+	fprintf(stderr, "check files\n\nusage:\n lizardfs checkfile [-nhH] name [name ...]\n");
 }
 
-static int append_file(const char *fname, const char *afname) {
-	uint8_t reqbuff[28], *wptr, *buff;
+static int check_file(const char *fname) {
+	uint8_t reqbuff[16], *wptr, *buff;
 	const uint8_t *rptr;
-	uint32_t cmd, leng, inode, ainode, uid, gid;
-	mode_t dmode, smode;
+	uint32_t cmd, leng, inode;
+	uint8_t copies;
+	uint32_t chunks;
 	int fd;
-	fd = open_master_conn(fname, &inode, &dmode, 0, 1);
+	fd = open_master_conn(fname, &inode, nullptr, 0, 0);
 	if (fd < 0) {
 		return -1;
 	}
-	if (open_master_conn(afname, &ainode, &smode, 1, 1) < 0) {
-		return -1;
-	}
-
-	if ((smode & S_IFMT) != S_IFREG) {
-		printf("%s: not a file\n", afname);
-		return -1;
-	}
-	if ((dmode & S_IFMT) != S_IFREG) {
-		printf("%s: not a file\n", fname);
-		return -1;
-	}
-	uid = getuid();
-	gid = getgid();
 	wptr = reqbuff;
-	put32bit(&wptr, CLTOMA_FUSE_APPEND);
-	put32bit(&wptr, 20);
+	put32bit(&wptr, CLTOMA_FUSE_CHECK);
+	put32bit(&wptr, 8);
 	put32bit(&wptr, 0);
 	put32bit(&wptr, inode);
-	put32bit(&wptr, ainode);
-	put32bit(&wptr, uid);
-	put32bit(&wptr, gid);
-	if (tcpwrite(fd, reqbuff, 28) != 28) {
+	if (tcpwrite(fd, reqbuff, 16) != 16) {
 		printf("%s: master query: send error\n", fname);
 		close_master_conn(1);
 		return -1;
@@ -83,7 +60,7 @@ static int append_file(const char *fname, const char *afname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd != MATOCL_FUSE_APPEND) {
+	if (cmd != MATOCL_FUSE_CHECK) {
 		printf("%s: master query: wrong answer (type)\n", fname);
 		close_master_conn(1);
 		return -1;
@@ -104,48 +81,73 @@ static int append_file(const char *fname, const char *afname) {
 		return -1;
 	}
 	leng -= 4;
-	if (leng != 1) {
-		printf("%s: master query: wrong answer (leng)\n", fname);
-		free(buff);
-		return -1;
-	} else if (*rptr != LIZARDFS_STATUS_OK) {
+	if (leng == 1) {
 		printf("%s: %s\n", fname, mfsstrerr(*rptr));
 		free(buff);
 		return -1;
+	} else if (leng % 3 != 0 && leng != 44) {
+		printf("%s: master query: wrong answer (leng)\n", fname);
+		free(buff);
+		return -1;
+	}
+	printf("%s:\n", fname);
+	if (leng % 3 == 0) {
+		for (cmd = 0; cmd < leng; cmd += 3) {
+			copies = get8bit(&rptr);
+			chunks = get16bit(&rptr);
+			if (copies == 1) {
+				printf("1 copy:");
+			} else {
+				printf("%" PRIu8 " copies:", copies);
+			}
+			print_number(" ", "\n", chunks, 1, 0, 1);
+		}
+	} else {
+		for (cmd = 0; cmd < 11; cmd++) {
+			chunks = get32bit(&rptr);
+			if (chunks > 0) {
+				if (cmd == 1) {
+					printf(" chunks with 1 copy:    ");
+				} else if (cmd >= 10) {
+					printf(" chunks with 10+ copies:");
+				} else {
+					printf(" chunks with %u copies:  ", cmd);
+				}
+				print_number(" ", "\n", chunks, 1, 0, 1);
+			}
+		}
 	}
 	free(buff);
 	return 0;
 }
 
-int append_file_run(int argc, char **argv) {
-	char *appendfname = nullptr;
-	int i, status;
+int check_file_run(int argc, char **argv) {
+	int ch, status;
 
-	while (getopt(argc, argv, "") != -1) {
+	while ((ch = getopt(argc, argv, "nhH")) != -1) {
+		switch (ch) {
+		case 'n':
+			humode = 0;
+			break;
+		case 'h':
+			humode = 1;
+			break;
+		case 'H':
+			humode = 2;
+			break;
+		}
 	}
 	argc -= optind;
 	argv += optind;
 
-	if (argc <= 1) {
-		append_file_usage();
-	}
-	appendfname = argv[0];
-	i = open(appendfname, O_RDWR | O_CREAT, 0666);
-	if (i < 0) {
-		fprintf(stderr, "can't create/open file: %s\n", appendfname);
-		return 1;
-	}
-	close(i);
-	argc--;
-	argv++;
-
 	if (argc < 1) {
-		append_file_usage();
+		check_file_usage();
+		return 1;
 	}
 
 	status = 0;
 	while (argc > 0) {
-		if (append_file(appendfname, *argv) < 0) {
+		if (check_file(*argv) < 0) {
 			status = 1;
 		}
 		argc--;

@@ -1,29 +1,29 @@
-mfsgetgoal(1)
-===========
+lizardfs-getgoal(1)
+===================
 
 == NAME
 
-mfsgetgoal, mfssetgoal, mfsrgetgoal, mfsrsetgoal - change or retrieve goal
+lizardfs-getgoal, lizardfs-setgoal, lizardfs-rgetgoal, lizardfs-rsetgoal - change or retrieve goal
 
 == SYNOPSIS
 
 [verse]
-*mfsgetgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs getgoal* [*-r*] [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfsrgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
+*lizardfs rgetgoal* [*-n*|*-h*|*-H*] 'OBJECT'...
 
 [verse]
-*mfssetgoal* [*-r*] [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
+*lizardfs setgoal* [*-r*] [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
 
 [verse]
-*mfsrsetgoal* [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
+*lizardfs rsetgoal* [*-n*|*-h*|*-H*] GOAL_NAME 'OBJECT'...
 
 == DESCRIPTION
 
-*mfsgetgoal* and *mfssetgoal* operate on object's 'goal' value.
+*getgoal* and *setgoal* operate on object's 'goal' value.
 
-*mfsgetgoal* prints current 'goal' value of given object(s). These tools can be used on any file,
+*getgoal* prints current 'goal' value of given object(s). These tools can be used on any file,
 directory or deleted ('trash') file.
 
 == OPTIONS
@@ -33,16 +33,16 @@ This option enables recursive mode, which works as usual for every given file, b
 directory additionally prints current value of all contained objects (files and directories).
 
 *-n*, *-h*, *-H*::
-These options are described in mfstools(1).
+These options are described in lizardfs(1).
 
 == NOTE
 
-*mfsrgetgoal* and *mfsrsetgoal* are deprecated aliases for
-*mfsgetgoal -r* and *mfssetgoal -r* respectively.
+*rgetgoal* and *rsetgoal* are deprecated aliases for
+*getgoal -r* and *setgoal -r* respectively.
 
 == COPYRIGHT
 
-Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.
+Copyright 2008-2009 Gemius SA, 2013-2016 Skytechnology sp. z o.o.
 
 LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, version 3.
@@ -56,4 +56,4 @@ You should have received a copy of the GNU General Public License along with Liz
 
 == SEE ALSO
 
-mfstools(1)
+lizardfs(1)

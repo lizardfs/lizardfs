@@ -19,41 +19,57 @@
 
 #include "common/platform.h"
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include "common/datapack.h"
 #include "common/mfserr.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 
-static void dir_info_usage() {
-	fprintf(stderr, "show directories stats\n\nusage: mfsdirinfo [-nhH] name [name ...]\n");
-	print_numberformat_options();
-	fprintf(stderr,
-	        "\nMeaning of some not obvious output data:\n 'length' is just sum of files lengths\n"
-	        " 'size' is sum of chunks lengths\n 'realsize' is estimated hdd usage (usually size "
-	        "multiplied by current goal)\n");
-	exit(1);
+static void append_file_usage() {
+	fprintf(
+	    stderr,
+	    "append file chunks to another file. If destination file doesn't exist then it's created"
+	    " as empty file and then chunks are appended\n\nusage:\n lizardfs appendchunks dstfile name [name "
+	    "...]\n");
 }
 
-static int dir_info(const char *fname) {
-	uint8_t reqbuff[16], *wptr, *buff;
+static int append_file(const char *fname, const char *afname) {
+	uint8_t reqbuff[28], *wptr, *buff;
 	const uint8_t *rptr;
-	uint32_t cmd, leng, inode;
-	uint32_t inodes, dirs, files, chunks;
-	uint64_t length, size, realsize;
+	uint32_t cmd, leng, inode, ainode, uid, gid;
+	mode_t dmode, smode;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 0);
+	fd = open_master_conn(fname, &inode, &dmode, 0, 1);
 	if (fd < 0) {
 		return -1;
 	}
+	if (open_master_conn(afname, &ainode, &smode, 1, 1) < 0) {
+		return -1;
+	}
+
+	if ((smode & S_IFMT) != S_IFREG) {
+		printf("%s: not a file\n", afname);
+		return -1;
+	}
+	if ((dmode & S_IFMT) != S_IFREG) {
+		printf("%s: not a file\n", fname);
+		return -1;
+	}
+	uid = getuid();
+	gid = getgid();
 	wptr = reqbuff;
-	put32bit(&wptr, CLTOMA_FUSE_GETDIRSTATS);
-	put32bit(&wptr, 8);
+	put32bit(&wptr, CLTOMA_FUSE_APPEND);
+	put32bit(&wptr, 20);
 	put32bit(&wptr, 0);
 	put32bit(&wptr, inode);
-	if (tcpwrite(fd, reqbuff, 16) != 16) {
+	put32bit(&wptr, ainode);
+	put32bit(&wptr, uid);
+	put32bit(&wptr, gid);
+	if (tcpwrite(fd, reqbuff, 28) != 28) {
 		printf("%s: master query: send error\n", fname);
 		close_master_conn(1);
 		return -1;
@@ -66,7 +82,7 @@ static int dir_info(const char *fname) {
 	rptr = reqbuff;
 	cmd = get32bit(&rptr);
 	leng = get32bit(&rptr);
-	if (cmd != MATOCL_FUSE_GETDIRSTATS) {
+	if (cmd != MATOCL_FUSE_APPEND) {
 		printf("%s: master query: wrong answer (type)\n", fname);
 		close_master_conn(1);
 		return -1;
@@ -78,78 +94,59 @@ static int dir_info(const char *fname) {
 		close_master_conn(1);
 		return -1;
 	}
+	close_master_conn(0);
 	rptr = buff;
 	cmd = get32bit(&rptr);  // queryid
 	if (cmd != 0) {
 		printf("%s: master query: wrong answer (queryid)\n", fname);
 		free(buff);
-		close_master_conn(1);
 		return -1;
 	}
 	leng -= 4;
-	if (leng == 1) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	} else if (leng != 56 && leng != 40) {
+	if (leng != 1) {
 		printf("%s: master query: wrong answer (leng)\n", fname);
 		free(buff);
-		close_master_conn(1);
+		return -1;
+	} else if (*rptr != LIZARDFS_STATUS_OK) {
+		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		free(buff);
 		return -1;
 	}
-	close_master_conn(0);
-	inodes = get32bit(&rptr);
-	dirs = get32bit(&rptr);
-	files = get32bit(&rptr);
-	if (leng == 56) {
-		rptr += 8;
-	}
-	chunks = get32bit(&rptr);
-	if (leng == 56) {
-		rptr += 8;
-	}
-	length = get64bit(&rptr);
-	size = get64bit(&rptr);
-	realsize = get64bit(&rptr);
 	free(buff);
-	printf("%s:\n", fname);
-	print_number(" inodes:       ", "\n", inodes, 0, 0, 1);
-	print_number("  directories: ", "\n", dirs, 0, 0, 1);
-	print_number("  files:       ", "\n", files, 0, 0, 1);
-	print_number(" chunks:       ", "\n", chunks, 0, 0, 1);
-	print_number(" length:       ", "\n", length, 0, 1, 1);
-	print_number(" size:         ", "\n", size, 0, 1, 1);
-	print_number(" realsize:     ", "\n", realsize, 0, 1, 1);
 	return 0;
 }
 
-int dir_info_run(int argc, char **argv) {
-	int ch, status;
+int append_file_run(int argc, char **argv) {
+	char *appendfname = nullptr;
+	int i, status;
 
-	while ((ch = getopt(argc, argv, "nhH")) != -1) {
-		switch (ch) {
-		case 'n':
-			humode = 0;
-			break;
-		case 'h':
-			humode = 1;
-			break;
-		case 'H':
-			humode = 2;
-			break;
-		}
+	while (getopt(argc, argv, "") != -1) {
 	}
 	argc -= optind;
 	argv += optind;
 
+	if (argc <= 1) {
+		append_file_usage();
+		return 1;
+	}
+	appendfname = argv[0];
+	i = open(appendfname, O_RDWR | O_CREAT, 0666);
+	if (i < 0) {
+		fprintf(stderr, "can't create/open file: %s\n", appendfname);
+		return 1;
+	}
+	close(i);
+	argc--;
+	argv++;
+
 	if (argc < 1) {
-		dir_info_usage();
+		append_file_usage();
+		return 1;
 	}
 
 	status = 0;
 	while (argc > 0) {
-		if (dir_info(*argv) < 0) {
+		if (append_file(appendfname, *argv) < 0) {
 			status = 1;
 		}
 		argc--;

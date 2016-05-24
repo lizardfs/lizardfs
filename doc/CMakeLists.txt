@@ -9,27 +9,27 @@ set(MANPAGES
     lizardfs-admin.8
     lizardfs-cgiserver.8
     lizardfs-probe.8    # not a source
-    mfsappendchunks.1
-    mfscheckfile.1
-    mfsdirinfo.1
-    mfsfileinfo.1
-    mfsfilerepair.1
-    mfsgeteattr.1
-    mfsseteattr.1       # not a source
-    mfsdeleattr.1       # not a source
-    mfsgetgoal.1
-    mfssetgoal.1        # not a source
-    mfsrgetgoal.1       # not a source
-    mfsrsetgoal.1       # not a source
-    mfsgettrashtime.1
-    mfssettrashtime.1   # not a source
-    mfsrgettrashtime.1  # not a source
-    mfsrsettrashtime.1  # not a source
-    mfsmakesnapshot.1
+    lizardfs-appendchunks.1
+    lizardfs-checkfile.1
+    lizardfs-dirinfo.1
+    lizardfs-fileinfo.1
+    lizardfs-filerepair.1
+    lizardfs-geteattr.1
+    lizardfs-seteattr.1       # not a source
+    lizardfs-deleattr.1       # not a source
+    lizardfs-getgoal.1
+    lizardfs-setgoal.1        # not a source
+    lizardfs-rgetgoal.1       # not a source
+    lizardfs-rsetgoal.1       # not a source
+    lizardfs-gettrashtime.1
+    lizardfs-settrashtime.1   # not a source
+    lizardfs-rgettrashtime.1  # not a source
+    lizardfs-rsettrashtime.1  # not a source
+    lizardfs-makesnapshot.1
     mfsmount.1
-    mfsrepquota.1
-    mfssetquota.1       # not a source
-    mfstools.1
+    lizardfs-repquota.1
+    lizardfs-setquota.1       # not a source
+    lizardfs.1
     globaliolimits.cfg.5
     iolimits.cfg.5
     mfschunkserver.cfg.5

@@ -21,6 +21,17 @@
 
 #include "common/platform.h"
 
+#include <cstring>
+#include <functional>
+#include <unordered_map>
+#include <string>
+#include <vector>
+
+std::function<int(int, char **)> getCommand(const std::string &name);
+int printUsage(int argc = 0, char **argv = nullptr);
+void printTools();
+void printArgs(int argc, char **argv);
+
 int append_file_run(int argc, char **argv);
 int check_file_run(int argc, char **argv);
 int dir_info_run(int argc, char **argv);

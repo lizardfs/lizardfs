@@ -1,8 +1,7 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   Copyright 2013-2016 Skytechnology sp. z o.o..
 
-   This file was part of MooseFS and is part of LizardFS.
+   This file is part of LizardFS.
 
    LizardFS is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,54 +18,80 @@
 
 #include "common/platform.h"
 
-#include <functional>
+#include <cassert>
+#include <iostream>
+#include <limits.h>
+#include <unistd.h>
 #include <stdio.h>
-#include <string>
-#include <unordered_map>
 
 #include "common/mfserr.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 
-static std::unordered_map<std::string, std::function<int(int, char **)>> functions({
-	{"mfsgetgoal", get_goal_run},
-	{"mfsrgetgoal", rget_goal_run},
-	{"mfssetgoal", set_goal_run},
-	{"mfsrsetgoal", rset_goal_run},
-	{"mfsgettrashtime", get_trashtime_run},
-	{"mfsrgettrashtime", rget_trashtime_run},
-	{"mfssettrashtime", set_trashtime_run},
-	{"mfsrsettrashtime", rset_trashtime_run},
-	{"mfscheckfile", check_file_run},
-	{"mfsfileinfo", file_info_run},
-	{"mfsappendchunks", append_file_run},
-	{"mfsdirinfo", dir_info_run},
-	{"mfsgeteattr", get_eattr_run},
-	{"mfsseteattr", set_eattr_run},
-	{"mfsdeleattr", del_eattr_run},
-	{"mfsfilerepair", file_repair_run},
-	{"mfsmakesnapshot", snapshot_run},
-	{"mfsrepquota", quota_rep_run},
-	{"mfssetquota", quota_set_run},
-});
+static char path_buf[PATH_MAX];
+
+void split(std::vector<char*> &argv_new, std::vector<char> &line) {
+	size_t pos = 0;
+	size_t endpos = 0;
+	for (endpos = 0; endpos < line.size(); ++endpos) {
+		if (std::isspace(line[endpos])) {
+			line[endpos] = '\0';
+			if (endpos - pos > 0) {
+				argv_new.push_back(&line[pos]);
+			}
+			pos = endpos + 1;
+		}
+	}
+	if (endpos - pos > 1) {
+		argv_new.push_back(&line[pos]);
+	}
+}
+
+static void print_prefix() {
+	char *path = getcwd(path_buf, PATH_MAX);
+	fprintf(stdout, "lfs:%s$ ", path);
+}
 
 int main(int argc, char **argv) {
-	int status;
+	int status = 0;
 	strerr_init();
 	set_humode();
 
-	std::string func_name(argv[0]);
-	std::size_t found = func_name.find_last_of("/");
-	if (found != std::string::npos) {
-		func_name = func_name.substr(found+1);
-	}
-	auto func = functions.find(func_name);
-
-	if (func == functions.end()) {
-		fprintf(stderr, "unknown command: %s\n", argv[0]);
-		return 1;
-	} else {
-		status = func->second(argc, argv);
+	if (argc > 1) {
+		std::string func_name(argv[1]);
+		auto func = getCommand(func_name);
+		if (func == nullptr) {
+			fprintf(stderr, "unknown command: %s\n", argv[1]);
+			printUsage();
+			status = 1;
+		} else {
+			status = func(argc - 1, &argv[1]);
+		}
+	} else if (argc == 1) {
+		std::string command;
+		std::vector<char*> argv_new;
+		print_prefix();
+		while (std::getline(std::cin, command)) {
+			optind = 0;
+			std::vector<char> line(command.begin(), command.end());
+			line.push_back('\0');
+			if (command.size() != 0) {
+				split(argv_new, line);
+				assert(!argv_new.empty());
+				auto func = getCommand(argv_new[0]);
+				if (func == nullptr) {
+					fprintf(stderr, "unknown command: %s\n", argv_new[0]);
+					printTools();
+					status = 1;
+				} else {
+					status = func(argv_new.size(), argv_new.data());
+					force_master_conn_close();
+				}
+			}
+			argv_new.clear();
+			set_humode();
+			print_prefix();
+		}
 	}
 	return status;
 }

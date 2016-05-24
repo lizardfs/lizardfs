@@ -29,9 +29,8 @@
 
 static void file_info_usage() {
 	fprintf(stderr,
-	        "show files info (shows detailed info of each file chunk)\n\nusage: mfsfileinfo name "
-	        "[name ...]\n");
-	exit(1);
+	        "show files info (shows detailed info of each file chunk)\n\nusage:\n"
+	        " lizardfs fileinfo name [name ...]\n");
 }
 
 static std::string chunkTypeToString(ChunkPartType type) {
@@ -250,6 +249,7 @@ int file_info_run(int argc, char **argv) {
 
 	if (argc < 1) {
 		file_info_usage();
+		return 1;
 	}
 
 	status = 0;

@@ -30,13 +30,12 @@
 
 static void set_goal_usage() {
 	fprintf(stderr,
-	        "set objects goal (desired number of copies)\n\nusage: mfssetgoal <operation> name "
+	        "set objects goal (desired number of copies)\n\nusage:\n lizardfs setgoal <operation> name "
 	        "[name ...]\n");
 	print_numberformat_options();
 	print_recursive_option();
 	fprintf(stderr, "<operation> is one of:\n");
 	fprintf(stderr, " GOAL - set goal to given goal name\n");
-	exit(1);
 }
 
 static int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
@@ -110,18 +109,21 @@ static int gene_set_goal_run(int argc, char **argv, int rflag) {
 
 	if (argc == 0) {
 		set_goal_usage();
+		return 1;
 	}
 
 	goal = argv[0];
 	if (!goal.empty() && (goal.back() == '-' || goal.back() == '+')) {
 		fprintf(stderr, "setgoal doesn't support +/- modifiers anymore\n");
 		set_goal_usage();
+		return 1;
 	}
 	argc--;
 	argv++;
 
 	if (argc < 1) {
 		set_goal_usage();
+		return 1;
 	}
 	status = 0;
 	while (argc > 0) {

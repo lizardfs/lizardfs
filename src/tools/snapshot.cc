@@ -32,10 +32,9 @@
 
 static void snapshot_usage() {
 	fprintf(stderr,
-	        "make snapshot (lazy copy)\n\nusage: mfsmakesnapshot [-ofl] src [src ...] dst\n");
-	fprintf(stderr, "-o,-f - allow to overwrite existing objects\n");
-	fprintf(stderr, "-l - wait until snapshot will finish (otherwise there is 60s timeout)\n");
-	exit(1);
+	        "make snapshot (lazy copy)\n\nusage:\n lizardfs makesnapshot [-ofl] src [src ...] dst\n");
+	fprintf(stderr, " -o,-f - allow to overwrite existing objects\n");
+	fprintf(stderr, " -l - wait until snapshot will finish (otherwise there is 60s timeout)\n");
 }
 
 static int make_snapshot(const char *dstdir, const char *dstbase, const char *srcname,
@@ -287,6 +286,7 @@ int snapshot_run(int argc, char **argv) {
 	argv += optind;
 	if (argc < 2) {
 		snapshot_usage();
+		return 1;
 	}
 	return snapshot(argv[argc - 1], argv, argc - 1, oflag, lflag);
 }
