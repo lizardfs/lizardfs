@@ -60,7 +60,7 @@ try:
 	if fields.has_key("masterhost"):
 		masterhost = fields.getvalue("masterhost")
 	else:
-		masterhost = '127.0.0.1'
+		masterhost = socket.gethostbyname('mfsmaster')
 except Exception:
 	masterhost = '127.0.0.1'
 try:
