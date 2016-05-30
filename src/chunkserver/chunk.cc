@@ -44,7 +44,8 @@ Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat
 	  testprev(NULL),
 	  next(NULL),
 	  type_(type),
-	  chunkFormat_(format){
+	  filename_layout_(-1),
+	  chunkFormat_(format) {
 }
 
 std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_version) const {
@@ -77,12 +78,18 @@ uint32_t Chunk::maxBlocksInFile() const {
 	return (MFSBLOCKSINCHUNK + data_part_count - 1) / data_part_count;
 }
 
-int Chunk::renameChunkFile(const std::string& newFilename) {
-	int status = rename(filename().c_str(), newFilename.c_str());
+int Chunk::renameChunkFile(uint32_t new_version, int new_layout_version) {
+	std::string old_file_name = filename();
+	std::string new_file_name = generateFilenameForVersion(new_version, new_layout_version);
+
+	int status = rename(old_file_name.c_str(), new_file_name.c_str());
 	if (status < 0) {
 		return status;
 	}
-	setFilename(newFilename);
+
+	filename_layout_ = new_layout_version;
+	version = new_version;
+
 	return 0;
 }
 
@@ -94,7 +101,7 @@ void Chunk::setBlockCountFromFizeSize(off_t fileSize) {
 uint32_t Chunk::getSubfolderNumber(uint64_t chunkId, int layout_version) {
 	// layout version 0 corresponds to current directory/chunk naming convention
 	// values greater than 0 describe older versions (order is not important)
-	return (layout_version == 0 ? chunkId >> 16 : chunkId) & 0xFF;
+	return (layout_version == kCurrentDirectoryLayout ? chunkId >> 16 : chunkId) & 0xFF;
 }
 
 std::string Chunk::getSubfolderNameGivenNumber(uint32_t subfolderNumber, int layout_version) {
@@ -102,7 +109,7 @@ std::string Chunk::getSubfolderNameGivenNumber(uint32_t subfolderNumber, int lay
 	char buffer[16];
 	// layout version 0 corresponds to current directory/chunk naming convention
 	// values greater than 0 describe older versions (order is not important)
-	if (layout_version == 0) {
+	if (layout_version == kCurrentDirectoryLayout) {
 		sprintf(buffer, "chunks%02X", unsigned(subfolderNumber));
 	} else {
 		sprintf(buffer, "%02X", unsigned(subfolderNumber));

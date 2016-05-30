@@ -101,18 +101,26 @@ struct folder {
 class Chunk {
 public:
 	static const uint32_t kNumberOfSubfolders = 256;
+	enum { kCurrentDirectoryLayout = 0, kMooseFSDirectoryLayout };
 
 	Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat format);
 	virtual ~Chunk() {};
-	const std::string& filename() const { return filename_; };
+
+	std::string filename() const {
+		return filename_layout_ >= kCurrentDirectoryLayout
+		               ? generateFilenameForVersion(version, filename_layout_)
+		               : std::string();
+	};
+
+	std::string generateFilenameForVersion(uint32_t version, int layout_version = kCurrentDirectoryLayout) const;
+	int renameChunkFile(uint32_t new_version, int new_layout_version = kCurrentDirectoryLayout);
+	void setFilenameLayout(int layout_version) { filename_layout_ = layout_version; }
+
 	virtual off_t getBlockOffset(uint16_t blockNumber) const = 0;
 	virtual off_t getFileSizeFromBlockCount(uint32_t blockCount) const = 0;
 	virtual bool isFileSizeValid(off_t fileSize) const = 0;
 	uint32_t maxBlocksInFile() const;
-	std::string generateFilenameForVersion(uint32_t version, int layout_version = 0) const;
-	int renameChunkFile(const std::string& newFilename);
 	virtual void setBlockCountFromFizeSize(off_t fileSize) = 0;
-	void setFilename(const std::string& filename) { filename_ = filename; }
 	ChunkPartType type() const { return type_; }
 	ChunkFormat chunkFormat() const { return chunkFormat_; };
 	static uint32_t getSubfolderNumber(uint64_t chunkId, int layout_version = 0);
@@ -126,21 +134,22 @@ public:
 	uint16_t refcount;
 	bool wasChanged;
 	ChunkState state;
-	cntcond *ccond;
+	cntcond *ccond; // TODO(hazeman): remove
 	int fd;
 	uint16_t blockExpectedToBeReadNext;
 	uint8_t validattr;
 	uint8_t todel;
-	Chunk *testnext, **testprev;
+	Chunk *testnext, **testprev; // TODO(hazeman): remove
 	Chunk *next;
 
 protected:
 	ChunkPartType type_;
-	std::string filename_;
+	int8_t filename_layout_; /*!< <0 - no valid name (empty string)
+	                               0 - current directory layout
+	                              >0 - older directory layouts */
 
 private:
-	ChunkFormat chunkFormat_;
-
+	ChunkFormat chunkFormat_; // TODO(hazeman): remove
 };
 
 class MooseFSChunk : public Chunk {

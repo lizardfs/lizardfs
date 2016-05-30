@@ -763,7 +763,7 @@ static Chunk* hdd_chunk_create(
 	f->needrefresh = 1;
 	f->chunkcount++;
 	c->owner = f;
-	c->setFilename(c->generateFilenameForVersion(version));
+	c->setFilenameLayout(Chunk::kCurrentDirectoryLayout);
 	zassert(pthread_mutex_lock(&testlock));
 	c->testnext = NULL;
 	c->testprev = f->testtail;
@@ -1193,7 +1193,7 @@ void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount
 	*tdchunkcount = tdchunks;
 }
 
-static inline int hdd_int_chunk_readcrc(MooseFSChunk *c) {
+static inline int hdd_int_chunk_readcrc(MooseFSChunk *c, uint32_t chunk_version) {
 	TRACETHIS();
 	ChunkSignature chunkSignature;
 	if (!chunkSignature.readFromDescriptor(c->fd, c->getSignatureOffset())) {
@@ -1209,8 +1209,11 @@ static inline int hdd_int_chunk_readcrc(MooseFSChunk *c) {
 		errno = 0;
 		return LIZARDFS_ERROR_IO;
 	}
+	if (chunk_version == std::numeric_limits<uint32_t>::max()) {
+		chunk_version = c->version;
+	}
 	if (c->chunkid != chunkSignature.chunkId()
-			|| c->version != chunkSignature.chunkVersion()
+			|| chunk_version != chunkSignature.chunkVersion()
 			|| c->type().getId() != chunkSignature.chunkType().getId()) {
 		syslog(LOG_WARNING,
 				"chunk_readcrc: file:%s - wrong id/version/type in header "
@@ -1269,7 +1272,7 @@ static inline uint64_t get_usectime() {
 	return ((uint64_t)(tv.tv_sec))*1000000+tv.tv_usec;
 }
 
-static int hdd_io_begin(Chunk *c,int newflag) {
+static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::numeric_limits<uint32_t>::max()) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_io_begin");
 	TRACETHIS();
 	int status;
@@ -1319,7 +1322,7 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 				memset(crc_data, 0, mc->getCrcBlockSize());
 			} else if (add) {
 				mc->readaheadHeader();
-				status = hdd_int_chunk_readcrc(mc);
+				status = hdd_int_chunk_readcrc(mc, chunk_version);
 				if (status != LIZARDFS_STATUS_OK) {
 					int errmem = errno;
 					gOpenChunks.release(c->fd, main_time());
@@ -2158,7 +2161,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 	sassert(c->chunkFormat() == oc->chunkFormat());
 
 	if (chunkNewVersion != chunkVersion) {
-		if (c->renameChunkFile(c->generateFilenameForVersion(chunkNewVersion)) < 0) {
+		if (c->renameChunkFile(chunkNewVersion) < 0) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
@@ -2166,7 +2169,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 			hdd_chunk_release(oc);
 			return LIZARDFS_ERROR_IO;
 		}
-		status = hdd_io_begin(oc, 0);
+		status = hdd_io_begin(oc, 0, chunkVersion);
 		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
@@ -2289,13 +2292,13 @@ int hdd_int_version(Chunk *chunk, uint32_t version, uint32_t newversion) {
 	if (chunk->version != version && version > 0) {
 		return LIZARDFS_ERROR_WRONGVERSION;
 	}
-	if (chunk->renameChunkFile(chunk->generateFilenameForVersion(newversion)) < 0) {
+	if (chunk->renameChunkFile(newversion) < 0) {
 		hdd_error_occured(chunk);  // uses and preserves errno !!!
 		lzfs_silent_errlog(LOG_WARNING, "set_chunk_version: file:%s - rename error",
 		                   chunk->filename().c_str());
 		return LIZARDFS_ERROR_IO;
 	}
-	status = hdd_io_begin(chunk, 0);
+	status = hdd_io_begin(chunk, 0, version);
 	if (status != LIZARDFS_STATUS_OK) {
 		hdd_error_occured(chunk);  // uses and preserves errno !!!
 		lzfs_silent_errlog(LOG_WARNING, "set_chunk_version: file:%s - open error",
@@ -2351,14 +2354,14 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkPartType chunkType, uint32_t 
 		hdd_chunk_release(c);
 		return LIZARDFS_ERROR_WRONGVERSION;
 	}
-	if (c->renameChunkFile(c->generateFilenameForVersion(newVersion)) < 0) {
+	if (c->renameChunkFile(newVersion) < 0) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		lzfs_silent_errlog(LOG_WARNING,
 				"truncate_chunk: file:%s - rename error", c->filename().c_str());
 		hdd_chunk_release(c);
 		return LIZARDFS_ERROR_IO;
 	}
-	status = hdd_io_begin(c,0);
+	status = hdd_io_begin(c, 0, oldVersion);
 	if (status!=LIZARDFS_STATUS_OK) {
 		hdd_error_occured(c);   // uses and preserves errno !!!
 		hdd_chunk_release(c);
@@ -2514,7 +2517,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 	}
 
 	if (chunkNewVersion!=chunkVersion) {
-		if (oc->renameChunkFile(oc->generateFilenameForVersion(chunkNewVersion)) < 0) {
+		if (oc->renameChunkFile(chunkNewVersion) < 0) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			lzfs_silent_errlog(LOG_WARNING,
 					"duplicate_chunk: file:%s - rename error", oc->filename().c_str());
@@ -2522,7 +2525,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 			hdd_chunk_release(oc);
 			return LIZARDFS_ERROR_IO;
 		}
-		status = hdd_io_begin(oc,0);
+		status = hdd_io_begin(oc, 0, chunkVersion);
 		if (status!=LIZARDFS_STATUS_OK) {
 			hdd_error_occured(oc);  // uses and preserves errno !!!
 			hdd_chunk_delete(c);
@@ -3061,7 +3064,7 @@ static inline void hdd_add_chunk(folder *f,
 	c->blocks = 0;
 	c->owner = f;
 	c->todel = todel;
-	c->setFilename(c->generateFilenameForVersion(version, layout_version));
+	c->setFilenameLayout(layout_version);
 	sassert(c->filename() == fullname);
 	zassert(pthread_mutex_lock(&testlock));
 	c->testprev = f->testtail;
@@ -3223,7 +3226,7 @@ int64_t hdd_folder_migrate_directories(folder *f, int layout_version) {
 				continue;
 			}
 
-			if (chunk->renameChunkFile(chunk->generateFilenameForVersion(chunk->version)) < 0) {
+			if (chunk->renameChunkFile(chunk->version) < 0) {
 				std::string old_path = subfolder_path + de->d_name;
 				std::string new_path = chunk->generateFilenameForVersion(chunk->version);
 				lzfs_pretty_syslog(LOG_WARNING, "Can't migrate %s to %s: %s", old_path.c_str(),
