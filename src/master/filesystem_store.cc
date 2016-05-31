@@ -963,7 +963,7 @@ void fs_storefree(FILE *fd) {
 	}
 }
 
-int fs_loadfree(FILE *fd) {
+int fs_loadfree(FILE *fd, uint64_t section_size = 0) {
 	uint8_t rbuff[8 * 1024];
 	const uint8_t *ptr;
 	uint32_t l, t;
@@ -974,6 +974,11 @@ int fs_loadfree(FILE *fd) {
 	}
 	ptr = rbuff;
 	t = get32bit(&ptr);
+
+	if (section_size && t != (section_size - 4) / 8) {
+		lzfs_pretty_errlog(LOG_INFO, "loading free nodes: section size doesn't match number of free nodes");
+		t = (section_size - 4) / 8;
+	}
 
 	l = 0;
 	while (t > 0) {
@@ -1211,7 +1216,7 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 				lzfs_pretty_syslog_attempt(LOG_INFO,
 				                           "loading deletion timestamps from the metadata file");
 				fflush(stderr);
-				if (fs_loadfree(fd) < 0) {
+				if (fs_loadfree(fd, sleng) < 0) {
 #ifndef METARESTORE
 					lzfs_pretty_syslog(LOG_ERR, "error reading metadata (free)");
 #endif

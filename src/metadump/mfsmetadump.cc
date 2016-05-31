@@ -300,7 +300,7 @@ int fs_loadedges(FILE *fd) {
 	return 0;
 }
 
-int fs_loadfree(FILE *fd) {
+int fs_loadfree(FILE *fd, uint64_t section_size = 0) {
 	uint8_t rbuff[8];
 	const uint8_t *ptr;
 	uint32_t t,nodeid,ftime;
@@ -309,6 +309,11 @@ int fs_loadfree(FILE *fd) {
 	}
 	ptr=rbuff;
 	t = get32bit(&ptr);
+
+	if (section_size && t != (section_size - 4) / 8) {
+		t = (section_size - 4) / 8;
+	}
+
 	printf("# free nodes: %" PRIu32 "\n",t);
 	while (t>0) {
 		if (fread(rbuff,1,8,fd)!=8) {
@@ -442,7 +447,7 @@ int fs_load_2x(FILE *fd, bool loadLockIds) {
 				return -1;
 			}
 		} else if (memcmp(hdr,"FREE 1.0",8)==0) {
-			if (fs_loadfree(fd)<0) {
+			if (fs_loadfree(fd, sleng)<0) {
 				printf("error reading metadata (FREE 1.0)\n");
 				return -1;
 			}
