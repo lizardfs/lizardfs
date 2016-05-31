@@ -369,6 +369,7 @@ public:
 
 			BucketType &bucket(detention_.front());
 
+			assert(!bucket.data.empty());
 			std::size_t nid = *bucket.data.begin();
 			if (bucket.data.unset(nid)) {
 				--detained_count_;
@@ -454,8 +455,12 @@ public:
 		}
 
 		std::size_t nid = static_cast<std::size_t>(id);
-		for (auto &bucket : detention_) {
-			if (bucket.data.unset(nid)) {
+		for(auto it = detention_.begin(); it != detention_.end(); ++it) {
+			if (it->data.unset(nid)) {
+				--detained_count_;
+				if (it->data.empty()) {
+					detention_.erase(it);
+				}
 				return true;
 			}
 		}
@@ -530,6 +535,7 @@ public:
 				break;
 			}
 
+			assert(!bucket.data.empty());
 			std::size_t nid = *bucket.data.begin();
 			bool r = bucket.data.unset(nid);
 
@@ -592,6 +598,7 @@ protected:
 		while (!detention_.empty() && count > 0) {
 			BucketType &bucket(detention_.front());
 
+			assert(!bucket.data.empty());
 			std::size_t nid = *bucket.data.begin();
 			bool r = bucket.data.unset(nid);
 
