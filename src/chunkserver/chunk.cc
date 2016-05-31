@@ -27,7 +27,7 @@
 #include "common/massert.h"
 #include "common/slice_traits.h"
 
-Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat format)
+Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state)
 	: chunkid(chunkId),
 	  owner(NULL),
 	  version(0),
@@ -44,8 +44,7 @@ Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat
 	  testprev(NULL),
 	  next(NULL),
 	  type_(type),
-	  filename_layout_(-1),
-	  chunkFormat_(format) {
+	  filename_layout_(-1) {
 }
 
 std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_version) const {
@@ -122,7 +121,7 @@ std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_ver
 }
 
 MooseFSChunk::MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
-		Chunk(chunkId, type, state, ChunkFormat::MOOSEFS) {
+		Chunk(chunkId, type, state) {
 }
 
 off_t MooseFSChunk::getBlockOffset(uint16_t blockNumber) const {
@@ -191,7 +190,7 @@ size_t MooseFSChunk::getCrcBlockSize() const {
 }
 
 InterleavedChunk::InterleavedChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
-		Chunk(chunkId, type, state, ChunkFormat::INTERLEAVED) {
+		Chunk(chunkId, type, state) {
 }
 
 off_t InterleavedChunk::getBlockOffset(uint16_t blockNumber) const {
