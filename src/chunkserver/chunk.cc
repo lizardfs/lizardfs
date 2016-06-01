@@ -28,23 +28,23 @@
 #include "common/slice_traits.h"
 
 Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state)
-	: chunkid(chunkId),
-	  owner(NULL),
-	  version(0),
-	  blocks(0),
-	  refcount(0),
-	  wasChanged(false),
-	  state(state),
-	  ccond(NULL),
-	  fd(-1),
-	  blockExpectedToBeReadNext(0),
-	  validattr(0),
-	  todel(0),
-	  testnext(NULL),
+	: testnext(NULL),
 	  testprev(NULL),
 	  next(NULL),
+	  ccond(NULL),
+	  owner(NULL),
+	  chunkid(chunkId),
+	  version(0),
+	  fd(-1),
+	  blocks(0),
+	  refcount(0),
+	  blockExpectedToBeReadNext(0),
 	  type_(type),
-	  filename_layout_(-1) {
+	  filename_layout_(-1),
+	  validattr(0),
+	  todel(0),
+	  state(state),
+	  wasChanged(0) {
 }
 
 std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_version) const {

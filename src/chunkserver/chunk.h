@@ -127,26 +127,27 @@ public:
 	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber, int layout_version = 0);
 	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_version = 0);
 
-	uint64_t chunkid;
+	Chunk *testnext, **testprev;
+	Chunk *next;
+	cntcond *ccond;
 	struct folder *owner;
+	uint64_t chunkid;
 	uint32_t version;
+	int32_t  fd;
 	uint16_t blocks;
 	uint16_t refcount;
-	bool wasChanged;
-	ChunkState state;
-	cntcond *ccond; // TODO(hazeman): remove
-	int fd;
 	uint16_t blockExpectedToBeReadNext;
-	uint8_t validattr;
-	uint8_t todel;
-	Chunk *testnext, **testprev; // TODO(hazeman): remove
-	Chunk *next;
 
 protected:
 	ChunkPartType type_;
 	int8_t filename_layout_; /*!< <0 - no valid name (empty string)
 	                               0 - current directory layout
 	                              >0 - older directory layouts */
+public:
+	uint8_t validattr;
+	uint8_t todel;
+	uint8_t state;
+	uint8_t wasChanged;
 };
 
 class MooseFSChunk : public Chunk {
