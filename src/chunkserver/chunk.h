@@ -125,7 +125,6 @@ public:
 	uint32_t version;
 	uint16_t blocks;
 	uint16_t refcount;
-	uint8_t opensteps;
 	bool wasChanged;
 	ChunkState state;
 	cntcond *ccond;

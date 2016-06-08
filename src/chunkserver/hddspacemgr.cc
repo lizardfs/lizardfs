@@ -52,6 +52,8 @@
 #include "chunkserver/chunk.h"
 #include "chunkserver/chunk_filename_parser.h"
 #include "chunkserver/chunk_signature.h"
+#include "chunkserver/indexed_resource_pool.h"
+#include "chunkserver/open_chunk.h"
 #include "common/cfg.h"
 #include "common/cwrap.h"
 #include "common/crc.h"
@@ -78,9 +80,7 @@
 /* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */
 #define DELAYEDSTEP 2
 
-#define OPENDELAY 5
 #define CRCDELAY 100
-#define OPENSTEPS (OPENDELAY/DELAYEDSTEP)+1
 #define CRCSTEPS (CRCDELAY/DELAYEDSTEP)+1
 
 #define LOSTCHUNKSBLOCKSIZE 1024
@@ -182,6 +182,8 @@ static pthread_key_t blockbufferkey;
 
 static uint32_t emptyblockcrc;
 
+static IndexedResourcePool<OpenChunk> gOpenChunks;
+
 static uint64_t stats_bytesr = 0;
 static uint64_t stats_bytesw = 0;
 static uint32_t stats_opr = 0;
@@ -200,6 +202,9 @@ static uint32_t stats_version = 0;
 static uint32_t stats_duplicate = 0;
 static uint32_t stats_truncate = 0;
 static uint32_t stats_duptrunc = 0;
+
+static const int kOpenRetryCount = 4;
+static const int kOpenRetry_ms = 5;
 
 void hdd_report_damaged_chunk(uint64_t chunkid, ChunkPartType chunk_type) {
 	TRACETHIS1(chunkid);
@@ -516,9 +521,7 @@ static inline void hdd_chunk_remove(Chunk *c) {
 	while ((cp=*cptr)) {
 		if (c==cp) {
 			*cptr = cp->next;
-			if (cp->fd>=0) {
-				close(cp->fd);
-			}
+			gOpenChunks.purge(cp->fd);
 			if (cp->owner) {
 				zassert(pthread_mutex_lock(&testlock));
 				if (cp->testnext) {
@@ -595,6 +598,18 @@ static Chunk* hdd_chunk_tryfind(uint64_t chunkid, ChunkPartType chunk_type) {
 	}
 	zassert(pthread_mutex_unlock(&hashlock));
 	return c;
+}
+
+bool hdd_chunk_trylock(Chunk *c) {
+	bool ret = false;
+	TRACETHIS1(chunkid);
+	zassert(pthread_mutex_lock(&hashlock));
+	if (c != nullptr && c->state == CH_AVAIL) {
+		c->state = CH_LOCKED;
+		ret = true;
+	}
+	zassert(pthread_mutex_unlock(&hashlock));
+	return ret;
 }
 
 static void hdd_chunk_delete(Chunk *c);
@@ -959,12 +974,7 @@ void hdd_senddata(folder *f,int rmflag) {
 					hdd_report_lost_chunk(c->chunkid, c->type());
 					if (c->state==CH_AVAIL) {
 						*cptr = c->next;
-						if (c->fd>=0) {
-							close(c->fd);
-						}
-						IF_MOOSEFS_CHUNK(mc, c) {
-							mc->clearCrc();
-						}
+						gOpenChunks.purge(c->fd);
 						if (c->testnext) {
 							c->testnext->testprev = c->testprev;
 						} else {
@@ -1113,7 +1123,7 @@ void hdd_check_folders() {
 	}
 }
 
-static inline void hdd_error_occured(Chunk *c) {
+void hdd_error_occured(Chunk *c) {
 	TRACETHIS();
 	uint32_t i;
 	folder *f;
@@ -1339,21 +1349,6 @@ void hdd_delayed_ops() {
 				hdd_chunk_release(c);
 				ccp = &(cc->next);
 			} else {
-				if (c->opensteps>0) {   // decrease counter
-					c->opensteps--;
-				} else if (c->fd>=0) {  // close descriptor
-#ifdef LIZARDFS_HAVE_POSIX_FADVISE
-					if (gAdviseNoCache) {
-						posix_fadvise(c->fd,0,0,POSIX_FADV_DONTNEED);
-					}
-#endif /* LIZARDFS_HAVE_POSIX_FADVISE */
-					if (close(c->fd)<0) {
-						hdd_error_occured(c);   // uses and preserves errno !!!
-						lzfs_silent_errlog(LOG_WARNING,"hdd_delayed_ops: file:%s - close error", c->filename().c_str());
-						hdd_report_damaged_chunk(c->chunkid, c->type());
-					}
-					c->fd = -1;
-				}
 				bool crcEmpty = true;
 				IF_MOOSEFS_CHUNK(mc, c) {
 					if (mc->crcsteps > 0) {
@@ -1374,6 +1369,8 @@ void hdd_delayed_ops() {
 		}
 	}
 	zassert(pthread_mutex_unlock(&doplock));
+/* free some unused descriptors */
+	gOpenChunks.freeUnused(main_time(), 1024);
 }
 
 static inline uint64_t get_usectime() {
@@ -1397,20 +1394,34 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 			add = add && (mc->crc == nullptr);
 		}
 
-		if (c->fd<0) {
-			if (newflag) {
-				c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
-			} else {
-				if (c->todel<2) {
-					c->fd = open(c->filename().c_str(), O_RDWR);
+		gOpenChunks.acquire(c->fd);
+		if (c->fd < 0) {
+			// Try to free some long unused descriptors
+			gOpenChunks.freeUnused(main_time());
+			for (int i = 0; i < kOpenRetryCount; ++i) {
+				if (newflag) {
+					c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
 				} else {
-					c->fd = open(c->filename().c_str(), O_RDONLY);
+					if (c->todel < 2) {
+						c->fd = open(c->filename().c_str(), O_RDWR);
+					} else {
+						c->fd = open(c->filename().c_str(), O_RDONLY);
+					}
+				}
+				if (c->fd < 0 && errno != ENFILE) {
+					lzfs_silent_errlog(LOG_WARNING,"hdd_io_begin: file:%s - open error", c->filename().c_str());
+					return LIZARDFS_ERROR_IO;
+				} else if (c->fd >= 0) {
+					gOpenChunks.acquire(c->fd, OpenChunk(c));
+					break;
+				} else { // c->fd < 0 && errno == ENFILE
+					usleep((kOpenRetry_ms * 1000) << i);
+					// Force free unused descriptors
+					gOpenChunks.freeUnused(std::numeric_limits<uint32_t>::max(), 4);
 				}
 			}
-			if (c->fd<0) {
-				int errmem = errno;
+			if (c->fd < 0) {
 				lzfs_silent_errlog(LOG_WARNING,"hdd_io_begin: file:%s - open error", c->filename().c_str());
-				errno = errmem;
 				return LIZARDFS_ERROR_IO;
 			}
 		}
@@ -1425,8 +1436,7 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 					if (status != LIZARDFS_STATUS_OK) {
 						int errmem = errno;
 						if (add) {
-							close(c->fd);
-							c->fd = -1;
+							gOpenChunks.release(c->fd, main_time());
 						}
 						lzfs_silent_errlog(LOG_WARNING,
 								"hdd_io_begin: file:%s - read error", c->filename().c_str());
@@ -1501,19 +1511,7 @@ static int hdd_io_end(Chunk *c) {
 	}
 	c->refcount--;
 	if (c->refcount==0) {
-		if (OPENSTEPS==0) {
-			if (close(c->fd)<0) {
-				int errmem = errno;
-				c->fd = -1;
-				lzfs_silent_errlog(LOG_WARNING,
-						"hdd_io_end: file:%s - close error", c->filename().c_str());
-				errno = errmem;
-				return LIZARDFS_ERROR_IO;
-			}
-			c->fd = -1;
-		} else {
-			c->opensteps = OPENSTEPS;
-		}
+		gOpenChunks.release(c->fd, main_time());
 		IF_MOOSEFS_CHUNK(mc, c) {
 			mc->crcsteps = CRCSTEPS;
 		}
@@ -3587,9 +3585,7 @@ void hdd_term(void) {
 								"hdd_term: file:%s - write error", c->filename().c_str());
 					}
 				}
-				if (c->fd>=0) {
-					close(c->fd);
-				}
+				gOpenChunks.purge(c->fd);
 				delete c;
 			} else {
 				syslog(LOG_WARNING,"hdd_term: locked chunk !!!");

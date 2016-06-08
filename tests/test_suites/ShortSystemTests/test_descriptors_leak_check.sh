@@ -1,3 +1,5 @@
+timeout_set 1 minute
+
 CHUNKSERVERS=1 \
 	DISK_PER_CHUNKSERVER=1 \
 	USE_RAMDISK=YES \
@@ -5,7 +7,7 @@ CHUNKSERVERS=1 \
 
 max_files=100
 max_open_descriptors=10
-time_limit=15
+time_limit=45
 for ((files_created=0; files_created < max_files; ++files_created)); do
 	tmp_file=$(mktemp -p ${info[mount0]})
 	dd if=/dev/zero of=$tmp_file bs=33 count=1000 2> /dev/null &
@@ -21,8 +23,12 @@ for ((time_elapsed=0; time_elapsed < time_limit; ++time_elapsed)); do
 	if ((leaked_descriptors_number < max_open_descriptors)); then
 		break
 	fi
+	if ! ((time_elapsed % 10)); then
+		echo Open descriptors: $((leaked_descriptors_number))
+	fi
 	sleep 1
 done
+echo Open descriptors: $((leaked_descriptors_number))
 
 if ((leaked_descriptors_number >= max_open_descriptors)); then
 	test_add_failure "$leaked_descriptors_number files are not closed"

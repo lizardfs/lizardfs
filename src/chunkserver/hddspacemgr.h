@@ -74,6 +74,7 @@ int hdd_check_version(uint64_t chunkid,uint32_t version);
 int hdd_get_blocks(uint64_t chunkid, ChunkPartType chunkType, uint32_t version, uint16_t *blocks);
 
 bool hdd_scans_in_progress();
+bool hdd_chunk_trylock(Chunk *c);
 
 /* chunk operations */
 
@@ -156,3 +157,6 @@ int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkPartType chunkType);
 int hdd_int_version(Chunk *chunk, uint32_t version, uint32_t newversion);
 int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversion,
 		ChunkPartType chunkType);
+
+void hdd_error_occured(Chunk *c);
+void hdd_report_damaged_chunk(uint64_t chunkid, ChunkPartType chunk_type);

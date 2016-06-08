@@ -33,7 +33,6 @@ Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state, ChunkFormat
 	  version(0),
 	  blocks(0),
 	  refcount(0),
-	  opensteps(0),
 	  wasChanged(false),
 	  state(state),
 	  ccond(NULL),

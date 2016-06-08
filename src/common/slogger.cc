@@ -135,6 +135,7 @@ void lzfs_pretty_errlog(int priority, const char* format, ...) {
 	buffer[len] = 0;
 	va_end(ap);
 	lzfs_pretty_syslog(priority, "%s: %s", buffer, strerr(err));
+	errno = err;
 }
 
 void lzfs_silent_syslog(int priority, const char* format, ...) {
@@ -153,4 +154,5 @@ void lzfs_silent_errlog(int priority, const char* format, ...) {
 	buffer[len] = 0;
 	va_end(ap);
 	lzfs_silent_syslog(priority, "%s: %s", buffer, strerr(err));
+	errno = err;
 }
