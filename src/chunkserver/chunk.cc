@@ -115,9 +115,7 @@ std::string Chunk::getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_ver
 }
 
 MooseFSChunk::MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :
-		Chunk(chunkId, type, state, ChunkFormat::MOOSEFS),
-		crc(nullptr),
-		crcsteps(0) {
+		Chunk(chunkId, type, state, ChunkFormat::MOOSEFS) {
 }
 
 off_t MooseFSChunk::getBlockOffset(uint16_t blockNumber) const {
@@ -183,35 +181,6 @@ off_t MooseFSChunk::getCrcOffset() const {
 
 size_t MooseFSChunk::getCrcBlockSize() const {
 	return serializedSize(uint32_t()) * maxBlocksInFile();
-}
-
-uint8_t* MooseFSChunk::getCrcBuffer(uint16_t blockNumber) {
-	sassert(blockNumber < blocks);
-	return crc->data() + (blockNumber * serializedSize(uint32_t()));
-}
-
-const uint8_t* MooseFSChunk::getCrcBuffer(uint16_t blockNumber) const {
-	sassert(blockNumber < blocks);
-	return crc->data() + (blockNumber * serializedSize(uint32_t()));
-}
-
-uint32_t MooseFSChunk::getCrc(uint16_t blockNumber) const {
-	const uint8_t *ptr = getCrcBuffer(blockNumber);
-	return get32bit(&ptr);
-}
-
-void MooseFSChunk::initEmptyCrc() {
-	crc.reset(new std::array<uint8_t, kMaxCrcBlockSize>);
-	memset(crc->data(), 0, getCrcBlockSize());
-}
-
-void MooseFSChunk::clearCrc() {
-	crc.reset();
-	crcsteps = 0;
-	if (wasChanged) {
-		syslog(LOG_ERR, "serious error: crc changes lost (chunk:%016" PRIX64 "_%08" PRIX32 ")",
-				chunkid, version);
-	}
 }
 
 InterleavedChunk::InterleavedChunk(uint64_t chunkId, ChunkPartType type, ChunkState state) :

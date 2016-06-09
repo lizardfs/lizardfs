@@ -153,6 +153,8 @@ public:
 			kMaxSignatureBlockSize + kMaxCrcBlockSize + kMaxPaddingBlockSize;
 	static const size_t kDiskBlockSize = 4096; // 4kB
 
+	typedef std::array<uint8_t, kMaxCrcBlockSize> CrcDataContainer;
+
 	MooseFSChunk(uint64_t chunkId, ChunkPartType type, ChunkState state);
 	off_t getBlockOffset(uint16_t blockNumber) const override;
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
@@ -161,17 +163,8 @@ public:
 	off_t getSignatureOffset() const;
 	void readaheadHeader() const;
 	size_t getHeaderSize() const;
-	int writeHeader() const;
 	off_t getCrcOffset() const;
 	size_t getCrcBlockSize() const;
-	uint8_t* getCrcBuffer(uint16_t blockNumber);
-	const uint8_t* getCrcBuffer(uint16_t blockNumber) const;
-	uint32_t getCrc(uint16_t blockNumber) const;
-	void clearCrc();
-	void initEmptyCrc();
-
-	std::unique_ptr<std::array<uint8_t, kMaxCrcBlockSize>> crc;
-	uint8_t crcsteps;
 };
 
 class InterleavedChunk : public Chunk {

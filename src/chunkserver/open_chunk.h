@@ -19,6 +19,10 @@
 #pragma once
 
 #include "common/platform.h"
+
+#include <unistd.h>
+#include <array>
+
 #include "chunkserver/chunk.h"
 #include "chunkserver/hddspacemgr.h"
 
@@ -31,10 +35,17 @@
  */
 class OpenChunk {
 public:
-	OpenChunk() : chunk_(), fd_(-1) {}
-	OpenChunk(Chunk *chunk) : chunk_(chunk), fd_(chunk_ ? chunk_->fd : -1) {}
+	OpenChunk() : chunk_(), fd_(-1), crc_() {
+	}
 
-	OpenChunk(OpenChunk &&other) noexcept : chunk_(other.chunk_), fd_(other.fd_) {
+	OpenChunk(Chunk *chunk) : chunk_(chunk), fd_(chunk ? chunk->fd : -1), crc_() {
+		if (chunk && chunk->chunkFormat() == ChunkFormat::MOOSEFS) {
+			crc_.reset(new MooseFSChunk::CrcDataContainer{{}});
+		}
+	}
+
+	OpenChunk(OpenChunk &&other) noexcept
+	    : chunk_(other.chunk_), fd_(other.fd_), crc_(std::move(other.crc_)) {
 		other.chunk_ = nullptr;
 		other.fd_ = -1;
 	}
@@ -64,6 +75,7 @@ public:
 	OpenChunk &operator=(OpenChunk &&other) noexcept {
 		chunk_ = other.chunk_;
 		fd_ = other.fd_;
+		crc_ = std::move(other.crc_);
 		other.chunk_ = nullptr;
 		other.fd_ = -1;
 		return *this;
@@ -88,7 +100,13 @@ public:
 		chunk_ = nullptr;
 	}
 
+	uint8_t *crc_data() {
+		assert(crc_);
+		return crc_->data();
+	}
+
 private:
 	Chunk *chunk_;
 	int fd_;
+	std::unique_ptr<MooseFSChunk::CrcDataContainer> crc_;
 };
