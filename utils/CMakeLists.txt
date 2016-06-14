@@ -59,3 +59,9 @@ install(TARGETS mfspingserv RUNTIME DESTINATION ${BIN_SUBDIR})
 # ping pong fcntl lock test
 add_executable(lzfs_ping_pong ping_pong.cc)
 install(TARGETS lzfs_ping_pong RUNTIME DESTINATION ${BIN_SUBDIR})
+
+add_library(slow_chunk_scan SHARED slow_chunk_scan.c)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+  target_link_libraries(slow_chunk_scan dl)
+endif()
+install(TARGETS slow_chunk_scan DESTINATION ${LIB_SUBDIR})
