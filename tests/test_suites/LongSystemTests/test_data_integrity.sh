@@ -9,7 +9,7 @@ directories=()
 for goal in 1 2 xor2; do
 	dir="goal_$goal"
 	mkdir "$dir"
-	mfssetgoal "$goal" "$dir"
+	lizardfs setgoal "$goal" "$dir"
 	directories+=("$dir")
 done
 
@@ -28,7 +28,7 @@ test_worker() {
 			if ! file-validate "$file"; then
 				test_add_failure "Invalid data: block $block_size, size $file_size, file $file"
 			fi
-			mfssettrashtime 0 "$file" &>/dev/null
+			lizardfs settrashtime 0 "$file" &>/dev/null
 			rm -f "$file"
 		else
 			test_add_failure "file-validate failed: block $block_size, size $file_size, file $file"

@@ -22,7 +22,7 @@ CHUNKSERVERS=4 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor3 "$dir"
+lizardfs setgoal xor3 "$dir"
 FILE_SIZE=123456789 file-generate "$dir/file"
 
 # Find any chunkserver serving part 1 of some chunk

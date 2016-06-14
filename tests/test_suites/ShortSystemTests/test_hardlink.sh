@@ -7,7 +7,7 @@ CHUNKSERVERS=2 \
 cd ${info[mount0]}
 mkdir hardlink_test
 cd hardlink_test
-mfssettrashtime -r 0 .
+lizardfs settrashtime -r 0 .
 
 # Create a chain of hardlinks
 FILE_SIZE=123 file-generate file0

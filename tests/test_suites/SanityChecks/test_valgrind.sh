@@ -17,8 +17,8 @@ ls -l "$mnt0dir1" > /dev/null
 truncate "$mnt0dir1/file2" -s 9876543
 truncate "$mnt0dir1/file2" -s 8M
 
-mfssettrashtime 0 "$mnt0dir1"
-mfsmakesnapshot "$mnt0dir1" "$mnt0dir2"
+lizardfs settrashtime 0 "$mnt0dir1"
+lizardfs makesnapshot "$mnt0dir1" "$mnt0dir2"
 dd if=/dev/zero of="$mnt0dir2/file2" bs=1 seek=1M count=10 conv=notrunc
 
 FILE_SIZE=8M file-generate "$RAMDISK_DIR/file"

@@ -9,7 +9,7 @@ cd "${info[mount0]}"
 goals="3 xor3"
 for goal in $goals; do
 	mkdir dir_$goal
-	mfssetgoal $goal dir_$goal
+	lizardfs setgoal $goal dir_$goal
 	echo a > dir_$goal/file
 done
 

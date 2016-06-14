@@ -15,7 +15,7 @@ metadata_version=$(metadata_get_version "${info[master_data_path]}"/metadata.mfs
 
 cd ${info[mount0]}
 mkdir dir
-mfssetgoal 2 dir
+lizardfs setgoal 2 dir
 echo 'aaaaaaaa' > dir/file
 assert_equals 1 $(find_chunkserver_chunks 0 | wc -l)
 assert_equals 1 $(find_chunkserver_chunks 1 | wc -l)

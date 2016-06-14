@@ -20,7 +20,7 @@ metadata_version=$(metadata_get_version "${info[master_data_path]}"/metadata.mfs
 cd ${info[mount0]}
 # Create file and make sure it has all xor chunks on CS 0, 1 and 2.
 mkdir dir
-mfssetgoal xor2 dir
+lizardfs setgoal xor2 dir
 FILE_SIZE=$(( 4 * LIZARDFS_CHUNK_SIZE )) file-generate dir/file
 for cs in {0..2}; do
 	assert_equals 4 $(find_chunkserver_chunks $cs -name "chunk_xor*" | wc -l)
@@ -28,8 +28,8 @@ done
 
 # Make snapshot of the file and wait until it has ordinary chunks on CS 3.
 mkdir backup
-mfsmakesnapshot dir/file backup/snapshot
-mfssetgoal backup backup/snapshot
+lizardfs makesnapshot dir/file backup/snapshot
+lizardfs setgoal backup backup/snapshot
 assert_eventually_prints 4 'find_chunkserver_chunks 3 -name "chunk_0*" | wc -l'
 
 # Make sure next chunk replications won't happen.
@@ -98,13 +98,13 @@ lizardfs_wait_for_ready_chunkservers 4
 # chunk 1 [1 copy  ] - three xor parts (id: 6, ver: 1)
 # chunk 2 [0 copies] - one xor part (id: 3, ver: 1)
 # chunk 3 [1 copy  ] - one std chunk with (id: 4 ver: 1) (from snaphot)
-checkfile=$(mfscheckfile dir/file)
+checkfile=$(lizardfs checkfile dir/file)
 assert_awk_finds '/chunks with 0 copies: *2$/' "$checkfile"
 assert_awk_finds '/chunks with 1 copy: *2$/' "$checkfile"
 
 # Repair the file and remember metadata after the repair.
-repairinfo=$(mfsfilerepair dir/file)
-fileinfo=$(mfsfileinfo dir/file)
+repairinfo=$(lizardfs filerepair dir/file)
+fileinfo=$(lizardfs fileinfo dir/file)
 assert_awk_finds '/chunks not changed: *2$/' "$repairinfo"
 assert_awk_finds '/chunks erased: *1$/' "$repairinfo"
 assert_awk_finds '/chunks repaired: *1$/' "$repairinfo"
@@ -112,7 +112,7 @@ assert_awk_finds '/chunks repaired: *1$/' "$repairinfo"
 assert_awk_finds '/id:5 ver:1/' "$fileinfo"
 # Second chunk should have version 1 (from CS 1 & 2 & 3).
 assert_awk_finds '/id:6 ver:1/' "$fileinfo"
-assert_awk_finds_no '/chunks with 0 copies/' "$(mfscheckfile dir/file)"
+assert_awk_finds_no '/chunks with 0 copies/' "$(lizardfs checkfile dir/file)"
 metadata=$(metadata_print)
 
 # Simulate crash of the master

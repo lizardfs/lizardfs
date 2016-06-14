@@ -41,7 +41,7 @@ lizardfs_wait_for_all_ready_chunkservers
 
 # Create a xor3 directory for tests
 mkdir "${info[mount0]}/dir"
-mfssetgoal xor3 "${info[mount0]}/dir"
+lizardfs setgoal xor3 "${info[mount0]}/dir"
 
 # Create a small file by writing it using 10 clients concurrently
 src="$RAMDISK_DIR/src"

@@ -1,6 +1,6 @@
 timeout_set 60 minutes
 continuous_test_begin
-mfssetgoal 2 .
+lizardfs setgoal 2 .
 workspace=$(pwd)
 
 # Prepare a reasonably up-to-date copy of LizardFS sources from GitHub
@@ -26,7 +26,7 @@ for i in {0..4}; do
 		# If there is no such copy yet -- create a new one
 		assert_success git clone "$workspace/lizardfs" "$subdir"
 	fi
-	assert_success mfssetgoal -r "$(random 2 3)" "$subdir"  # Change goal to 2 or 3 (randomly)
+	assert_success lizardfs setgoal -r "$(random 2 3)" "$subdir"  # Change goal to 2 or 3 (randomly)
 	cd "$subdir"
 	assert_success git reset --hard HEAD^  # Make sure that 'git pull' will change something
 	assert_success git pull

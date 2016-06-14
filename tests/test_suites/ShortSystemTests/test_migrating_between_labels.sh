@@ -26,7 +26,7 @@ done
 wait
 lizardfs_wait_for_ready_chunkservers 3
 mkdir dir
-mfssetgoal 2 dir
+lizardfs setgoal 2 dir
 FILE_SIZE=1K file-generate dir/file{1..10}
 
 # Turn on all chunkservers
@@ -36,12 +36,12 @@ done
 wait
 
 # Change goal of all files, verify
-mfssetgoal two_hdds dir/file*
+lizardfs setgoal two_hdds dir/file*
 expect_eventually_prints 20 'count_chunks_on_chunkservers {3..5}'
 assert_eventually_prints 20 'find_all_chunks | wc -l'
 
 # Change goal of some files, verify
-mfssetgoal two_flops dir/file{1..4}
+lizardfs setgoal two_flops dir/file{1..4}
 expect_eventually_prints 8 'count_chunks_on_chunkservers {6..8}'
 expect_eventually_prints 12 'count_chunks_on_chunkservers {3..5}'
 assert_eventually_prints 20 'find_all_chunks | wc -l'

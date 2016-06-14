@@ -7,7 +7,7 @@ CHUNKSERVERS=9 \
 
 cd "${info[mount0]}"
 touch file
-mfssetgoal $goal file
+lizardfs setgoal $goal file
 FILE_SIZE=1234567 file-generate file
 
 hdds=()

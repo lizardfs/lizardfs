@@ -38,7 +38,7 @@ assert_equals $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l) 0
 lizardfs_wait_for_all_ready_chunkservers
 # Check if files can still be read:
 assert_success file-validate file0
-# Check if mfssetgoal/mfsgetgoal still work:
+# Check if setgoal/getgoal still work:
 assert_success mkdir dir
 for goal in {1..9}; do
 	assert_equals "dir: $goal" "$(lizardfsXX mfssetgoal "$goal" dir || echo FAILED)"

@@ -7,7 +7,7 @@ pseudorandom_init
 
 cd "${info[mount0]}"
 mkdir dir
-mfssetgoal ec22 dir
+lizardfs setgoal ec22 dir
 cd dir
 
 for i in {0..19} ; do

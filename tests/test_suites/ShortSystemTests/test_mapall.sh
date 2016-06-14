@@ -31,7 +31,7 @@ done
 # check UIDs and GIDs
 cd "$normal"
 find -mindepth 1 | while read i; do
-	if mfsgeteattr "$i" |grep -q noowner; then
+	if lizardfs geteattr "$i" |grep -q noowner; then
 		expect_equals 'lizardfstest:lizardfstest' $(stat_ug "$i")
 	else
 		expect_equals 'lizardfstest_6:lizardfstest_4' $(stat_ug "$i")

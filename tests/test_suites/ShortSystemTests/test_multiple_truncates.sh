@@ -16,7 +16,7 @@ real_file="$TEMP_DIR/file"
 FILE_SIZE=$chunk file-generate "$real_file"
 for goal in $goals; do
 	touch "file_$goal"
-	mfssetgoal "$goal" "file_$goal"
+	lizardfs setgoal "$goal" "file_$goal"
 	FILE_SIZE=$chunk file-generate "file_$goal"
 done
 

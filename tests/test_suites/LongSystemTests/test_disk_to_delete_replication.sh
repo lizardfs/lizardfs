@@ -48,7 +48,7 @@ cd "${info[mount0]}"
 for goal in 3 xor2; do
 	dir=dir_$goal
 	mkdir $dir
-	mfssetgoal $goal $dir
+	lizardfs setgoal $goal $dir
 	for size in 10K 15K 50K 70K 100K 200K; do
 		FILE_SIZE=$size file-generate $dir/file_$size
 	done
@@ -73,7 +73,7 @@ assert_eventually_prints 0 "ls $RAMDISK_DIR/hdd_0_1/*/* | wc -l" "30 seconds"
 
 # Check number of chunks for each file
 for file in */*; do
-	assert_equals 3 "$(mfsfileinfo $file | grep copy | wc -l)"
+	assert_equals 3 "$(lizardfs fileinfo $file | grep copy | wc -l)"
 done
 
 # Unmark disk
@@ -91,6 +91,6 @@ assert_eventually_prints 0 "find_chunkserver_chunks 1 | wc -l" "60 seconds"
 
 # Check number of chunks for each file
 for file in */*; do
-	assert_equals 3 "$(mfsfileinfo $file | grep copy | wc -l)"
+	assert_equals 3 "$(lizardfs fileinfo $file | grep copy | wc -l)"
 done
 

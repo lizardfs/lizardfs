@@ -10,7 +10,7 @@ metadata_version=$(metadata_get_version "${info[master_data_path]}"/metadata.mfs
 
 cd ${info[mount0]}
 mkdir dir
-mfssetgoal 3 dir
+lizardfs setgoal 3 dir
 FILE_SIZE=$(( 4 * LIZARDFS_CHUNK_SIZE )) file-generate dir/file
 
 assert_equals 4 $(find_chunkserver_chunks 0 | wc -l)
@@ -53,11 +53,11 @@ lizardfs_wait_for_ready_chunkservers 0
 lizardfs_chunkserver_daemon 0 start
 lizardfs_chunkserver_daemon 1 start
 lizardfs_wait_for_ready_chunkservers 2
-assert_awk_finds '/chunks with 0 copies: *3$/' "$(mfscheckfile dir/file)"
+assert_awk_finds '/chunks with 0 copies: *3$/' "$(lizardfs checkfile dir/file)"
 
 # Repair the file and remember metadata after the repair.
-repairinfo=$(mfsfilerepair dir/file)
-fileinfo=$(mfsfileinfo dir/file)
+repairinfo=$(lizardfs filerepair dir/file)
+fileinfo=$(lizardfs fileinfo dir/file)
 assert_awk_finds '/chunks not changed: *1$/' "$repairinfo"
 assert_awk_finds '/chunks erased: *1$/' "$repairinfo"
 assert_awk_finds '/chunks repaired: *2$/' "$repairinfo"
@@ -65,7 +65,7 @@ assert_awk_finds '/chunks repaired: *2$/' "$repairinfo"
 assert_awk_finds '/id:1 ver:2/' "$fileinfo"
 # Second chunk should have version 1 (from CS 0).
 assert_awk_finds '/id:2 ver:1/' "$fileinfo"
-assert_awk_finds_no '/chunks with 0 copies/' "$(mfscheckfile dir/file)"
+assert_awk_finds_no '/chunks with 0 copies/' "$(lizardfs checkfile dir/file)"
 metadata=$(metadata_print)
 
 # Simulate crash of the master.

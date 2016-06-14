@@ -510,12 +510,12 @@ add_cgi_server_() {
 
 mfs_dir_info() {
 	if (( $# != 2 )); then
-		echo "Incorrect usage of mfs_dir_info with args $*";
+		echo "Incorrect usage of lizardfs dir_info with args $*";
 		exit 2;
 	fi;
 	field=$1
 	file=$2
-	mfsdirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
+	lizardfs dirinfo "$file" | grep -w "$field" | grep -o '[0-9]*'
 }
 
 find_first_chunkserver_with_chunks_matching() {

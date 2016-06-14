@@ -52,7 +52,7 @@ master_kill_loop &
 
 cd "${info[mount0]}"
 assert_success git clone https://github.com/lizardfs/lizardfs.git
-mfssetgoal -r 2 lizardfs
+lizardfs setgoal -r 2 lizardfs
 mkdir lizardfs/build
 cd lizardfs/build
 assert_success cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install

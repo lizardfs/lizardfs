@@ -20,8 +20,8 @@ USE_RAMDISK=YES \
 cd "${info[mount0]}"
 mkdir goal1
 mkdir goal2
-mfssetgoal 1 goal1
-mfssetgoal 2 goal2
+lizardfs setgoal 1 goal1
+lizardfs setgoal 2 goal2
 
 FILE_SIZE=1234 file-generate goal{1..2}/small_{1..10}
 FILE_SIZE=300K file-generate goal{1..2}/medium_{1..10}
@@ -57,7 +57,7 @@ assert_awk_finds_no '(/EIO/ && $4 != "yes") || (!/EIO/ && $4 == "yes")' "$list"
 # Remove files with goal 1 and all their chunks
 for file in $(find_chunkserver_chunks 0 | grep -v EIO); do
 	chunkid=$(cut -d'/' -f6 <<< "$file" | cut -d'_' -f2)
-	if mfsfileinfo goal1/* | grep "$chunkid"; then
+	if lizardfs fileinfo goal1/* | grep "$chunkid"; then
 		rm $file
 	fi
 done

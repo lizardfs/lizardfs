@@ -21,12 +21,12 @@ pseudorandom_init
 cd "${info[mount0]}"
 for i in "${levels[@]}"; do
 	mkdir xor$i
-	mfssetgoal xor$i xor$i
+	lizardfs setgoal xor$i xor$i
 	for size in "${sizes[@]}"; do
 		FILE_SIZE=$size file-generate xor$i/file_$size
 		assert_success file-validate xor$i/file_$size
 		head -c $(pseudorandom 1 $((i * 100000))) /dev/urandom >> xor$i/file_$size
-		mfsmakesnapshot xor$i/file_$size xor$i/snapshot_$size
+		lizardfs makesnapshot xor$i/file_$size xor$i/snapshot_$size
 	done
 done
 

@@ -16,7 +16,7 @@ chunks_health() {
 
 cd "${info[mount0]}"
 mkdir dir
-mfssetgoal 2 dir
+lizardfs setgoal 2 dir
 cd dir
 
 file_size_kb=$((5 * 1024)) # test assumes that this is less or equal to chunk size

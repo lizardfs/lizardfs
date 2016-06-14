@@ -9,7 +9,7 @@ CHUNKSERVERS=8 \
 cd ${info[mount0]}
 
 mkdir work
-mfssetgoal ec43 work
+lizardfs setgoal ec43 work
 
 cd work
 

@@ -27,7 +27,7 @@ lizardfs_wait_for_all_ready_chunkservers
 # Create a new chunk and check if it's number is as high as expected
 cd "${info[mount0]}"
 FILE_SIZE=1K file-generate 7
-assert_awk_finds 0000000000000007 "$(mfsfileinfo 7)"
+assert_awk_finds 0000000000000007 "$(lizardfs fileinfo 7)"
 metadata=$(metadata_print)
 cd
 

@@ -26,7 +26,7 @@ metadata_validate_files
 
 # Check if using removed files works as expected:
 echo "ala ma kota" > removed_file
-mfssettrashtime 0 removed_file
+lizardfs settrashtime 0 removed_file
 exec 11<> removed_file
 rm removed_file
 echo -n "u huhu" >&11
@@ -49,7 +49,7 @@ cd "${info[mount1]}"
 assert_no_diff "$mount1meta" "$(metadata_print)"
 assert_success touch newfile
 touch nowaythiswilleverwork
-assert_failure mfssettrashtime 12345678 nowaythiswilleverwork
+assert_failure lizardfs settrashtime 12345678 nowaythiswilleverwork
 
 # Check if using removed files works as expected after promotion:
 echo -n " prrrrrr" >&11

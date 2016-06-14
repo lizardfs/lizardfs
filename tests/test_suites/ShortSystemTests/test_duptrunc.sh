@@ -15,10 +15,10 @@ for filesize in 30 90 $((9 * block_size)) $((15 * block_size - 30)) $((15 * bloc
 			echo "$MESSAGE"
 			# Create a file and its two snapshots. File will not be modified in this test
 			touch file
-			mfssetgoal $goal file >/dev/null
+			lizardfs setgoal $goal file >/dev/null
 			FILE_SIZE=$filesize file-generate file
-			mfsmakesnapshot file snapshot1
-			mfsmakesnapshot file snapshot2
+			lizardfs makesnapshot file snapshot1
+			lizardfs makesnapshot file snapshot2
 			assert_success file-validate file snapshot1 snapshot2
 
 			# Truncate one of these snapshots up and check if there were zeros added

@@ -16,7 +16,7 @@ USE_RAMDISK=YES \
 # Create a directory with many files on mountpoint
 cd "${info[mount0]}"
 mkdir test
-mfssetgoal 2 test
+lizardfs setgoal 2 test
 FILE_SIZE=1234 file-generate test/small_{1..10}
 FILE_SIZE=300K file-generate test/medium_{1..10}
 FILE_SIZE=10M  file-generate test/big_{1..10}
@@ -41,6 +41,6 @@ assert_awk_finds_no '(/EIO/ && $4 != "yes") || (!/EIO/ && $4 != "no")' "$list"
 
 # Assert that data is replicated to chunkservers 1, 2 and no chunk is stored on cs 0
 for f in test/*; do
-	assert_eventually_prints "" "mfsfileinfo '$f' | grep ':${info[chunkserver0_port]}'"
-	assert_eventually_prints 2 "mfsfileinfo '$f' | grep copy | wc -l"
+	assert_eventually_prints "" "lizardfs fileinfo '$f' | grep ':${info[chunkserver0_port]}'"
+	assert_eventually_prints 2 "lizardfs fileinfo '$f' | grep copy | wc -l"
 done

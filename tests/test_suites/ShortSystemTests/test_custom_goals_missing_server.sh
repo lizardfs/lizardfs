@@ -23,11 +23,11 @@ declare -A infos  # an array where lists of chunks will be stored
 for goal in g{2..3}_{1..8}; do
 	file="file_$goal"
 	touch "$file"
-	mfssetgoal "$goal" "$file"
+	lizardfs setgoal "$goal" "$file"
 	FILE_SIZE=1K file-generate "$file"
 
 	# Now verify if the file has exactly the requied number of copies of its chunk
-	fileinfo=$(mfsfileinfo "$file")
+	fileinfo=$(lizardfs fileinfo "$file")
 	expected_copies=${goal:1:1}
 	actual_copies=$(echo "$fileinfo" | grep copy | wc -l)
 	MESSAGE="New $file: $fileinfo" assert_equals "$expected_copies" "$actual_copies"
@@ -39,5 +39,5 @@ done
 # Wait a couple of chunk loops. Except no changes in the lists of copies.
 sleep 5
 for file in file*; do
-	MESSAGE="Veryfing $file" expect_equals "${infos[$file]}" "$(mfsfileinfo "$file")"
+	MESSAGE="Veryfing $file" expect_equals "${infos[$file]}" "$(lizardfs fileinfo "$file")"
 done

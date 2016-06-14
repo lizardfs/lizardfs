@@ -92,13 +92,13 @@ function check() {
 cd "${info[mount0]}"
 
 FILE_SIZE=200B file-generate to_be_destroyed
-mfsfilerepair to_be_destroyed
+lizardfs filerepair to_be_destroyed
 check metarestore OK
 
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk*')
 mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
 lizardfs_wait_for_ready_chunkservers 2
-mfsfilerepair to_be_destroyed
+lizardfs filerepair to_be_destroyed
 check metarestore OK
 
 while read command; do
@@ -121,28 +121,28 @@ ln -s file symlink
 mv file file2
 ln -fs file2 symlink
 echo 'abc' > symlink
-mfssetquota -u $(id -u) 10GB 30GB 0 0 .
-mfssetquota -g $(id -g) 0 0 10k 20k .
+lizardfs setquota -u $(id -u) 10GB 30GB 0 0 .
+lizardfs setquota -g $(id -g) 0 0 10k 20k .
 touch file{00..99}
-mfssettrashtime 0 file1{0..4}
+lizardfs settrashtime 0 file1{0..4}
 rm file1?
 mv file99 file999
-mfssetgoal 3 file999
-mfssetgoal 9 file03
+lizardfs setgoal 3 file999
+lizardfs setgoal 9 file03
 head -c 1M < /dev/urandom > random_file
-mfssettrashtime 3 random_file
+lizardfs settrashtime 3 random_file
 truncate -s 100M random_file
 head -c 1M < /dev/urandom > random_file2
 truncate -s 100 random_file2
 truncate -s 1T sparse
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse
 head -c 1M /dev/urandom >> sparse
-mfsmakesnapshot sparse sparse2
+lizardfs makesnapshot sparse sparse2
 head -c 16M /dev/urandom | dd seek=1 bs=127M conv=notrunc of=sparse2
 truncate -s 1000M sparse2
 truncate -s 100 sparse2
 truncate -s 0 sparse2
-mfsmakesnapshot -o random_file random_file2
+lizardfs makesnapshot -o random_file random_file2
 head -c 2M /dev/urandom | dd seek=1 bs=1M conv=notrunc of=random_file
 truncate -s 1000M sparse
 truncate -s 100 sparse

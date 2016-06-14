@@ -22,7 +22,7 @@ lizardfs_wait_for_ready_chunkservers 3
 cd "${info[mount0]}"
 for goal in two_hdds two_with_hdd; do
 	mkdir $goal
-	mfssetgoal $goal $goal
+	lizardfs setgoal $goal $goal
 	FILE_SIZE=1M file-generate $goal/file_{1..12}
 done
 

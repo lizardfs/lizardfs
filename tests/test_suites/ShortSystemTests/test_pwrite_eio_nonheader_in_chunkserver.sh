@@ -20,7 +20,7 @@ lizardfs_wait_for_all_ready_chunkservers
 # Create a directory with many small files on mountpoint. Expect no damaged disks.
 cd "${info[mount0]}"
 mkdir test
-mfssetgoal 2 test
+lizardfs setgoal 2 test
 FILE_SIZE=1234 assert_success file-generate test/small_{1..20}
 sleep 1
 assert_awk_finds_no '$4 != "no"' "$(lizardfs_probe_master list-disks)"
@@ -36,6 +36,6 @@ assert_awk_finds_no '(/EIO/ && $4 != "yes") || (!/EIO/ && $4 != "no")' "$list"
 
 # Assert that data is replicated to chunkservers 1, 2 and no chunk is stored on cs 0
 for f in test/*; do
-	assert_eventually_prints "" "mfsfileinfo '$f' | grep ':${info[chunkserver0_port]}'"
-	assert_eventually_prints 2 "mfsfileinfo '$f' | grep copy | wc -l"
+	assert_eventually_prints "" "lizardfs fileinfo '$f' | grep ':${info[chunkserver0_port]}'"
+	assert_eventually_prints 2 "lizardfs fileinfo '$f' | grep copy | wc -l"
 done

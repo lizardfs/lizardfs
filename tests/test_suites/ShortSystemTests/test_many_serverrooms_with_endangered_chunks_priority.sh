@@ -9,7 +9,7 @@ USE_RAMDISK=YES \
 # Create many files, each should have at least one copy in each server room
 cd "${info[mount0]}"
 mkdir "${info[mount0]}/dir"
-mfssetgoal three_serverrooms "${info[mount0]}/dir"
+lizardfs setgoal three_serverrooms "${info[mount0]}/dir"
 for size in {1..15,50,100,200}M; do
 	FILE_SIZE="$size" assert_success file-generate "${info[mount0]}/dir/file_$size"
 done

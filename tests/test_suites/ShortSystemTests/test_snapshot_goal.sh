@@ -21,22 +21,22 @@ CHUNKSERVERS=9 \
 # Create a file consisting of 2 chunks of goal 4 (8 copies in total)
 cd "${info[mount0]}"
 touch file
-mfssetgoal 4 file
+lizardfs setgoal 4 file
 FILE_SIZE=$((1000 + LIZARDFS_CHUNK_SIZE)) file-generate file
 assert_success file-validate file
 assert_equals "8 standard" "$(chunks_state)"
 
 # Create its snapshots in goal 2 and xor3; chunks should be replicated
-mfsmakesnapshot file file_snapshot1
-mfsmakesnapshot file file_snapshot2
-mfssetgoal 2 file_snapshot1
-mfssetgoal xor3 file_snapshot2
+lizardfs makesnapshot file file_snapshot1
+lizardfs makesnapshot file file_snapshot2
+lizardfs setgoal 2 file_snapshot1
+lizardfs setgoal xor3 file_snapshot2
 
 echo "Waiting for chunks to be replicated..."
 assert_eventually_prints '8 standard 8 xor3' 'chunks_state' '3 minutes'
 
 # Remove file leaving only snapshots; there should be 4 xor3 parts created for 2 chunks (8 total)
-mfssettrashtime 0 file*
+lizardfs settrashtime 0 file*
 rm file
 echo "Waiting for chunks to be deleted..."
 assert_eventually_prints '4 standard 8 xor3' 'chunks_state' '3 minutes'
@@ -44,8 +44,8 @@ echo "Checking if chunks are no longer being converted/deleted..."
 assert_failure wait_for '[[ "$(chunks_state)" != "4 standard 8 xor3" ]]' '15 seconds'
 
 # Create one more snapshot of goal xor5
-mfsmakesnapshot file_snapshot1 file_snapshot3
-mfssetgoal xor5 file_snapshot3
+lizardfs makesnapshot file_snapshot1 file_snapshot3
+lizardfs setgoal xor5 file_snapshot3
 echo "Waiting for chunks to be replicated..."
 assert_eventually_prints '4 standard 8 xor3 12 xor5' 'chunks_state' '3 minutes'
 
@@ -55,8 +55,8 @@ echo "Waiting for chunks to be deleted..."
 assert_eventually_prints '8 xor3 12 xor5' 'chunks_state' '3 minutes'
 
 # Make a new snapshot of goal 3, expect 6 standard chunks (2 chunks x 3 copies)
-mfsmakesnapshot file_snapshot2 file_snapshot4
-mfssetgoal 3 file_snapshot4
+lizardfs makesnapshot file_snapshot2 file_snapshot4
+lizardfs setgoal 3 file_snapshot4
 echo "Waiting for chunks to be replicated..."
 assert_eventually_prints '6 standard 8 xor3 12 xor5' 'chunks_state' '3 minutes'
 

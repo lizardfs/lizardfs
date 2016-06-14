@@ -6,7 +6,7 @@ CHUNKSERVERS=3 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor2 "$dir"
+lizardfs setgoal xor2 "$dir"
 FILE_SIZE=6M file-generate "$dir/file"
 
 # Find the chunkserver serving parity part and stop it

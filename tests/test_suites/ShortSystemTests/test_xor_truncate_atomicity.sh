@@ -16,7 +16,7 @@ for level in 2 3 4 7 9; do
 	# Create a file which consists of 400 kB of random data
 	file="file$level"
 	touch "$file"
-	mfssetgoal xor$level "$file"
+	lizardfs setgoal xor$level "$file"
 	head -c 400K /dev/urandom > "$file"
 
 	# Run in parallel 200 dd processes, each copies different 1 kB of data from the source file

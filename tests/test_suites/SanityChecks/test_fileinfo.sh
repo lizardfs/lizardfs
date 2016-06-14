@@ -46,13 +46,13 @@ files=()
 for goal in 1 2 3 xor2 xor3 ec32; do
 	file="file_goal_$goal"
 	touch "$file"
-	mfssetgoal "$goal" "$file"
+	lizardfs setgoal "$goal" "$file"
 	dd if=/dev/zero of="$file" bs=1MiB count=5 seek=62 conv=notrunc
 	truncate -s 100M "$file" # Increases version of the second chunk
 	files+=("$file")
 done
 
-chunks_info=$(mfsfileinfo "${files[@]}" \
+chunks_info=$(lizardfs fileinfo "${files[@]}" \
 		| awk "$awkscript" \
 		| sed -e "s|CS${info[chunkserver0_port]}|$(cat ${info[chunkserver0_hdd]})|" \
 		| sed -e "s|CS${info[chunkserver1_port]}|$(cat ${info[chunkserver1_hdd]})|" \

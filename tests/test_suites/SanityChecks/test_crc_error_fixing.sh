@@ -15,9 +15,9 @@ get_damaged_area() {
 # Create a file
 cd "${info[mount0]}"
 touch file
-mfssetgoal xor3 file
+lizardfs setgoal xor3 file
 FILE_SIZE=1234567 file-generate file
-assert_equals 4 $(mfsfileinfo file | grep -c copy)
+assert_equals 4 $(lizardfs fileinfo file | grep -c copy)
 
 # Locate part 1 of its chunk and remember correct content of the area to be damaged
 chunk=$(find_all_chunks -name "*xor_1_*")
@@ -34,5 +34,5 @@ done
 
 echo "Waiting for the chunk to be fixed..."
 assert_success wait_for '[[ $(get_damaged_area "$chunk") == $correct_data ]]' "25 seconds"
-assert_success wait_for '[[ $(mfsfileinfo file | grep -c copy) == 4 ]]' "5 seconds"
+assert_success wait_for '[[ $(lizardfs fileinfo file | grep -c copy) == 4 ]]' "5 seconds"
 MESSAGE="Reading file with fixed chunk" expect_success file-validate file

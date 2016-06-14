@@ -11,7 +11,7 @@ hardlimit=14
 mkdir dir
 directory=$(readlink -m dir)
 
-mfssetquota -d 0 0 $softlimit $hardlimit dir
+lizardfs setquota -d 0 0 $softlimit $hardlimit dir
 
 # exceed quota by creating 1 directory and some files (8 inodes in total):
 for i in {1..4}; do
@@ -31,9 +31,9 @@ verify_dir_quota "Directory $directory -+ 0 0 0 7 $softlimit $hardlimit" $direct
 # snapshots are allowed, if none of the uid/gid of files residing
 # in a directory reached its limit:
 for i in {1..6}; do
-	mfsmakesnapshot dir/file$i dir/snapshot_file$i
+	lizardfs makesnapshot dir/file$i dir/snapshot_file$i
 done
-mfsmakesnapshot dir/soft1 dir/snapshot_soft1
+lizardfs makesnapshot dir/soft1 dir/snapshot_soft1
 
 verify_dir_quota "Directory $directory -+ 0 0 0 14 $softlimit $hardlimit" $directory
 
@@ -41,7 +41,7 @@ verify_dir_quota "Directory $directory -+ 0 0 0 14 $softlimit $hardlimit" $direc
 expect_failure touch dir/file
 expect_failure mkdir dir/dir
 expect_failure ln -s dir/file4 dir/soft2
-expect_failure mfsmakesnapshot dir/file2 dir/snapshot2
+expect_failure lizardfs makesnapshot dir/file2 dir/snapshot2
 verify_dir_quota "Directory $directory -+ 0 0 0 14 $softlimit $hardlimit" $directory
 
 # hard links don't affect usage and are not checked against limits:
@@ -50,9 +50,9 @@ verify_dir_quota "Directory $directory -+ 0 0 0 14 $softlimit $hardlimit" $direc
 
 # check if removing directory removes quota
 rm -Rf dir
-assert_equals "$(mfsrepquota -a . | grep ^Directory | cat)" ""
+assert_equals "$(lizardfs repquota -a . | grep ^Directory | cat)" ""
 mkdir dir
-assert_equals "$(mfsrepquota -a . | grep ^Directory | cat)" ""
+assert_equals "$(lizardfs repquota -a . | grep ^Directory | cat)" ""
 
 # verify nested quotas
 mkdir dir/dir1
@@ -64,10 +64,10 @@ hardlimit=5
 parent_softlimit=15
 parent_hardlimit=15
 
-mfssetquota -d 0 0 $parent_softlimit $parent_hardlimit dir
-mfssetquota -d 0 0 $softlimit $hardlimit dir/dir1
-mfssetquota -d 0 0 $softlimit $hardlimit dir/dir2
-mfssetquota -d 0 0 $softlimit $hardlimit dir/dir3
+lizardfs setquota -d 0 0 $parent_softlimit $parent_hardlimit dir
+lizardfs setquota -d 0 0 $softlimit $hardlimit dir/dir1
+lizardfs setquota -d 0 0 $softlimit $hardlimit dir/dir2
+lizardfs setquota -d 0 0 $softlimit $hardlimit dir/dir3
 
 directory1=$(readlink -m dir/dir1)
 directory2=$(readlink -m dir/dir2)

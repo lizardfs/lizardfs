@@ -1,6 +1,6 @@
 timeout_set 60 minutes
 continuous_test_begin
-mfssetgoal 2 .
+lizardfs setgoal 2 .
 
 # Validate and generate a buch of files.
 # This test will maintain up tp 1000 files, each between 1 KiB and 600 MiB.

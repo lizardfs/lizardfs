@@ -6,10 +6,10 @@ CHUNKSERVERS=3 \
 cd "${info[mount0]}"
 for goal in 1 2 3; do
 	mkdir goal_$goal
-	mfssetgoal $goal goal_$goal
+	lizardfs setgoal $goal goal_$goal
 	file=goal_$goal/file
 	FILE_SIZE=12345678 BLOCK_SIZE=12345 file-generate $file
-	if ! mfscheckfile $file | egrep "chunks with $goal cop(y|ies): *1$"; then
+	if ! lizardfs checkfile $file | egrep "chunks with $goal cop(y|ies): *1$"; then
 		test_add_failure "File with goal $goal created with undergoal chunks"
 	fi
 	if ! file-validate $file; then

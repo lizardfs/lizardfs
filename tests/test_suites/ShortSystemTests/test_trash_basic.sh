@@ -25,8 +25,8 @@ ln -s source symlink
 ln source link
 
 mkdir dir dir2
-mfssetgoal 1 dir
-mfssettrashtime 10000 dir dir2
+lizardfs setgoal 1 dir
+lizardfs settrashtime 10000 dir dir2
 cd dir
 FILE_SIZE=1M file-generate file file2
 
@@ -45,7 +45,7 @@ assert_equals "$stat_before_rm" "$stat_after_recovery"
 
 # 3. Empty trash after trashtime
 trash_time=11
-mfssettrashtime $trash_time file
+lizardfs settrashtime $trash_time file
 begin_ts=$(timestamp)
 rm file
 assert_success stat "$file_in_trash" >/dev/null

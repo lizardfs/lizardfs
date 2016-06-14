@@ -12,7 +12,7 @@ CHUNKSERVERS=3 \
 cd "${info[mount0]}"
 mkdir dir
 cd dir
-mfssetgoal xor2 .
+lizardfs setgoal xor2 .
 FILE_SIZE=129M BLOCK_SIZE=12345 file-generate file
 
 file-validate file

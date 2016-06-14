@@ -7,7 +7,7 @@ CHUNKSERVERS=4 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor3 "$dir"
+lizardfs setgoal xor3 "$dir"
 
 # Create a temporary file with some data
 file_size_mb=5

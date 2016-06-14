@@ -24,7 +24,7 @@ sleep 17
 
 # Create 20 files. Expect that for each file there are 2 chunk copies.
 FILE_SIZE=1K file-generate "${info[mount0]}"/file{1..20}
-assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)
+assert_equals 20 $(lizardfs checkfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)
 
 # Stop 'ssd' server and start unlabeled server.
 # We have only two unlabeled servers now.
@@ -34,9 +34,9 @@ lizardfs_wait_for_ready_chunkservers 2
 
 # All chunks has 1 missing replica on 'ssd' server
 # but they never should be replicated to some random server.
-assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 1 copy:' | wc -l)
+assert_equals 20 $(lizardfs checkfile "${info[mount0]}"/* | grep 'with 1 copy:' | wc -l)
 sleep 7
-assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 1 copy:' | wc -l)
+assert_equals 20 $(lizardfs checkfile "${info[mount0]}"/* | grep 'with 1 copy:' | wc -l)
 
 # Restart 'ssd' server.
 lizardfs_chunkserver_daemon 1 start
@@ -49,4 +49,4 @@ assert_eventually_prints 20 'find_chunkserver_chunks 1 | wc -l' "4 seconds"
 # that chunk loop tested all chunks.
 sleep 2
 
-assert_equals 20 $(mfscheckfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)
+assert_equals 20 $(lizardfs checkfile "${info[mount0]}"/* | grep 'with 2 copies:' | wc -l)

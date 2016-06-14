@@ -10,13 +10,13 @@ fi
 	format+=$'mtime %Y; ctime %Z\n'
 	format+=$'blocks %b; size %s; links %h; device %t,%T\n'
 	find . -type f | sort | while read file; do
-		mfsfileinfo "$file" | grep -v $'^\t\t' # remove "copy N" and "no valid copies"
+		lizardfs fileinfo "$file" | grep -v $'^\t\t' # remove "copy N" and "no valid copies"
 	done
 	find . -type f -o -type d | sort | while read file; do
-		mfsgetgoal "$file"
-		mfsgettrashtime "$file"
-		mfsgeteattr "$file"
-		mfsdirinfo "$file"
+		lizardfs getgoal "$file"
+		lizardfs gettrashtime "$file"
+		lizardfs geteattr "$file"
+		lizardfs dirinfo "$file"
 if [[ ! ${DISABLE_PRINTING_XATTRS:-} ]]; then
 		getfattr -d "$file"
 		getfacl "$file"
@@ -29,7 +29,7 @@ fi
 		stat -c "$format" "$file"
 	done
 	if [[ $(stat -c "%i" .) == 1 ]]; then
-		mfsrepquota -a .
+		lizardfs repquota -a .
 	fi
 )
 }
@@ -61,8 +61,8 @@ metadata_generate_funny_inodes() {
 }
 
 metadata_generate_quotas() {
-	mfssetquota -u $(id -u) 10GB 30GB 0 0 .
-	mfssetquota -g $(id -g) 0 0 10k 20k .
+	lizardfs setquota -u $(id -u) 10GB 30GB 0 0 .
+	lizardfs setquota -g $(id -g) 0 0 10k 20k .
 }
 
 metadata_generate_unlink() {
@@ -76,15 +76,15 @@ metadata_generate_unlink() {
 metadata_generate_trash_ops() {
 	touch trashed_file
 	if [[ ${MFS_META_MOUNT_PATH-} ]]; then
-		# Hack: create files using mfsmakesnapshot so that they will never be opened
+		# Hack: create files using lizardfs makesnapshot so that they will never be opened
 		for i in 1 2 3 4 5; do
-				mfsmakesnapshot trashed_file trashed_file_$i
+				lizardfs makesnapshot trashed_file trashed_file_$i
 		done
 		trashed_file_4_inode=$(inode_of trashed_file_4)
 		trashed_file_5_inode=$(inode_of trashed_file_5)
-		mfssettrashtime 60 trashed_file*
-		mfssettrashtime 1 trashed_file_4
-		mfssettrashtime 0 trashed_file_5
+		lizardfs settrashtime 60 trashed_file*
+		lizardfs settrashtime 1 trashed_file_4
+		lizardfs settrashtime 0 trashed_file_5
 		# Open descriptor of trashed_file_5
 		exec 150<>trashed_file_5
 		rm trashed_file_*
@@ -109,53 +109,53 @@ metadata_generate_trash_ops() {
 metadata_generate_setgoal() {
 	for goal in 1 2 3 4 ; do
 		touch setgoal$goal
-		mfssetgoal $goal setgoal$goal
+		lizardfs setgoal $goal setgoal$goal
 	done
 	mkdir -p setgoal_recursive/dir{1,2}
 	chmod 777 setgoal_recursive/dir{1,2}
 	touch setgoal_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch setgoal_recursive/dir{1,2}/file2
-	mfssetgoal -r 7 setgoal_recursive
+	lizardfs setgoal -r 7 setgoal_recursive
 
 	mkdir -p setgoal_incdec
 	for goal in {1..9}; do
 		touch setgoal_incdec/setgoal$goal
-		mfssetgoal $goal setgoal_incdec/setgoal$goal
+		lizardfs setgoal $goal setgoal_incdec/setgoal$goal
 	done
 }
 
 metadata_generate_settrashtime() {
 	for trashtime in 123 234 345 ; do
 		touch settrashtime$trashtime
-		mfssettrashtime $trashtime settrashtime$trashtime
+		lizardfs settrashtime $trashtime settrashtime$trashtime
 	done
 	mkdir -p settrashtime_recursive/dir{1,2}
 	chmod 777 settrashtime_recursive/dir{1,2}
 	touch settrashtime_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch settrashtime_recursive/dir{1,2}/file2
-	mfssettrashtime -r 123456 settrashtime_recursive
+	lizardfs settrashtime -r 123456 settrashtime_recursive
 
 	mkdir -p settrashtime_incdec
-	mfssettrashtime 100 settrashtime_incdec
+	lizardfs settrashtime 100 settrashtime_incdec
 	for i in 100 150 200 250 300; do
 		touch settrashtime_incdec/file$i
-		mfssettrashtime $i settrashtime_incdec/file$i
+		lizardfs settrashtime $i settrashtime_incdec/file$i
 	done
-	mfssettrashtime -r 200+ settrashtime_incdec
-	mfssettrashtime -r 200- settrashtime_incdec
+	lizardfs settrashtime -r 200+ settrashtime_incdec
+	lizardfs settrashtime -r 200- settrashtime_incdec
 }
 
 metadata_generate_seteattr() {
 	touch seteattr_dir{1,2,3,4}
-	mfsseteattr -f noowner seteattr_dir1
-	mfsseteattr -f noattrcache seteattr_dir2
-	mfsseteattr -f noentrycache seteattr_dir3
+	lizardfs seteattr -f noowner seteattr_dir1
+	lizardfs seteattr -f noattrcache seteattr_dir2
+	lizardfs seteattr -f noentrycache seteattr_dir3
 
 	mkdir -p seteattr_recursive/dir{1,2}
 	chmod 777 seteattr_recursive/dir{1,2}
 	touch seteattr_recursive/dir{1,2}/file1
 	sudo -HEnu lizardfstest_2 touch seteattr_recursive/dir{1,2}/file2
-	mfsseteattr -r -f noowner seteattr_recursive
+	lizardfs seteattr -r -f noowner seteattr_recursive
 }
 
 metadata_generate_chunks() {
@@ -164,7 +164,7 @@ metadata_generate_chunks() {
 	echo yyyy >chunk_y
 	echo zzzz >chunk_z
 	# test sharing and "unsharing" chunks
-	mfsappendchunks chunk_xyz chunk_x chunk_y chunk_z
+	lizardfs appendchunks chunk_xyz chunk_x chunk_y chunk_z
 	truncate -s2 chunk_x
 	echo 'zZzZ' >>chunk_z
 }
@@ -172,7 +172,7 @@ metadata_generate_chunks() {
 metadata_generate_chunks_with_goals() {
 	for i in {1..20}; do
 		mkdir chunks_with_goals_$i
-		mfssetgoal $i chunks_with_goals_$i
+		lizardfs setgoal $i chunks_with_goals_$i
 		echo a | tee chunks_with_goals_$i/{1..3} >/dev/null
 	done
 }
@@ -187,21 +187,21 @@ metadata_generate_snapshot() {
 	sudo -HEnu lizardfstest_3 bash -c 'echo xyz > dir_snapshot/file_5'
 	mkdir dir_snapshot/level_2
 	touch dir_snapshot/level_2/file4
-	mfsmakesnapshot dir_snapshot dir_snapshot_s1
+	lizardfs makesnapshot dir_snapshot dir_snapshot_s1
 
 	# Test overwriting shared data
 	echo aaaaaaaaaaaa > snapshot_file
-	mfsmakesnapshot snapshot_file snapshot_file_s1
-	mfsmakesnapshot snapshot_file snapshot_file_s2
+	lizardfs makesnapshot snapshot_file snapshot_file_s1
+	lizardfs makesnapshot snapshot_file snapshot_file_s2
 	echo bbb >> snapshot_file_s1
 	truncate -s 1 snapshot_file_s2
 
 	# Test snapshot -o
 	mkdir -p dir_snapshot_2
 	touch dir_snapshot_2/file4
-	mfsmakesnapshot -o dir_snapshot/level_2/file4 dir_snapshot_2/
-	mfsmakesnapshot dir_snapshot dir_snapshot_s2
-	mfsmakesnapshot -o dir_snapshot dir_snapshot_s2
+	lizardfs makesnapshot -o dir_snapshot/level_2/file4 dir_snapshot_2/
+	lizardfs makesnapshot dir_snapshot dir_snapshot_s2
+	lizardfs makesnapshot -o dir_snapshot dir_snapshot_s2
 }
 
 metadata_generate_xattrs() {

@@ -12,13 +12,13 @@ USE_RAMDISK=YES \
 cd "${info[mount0]}"
 FILE_SIZE=1K file-generate file{1..25}
 
-assert_success mfssetgoal -r tapegoal .
+assert_success lizardfs setgoal -r tapegoal .
 
 # Make sure files are readable and have proper goal
 for file in file* ; do
 	MESSAGE="Testing file $file"
 	expect_success file-validate "$file"
-	expect_equals 2 $(mfsfileinfo "$file" | grep copy | wc -l)
+	expect_equals 2 $(lizardfs fileinfo "$file" | grep copy | wc -l)
 done
 
 # Make sure files are read-only

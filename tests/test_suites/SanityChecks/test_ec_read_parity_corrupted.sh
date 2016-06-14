@@ -6,7 +6,7 @@ CHUNKSERVERS=4 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal ec22 "$dir"
+lizardfs setgoal ec22 "$dir"
 FILE_SIZE=6M file-generate "$dir/file"
 
 # Corrupt data in the first parity part of the chunk

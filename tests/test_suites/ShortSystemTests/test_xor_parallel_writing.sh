@@ -9,7 +9,7 @@ CHUNKSERVERS=4 \
 # Create an empty file on the LizardFS filesystem with xor3 goal
 file="${info[mount0]}/file"
 touch "$file"
-mfssetgoal xor3 "$file"
+lizardfs setgoal xor3 "$file"
 
 # Create a temporary file with 25 megabytes of generated data
 tmpf=$RAMDISK_DIR/tmpf

@@ -10,7 +10,7 @@
 # chunk 0000000000000003_00000001
 # chunk 0000000000000004_00000001 part 1/3
 get_list_of_chunks() {
-	mfsfileinfo */* | awk '/\tchunk/{id=$3} /\tcopy/{print "chunk",id,$4,$5}' | sort
+	lizardfs fileinfo */* | awk '/\tchunk/{id=$3} /\tcopy/{print "chunk",id,$4,$5}' | sort
 }
 
 timeout_set "$test_timeout"
@@ -25,7 +25,7 @@ cd "${info[mount0]}"
 for goal in $goals; do
 	dir="dir_$goal"
 	mkdir "$dir"
-	mfssetgoal "$goal" "$dir"
+	lizardfs setgoal "$goal" "$dir"
 	FILE_SIZE=1M file-generate "$dir/file"
 done
 

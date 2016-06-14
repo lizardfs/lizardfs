@@ -19,8 +19,8 @@ lizardfs_chunkserver_daemon 1 stop
 lizardfs_wait_for_ready_chunkservers 3
 cd "${info[mount0]}"
 mkdir dir dirxor
-mfssetgoal 2 dir
-mfssetgoal xor2 dirxor
+lizardfs setgoal 2 dir
+lizardfs setgoal xor2 dirxor
 for i in {1..10}; do
 	 # Each loop creates 2 standard chunks and 3 xor chunks, ~1 MB each
 	( FILE_SIZE=1M expect_success file-generate "dir/file_$i" ) &

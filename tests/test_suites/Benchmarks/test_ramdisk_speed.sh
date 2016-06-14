@@ -10,7 +10,7 @@ cd "${info[mount0]}"
 for goal in 1 2 xor2 xor3; do
 	test_filename=speed_test_file_${goal}
 	touch "$test_filename"
-	mfssetgoal $goal "$test_filename"
+	lizardfs setgoal $goal "$test_filename"
 
 	# write file and measure time
 	drop_caches

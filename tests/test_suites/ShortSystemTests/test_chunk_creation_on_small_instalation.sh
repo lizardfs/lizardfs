@@ -7,15 +7,15 @@ CHUNKSERVERS=5 \
 cd "${info[mount0]}"
 
 mkdir dir_xor5
-mfssetgoal xor5 dir_xor5
+lizardfs setgoal xor5 dir_xor5
 for i in {1..60}; do
 	FILE_SIZE=1M file-generate "dir_xor5/file$i"
 done
 mkdir dir_9
-mfssetgoal 9 dir_9
+lizardfs setgoal 9 dir_9
 FILE_SIZE=1k file-generate dir_9/file
 
-chunks=$(mfsfileinfo */* | grep copy)
+chunks=$(lizardfs fileinfo */* | grep copy)
 expect_equals 5 $(grep -v part <<< "$chunks" | grep -v parity | wc -l)
 
 # No parity is expected to appear

@@ -16,7 +16,7 @@ CHUNKSERVERS=3 \
 cd "${info[mount0]}"
 for goal in 1 2 xor2; do
 	mkdir "goal_$goal"
-	mfssetgoal "$goal" "goal_$goal"
+	lizardfs setgoal "$goal" "goal_$goal"
 	dbench_tester "goal_$goal" &
 done
 wait

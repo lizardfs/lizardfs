@@ -23,7 +23,7 @@ mkdir dir
 
 # 100 KB, goal 2
 touch dir/file1
-mfssetgoal 2 dir/file1
+lizardfs setgoal 2 dir/file1
 dd if=/dev/zero of=dir/file1 bs=100KiB count=1
 	  length[dir/file1]=$(parse_si_suffix 100K)
 	    size[dir/file1]=$((1 * header_size + 2 * block))
@@ -31,7 +31,7 @@ dd if=/dev/zero of=dir/file1 bs=100KiB count=1
 
 # 1 B, goal 3
 touch dir/file2
-mfssetgoal 3 dir/file2
+lizardfs setgoal 3 dir/file2
 dd if=/dev/zero of=dir/file2 bs=1 count=1
 	  length[dir/file2]=1
 	    size[dir/file2]=$((1 * header_size + 1 * block))
@@ -39,7 +39,7 @@ dd if=/dev/zero of=dir/file2 bs=1 count=1
 
 # 64 KB, goal 2
 touch dir/file3
-mfssetgoal 2 dir/file3
+lizardfs setgoal 2 dir/file3
 dd if=/dev/zero of=dir/file3 bs=64KiB count=1
 	length[dir/file3]=65536
 	    size[dir/file3]=$((1 * header_size + 1 * block))
@@ -47,7 +47,7 @@ dd if=/dev/zero of=dir/file3 bs=64KiB count=1
 
 # 1 KB, goal xor2
 touch dir/filex1
-mfssetgoal xor2 dir/filex1
+lizardfs setgoal xor2 dir/filex1
 dd if=/dev/zero of=dir/filex1 bs=1KiB count=1
 	  length[dir/filex1]=$(parse_si_suffix 1K)
 	    size[dir/filex1]=$((1 * header_size + 1 * block))
@@ -55,7 +55,7 @@ dd if=/dev/zero of=dir/filex1 bs=1KiB count=1
 
 # 100 KB, goal xor2
 touch dir/filex2
-mfssetgoal xor2 dir/filex2
+lizardfs setgoal xor2 dir/filex2
 dd if=/dev/zero of=dir/filex2 bs=100KiB count=1
 	  length[dir/filex2]=$(parse_si_suffix 100K)
 	    size[dir/filex2]=$((1 * header_size + 2 * block))
@@ -63,7 +63,7 @@ dd if=/dev/zero of=dir/filex2 bs=100KiB count=1
 
 # 70 MB, goal xor3
 touch dir/filex3
-mfssetgoal xor3 dir/filex3
+lizardfs setgoal xor3 dir/filex3
 dd if=/dev/zero of=dir/filex3 bs=1MiB count=70
 	  length[dir/filex3]=$(parse_si_suffix 70M)
 	    size[dir/filex3]=$((2 * header_size + 1120 * block))
@@ -71,7 +71,7 @@ dd if=/dev/zero of=dir/filex3 bs=1MiB count=70
 
 # 70 MB + 1 B, goal xor2
 touch dir/filex4
-mfssetgoal xor2 dir/filex4
+lizardfs setgoal xor2 dir/filex4
 dd if=/dev/zero of=dir/filex4 bs=1MiB count=70
 echo >> dir/filex4
 	  length[dir/filex4]=$(($(parse_si_suffix 70M) + 1))
@@ -80,7 +80,7 @@ echo >> dir/filex4
 
 # 64 KB, goal xor2
 touch dir/filex5
-mfssetgoal xor2 dir/filex5
+lizardfs setgoal xor2 dir/filex5
 dd if=/dev/zero of=dir/filex5 bs=64KiB count=1
 	  length[dir/filex5]=65536
 	    size[dir/filex5]=$((1 * header_size + 1 * block))

@@ -37,7 +37,7 @@ get_file_labels() {
 			`/copy .*:(${info[chunkserver0_port]}|${info[chunkserver1_port]}):.*\$/ {print \"de\"} `
 			`/copy .*:(${info[chunkserver2_port]}|${info[chunkserver3_port]}):.*\$/ {print \"us\"} `
 			`/copy .*:(${info[chunkserver4_port]}):.*\$/ {print \"cn\"}"
-	mfsfileinfo "$1" | awk "$fileinfo_to_labels" | sort | tr '\n' ' ' | trim | tr ' ' ','
+	lizardfs fileinfo "$1" | awk "$fileinfo_to_labels" | sort | tr '\n' ' ' | trim | tr ' ' ','
 }
 
 cd "${info[mount0]}"
@@ -46,7 +46,7 @@ for goal in "${!expected_labels[@]}"; do
 
 	# Create a lot of files in the current goal and verify labels for each file
 	mkdir "dir_$goal"
-	mfssetgoal "$goal" "dir_$goal"
+	lizardfs setgoal "$goal" "dir_$goal"
 	for file in "dir_$goal/file"{1..50}; do
 		echo x > "$file"
 		assert_matches "^(${expected_labels[goal]})\$" "$(get_file_labels "$file")"

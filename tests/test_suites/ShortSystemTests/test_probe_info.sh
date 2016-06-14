@@ -8,7 +8,7 @@ cd "${info[mount0]}"
 goals="2 3 xor2 xor3"
 for goal in $goals; do
 	mkdir dir_$goal
-	mfssetgoal $goal dir_$goal
+	lizardfs setgoal $goal dir_$goal
 	FILE_SIZE=150K file-generate dir_$goal/file
 done
 

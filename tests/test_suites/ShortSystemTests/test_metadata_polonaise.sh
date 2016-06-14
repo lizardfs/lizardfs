@@ -13,7 +13,7 @@ sleep 3
 mnt="$TEMP_DIR/mfspolon"
 mkdir -p "$mnt"
 polonaise-fuse-client "$mnt" -o big_writes,allow_other &
-MESSAGE="Client is not available" assert_eventually 'mfsdirinfo "$mnt"'
+MESSAGE="Client is not available" assert_eventually 'lizardfs dirinfo "$mnt"'
 
 cd "$mnt"
 for generator in $(metadata_get_all_generators | egrep -v "acl|xattr|trash"); do

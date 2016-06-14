@@ -10,11 +10,11 @@ CHUNKSERVERS=4 \
 file="${info[mount0]}/file"
 xorfile="${info[mount0]}/xorfile"
 touch "$file" "$xorfile"
-mfssetgoal 3 "$file"
-mfssetgoal xor3 "$xorfile"
+lizardfs setgoal 3 "$file"
+lizardfs setgoal xor3 "$xorfile"
 dd if=/dev/zero of="$file" bs=1MiB count=130
 dd if=/dev/zero of="$xorfile" bs=1MiB count=130
-mfssettrashtime 0 "$file" "$xorfile"
+lizardfs settrashtime 0 "$file" "$xorfile"
 rm -f "$file" "$xorfile"
 
 # Wait for removing all the chunks

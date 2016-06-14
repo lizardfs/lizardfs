@@ -11,7 +11,7 @@ goals="2 3 xor2 xor3"
 cd "${info[mount0]}"
 for goal in $goals; do
 	mkdir dir_$goal
-	mfssetgoal $goal dir_$goal
+	lizardfs setgoal $goal dir_$goal
 	echo a > dir_$goal/file
 done
 
@@ -28,7 +28,7 @@ expect_awk_finds_no '/REP [xor0-9]+ [0-9]+ .*[1-9]/' "$health4"
 
 # Choose chunkservers to stop in the way, that the chunkserver with one copy
 # of the chunk in goal 2 will be turned off as the first one
-chunk=$(mfsfileinfo dir_2/file | awk '/chunk 0:/{print $3}')
+chunk=$(lizardfs fileinfo dir_2/file | awk '/chunk 0:/{print $3}')
 csid1=$(find_first_chunkserver_with_chunks_matching "*$chunk*")
 csid2=$(( (csid1 + 1) % 4 ))
 csid3=$(( (csid2 + 1) % 4 ))

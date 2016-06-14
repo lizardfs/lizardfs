@@ -26,9 +26,9 @@ verify_archive() {
 # Prepare environment for the test - a directory for tar backups and a directory for temporary files
 continuous_test_begin
 mkdir -p backups work
-mfssetgoal 2 work
-mfssetgoal 3 backups
-mfssettrashtime 1800 work
+lizardfs setgoal 2 work
+lizardfs setgoal 3 backups
+lizardfs settrashtime 1800 work
 assert_success rm -rf work/*
 
 # Create about 200 MB of files in the work/ subdir
@@ -44,7 +44,7 @@ done
 for size in 1G 5G 30G; do
 	archive="backups/backup_$size.tar"
 	assert_success touch "$archive"  # Create if not exists
-	assert_success mfsmakesnapshot "$archive" work/tmp.tar
+	assert_success lizardfs makesnapshot "$archive" work/tmp.tar
 	assert_success tar -f work/tmp.tar --append --seek -v -C work "$path"
 	assert_success mv -v work/tmp.tar "$archive"
 

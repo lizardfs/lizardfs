@@ -33,19 +33,19 @@ USE_RAMDISK=YES \
 
 cd "${info[mount0]}"
 mkdir dir
-mfssetgoal xor2_ssd dir
+lizardfs setgoal xor2_ssd dir
 FILE_SIZE=1K file-generate dir/file
 
 assert_equals "3 xor2" "$(chunks_state)"
 assert_equals 3 "$(count_chunks_on_chunkservers {6..8})"
 assert_equals 3 "$(count_chunks_on_chunkservers {0..8})"
 
-mfssetgoal xor3_hdd dir/file
+lizardfs setgoal xor3_hdd dir/file
 assert_eventually_prints '4 xor3' 'chunks_state' '2 minutes'
 assert_equals 3 "$(count_chunks_on_chunkservers {3..5})"
 assert_equals 4 "$(count_chunks_on_chunkservers {0..8})"
 
-mfssetgoal xor5_mix dir/file
+lizardfs setgoal xor5_mix dir/file
 assert_eventually_prints '6 xor5' 'chunks_state' '2 minutes'
 assert_less_or_equal 2 "$(count_chunks_on_chunkservers {3..5})"
 assert_less_or_equal 2 "$(count_chunks_on_chunkservers {6..8})"

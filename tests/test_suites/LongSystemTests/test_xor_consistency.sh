@@ -77,7 +77,7 @@ CHUNKSERVERS=3 \
 	setup_local_empty_lizardfs info
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor2 "$dir"
+lizardfs setgoal xor2 "$dir"
 
 # Some configuration goes here
 data_size_per_thread=$(parse_si_suffix 3G)

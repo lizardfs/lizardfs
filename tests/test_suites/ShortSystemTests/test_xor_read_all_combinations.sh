@@ -8,7 +8,7 @@ CHUNKSERVERS=10 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor9 "$dir"
+lizardfs setgoal xor9 "$dir"
 FILE_SIZE=876M file-generate "$dir/file"
 
 for i in {0..9}; do

@@ -15,7 +15,7 @@ mkdir dir
 for i in $file_suffixes; do
 	echo content_$i > dir/file_$i
 done
-mfssettrashtime -r 3600 dir/
+lizardfs settrashtime -r 3600 dir/
 rm -rf dir/
 
 # Create a directory where all the files from trash will be restored and recover them there

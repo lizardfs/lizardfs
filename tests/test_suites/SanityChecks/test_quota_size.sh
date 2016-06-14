@@ -18,8 +18,8 @@ one_chunk_file_size=$(mfs_dir_info size file_chunk)
 soft=$((2*one_kb_file_size))
 hard=$((3*one_kb_file_size))
 
-mfssetquota -g $gid1 $soft $hard 0 0 .
-mfssetquota -g $gid $soft $hard 0 0 .
+lizardfs setquota -g $gid1 $soft $hard 0 0 .
+lizardfs setquota -g $gid $soft $hard 0 0 .
 
 verify_quota "Group $gid1 -- 0 $soft $hard 0 0 0" lizardfstest_1
 verify_quota "Group $gid -- 0 $soft $hard 0 0 0" lizardfstest
@@ -55,18 +55,18 @@ verify_quota "Group $gid1 +- $((one_kb_file_size + one_chunk_file_size)) $soft $
 verify_quota "Group $gid -- $one_kb_file_size $soft $hard 1 0 0" lizardfstest
 
 # check if snapshots are properly handled:
-mfsmakesnapshot file_2 snapshot_1
+lizardfs makesnapshot file_2 snapshot_1
 verify_quota "Group $gid -- $soft $soft $hard 2 0 0" lizardfstest
 
 # BTW, check if '+' for soft limit is properly printed..
-mfssetquota -g $gid $((soft-1)) $hard 0 0 .
+lizardfs setquota -g $gid $((soft-1)) $hard 0 0 .
 verify_quota "Group $gid +- $soft $((soft-1)) $hard 2 0 0" lizardfstest
-mfssetquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
+lizardfs setquota -g $gid $soft $hard 0 0 .  # .. OK, come back to the previous limit
 
 # snapshots continued..
-mfsmakesnapshot file_2 snapshot_2
+lizardfs makesnapshot file_2 snapshot_2
 verify_quota "Group $gid +- $hard $soft $hard 3 0 0" lizardfstest
-expect_failure mfsmakesnapshot file_2 snapshot_3
+expect_failure lizardfs makesnapshot file_2 snapshot_3
 
 # verify that we can't create new chunks by 'splitting' a chunk shared by multiple files
 expect_failure sudo -nu lizardfstest_1 dd if=/dev/zero of=snapshot_2 bs=1k count=1 conv=notrunc

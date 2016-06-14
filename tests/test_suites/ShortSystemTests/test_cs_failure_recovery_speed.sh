@@ -7,7 +7,7 @@ CHUNKSERVERS=4 \
 
 # Create 5 files containing some garbage
 mkdir "${info[mount0]}/dir"
-mfssetgoal 4 "${info[mount0]}/dir"
+lizardfs setgoal 4 "${info[mount0]}/dir"
 head -c 1M /dev/urandom | tee "${info[mount0]}"/dir/file{0,1,2,3,4} >/dev/null
 
 # Stop one of chunkservers which has one copy of each chunk and

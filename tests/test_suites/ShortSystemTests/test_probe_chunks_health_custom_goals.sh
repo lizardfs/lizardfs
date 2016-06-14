@@ -13,7 +13,7 @@ goals="2 3 4"
 cd "${info[mount0]}"
 for goal in $goals; do
 	touch file_$goal
-	mfssetgoal $goal file_$goal
+	lizardfs setgoal $goal file_$goal
 	echo a > file_$goal
 done
 
@@ -43,11 +43,11 @@ output+=([B__]="AVA B__ 3|REP B__ 0 3|DEL B__ 3")
 # files goal back and forth
 for new_goal in "${!output[@]}"; do
 	MESSAGE="Testing goal ${new_goal}"
-	mfssetgoal ${new_goal} file_*
+	lizardfs setgoal ${new_goal} file_*
 	expect_equals "${output[$new_goal]}" "$(chunks-health-trimmed)"
 	chunks-health-trimmed
 	for old_goal in $goals; do
-		mfssetgoal ${old_goal} file_${old_goal}
+		lizardfs setgoal ${old_goal} file_${old_goal}
 	done
 	expect_equals "$first_output" "$(chunks-health-trimmed)"
 done

@@ -24,7 +24,7 @@ for goal in 2 xor3; do
 			$((chunk_size + 30)); do
 		echo "Testing size $filesize goal $goal"
 		mkdir -p tmp;
-		mfssetgoal $goal tmp
+		lizardfs setgoal $goal tmp
 		# Generate file
 		FILE_SIZE=$filesize file-generate tmp/file
 		# Add 1000 bytes at the and of the file and remove them using truncate

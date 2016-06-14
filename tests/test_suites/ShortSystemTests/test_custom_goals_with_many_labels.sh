@@ -10,5 +10,5 @@ FILE_SIZE=1K file-generate file{1..25}
 for file in file* ; do
 	MESSAGE="Testing file $file"
 	expect_success file-validate "$file"
-	expect_equals 20 $(mfsfileinfo "$file" | grep copy | wc -l)
+	expect_equals 20 $(lizardfs fileinfo "$file" | grep copy | wc -l)
 done

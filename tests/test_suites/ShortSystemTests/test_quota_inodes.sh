@@ -11,7 +11,7 @@ gid2=$(id -g lizardfstest)
 softlimit=3
 hardlimit=14
 
-mfssetquota -g $gid1 0 0 $softlimit $hardlimit .
+lizardfs setquota -g $gid1 0 0 $softlimit $hardlimit .
 
 # exceed quota by creating 1 directory and some files (8 inodes in total):
 sudo -nu lizardfstest_1 mkdir dir_$gid1

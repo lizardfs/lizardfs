@@ -24,7 +24,7 @@ metadata_version=$(metadata_get_version "$metadata_file")
 cd ${info[mount0]}
 touch file{00..99}
 assert_eventually '[[ $(grep RELEASE "$changelog_file" | wc -l) == 100 ]]'
-mfssettrashtime 0 file*
+lizardfs settrashtime 0 file*
 rm file{10..80}
 cd
 

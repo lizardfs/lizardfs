@@ -18,8 +18,8 @@ hard=$((3*one_kb_file_size))
 mkdir dir
 directory=$(readlink -m dir)
 
-mfssetquota -d $soft $hard 0 0 dir
-mfssetquota -d $soft $hard 0 0 dir
+lizardfs setquota -d $soft $hard 0 0 dir
+lizardfs setquota -d $soft $hard 0 0 dir
 
 verify_dir_quota "Directory $directory -- 0 $soft $hard 0 0 0" $directory
 
@@ -54,18 +54,18 @@ verify_dir_quota "Directory $directory -- 0 $soft $hard 0 0 0" $directory
 
 # check if snapshots are properly handled:
 head -c 1024 /dev/zero > dir/file_1
-mfsmakesnapshot dir/file_1 dir/snapshot_1
+lizardfs makesnapshot dir/file_1 dir/snapshot_1
 verify_dir_quota "Directory $directory -- $((2 * one_kb_file_size)) $soft $hard 2 0 0" $directory
 
 # BTW, check if '+' for soft limit is properly printed..
-mfssetquota -d $((soft-1)) $hard 0 0 dir
+lizardfs setquota -d $((soft-1)) $hard 0 0 dir
 verify_dir_quota "Directory $directory +- $soft $((soft-1)) $hard 2 0 0" $directory
-mfssetquota -d $soft $hard 0 0 dir  # .. OK, come back to the previous limit
+lizardfs setquota -d $soft $hard 0 0 dir  # .. OK, come back to the previous limit
 
 # snapshots continued..
-mfsmakesnapshot dir/file_1 dir/snapshot_2
+lizardfs makesnapshot dir/file_1 dir/snapshot_2
 verify_dir_quota "Directory $directory +- $hard $soft $hard 3 0 0" $directory
-expect_failure mfsmakesnapshot dir/file_1 dir/snapshot_3
+expect_failure lizardfs makesnapshot dir/file_1 dir/snapshot_3
 
 # verify that we can't create new chunks by 'splitting' a chunk shared by multiple files
 expect_failure dd if=/dev/zero of=dir/snapshot_2 bs=1k count=1 conv=notrunc

@@ -6,7 +6,7 @@ CHUNKSERVERS=4 \
 
 dir="${info[mount0]}/dir"
 mkdir "$dir"
-mfssetgoal xor3 "$dir"
+lizardfs setgoal xor3 "$dir"
 FILE_SIZE=6M file-generate "$dir/file"
 
 # Corrupt data in the parity part of the chunk

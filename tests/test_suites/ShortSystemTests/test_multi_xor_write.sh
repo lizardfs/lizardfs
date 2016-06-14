@@ -27,12 +27,12 @@ cd ${info[mount0]}
 
 # Produce first version chunks
 dd if=/dev/zero of=file bs=1k count=5k
-mfssetgoal xor2 file
-while (( $(mfsfileinfo file | grep -c copy) < 4 )); do # 1 [goal1] + 3 [xor2]
+lizardfs setgoal xor2 file
+while (( $(lizardfs fileinfo file | grep -c copy) < 4 )); do # 1 [goal1] + 3 [xor2]
 	sleep 1
 done
-mfssetgoal xor3 file
-while (( $(mfsfileinfo file | grep -c copy) < 8 )); do # 1 [goal1] + 3 [xor2] + 4 [xor3]
+lizardfs setgoal xor3 file
+while (( $(lizardfs fileinfo file | grep -c copy) < 8 )); do # 1 [goal1] + 3 [xor2] + 4 [xor3]
 	sleep 1
 done
 sleep 2

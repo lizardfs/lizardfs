@@ -19,7 +19,7 @@ sleep 3
 mnt="$TEMP_DIR/mfspolon"
 mkdir -p "$mnt"
 polonaise-fuse-client "$mnt" -o big_writes,allow_other &
-assert_eventually 'mfsdirinfo "$mnt"'
+assert_eventually 'lizardfs dirinfo "$mnt"'
 
 # Perform a compilation
 cd "$mnt"
