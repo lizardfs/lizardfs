@@ -14,3 +14,5 @@ install(FILES iolimits.cfg DESTINATION ${ETC_SUBDIR} RENAME iolimits.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfsmaster.cfg DESTINATION ${ETC_SUBDIR} RENAME mfsmaster.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfschunkserver.cfg DESTINATION ${ETC_SUBDIR} RENAME mfschunkserver.cfg.dist)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfsmetalogger.cfg DESTINATION ${ETC_SUBDIR} RENAME mfsmetalogger.cfg.dist)
+
+install(FILES lizardfs.completion DESTINATION etc/bash_completion.d RENAME lizardfs)

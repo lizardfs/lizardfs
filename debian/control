@@ -59,7 +59,7 @@ Description: LizardFS data server
 
 Package: lizardfs-client
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}, bash-completion
 Conflicts: mfs-client
 Replaces: mfs-client
 Provides: mfs-client

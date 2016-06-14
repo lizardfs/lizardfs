@@ -76,6 +76,7 @@ Summary:        LizardFS client
 Group:          System Environment/Daemons
 Requires:       fuse
 Requires:       fuse-libs
+Requires:       bash-completion
 
 %description client
 LizardFS client: mfsmount and mfstools.
@@ -419,6 +420,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man1/mfsmount.1*
 %{liz_confdir}/mfsmount.cfg.dist
 %{liz_confdir}/iolimits.cfg.dist
+%{_sysconfdir}/bash_completion.d/lizardfs
 
 %files cgi
 %defattr(644,root,root,755)

@@ -1,0 +1,20 @@
+_lizardfs() {
+        local cur prev opts
+        local MAX_COMMANDS=128
+        COMPREPLY=()
+        cur="${COMP_WORDS[COMP_CWORD]}"
+        prev="${COMP_WORDS[COMP_CWORD-1]}"
+        opts=$(lizardfs help |& grep -A $MAX_COMMANDS tools: \
+               |& tail -n+2 |& grep -B $MAX_COMMANDS deprecated |& head -n-1 |& grep -v help)
+
+        if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+                return 0
+        fi
+        case ${cur} in
+        *)
+                return 0
+        ;;
+        esac
+}
+complete -o default -F _lizardfs lizardfs

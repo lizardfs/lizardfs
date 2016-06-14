@@ -45,3 +45,4 @@ usr/share/man/man1/lizardfs.1
 usr/share/man/man7/mfs.7
 usr/share/man/man7/moosefs.7
 usr/share/man/man1/mfsmount.1
+etc/bash_completion.d/lizardfs
