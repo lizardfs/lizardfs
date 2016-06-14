@@ -39,22 +39,23 @@
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/network_main_thread.h"
 #include "common/cfg.h"
-#include "protocol/cstoma.h"
 #include "common/datapack.h"
 #include "common/goal.h"
-#include "protocol/input_packet.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/matocs.h"
-#include "protocol/MFSCommunication.h"
 #include "common/moosefs_vector.h"
 #include "common/output_packet.h"
-#include "protocol/packet.h"
 #include "common/random.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
+#include "protocol/cstoma.h"
+#include "protocol/input_packet.h"
+#include "protocol/matocs.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/packet.h"
 
 #define MaxPacketSize 10000
 
@@ -671,6 +672,9 @@ void masterconn_connecttest(masterconn *eptr) {
 }
 
 void masterconn_read(masterconn *eptr) {
+	ActiveLoopWatchdog watchdog(std::chrono::milliseconds(20));
+
+	watchdog.start();
 	for (;;) {
 		if (job_pool_jobs_count(jpool) >= (BGJOBSCNT * 9) / 10) {
 			return;
@@ -706,11 +710,18 @@ void masterconn_read(masterconn *eptr) {
 
 		masterconn_gotpacket(eptr, eptr->inputPacket.getHeader(), eptr->inputPacket.getData());
 		eptr->inputPacket.reset();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 void masterconn_write(masterconn *eptr) {
+	ActiveLoopWatchdog watchdog(std::chrono::milliseconds(20));
 	int32_t i;
+
+	watchdog.start();
 	while (!eptr->outputPackets.empty()) {
 		OutputPacket& pack = eptr->outputPackets.front();
 		i=write(eptr->sock, pack.packet.data() + pack.bytesSent,
@@ -728,6 +739,10 @@ void masterconn_write(masterconn *eptr) {
 			return;
 		}
 		eptr->outputPackets.pop_front();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
