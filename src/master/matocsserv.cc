@@ -40,6 +40,7 @@
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
@@ -1622,6 +1623,9 @@ void matocsserv_term(void) {
 }
 
 void matocsserv_read(matocsserventry *eptr) {
+	SignalLoopWatchdog watchdog;
+
+	watchdog.start();
 	for (;;) {
 		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
 		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
@@ -1654,14 +1658,20 @@ void matocsserv_read(matocsserventry *eptr) {
 
 		matocsserv_gotpacket(eptr, eptr->inputPacket.getHeader(), eptr->inputPacket.getData());
 		eptr->inputPacket.reset();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 void matocsserv_write(matocsserventry *eptr) {
-	int32_t i;
+	SignalLoopWatchdog watchdog;
+
+	watchdog.start();
 	while (!eptr->outputPackets.empty()) {
 		OutputPacket& pack = eptr->outputPackets.front();
-		i = write(eptr->sock, pack.packet.data() + pack.bytesSent,
+		ssize_t i = write(eptr->sock, pack.packet.data() + pack.bytesSent,
 				pack.packet.size() - pack.bytesSent);
 		if (i<0) {
 			if (errno!=EAGAIN) {
@@ -1675,6 +1685,10 @@ void matocsserv_write(matocsserventry *eptr) {
 			return;
 		}
 		eptr->outputPackets.pop_front();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 

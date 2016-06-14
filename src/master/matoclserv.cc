@@ -49,6 +49,7 @@
 #include "common/io_limits_database.h"
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "protocol/matocl.h"
@@ -4973,9 +4974,12 @@ void matoclserv_term(void) {
 }
 
 void matoclserv_read(matoclserventry *eptr) {
+	SignalLoopWatchdog watchdog;
 	int32_t i;
 	uint32_t type,size;
 	const uint8_t *ptr;
+
+	watchdog.start();
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
@@ -5044,12 +5048,19 @@ void matoclserv_read(matoclserventry *eptr) {
 			eptr->inputpacket.packet=NULL;
 			break;
 		}
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 void matoclserv_write(matoclserventry *eptr) {
+	SignalLoopWatchdog watchdog;
 	packetstruct *pack;
 	int32_t i;
+
+	watchdog.start();
 	for (;;) {
 		pack = eptr->outputhead;
 		if (pack==NULL) {
@@ -5076,6 +5087,10 @@ void matoclserv_write(matoclserventry *eptr) {
 			eptr->outputtail = &(eptr->outputhead);
 		}
 		free(pack);
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 

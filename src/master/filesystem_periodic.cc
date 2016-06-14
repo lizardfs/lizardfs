@@ -22,6 +22,7 @@
 
 #include <cstdint>
 
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"

@@ -18,7 +18,7 @@
 
 #include "common/platform.h"
 
-#include "master/loop_watchdog.h"
+#include "common/loop_watchdog.h"
 
 volatile bool SignalLoopWatchdog::exit_loop_ = false;
 

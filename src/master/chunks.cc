@@ -40,6 +40,7 @@
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/slice_traits.h"
