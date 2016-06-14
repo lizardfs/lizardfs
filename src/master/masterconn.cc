@@ -39,17 +39,18 @@
 #include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/lizardfs_version.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/matoml.h"
 #include "common/metadata.h"
-#include "protocol/MFSCommunication.h"
-#include "protocol/mltoma.h"
 #include "common/rotate_files.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "master/changelog.h"
+#include "protocol/matoml.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/mltoma.h"
 
 #ifndef METALOGGER
 #include "master/filesystem.h"
@@ -895,9 +896,12 @@ void masterconn_connecttest(masterconn *eptr) {
 }
 
 void masterconn_read(masterconn *eptr) {
+	SignalLoopWatchdog watchdog;
 	int32_t i;
 	uint32_t type,size;
 	const uint8_t *ptr;
+
+	watchdog.start();
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
@@ -961,12 +965,19 @@ void masterconn_read(masterconn *eptr) {
 			// masterconn_gotpacket killed us
 			return;
 		}
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 void masterconn_write(masterconn *eptr) {
+	SignalLoopWatchdog watchdog;
 	packetstruct *pack;
 	int32_t i;
+
+	watchdog.start();
 	for (;;) {
 		pack = eptr->outputhead;
 		if (pack==NULL) {
@@ -992,6 +1003,10 @@ void masterconn_write(masterconn *eptr) {
 			eptr->outputtail = &(eptr->outputhead);
 		}
 		free(pack);
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 

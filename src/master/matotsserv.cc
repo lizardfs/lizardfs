@@ -31,19 +31,20 @@
 #include "common/cfg.h"
 #include "common/cwrap.h"
 #include "common/exceptions.h"
-#include "protocol/input_packet.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
-#include "protocol/matots.h"
 #include "common/media_label.h"
 #include "common/network_address.h"
 #include "common/output_packet.h"
-#include "protocol/packet.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
-#include "protocol/tstoma.h"
 #include "master/filesystem.h"
 #include "master/personality.h"
+#include "protocol/input_packet.h"
+#include "protocol/matots.h"
+#include "protocol/packet.h"
+#include "protocol/tstoma.h"
 
 /// Maximum allowed length of a network packet
 static constexpr uint32_t kMaxPacketSize = 500000000;
@@ -230,6 +231,9 @@ static void matotsserv_gotpacket(matotsserventry* eptr,
 
 /// Read from the given tapeserver.
 static void matotsserv_read(matotsserventry* eptr) {
+	SignalLoopWatchdog watchdog;
+
+	watchdog.start();
 	for (;;) {
 		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
 		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
@@ -264,11 +268,18 @@ static void matotsserv_read(matotsserventry* eptr) {
 
 		matotsserv_gotpacket(eptr, eptr->inputPacket.getHeader(), eptr->inputPacket.getData());
 		eptr->inputPacket.reset();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 /// Write to the given tapeserver.
 static void matotsserv_write(matotsserventry* eptr) {
+	SignalLoopWatchdog watchdog;
+
+	watchdog.start();
 	while (!eptr->outputPackets.empty()) {
 		OutputPacket& pack = eptr->outputPackets.front();
 		ssize_t ret = write(eptr->sock,
@@ -288,6 +299,10 @@ static void matotsserv_write(matotsserventry* eptr) {
 			return;
 		}
 		eptr->outputPackets.pop_front();
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 

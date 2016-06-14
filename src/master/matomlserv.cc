@@ -38,16 +38,17 @@
 #include "common/crc.h"
 #include "common/datapack.h"
 #include "common/lizardfs_version.h"
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "common/massert.h"
-#include "protocol/matoml.h"
 #include "common/metadata.h"
-#include "protocol/mltoma.h"
-#include "protocol/MFSCommunication.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "master/filesystem.h"
 #include "master/personality.h"
+#include "protocol/matoml.h"
+#include "protocol/MFSCommunication.h"
+#include "protocol/mltoma.h"
 
 #define MaxPacketSize 1500000
 #define OLD_CHANGES_BLOCK_SIZE 5000
@@ -715,9 +716,12 @@ void matomlserv_term(void) {
 }
 
 void matomlserv_read(matomlserventry *eptr) {
+	SignalLoopWatchdog watchdog;
 	int32_t i;
 	uint32_t type,size;
 	const uint8_t *ptr;
+
+	watchdog.start();
 	for (;;) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
@@ -776,12 +780,19 @@ void matomlserv_read(matomlserventry *eptr) {
 			eptr->inputpacket.packet=NULL;
 			break;
 		}
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 
 void matomlserv_write(matomlserventry *eptr) {
+	SignalLoopWatchdog watchdog;
 	packetstruct *pack;
 	int32_t i;
+
+	watchdog.start();
 	for (;;) {
 		pack = eptr->outputhead;
 		if (pack==NULL) {
@@ -806,6 +817,10 @@ void matomlserv_write(matomlserventry *eptr) {
 			eptr->outputtail = &(eptr->outputhead);
 		}
 		free(pack);
+
+		if (watchdog.expired()) {
+			break;
+		}
 	}
 }
 

@@ -23,13 +23,13 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "common/loop_watchdog.h"
 #include "common/main.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_operations.h"
-#include "master/loop_watchdog.h"
 #include "master/matoclserv.h"
 
 #define MSGBUFFSIZE 1000000
