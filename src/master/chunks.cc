@@ -1633,7 +1633,7 @@ void chunk_server_label_changed(const MediaLabel &previousLabel, const MediaLabe
  * A function that is called in every main loop iteration, that cleans chunk structs
  */
 void chunk_clean_zombie_servers_a_bit() {
-	static SignalLoopWatchdog watchdog;
+	SignalLoopWatchdog watchdog;
 	static uint32_t current_position = HASHSIZE;
 
 	if (gDisconnectedCounter == 0) {
@@ -1827,7 +1827,7 @@ private:
 		Chunk* node;
 		Chunk* prev;
 		ActiveLoopWatchdog work_limit;
-		SignalLoopWatchdog watchdog;
+		ActiveLoopWatchdog watchdog;
 	};
 
 	bool deleteUnusedChunks();

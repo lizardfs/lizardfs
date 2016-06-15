@@ -430,7 +430,7 @@ struct InodeInfo {
 
 #ifndef METARESTORE
 static void fs_do_emptytrash(uint32_t ts) {
-	static SignalLoopWatchdog watchdog;
+	SignalLoopWatchdog watchdog;
 
 	auto it = gMetadata->trash.cbegin();
 	watchdog.start();
