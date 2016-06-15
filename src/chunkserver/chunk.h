@@ -80,7 +80,6 @@ struct folder {
 #define MGST_MIGRATETERMINATE 2u
 #define MGST_MIGRATEFINISHED 3u
 	uint8_t migratestate;
-	uint64_t sizelimit;
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
