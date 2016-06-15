@@ -77,9 +77,6 @@
 #include "devtools/request_log.h"
 #include "protocol/MFSCommunication.h"
 
-/* system every DELAYEDSTEP seconds searches opened/crc_loaded chunk list for chunks to be closed/free crc */
-#define DELAYEDSTEP 2
-
 #define LOSTCHUNKSBLOCKSIZE 1024
 #define NEWCHUNKSBLOCKSIZE 4096 // TODO consider sending more chunks in one packet
 
@@ -89,20 +86,11 @@
 #define HASHSIZE 32768
 #define HASHPOS(chunkid) ((chunkid)&0x7FFF)
 
-#define DHASHSIZE 64
-#define DHASHPOS(chunkid) ((chunkid)&0x3F)
-
 #define CH_NEW_NONE 0
 #define CH_NEW_AUTO 1
 #define CH_NEW_EXCLUSIVE 2
 
 #define CHUNKLOCKED ((void*)1)
-
-typedef struct dopchunk {
-	uint64_t chunkid;
-	ChunkPartType type;
-	struct dopchunk *next;
-} dopchunk;
 
 static uint32_t HDDTestFreq = 10;
 
@@ -132,11 +120,6 @@ static std::atomic_int gScansInProgress(0);
 /* chunk hash */
 static Chunk* hashtab[HASHSIZE];
 
-/* extra chunk info */
-static dopchunk *dophashtab[DHASHSIZE];
-//static dopchunk *dopchunks = NULL;
-static dopchunk *newdopchunks = NULL;
-
 // master reports
 static std::deque<ChunkWithType> gDamagedChunks;
 static std::deque<ChunkWithType> gLostChunks;
@@ -156,10 +139,6 @@ static pthread_mutex_t termlock = PTHREAD_MUTEX_INITIALIZER;
 
 // stats_X
 static pthread_mutex_t statslock = PTHREAD_MUTEX_INITIALIZER;
-
-// newdopchunks + dophashtab
-static pthread_mutex_t doplock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t ndoplock = PTHREAD_MUTEX_INITIALIZER;
 
 // master reports = damaged chunks, lost chunks, errorcounter, hddspacechanged
 static std::mutex gMasterReportsLock;
@@ -573,28 +552,6 @@ static int hdd_chunk_getattr(Chunk *c) {
 	c->setBlockCountFromFizeSize(sb.st_size);
 	c->validattr = 1;
 	return 0;
-}
-
-static Chunk* hdd_chunk_tryfind(uint64_t chunkid, ChunkPartType chunk_type) {
-	TRACETHIS1(chunkid);
-	uint32_t hashpos = HASHPOS(chunkid);
-	Chunk *c;
-	zassert(pthread_mutex_lock(&hashlock));
-	c = hashtab[hashpos];
-	while (c && (c->chunkid != chunkid || c->type() != chunk_type)) {
-		c = c->next;
-	}
-	if (c != nullptr) {
-		if (c->state == CH_LOCKED) {
-			c = (Chunk *)CHUNKLOCKED;
-		} else if (c->state != CH_AVAIL) {
-			c = nullptr;
-		} else {
-			c->state = CH_LOCKED;
-		}
-	}
-	zassert(pthread_mutex_unlock(&hashlock));
-	return c;
 }
 
 bool hdd_chunk_trylock(Chunk *c) {
@@ -1306,60 +1263,6 @@ static inline int chunk_writecrc(MooseFSChunk *c) {
 	return LIZARDFS_STATUS_OK;
 }
 
-void hdd_delayed_ops() {
-	TRACETHIS();
-	dopchunk **ccp,*cc,*tcc;
-	uint32_t dhashpos;
-	Chunk *c;
-	zassert(pthread_mutex_lock(&doplock));
-	zassert(pthread_mutex_lock(&ndoplock));
-/* append new chunks */
-	cc = newdopchunks;
-	while (cc) {
-		dhashpos = DHASHPOS(cc->chunkid);
-		for (tcc = dophashtab[dhashpos]; tcc && (tcc->chunkid != cc->chunkid || tcc->type != cc->type); tcc = tcc->next) {}
-		if (tcc) {      // found - ignore
-			tcc = cc;
-			cc = cc->next;
-			free(tcc);
-		} else {        // not found - add
-			tcc = cc;
-			cc = cc->next;
-			tcc->next = dophashtab[dhashpos];
-			dophashtab[dhashpos] = tcc;
-		}
-	}
-	newdopchunks = NULL;
-	zassert(pthread_mutex_unlock(&ndoplock));
-/* check all */
-	for (dhashpos=0; dhashpos < DHASHSIZE; dhashpos++) {
-		ccp = dophashtab + dhashpos;
-		while ((cc=*ccp)) {
-			c = hdd_chunk_tryfind(cc->chunkid, cc->type);
-			if (c==NULL) {  // no chunk - delete entry
-				*ccp = cc->next;
-				free(cc);
-			} else if (c==CHUNKLOCKED) {    // locked chunk - just ignore
-				ccp = &(cc->next);
-			} else if (c->refcount>0) {  // io in progress - skip entry
-				hdd_chunk_release(c);
-				ccp = &(cc->next);
-			} else {
-				if (c->fd < 0) {
-					*ccp = cc->next;
-					free(cc);
-				} else {
-					ccp = &(cc->next);
-				}
-				hdd_chunk_release(c);
-			}
-		}
-	}
-	zassert(pthread_mutex_unlock(&doplock));
-/* free some unused descriptors */
-	gOpenChunks.freeUnused(main_time(), 1024);
-}
-
 static inline uint64_t get_usectime() {
 	TRACETHIS();
 	struct timeval tv;
@@ -1370,7 +1273,6 @@ static inline uint64_t get_usectime() {
 static int hdd_io_begin(Chunk *c,int newflag) {
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_io_begin");
 	TRACETHIS();
-	dopchunk *cc;
 	int status;
 
 //      syslog(LOG_NOTICE,"chunk: %" PRIu64 " - before io",c->chunkid);
@@ -1428,17 +1330,6 @@ static int hdd_io_begin(Chunk *c,int newflag) {
 					return status;
 				}
 			}
-		}
-
-		if (add) {
-			cc = (dopchunk *)malloc(sizeof(dopchunk));
-			passert(cc);
-			cc->chunkid = c->chunkid;
-			cc->type = c->type();
-			zassert(pthread_mutex_lock(&ndoplock));
-			cc->next = newdopchunks;
-			newdopchunks = cc;
-			zassert(pthread_mutex_unlock(&ndoplock));
 		}
 	}
 	c->refcount++;
@@ -3477,17 +3368,20 @@ void* hdd_folders_thread(void *arg) {
 	return arg;
 }
 
-void* hdd_delayed_thread(void *arg) {
+void* hdd_free_resources_thread(void *arg) {
+	static const int kDelayedStep = 2;
+	static const int kMaxFreeUnused = 1024;
 	TRACETHIS();
+
 	for (;;) {
-		hdd_delayed_ops();
+		gOpenChunks.freeUnused(main_time(), kMaxFreeUnused);
 		zassert(pthread_mutex_lock(&termlock));
 		if (term) {
 			zassert(pthread_mutex_unlock(&termlock));
 			return arg;
 		}
 		zassert(pthread_mutex_unlock(&termlock));
-		sleep(DELAYEDSTEP);
+		sleep(kDelayedStep);
 	}
 	return arg;
 }
@@ -3497,7 +3391,6 @@ void hdd_term(void) {
 	uint32_t i;
 	folder *f,*fn;
 	Chunk *c,*cn;
-	dopchunk *dc,*dcn;
 	cntcond *cc,*ccn;
 
 	zassert(pthread_attr_destroy(&thattr));
@@ -3576,16 +3469,6 @@ void hdd_term(void) {
 		}
 		free(f->path);
 		free(f);
-	}
-	for (i = 0; i<DHASHSIZE; i++) {
-		for (dc=dophashtab[i]; dc; dc = dcn) {
-			dcn = dc->next;
-			free(dc);
-		}
-	}
-	for (dc=newdopchunks; dc; dc = dcn) {
-		dcn = dc->next;
-		free(dc);
 	}
 	for (cc=cclist; cc; cc = ccn) {
 		ccn = cc->next;
@@ -4049,7 +3932,7 @@ int hdd_late_init(void) {
 	zassert(pthread_mutex_unlock(&termlock));
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
-	zassert(pthread_create(&delayedthread,&thattr,hdd_delayed_thread,NULL));
+	zassert(pthread_create(&delayedthread,&thattr,hdd_free_resources_thread,NULL));
 	try {
 		test_chunk_thread = std::thread(hdd_test_chunk_thread);
 	} catch (std::system_error &e) {
@@ -4068,9 +3951,6 @@ int hdd_init(void) {
 	// this routine is called at the beginning from the main thread so no locks are necessary here
 	for (hp=0 ; hp<HASHSIZE ; hp++) {
 		hashtab[hp] = NULL;
-	}
-	for (hp=0 ; hp<DHASHSIZE ; hp++) {
-		dophashtab[hp] = NULL;
 	}
 
 	zassert(pthread_key_create(&hdrbufferkey,free));
