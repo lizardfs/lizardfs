@@ -132,10 +132,9 @@ static pthread_attr_t thattr;
 static pthread_t foldersthread, delayedthread, testerthread;
 static std::thread test_chunk_thread;
 
-static uint8_t term = 0;
+static std::atomic<int> term(0);
 static uint8_t folderactions = 0;
 static uint8_t testerreset = 0;
-static pthread_mutex_t termlock = PTHREAD_MUTEX_INITIALIZER;
 
 // stats_X
 static pthread_mutex_t statslock = PTHREAD_MUTEX_INITIALIZER;
@@ -2887,9 +2886,7 @@ static void hdd_test_chunk_thread() {
 		}
 		// rate-limit to 1/sec
 		usleep(time.remaining_us());
-		zassert(pthread_mutex_lock(&termlock));
 		terminate = term;
-		zassert(pthread_mutex_unlock(&termlock));
 	};
 }
 
@@ -2912,7 +2909,7 @@ void* hdd_tester_thread(void* arg) {
 	f = folderhead;
 	freq = HDDTestFreq;
 	cnt = 0;
-	for (;;) {
+	while (!term) {
 		st = get_usectime();
 		path.clear();
 		chunkid = 0;
@@ -2962,12 +2959,6 @@ void* hdd_tester_thread(void* arg) {
 			}
 			path.clear();
 		}
-		zassert(pthread_mutex_lock(&termlock));
-		if (term) {
-			zassert(pthread_mutex_unlock(&termlock));
-			return arg;
-		}
-		zassert(pthread_mutex_unlock(&termlock));
 		en = get_usectime();
 		if (en>st) {
 			en-=st;
@@ -3355,14 +3346,8 @@ bool hdd_scans_in_progress() {
 
 void* hdd_folders_thread(void *arg) {
 	TRACETHIS();
-	for (;;) {
+	while (!term) {
 		hdd_check_folders();
-		zassert(pthread_mutex_lock(&termlock));
-		if (term) {
-			zassert(pthread_mutex_unlock(&termlock));
-			return arg;
-		}
-		zassert(pthread_mutex_unlock(&termlock));
 		sleep(1);
 	}
 	return arg;
@@ -3373,14 +3358,8 @@ void* hdd_free_resources_thread(void *arg) {
 	static const int kMaxFreeUnused = 1024;
 	TRACETHIS();
 
-	for (;;) {
+	while (!term) {
 		gOpenChunks.freeUnused(main_time(), kMaxFreeUnused);
-		zassert(pthread_mutex_lock(&termlock));
-		if (term) {
-			zassert(pthread_mutex_unlock(&termlock));
-			return arg;
-		}
-		zassert(pthread_mutex_unlock(&termlock));
 		sleep(kDelayedStep);
 	}
 	return arg;
@@ -3394,10 +3373,7 @@ void hdd_term(void) {
 	cntcond *cc,*ccn;
 
 	zassert(pthread_attr_destroy(&thattr));
-	zassert(pthread_mutex_lock(&termlock));
-	i = term; // if term is non zero here then it means that threads have not been started, so do not join with them
-	term = 1;
-	zassert(pthread_mutex_unlock(&termlock));
+	i = term.exchange(1); // if term is non zero here then it means that threads have not been started, so do not join with them
 	if (i==0) {
 		zassert(pthread_join(testerthread,NULL));
 		zassert(pthread_join(foldersthread,NULL));
@@ -3927,9 +3903,7 @@ void hdd_reload(void) {
 
 int hdd_late_init(void) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&termlock));
 	term = 0;
-	zassert(pthread_mutex_unlock(&termlock));
 	zassert(pthread_create(&testerthread,&thattr,hdd_tester_thread,NULL));
 	zassert(pthread_create(&foldersthread,&thattr,hdd_folders_thread,NULL));
 	zassert(pthread_create(&delayedthread,&thattr,hdd_free_resources_thread,NULL));
@@ -4005,9 +3979,7 @@ int hdd_init(void) {
 	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
 	main_destructregister(hdd_term);
 
-	zassert(pthread_mutex_lock(&termlock));
 	term = 1;
-	zassert(pthread_mutex_unlock(&termlock));
 
 	return 0;
 }
