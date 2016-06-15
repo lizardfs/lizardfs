@@ -25,3 +25,9 @@ volatile bool SignalLoopWatchdog::exit_loop_ = false;
 void SignalLoopWatchdog::alarmHandler(int /*signal*/) {
 	SignalLoopWatchdog::exit_loop_ = true;
 }
+
+bool SignalLoopWatchdog::kHandlerInitialized = SignalLoopWatchdog::initHandler();
+
+#ifndef NDEBUG
+int SignalLoopWatchdog::refcount_ = 0;
+#endif

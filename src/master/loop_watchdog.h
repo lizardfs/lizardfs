@@ -24,7 +24,9 @@
 #include <signal.h>
 #include <stdint.h>
 #include <sys/time.h>
+#include <cassert>
 #include <chrono>
+#include <stdexcept>
 
 /*!
  * Loop Watchdog classes are used to control execution time of potentially long loops.
@@ -53,7 +55,11 @@ public:
 	    : max_loop_duration_us_(
 	              std::chrono::duration_cast<std::chrono::microseconds>(max_loop_duration)
 	                      .count()) {
-		signal(SIGALRM, &SignalLoopWatchdog::alarmHandler);
+		assert(!refcount_++);
+	}
+
+	~SignalLoopWatchdog() {
+		assert(!--refcount_);
 	}
 
 	/*!
@@ -89,8 +95,19 @@ public:
 private:
 	static void alarmHandler(int signal);
 
+	static bool initHandler() {
+		if (signal(SIGALRM, &SignalLoopWatchdog::alarmHandler) == SIG_ERR) {
+			throw std::runtime_error("SIGALRM handler registration failed");
+		}
+		return true;
+	}
+
 	static volatile bool exit_loop_;
 	int64_t max_loop_duration_us_;
+	static bool kHandlerInitialized;
+#ifndef NDEBUG
+	static int refcount_;
+#endif
 };
 
 /*!
