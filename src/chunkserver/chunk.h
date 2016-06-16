@@ -25,6 +25,9 @@
 #include <string>
 #include <sys/types.h>
 
+#include <condition_variable>
+#include <thread>
+
 #include "chunkserver/chunk_format.h"
 #include "common/chunk_part_type.h"
 #include "common/disk_info.h"
@@ -46,7 +49,7 @@ enum ChunkState {
 class Chunk;
 
 struct cntcond {
-	pthread_cond_t cond;
+	std::condition_variable cond;
 	uint32_t wcnt;
 	Chunk *owner;
 	struct cntcond *next;
@@ -92,8 +95,8 @@ struct folder {
 	ino_t lockinode;
 	int lfd;
 	double carry;
-	pthread_t scanthread;
-	pthread_t migratethread;
+	std::thread scanthread;
+	std::thread migratethread;
 	Chunk *testhead,**testtail;
 	struct folder *next;
 };

@@ -76,6 +76,7 @@ check_functions("${OPTIONAL_FUNCTIONS2}" false)
 set(CMAKE_REQUIRED_FLAGS "-std=c++11")
 check_cxx_expression(::std::chrono::steady_clock::is_steady chrono LIZARDFS_HAVE_STD_CHRONO_STEADY_CLOCK)
 check_cxx_expression("sizeof(::std::allocator_traits<std::allocator<int*>>::pointer)" memory LIZARDFS_HAVE_STD_ALLOCATOR_TRAITS)
+check_cxx_source_compiles("thread_local int i; int main(){}" LIZARDFS_HAVE_THREAD_LOCAL)
 unset(CMAKE_REQUIRED_FLAGS)
 
 check_cxx_compiler_flag(-mcrc32    CXX_HAS_MCRC32)
