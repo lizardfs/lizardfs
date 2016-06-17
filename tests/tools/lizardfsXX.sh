@@ -1,4 +1,5 @@
 build_lizardfsXX_or_use_cache() {
+	LIZARDFS_TESTS_DIR=$(pwd)
 	# Exit if MooseFS was already configured and installed,
 	# assume it was configured properly
 	(cd "$LIZARDFSXX_DIR/src/lizardfs/build" && make install) && return || true
@@ -11,6 +12,9 @@ build_lizardfsXX_or_use_cache() {
 	git clone https://github.com/lizardfs/lizardfs.git
 	cd lizardfs
 	git checkout v$LIZARDFSXX_TAG
+	for patch_name in $LIZARDFSXX_TAG-*.patch; do
+	  patch -p1 < $LIZARDFS_TESTS_DIR/patches/$patch_name
+	done
 	mkdir build
 	cd build
 	sed -i 's:add_subdirectory(src/mount/polonaise):# Polonaise disabled:g' ../CMakeLists.txt
