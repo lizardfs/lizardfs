@@ -173,8 +173,13 @@ public:
 		id_ = ((int)type * kMaxPartsCount) + part;
 	}
 
-	ChunkPartType(const legacy::ChunkPartType& cpt) : id_() {
+	explicit ChunkPartType(const legacy::ChunkPartType& cpt) : id_() {
 		id_ = ((int)cpt.getSliceType() * kMaxPartsCount) + cpt.getSlicePart();
+	}
+
+	ChunkPartType &operator=(const legacy::ChunkPartType &cpt) {
+		id_ = ((int)cpt.getSliceType() * kMaxPartsCount) + cpt.getSlicePart();
+		return *this;
 	}
 
 	/*! \brief Function returns slice type. */

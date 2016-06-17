@@ -1254,7 +1254,7 @@ void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uin
 		std::vector<legacy::ChunkWithVersionAndType> chunks;
 		cstoma::registerChunks::deserialize(data, chunks);
 		for (auto& chunk : chunks) {
-			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, ChunkPartType(chunk.type));
 		}
 	} else {
 		std::vector<ChunkWithVersion> chunks;
@@ -1335,7 +1335,7 @@ void matocsserv_liz_chunk_damaged(matocsserventry *eptr, const std::vector<uint8
 		std::vector<legacy::ChunkWithType> chunks;
 		cstoma::chunkDamaged::deserialize(data, chunks);
 		for (const auto& chunk : chunks) {
-			chunk_damaged(eptr, chunk.id, chunk.type);
+			chunk_damaged(eptr, chunk.id, ChunkPartType(chunk.type));
 		}
 	}
 }
@@ -1377,7 +1377,7 @@ void matocsserv_liz_chunks_lost(matocsserventry *eptr, const std::vector<uint8_t
 		std::vector<legacy::ChunkWithType> chunks;
 		cstoma::chunkLost::deserialize(data, chunks);
 		for (const auto& chunk : chunks) {
-			chunk_lost(eptr, chunk.id, chunk.type);
+			chunk_lost(eptr, chunk.id, ChunkPartType(chunk.type));
 		}
 	}
 }
@@ -1416,7 +1416,7 @@ void matocsserv_liz_chunk_new(matocsserventry *eptr, const std::vector<uint8_t>&
 		std::vector<legacy::ChunkWithVersionAndType> chunks;
 		cstoma::chunkNew::deserialize(data, chunks);
 		for (auto& chunk : chunks) {
-			chunk_server_has_chunk(eptr, chunk.id, chunk.version, chunk.type);
+			chunk_server_has_chunk(eptr, chunk.id, chunk.version, ChunkPartType(chunk.type));
 		}
 	}
 }
