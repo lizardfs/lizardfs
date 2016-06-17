@@ -2025,7 +2025,7 @@ uint8_t fs_lizreadchunk(std::vector<ChunkTypeWithAddress> &chunkservers, uint64_
 					chunkId, chunkVersion, legacy_chunkservers);
 			chunkservers.clear();
 			for (const auto &part : legacy_chunkservers) {
-				chunkservers.push_back(ChunkTypeWithAddress(part.address, part.chunkType, kFirstXorVersion));
+				chunkservers.push_back(ChunkTypeWithAddress(part.address, ChunkPartType(part.chunkType), kFirstXorVersion));
 			}
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_READ_CHUNK - wrong packet version");
@@ -2117,7 +2117,7 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 					fileLength, chunkId, chunkVersion, lockId, legacy_chunkservers);
 			chunkservers.clear();
 			for (const auto &part : legacy_chunkservers) {
-				chunkservers.push_back(ChunkTypeWithAddress(part.address, part.chunkType, kFirstXorVersion));
+				chunkservers.push_back(ChunkTypeWithAddress(part.address, ChunkPartType(part.chunkType), kFirstXorVersion));
 			}
 		} else {
 			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_MATOCL_FUSE_WRITE_CHUNK - wrong packet version");
