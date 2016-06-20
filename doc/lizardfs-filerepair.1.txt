@@ -22,6 +22,10 @@ advised to make a copy (not a snapshot!) and delete original file after "repairi
 
 == OPTIONS
 
+*-c*::
+This option enables correct-only mode, which will restore chunk to a previous version if possible,
+but will never erase any data.
+
 *-n*, *-h*, *-H*::
 These options are described in lizardfs(1).
 

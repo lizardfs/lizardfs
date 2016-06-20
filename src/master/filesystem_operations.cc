@@ -1998,7 +1998,7 @@ uint8_t fs_auto_repair_if_needed(FSNodeFile *p, uint32_t chunkIndex) {
 	        (chunkIndex < p->chunks.size() ? p->chunks[chunkIndex] : 0);
 	if (chunkId != 0 && chunk_has_only_invalid_copies(chunkId)) {
 		uint32_t notchanged, erased, repaired;
-		fs_repair(SPECIAL_INODE_ROOT, 0, p->id, 0, 0, &notchanged, &erased, &repaired);
+		fs_repair(SPECIAL_INODE_ROOT, 0, p->id, 0, 0, 0, &notchanged, &erased, &repaired);
 		syslog(LOG_NOTICE,
 		       "auto repair inode %" PRIu32 ", chunk %016" PRIX64
 		       ": "
@@ -2183,7 +2183,7 @@ uint8_t fs_apply_incversion(uint64_t chunkid) {
 
 #ifndef METARESTORE
 uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t uid, uint32_t gid,
-		uint32_t *notchanged, uint32_t *erased, uint32_t *repaired) {
+		uint8_t correct_only, uint32_t *notchanged, uint32_t *erased, uint32_t *repaired) {
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
 	uint32_t nversion, indx;
@@ -2231,7 +2231,7 @@ uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 	FSNodeFile *node_file = static_cast<FSNodeFile*>(p);
 	fsnodes_get_stats(p, &psr);
 	for (indx = 0; indx < node_file->chunks.size(); indx++) {
-		if (chunk_repair(p->goal, node_file->chunks[indx], &nversion)) {
+		if (chunk_repair(p->goal, node_file->chunks[indx], &nversion, correct_only)) {
 			fs_changelog(ts, "REPAIR(%" PRIu32 ",%" PRIu32 "):%" PRIu32, inode, indx,
 			             nversion);
 			p->mtime = ts;

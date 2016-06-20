@@ -1292,7 +1292,7 @@ uint8_t chunk_apply_modification(uint32_t ts, uint64_t oldChunkId, uint32_t lock
 }
 
 #ifndef METARESTORE
-int chunk_repair(uint8_t goal, uint64_t ochunkid, uint32_t *nversion) {
+int chunk_repair(uint8_t goal, uint64_t ochunkid, uint32_t *nversion, uint8_t correct_only) {
 	uint32_t best_version;
 	Chunk *c;
 
@@ -1303,7 +1303,11 @@ int chunk_repair(uint8_t goal, uint64_t ochunkid, uint32_t *nversion) {
 
 	c = chunk_find(ochunkid);
 	if (c==NULL) { // no such chunk - erase (nchunkid already is 0 - so just return with "changed" status)
-		return 1;
+		if (correct_only == 1) { // don't erase if correct only flag is set
+			return 0;
+		} else {
+			return 1;
+		}
 	}
 	if (c->isLocked()) { // can't repair locked chunks - but if it's locked, then likely it doesn't need to be repaired
 		return 0;
@@ -1335,10 +1339,14 @@ int chunk_repair(uint8_t goal, uint64_t ochunkid, uint32_t *nversion) {
 	if (best_version == c->version) {
 		return 0;
 	}
-	// didn't find sensible chunk - so erase it
+	// didn't find sensible chunk
 	if (best_version == 0) {
-		chunk_delete_file_int(c, goal);
-		return 1;
+		if (correct_only == 1) { // don't erase if correct only flag is set
+			return 0;
+		} else {                  // otherwise erase it
+			chunk_delete_file_int(c, goal);
+			return 1;
+		}
 	}
 	// found previous version which is readable
 	c->version = best_version;

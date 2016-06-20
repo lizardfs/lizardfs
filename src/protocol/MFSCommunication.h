@@ -1283,7 +1283,7 @@ enum class SugidClearMode {
 
 // 0x01D2
 #define CLTOMA_FUSE_REPAIR (PROTO_BASE+466)
-/// msgid:32 inode:32 uid:32 gid:32
+/// msgid:32 inode:32 uid:32 gid:32 correctonly:8
 
 // 0x01D3
 #define MATOCL_FUSE_REPAIR (PROTO_BASE+467)

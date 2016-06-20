@@ -3099,23 +3099,30 @@ void matoclserv_fuse_write_chunk_end(matoclserventry *eptr,
 	matoclserv_createpacket(eptr, outMessage);
 }
 
-void matoclserv_fuse_repair(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid,gid;
+void matoclserv_fuse_repair(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t inode, uid, gid;
 	uint32_t msgid;
-	uint32_t chunksnotchanged,chunkserased,chunksrepaired;
+	uint32_t chunksnotchanged, chunkserased, chunksrepaired;
 	uint8_t *ptr;
 	uint8_t status;
-	if (length!=16) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_REPAIR - wrong size (%" PRIu32 "/16)",length);
+	uint8_t correct_only = 0;
+	if (length == 16 || length == 17) {
+		msgid = get32bit(&data);
+		inode = get32bit(&data);
+		uid = get32bit(&data);
+		gid = get32bit(&data);
+		if (length == 17) {
+			correct_only = get8bit(&data);
+		}
+	}
+	else {
+		syslog(LOG_NOTICE,"CLTOMA_FUSE_REPAIR - wrong package size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	uid = get32bit(&data);
-	gid = get32bit(&data);
 	matoclserv_ugid_remap(eptr,&uid,&gid);
-	status = fs_repair(eptr->sesdata->rootinode,eptr->sesdata->sesflags,inode,uid,gid,&chunksnotchanged,&chunkserased,&chunksrepaired);
+	status = fs_repair(eptr->sesdata->rootinode, eptr->sesdata->sesflags, inode,uid, gid, correct_only,
+			   &chunksnotchanged, &chunkserased, &chunksrepaired);
 	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_REPAIR,(status!=LIZARDFS_STATUS_OK)?5:16);
 	put32bit(&ptr,msgid);
 	if (status!=0) {
@@ -5056,7 +5063,6 @@ void matoclserv_read(matoclserventry *eptr) {
 		if (eptr->mode==HEADER) {
 			ptr = eptr->hdrbuff+4;
 			size = get32bit(&ptr);
-
 			if (size>0) {
 				if (size>MaxPacketSize) {
 					syslog(LOG_WARNING,"main master server module: packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
@@ -5081,7 +5087,6 @@ void matoclserv_read(matoclserventry *eptr) {
 			eptr->mode=HEADER;
 			eptr->inputpacket.bytesleft = 8;
 			eptr->inputpacket.startptr = eptr->hdrbuff;
-
 			matoclserv_gotpacket(eptr,type,eptr->inputpacket.packet,size);
 			stats_prcvd++;
 

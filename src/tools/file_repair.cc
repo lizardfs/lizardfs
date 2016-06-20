@@ -32,12 +32,13 @@ static void file_repair_usage() {
 	    stderr,
 	    "repair given file. Use it with caution. It forces file to be readable, so it could erase "
 	    "(fill with zeros) file when chunkservers are not currently connected.\n\n"
-	    "usage:\n lizardfs filerepair [-nhH] name [name ...]\n");
+	    "usage:\n lizardfs filerepair [-nhHc] name [name ...]\n");
 	print_numberformat_options();
+	fprintf(stderr, " -c - restore to previous version if applicable, never erase\n");
 }
 
-static int file_repair(const char *fname) {
-	uint8_t reqbuff[24], *wptr, *buff;
+static int file_repair(const char *fname, uint8_t correct_only_flag) {
+	uint8_t reqbuff[25], *wptr, *buff;
 	const uint8_t *rptr;
 	uint32_t cmd, leng, inode;
 	uint32_t notchanged, erased, repaired;
@@ -48,12 +49,13 @@ static int file_repair(const char *fname) {
 	}
 	wptr = reqbuff;
 	put32bit(&wptr, CLTOMA_FUSE_REPAIR);
-	put32bit(&wptr, 16);
+	put32bit(&wptr, 17);
 	put32bit(&wptr, 0);
 	put32bit(&wptr, inode);
 	put32bit(&wptr, getuid());
 	put32bit(&wptr, getgid());
-	if (tcpwrite(fd, reqbuff, 24) != 24) {
+	put8bit(&wptr, correct_only_flag);
+	if (tcpwrite(fd, reqbuff, 25) != 25) {
 		printf("%s: master query: send error\n", fname);
 		close_master_conn(1);
 		return -1;
@@ -112,8 +114,8 @@ static int file_repair(const char *fname) {
 
 int file_repair_run(int argc, char **argv) {
 	int ch, status;
-
-	while ((ch = getopt(argc, argv, "nhH")) != -1) {
+	uint8_t correct_only = 0;
+	while ((ch = getopt(argc, argv, "nhHc")) != -1) {
 		switch (ch) {
 		case 'n':
 			humode = 0;
@@ -123,6 +125,9 @@ int file_repair_run(int argc, char **argv) {
 			break;
 		case 'H':
 			humode = 2;
+			break;
+		case 'c':
+			correct_only = 1;
 			break;
 		}
 	}
@@ -135,7 +140,7 @@ int file_repair_run(int argc, char **argv) {
 	}
 	status = 0;
 	while (argc > 0) {
-		if (file_repair(*argv) < 0) {
+		if (file_repair(*argv, correct_only) < 0) {
 			status = 1;
 		}
 		argc--;
