@@ -1,10 +1,11 @@
 This file lists noteworthy changes in LizardFS.
 
- * Lizardfs (3.10.0-rc) (2016-03-14)
+ * Lizardfs (3.10.0) (2016-06-23)
   - (all) Added erasure code goals
   - (all) Added per directory quotas
   - (all) Improved interaction with legacy version (chunkservers, mounts)
   - (all) Ports for OSX and FreeBSD
+  - (tools) Update mfsfileinfo output with xor/ec goals
   - (all) Many fixes
 
  * Lizardfs (3.9.4) (2015-12-02)

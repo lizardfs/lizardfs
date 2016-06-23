@@ -4,9 +4,10 @@ lizardfs (3.10.0) stable; urgency=medium
   * (all) Added per directory quotas
   * (all) Improved interaction with legacy version (chunkservers, mounts)
   * (all) Ports for OSX and FreeBSD
+  * (tools) Updated mfsfileinfo output with xor/ec goals
   * (all) Many fixes
 
- -- Piotr Sarna <contact@lizardfs.org>  Mon, 14 Mar 2016 15:00:00 +0200
+ -- Piotr Sarna <contact@lizardfs.org>  Thu, 23 Jun 2016 15:00:00 +0200
 
 lizardfs (3.9.4) stable; urgency=medium
 

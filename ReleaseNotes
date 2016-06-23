@@ -1,12 +1,13 @@
 Dear users,
 
-please welcome LizardFS 3.10.0-rc!
+LizardFS 3.10.0 is now stable.
 
 The package consists of:
  - erasure code goals (aka K+M goals)
  - per directory quotas
  - improved interaction with legacy chunkservers and mounts
  - ports for OSX and FreeBSD
+ - updated mfsfileinfo output with xor/ec goals
  - many fixes
 
 Details:
@@ -54,9 +55,12 @@ Fixes
  - sending proper error codes to master
  - proper handling of replication limits during rebalancing
  - removal of splice call
+ - removing possible livelock in master networking
+ - ading missing update in inodes id pool
 
-
-Presented version is tagged with -rc (release candidate), which roughly means that we would be very grateful for insights, test results, and hopefully not frequent bug reports provided by community.
+Next release (unstable now) will contain a massive set of patches which make the cluster more responsive.
+Also, a great reduction of master's and chunkserver's RAM usage is to be expected (at least 30% less resources needed).
+An improved client tool for managing goals/quotas/files etc. is coming as well.
 
 Best,
 Piotr Sarna

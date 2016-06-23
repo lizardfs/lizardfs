@@ -450,11 +450,12 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Mon Mar 14 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.0
+* Thu Jun 23 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.0
 - (all) Added erasure code goals
 - (all) Added per directory quotas
 - (all) Improved interaction with legacy version (chunkservers, mounts)
 - (all) Ports for OSX and FreeBSD
+- (tools) Updated mfsfileinfo output with xor/ec goals
 - (all) Many fixes
 
 * Wed Dec 2 2015 Piotr Sarna <contact@lizardfs.org> - 3.9.4
