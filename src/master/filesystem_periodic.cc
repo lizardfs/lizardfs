@@ -439,19 +439,13 @@ static void fs_do_emptytrash(uint32_t ts) {
 
 		assert(node->type == FSNode::kTrash);
 
-		++it;
-
 		uint32_t node_id = node->id;
 		fsnodes_purge(ts, node);
-#ifdef LIZARDFS_HAVE_64BIT_JUDY
-		it.reload();
-#else
-		static_assert(std::is_same<ReservedPathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-		              "Iterator must internally be a pointer to contiguous structure");
-		--it;
-#endif
+
 		// Purge operation should be performed anyway - if it fails, inode will be reserved
 		fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
+
+		it = gMetadata->trash.cbegin();
 
 		if (watchdog.expired()) {
 			break;
@@ -469,20 +463,13 @@ static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 
 		assert(node->type == FSNode::kTrash);
 
-		++it;
-
 		if (fsnodes_purge(ts, node)) {
 			ii.free++;
 		} else {
 			ii.reserved++;
 		}
-#ifdef LIZARDFS_HAVE_64BIT_JUDY
-		it.reload();
-#else
-		static_assert(std::is_same<ReservedPathContainer, flat_map<uint32_t, hstorage::Handle>>::value,
-		              "Iterator must internally be a pointer to contiguous structure");
-		--it;
-#endif
+
+		it = gMetadata->trash.cbegin();
 	}
 	return ii;
 }
