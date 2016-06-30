@@ -4986,7 +4986,7 @@ void matoclserv_read(matoclserventry *eptr) {
 	const uint8_t *ptr;
 
 	watchdog.start();
-	for (;;) {
+	while (eptr->mode != KILL) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			if (eptr->registered == ClientState::kRegistered) {       // show this message only for standard, registered clients

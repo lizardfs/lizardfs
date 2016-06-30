@@ -1551,7 +1551,7 @@ void matocsserv_read(matocsserventry *eptr) {
 	SignalLoopWatchdog watchdog;
 
 	watchdog.start();
-	for (;;) {
+	while (eptr->mode != KILL) {
 		uint32_t bytesToRead = eptr->inputPacket.bytesToBeRead();
 		ssize_t ret = read(eptr->sock, eptr->inputPacket.pointerToBeReadInto(), bytesToRead);
 		if (ret == 0) {

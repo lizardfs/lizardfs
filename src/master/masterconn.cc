@@ -902,7 +902,7 @@ void masterconn_read(masterconn *eptr) {
 	const uint8_t *ptr;
 
 	watchdog.start();
-	for (;;) {
+	while (eptr->mode != KILL) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection was reset by Master");
@@ -959,11 +959,6 @@ void masterconn_read(masterconn *eptr) {
 				free(eptr->inputpacket.packet);
 			}
 			eptr->inputpacket.packet=NULL;
-		}
-
-		if (eptr->mode==KILL) {
-			// masterconn_gotpacket killed us
-			return;
 		}
 
 		if (watchdog.expired()) {

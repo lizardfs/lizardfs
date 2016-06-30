@@ -722,7 +722,7 @@ void matomlserv_read(matomlserventry *eptr) {
 	const uint8_t *ptr;
 
 	watchdog.start();
-	for (;;) {
+	while (eptr->mode != KILL) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			syslog(LOG_NOTICE,"connection with ML(%s) has been closed by peer",eptr->servstrip);

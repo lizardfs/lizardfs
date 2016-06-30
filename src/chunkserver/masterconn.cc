@@ -675,7 +675,7 @@ void masterconn_read(masterconn *eptr) {
 	ActiveLoopWatchdog watchdog(std::chrono::milliseconds(20));
 
 	watchdog.start();
-	for (;;) {
+	while (eptr->mode != KILL) {
 		if (job_pool_jobs_count(jpool) >= (BGJOBSCNT * 9) / 10) {
 			return;
 		}
