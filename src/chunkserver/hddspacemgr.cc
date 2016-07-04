@@ -1393,7 +1393,7 @@ static int hdd_io_end(Chunk *c) {
 
 /* I/O operations */
 int hdd_open(Chunk *chunk) {
-	assert(chunk && chunk->isLocked());
+	assert(chunk);
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_open");
 	TRACETHIS1(chunk->chunkid);
 	int status = hdd_io_begin(chunk, 0);
@@ -1416,7 +1416,7 @@ int hdd_open(uint64_t chunkid, ChunkPartType chunkType) {
 }
 
 int hdd_close(Chunk *chunk) {
-	assert(chunk && chunk->isLocked());
+	assert(chunk);
 	TRACETHIS1(chunk->chunkid);
 	int status = hdd_io_end(chunk);
 	PRINTTHIS(status);
@@ -1814,7 +1814,7 @@ int hdd_int_write_block_and_crc(
 
 int hdd_write(Chunk* chunk, uint32_t version,
 		uint16_t blocknum, uint32_t offset, uint32_t size, uint32_t crc, const uint8_t* buffer) {
-	assert(chunk && chunk->isLocked());
+	assert(chunk);
 	LOG_AVG_TILL_END_OF_SCOPE0("hdd_write");
 	TRACETHIS3(chunk->chunkid, offset, size);
 	uint32_t precrc, postcrc, combinedcrc, chcrc;
@@ -2285,7 +2285,7 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 int hdd_int_version(Chunk *chunk, uint32_t version, uint32_t newversion) {
 	TRACETHIS();
 	int status;
-	assert(chunk && chunk->isLocked());
+	assert(chunk);
 	if (chunk->version != version && version > 0) {
 		return LIZARDFS_ERROR_WRONGVERSION;
 	}
@@ -2766,7 +2766,7 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 
 int hdd_int_delete(Chunk* chunk, uint32_t version) {
 	TRACETHIS();
-	assert(chunk && chunk->isLocked());
+	assert(chunk);
 	if (chunk->version != version && version > 0) {
 		hdd_chunk_release(chunk);
 		return LIZARDFS_ERROR_WRONGVERSION;

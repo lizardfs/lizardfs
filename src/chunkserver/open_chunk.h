@@ -55,7 +55,6 @@ public:
 	 * It is assumed that chunk_, if it exists, is properly locked.
 	 */
 	~OpenChunk() {
-		assert(!chunk_ || chunk_->isLocked());
 		if (chunk_) {
 			if (chunk_->fd >= 0) {
 				if (::close(chunk_->fd) < 0) {

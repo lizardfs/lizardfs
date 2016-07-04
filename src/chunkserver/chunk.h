@@ -118,7 +118,6 @@ public:
 	static uint32_t getSubfolderNumber(uint64_t chunkId, int layout_version = 0);
 	static std::string getSubfolderNameGivenNumber(uint32_t subfolderNumber, int layout_version = 0);
 	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_version = 0);
-	bool isLocked() const { return state == CH_LOCKED; }
 
 	uint64_t chunkid;
 	struct folder *owner;
