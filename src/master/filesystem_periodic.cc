@@ -48,6 +48,19 @@ static uint32_t fsinfo_msgbuffleng = 0;
 static uint32_t fsinfo_loopstart = 0;
 static uint32_t fsinfo_loopend = 0;
 
+static int gTasksBatchSize = 1000;
+
+void fs_background_task_manager_work() {
+	if (gMetadata->task_manager.workAvailable()) {
+		uint32_t ts = main_time();
+		ChecksumUpdater cu(ts);
+		gMetadata->task_manager.processJobs(ts, gTasksBatchSize);
+		if (gMetadata->task_manager.workAvailable()) {
+			main_make_next_poll_nonblocking();
+		}
+	}
+}
+
 void fs_test_getdata(uint32_t *loopstart, uint32_t *loopend, uint32_t *files, uint32_t *ugfiles,
 			uint32_t *mfiles, uint32_t *chunks, uint32_t *ugchunks, uint32_t *mchunks,
 			char **msgbuff, uint32_t *msgbuffleng) {

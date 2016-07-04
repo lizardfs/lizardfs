@@ -36,6 +36,7 @@
 #include "master/locks.h"
 #include "master/metadata_dumper.h"
 #include "master/quota_database.h"
+#include "master/task_manager.h"
 
 /** Metadata of the filesystem.
  *  All the static variables managed by function in this file which form metadata of the filesystem.
@@ -51,6 +52,7 @@ public:
 	FSNodeDirectory *root;
 	FSNode *nodehash[NODEHASHSIZE];
 	SnapshotManager snapshot_manager;
+	TaskManager task_manager;
 	FileLocks flock_locks;
 	FileLocks posix_locks;
 
@@ -83,6 +85,7 @@ public:
 	      root{},
 	      nodehash{},
 	      snapshot_manager{},
+	      task_manager{},
 	      flock_locks{},
 	      posix_locks{},
 	      maxnodeid{},

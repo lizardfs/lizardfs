@@ -21,6 +21,13 @@
 
 #include "common/platform.h"
 
+/*! \brief Function processing TaskManager's enqueued tasks.
+ *
+ * The function processes limited number of tasks in each call,
+ * so it should be executed as often as possible.
+ */
+void fs_background_task_manager_work();
+
 /*
  * A function that is called every main loop iteration,
  * recalculates checksums in the backround background using gChecksumBackgroundUpdater
