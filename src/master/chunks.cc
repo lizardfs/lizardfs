@@ -2270,6 +2270,7 @@ bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, boo
 void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	// step 0. Update chunk's statistics
 	// Useful e.g. if definitions of goals did change.
+	chunk_handle_disconnected_copies(c);
 	c->updateStats();
 	if (serverCount == 0) {
 		return;
