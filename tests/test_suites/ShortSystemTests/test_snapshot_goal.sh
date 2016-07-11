@@ -15,7 +15,7 @@ chunks_state() {
 CHUNKSERVERS=9 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-	MASTER_EXTRA_CONFIG="ACCEPTABLE_DIFFERENCE = 10|CHUNKS_LOOP_TIME = 3|REPLICATIONS_DELAY_INIT = 0" \
+	MASTER_EXTRA_CONFIG="ACCEPTABLE_DIFFERENCE = 10|CHUNKS_LOOP_TIME = 3|OPERATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
 # Create a file consisting of 2 chunks of goal 4 (8 copies in total)

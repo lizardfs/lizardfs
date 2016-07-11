@@ -61,13 +61,13 @@
 ## (Default: 1)
 # BACK_META_KEEP_PREVIOUS = 1
 
-## Initial delay in seconds before starting replications.
+## Initial delay in seconds before starting chunk operations.
 ## (Default: 300)
-# REPLICATIONS_DELAY_INIT = 300
+# OPERATIONS_DELAY_INIT = 300
 
-## Replication delay in seconds after chunkserver disconnection.
+## Chunk operations delay in seconds after chunkserver disconnection.
 ## (Default: 3600)
-# REPLICATIONS_DELAY_DISCONNECT = 3600
+# OPERATIONS_DELAY_DISCONNECT = 3600
 
 ## IP address to listen on for metalogger connections (* means any).
 # MATOML_LISTEN_HOST = *

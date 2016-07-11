@@ -10,8 +10,8 @@ USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
 			`|ACCEPTABLE_DIFFERENCE = 1.0`
 			`|CHUNKS_WRITE_REP_LIMIT = 5`
-			`|REPLICATIONS_DELAY_INIT = 0`
-			`|REPLICATIONS_DELAY_DISCONNECT = 15" \
+			`|OPERATIONS_DELAY_INIT = 0`
+			`|OPERATIONS_DELAY_DISCONNECT = 15" \
 	setup_local_empty_lizardfs info
 
 # Leave only one unlabeled and one 'ssd' server

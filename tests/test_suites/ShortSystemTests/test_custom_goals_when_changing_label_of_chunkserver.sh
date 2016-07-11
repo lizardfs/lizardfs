@@ -6,8 +6,8 @@ USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
 			`|ACCEPTABLE_DIFFERENCE = 1.0`
 			`|CHUNKS_WRITE_REP_LIMIT = 5`
-			`|REPLICATIONS_DELAY_INIT = 0`
-			`|REPLICATIONS_DELAY_DISCONNECT = 0" \
+			`|OPERATIONS_DELAY_INIT = 0`
+			`|OPERATIONS_DELAY_DISCONNECT = 0" \
 	setup_local_empty_lizardfs info
 
 # Create 20 files. All chunks should be placed on chunkservers 0 and 1.

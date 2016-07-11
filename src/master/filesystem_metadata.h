@@ -150,7 +150,7 @@ private:
 extern FilesystemMetadata *gMetadata;
 extern ChecksumBackgroundUpdater gChecksumBackgroundUpdater;
 extern bool gDisableChecksumVerification;
-extern uint32_t test_start_time;
+extern uint32_t gTestStartTime;
 
 #ifndef METARESTORE
 extern std::map<int, Goal> gGoalDefinitions;

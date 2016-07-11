@@ -8,8 +8,8 @@ CHUNKSERVERS=4 \
 			`|CHUNKS_LOOP_TIME = 1`
 			`|CHUNKS_SOFT_DEL_LIMIT = 10`
 			`|CHUNKS_WRITE_REP_LIMIT = 10`
-			`|REPLICATIONS_DELAY_INIT = 0`
-			`|REPLICATIONS_DELAY_DISCONNECT = 0" \
+			`|OPERATIONS_DELAY_INIT = 0`
+			`|OPERATIONS_DELAY_DISCONNECT = 0" \
 	MASTER_CUSTOM_GOALS="10 xor2 : \$xor2 {X X X}`
 			`|11 backup : B" \
 	setup_local_empty_lizardfs info
@@ -33,7 +33,7 @@ mfssetgoal backup backup/snapshot
 assert_eventually_prints 4 'find_chunkserver_chunks 3 -name "chunk_0*" | wc -l'
 
 # Make sure next chunk replications won't happen.
-sed -ie 's/REPLICATIONS_DELAY_INIT = 0/REPLICATIONS_DELAY_INIT = 300/' "${info[master_cfg]}"
+sed -ie 's/OPERATIONS_DELAY_INIT = 0/OPERATIONS_DELAY_INIT = 300/' "${info[master_cfg]}"
 lizardfs_master_daemon reload
 
 # Stop CS 3 (non-xor), and remove third chunk from it.

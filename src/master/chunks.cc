@@ -183,8 +183,8 @@ struct ChunkPart {
 
 static void*                         gChunkLoopEventHandle = NULL;
 
-static uint32_t ReplicationsDelayDisconnect=3600;
-static uint32_t ReplicationsDelayInit=300;
+static uint32_t gOperationsDelayDisconnect = 3600;
+static uint32_t gOperationsDelayInit = 300;
 
 static uint32_t MaxWriteRepl;
 static uint32_t MaxReadRepl;
@@ -559,7 +559,7 @@ public:
 	void serverDisconnected() {
 		refresh();
 		++disconnectedServers_;
-		timestamp_ = main_time() + ReplicationsDelayDisconnect;
+		timestamp_ = main_time() + gOperationsDelayDisconnect;
 	}
 
 	void serverConnected() {
@@ -2435,7 +2435,7 @@ void ChunkWorker::mainLoop() {
 		stack_.chunks_done_count = 0;
 		stack_.buckets_done_count = 0;
 
-		if (starttime + ReplicationsDelayInit > main_time()) {
+		if (starttime + gOperationsDelayInit > main_time()) {
 			return;
 		}
 
@@ -2662,7 +2662,7 @@ void chunk_newfs(void) {
 #ifndef METARESTORE
 void chunk_become_master() {
 	starttime = main_time();
-	jobsnorepbefore = starttime + ReplicationsDelayInit;
+	jobsnorepbefore = starttime + gOperationsDelayInit;
 	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
 	gChunkLoopEventHandle = main_timeregister_ms(ChunksLoopPeriod, chunk_jobs_main);
 	main_eachloopregister(chunk_jobs_process_bit);
@@ -2673,8 +2673,11 @@ void chunk_reload(void) {
 	uint32_t repl;
 	uint32_t looptime;
 
-	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
-	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
+	// Set deprecated values first and override them if newer definition is found
+	gOperationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT", 300);
+	gOperationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT", 3600);
+	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
+	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	if (disableChunksDel) {
@@ -2763,8 +2766,10 @@ int chunk_strinit(void) {
 	Chunk::allChunksReplicationState = ChunksReplicationState();
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
-	ReplicationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT",300);
-	ReplicationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT",3600);
+	gOperationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT", 300);
+	gOperationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT", 3600);
+	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
+	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
 	if (disableChunksDel) {
 		MaxDelHardLimit = MaxDelSoftLimit = 0;
 	} else {

@@ -47,9 +47,11 @@ bool gMagicAutoFileRepair = false;
 bool gAtimeDisabled = false;
 MetadataDumper metadataDumper(kMetadataFilename, kMetadataTmpFilename);
 
-uint32_t test_start_time;
+uint32_t gTestStartTime;
 
 static bool gSaveMetadataAtExit = true;
+static uint32_t gOperationsDelayInit;
+static uint32_t gOperationsDelayDisconnect;
 
 // Configuration of goals
 std::map<int, Goal> gGoalDefinitions;
@@ -228,7 +230,7 @@ int fs_loadall(void) {
 }
 
 void fs_cs_disconnected(void) {
-	test_start_time = main_time()+600;
+	gTestStartTime = main_time() + gOperationsDelayDisconnect;
 }
 
 /*
@@ -240,7 +242,7 @@ void fs_become_master() {
 		exit(1);
 	}
 	dcm_clear();
-	test_start_time = main_time() + 900;
+	gTestStartTime = main_time() + gOperationsDelayInit;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
 	main_eachloopregister(fs_background_checksum_recalculation_a_bit);
 	main_eachloopregister(fs_background_snapshot_work);
@@ -306,6 +308,16 @@ static void fs_read_config_file() {
 	metadataDumper.setMetarestorePath(
 			cfg_get("MFSMETARESTORE_PATH", std::string(SBIN_PATH "/mfsmetarestore")));
 	metadataDumper.setUseMetarestore(cfg_getint32("MAGIC_PREFER_BACKGROUND_DUMP", 0));
+
+	// Set deprecated values first, then override them if newer version is found
+	gOperationsDelayInit = cfg_getuint32("REPLICATIONS_DELAY_INIT", 300);
+	gOperationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT", 3600);
+	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
+	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
+	if (cfg_isdefined("REPLICATIONS_DELAY_INIT") || cfg_isdefined("REPLICATIONS_DELAY_DISCONNECT")) {
+		lzfs_pretty_syslog(LOG_WARNING, "REPLICATIONS_DELAY_INIT and REPLICATION_DELAY_DISCONNECT"
+		" entries are deprecated. Use OPERATIONS_DELAY_INIT and OPERATIONS_DELAY_DISCONNECT instead.");
+	}
 
 	chunk_invalidate_goal_cache();
 	fs_read_goal_config_file(); // may throw

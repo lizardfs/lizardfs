@@ -8,8 +8,8 @@ USE_RAMDISK=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
 			`|ACCEPTABLE_DIFFERENCE = 1.0`
 			`|CHUNKS_WRITE_REP_LIMIT = 20`
-			`|REPLICATIONS_DELAY_INIT = 0`
-			`|REPLICATIONS_DELAY_DISCONNECT = 0" \
+			`|OPERATIONS_DELAY_INIT = 0`
+			`|OPERATIONS_DELAY_DISCONNECT = 0" \
 	setup_local_empty_lizardfs info
 
 # Restart the first chunkserver preloading pwrite with EIO-throwing version

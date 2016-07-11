@@ -142,7 +142,7 @@ void fs_periodic_test_files() {
 	static uint32_t leng = 0;
 	FSNode *f;
 
-	if ((uint32_t)(main_time()) <= test_start_time) {
+	if ((uint32_t)(main_time()) <= gTestStartTime) {
 		return;
 	}
 	if (i >= NODEHASHSIZE) {
