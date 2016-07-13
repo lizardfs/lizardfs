@@ -58,10 +58,3 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
 		uint32_t inode_dst, const HString &name_dst,
 		uint8_t can_overwrite);
-
-/*! \brief Function processing enqueued snapshot tasks.
- *
- * The function processes limited number of clone operations at once,
- * so it should be executed as often as possible.
- */
-void fs_background_snapshot_work();

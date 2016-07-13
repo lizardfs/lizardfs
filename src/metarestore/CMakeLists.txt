@@ -13,7 +13,7 @@ else()
 endif()
 
 add_library(metarestore ${METARESTORE_SOURCES} ${METARESTORE_MASTER_SOURCES} ${METARESTORE_HSTRING_SOURCES}
-  ../master/chunks.cc ../master/quota_database.cc ../master/chunk_goal_counters.cc ../master/restore.cc ../master/locks.cc ../master/task_manager.cc)
+  ../master/chunks.cc ../master/quota_database.cc ../master/chunk_goal_counters.cc ../master/restore.cc ../master/locks.cc ../master/task_manager.cc ../master/snapshot_task.cc)
 
 target_link_libraries(metarestore mfscommon)
 if(JUDY_LIBRARY)

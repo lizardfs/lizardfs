@@ -245,7 +245,6 @@ void fs_become_master() {
 	gTestStartTime = main_time() + gOperationsDelayInit;
 	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_test_files);
 	main_eachloopregister(fs_background_checksum_recalculation_a_bit);
-	main_eachloopregister(fs_background_snapshot_work);
 	main_eachloopregister(fs_background_task_manager_work);
 	main_timeregister_ms(100, fs_periodic_emptytrash);
 	return;

@@ -31,7 +31,6 @@
 #include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_node.h"
-#include "master/filesystem_snapshot_manager.h"
 #include "master/filesystem_xattr.h"
 #include "master/locks.h"
 #include "master/metadata_dumper.h"
@@ -51,7 +50,6 @@ public:
 	ReservedPathContainer reserved;
 	FSNodeDirectory *root;
 	FSNode *nodehash[NODEHASHSIZE];
-	SnapshotManager snapshot_manager;
 	TaskManager task_manager;
 	FileLocks flock_locks;
 	FileLocks posix_locks;
@@ -84,7 +82,6 @@ public:
 	      reserved{},
 	      root{},
 	      nodehash{},
-	      snapshot_manager{},
 	      task_manager{},
 	      flock_locks{},
 	      posix_locks{},

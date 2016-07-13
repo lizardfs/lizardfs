@@ -22,6 +22,10 @@
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_quota.h"
+#include "master/snapshot_task.h"
+#include "master/task_manager.h"
+
+static const int kInitialSnapshotTaskBatch = 1000;
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
 					const HString &name_dst, uint8_t can_overwrite,
@@ -52,41 +56,22 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 
 	assert(context.isPersonalityMaster());
 
-	return gMetadata->snapshot_manager.makeSnapshot(context.ts(), src_node,
-	                                                static_cast<FSNodeDirectory *>(dst_parent_node),
-	                                                name_dst, can_overwrite, callback);
+	std::unique_ptr<SnapshotTask> task(new SnapshotTask(src_node->id, src_node->id,
+	                                   static_cast<FSNodeDirectory *>(dst_parent_node)->id,
+	                                   0, name_dst, can_overwrite, true, true));
+
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialSnapshotTaskBatch,
+						  std::move(task), callback);
 }
 
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
 			uint32_t inode_dst, const HString &name_dst, uint8_t can_overwrite) {
-	SnapshotManager::CloneData data;
 
-	data.orig_inode = 0;
-	data.src_inode = inode_src;
-	data.dst_parent_inode = parent_dst;
-	data.dst_inode = inode_dst;
-	data.dst_name = name_dst;
-	data.can_overwrite = can_overwrite;
-	data.emit_changelog = false;
-	data.enqueue_work = false;
+	SnapshotTask task(0, inode_src, parent_dst, inode_dst, name_dst, can_overwrite,
+			  false, false);
 
-	return gMetadata->snapshot_manager.cloneNode(context.ts(), data);
+	return task.cloneNode(context.ts());
 }
-
-#ifndef METARESTORE
-
-void fs_background_snapshot_work() {
-	if (gMetadata->snapshot_manager.workAvailable()) {
-		uint32_t ts = main_time();
-		ChecksumUpdater cu(ts);
-		gMetadata->snapshot_manager.batchProcess(ts);
-		if (gMetadata->snapshot_manager.workAvailable()) {
-			main_make_next_poll_nonblocking();
-		}
-	}
-}
-
-#endif
 
 uint8_t fsnodes_deprecated_snapshot_test(FSNode *origsrcnode, FSNode *srcnode,
 		FSNodeDirectory *parentnode, const HString &name,
