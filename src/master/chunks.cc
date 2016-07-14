@@ -744,6 +744,7 @@ static inline Chunk *chunk_malloc() {
 static inline void chunk_free(Chunk *p) {
 	p->next = gChunksMetadata->chfreehead;
 	gChunksMetadata->chfreehead = p;
+	p->inEndangeredQueue = 0;
 }
 #endif /* METARESTORE */
 
@@ -2454,8 +2455,12 @@ void ChunkWorker::mainLoop() {
 			while (stack_.endangered_to_serve > 0 && !Chunk::endangeredChunks.empty()) {
 				c = Chunk::endangeredChunks.front();
 				Chunk::endangeredChunks.pop_front();
-				c->inEndangeredQueue = 0;
-				doChunkJobs(c, stack_.usable_server_count);
+				// If queued chunk is obsolete (e.g. was freed while in queue),
+				// do not proceed with chunk jobs.
+				if (c->inEndangeredQueue == 1) {
+					c->inEndangeredQueue = 0;
+					doChunkJobs(c, stack_.usable_server_count);
+				}
 				--stack_.endangered_to_serve;
 
 				if (stack_.watchdog.expired()) {
