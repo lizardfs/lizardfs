@@ -209,6 +209,9 @@ if [ ! -f %{liz_limits_conf} ]; then
 	echo "%{liz_user} hard nofile 10000" >> %{liz_limits_conf}
 	chmod 0644 %{liz_limits_conf}
 fi
+if [ ! -f %{liz_pam_d} ]; then
+	echo "session	required	pam_limits.so" > %{liz_pam_d}
+fi
 exit 0
 
 %post chunkserver
