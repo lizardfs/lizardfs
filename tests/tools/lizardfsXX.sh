@@ -12,8 +12,10 @@ build_lizardfsXX_or_use_cache() {
 	git clone https://github.com/lizardfs/lizardfs.git
 	cd lizardfs
 	git checkout v$LIZARDFSXX_TAG
-	for patch_name in $LIZARDFSXX_TAG-*.patch; do
-	  patch -p1 < $LIZARDFS_TESTS_DIR/patches/$patch_name
+	for patch_name in "$LIZARDFS_TESTS_DIR"/patches/$LIZARDFSXX_TAG-*.patch; do
+		if [ -f "$patch_name" ]; then
+			patch -p1 < "$patch_name"
+		fi
 	done
 	mkdir build
 	cd build
