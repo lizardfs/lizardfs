@@ -939,7 +939,7 @@ uint8_t fsnodes_appendchunks(uint32_t ts, FSNodeFile *dst, FSNodeFile *src) {
 	return LIZARDFS_STATUS_OK;
 }
 
-static inline void fsnodes_changefilegoal(FSNodeFile *obj, uint8_t goal) {
+void fsnodes_changefilegoal(FSNodeFile *obj, uint8_t goal) {
 	uint8_t old_goal = obj->goal;
 	statsrecord psr, nsr;
 
@@ -1328,7 +1328,7 @@ void fsnodes_geteattr_recursive(FSNode *node, uint8_t gmode, uint32_t feattrtab[
 	}
 }
 
-static inline void fsnodes_enqueue_tape_copies(FSNode *node) {
+void fsnodes_enqueue_tape_copies(FSNode *node) {
 	if (node->type != FSNode::kFile && node->type != FSNode::kTrash && node->type != FSNode::kReserved) {
 		return;
 	}

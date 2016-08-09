@@ -26,6 +26,7 @@
 #include "common/goal.h"
 #include "master/fs_context.h"
 #include "master/locks.h"
+#include "master/setgoal_task.h"
 #include "protocol/lock_info.h"
 
 #define DEFAULT_GOAL 1

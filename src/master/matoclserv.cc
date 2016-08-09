@@ -3326,6 +3326,37 @@ void matoclserv_fuse_getgoal(matoclserventry *eptr, PacketHeader header, const u
 	matoclserv_createpacket(eptr, std::move(reply));
 }
 
+void matoclserv_fuse_setgoal_wake_up(uint32_t session_id, uint32_t msgid, uint32_t type,
+				     std::shared_ptr<SetGoalTask::StatsArray> setgoal_stats,
+				     uint32_t status) {
+	matoclserventry *eptr = matoclserv_find_connection(session_id);
+	if (!eptr) {
+		return;
+	}
+
+	MessageBuffer reply;
+	if (status == LIZARDFS_STATUS_OK) {
+		uint32_t changed, notchanged, notpermitted;
+		changed = (*setgoal_stats)[SetGoalTask::kChanged];
+		notchanged = (*setgoal_stats)[SetGoalTask::kNotChanged];
+		notpermitted = (*setgoal_stats)[SetGoalTask::kNotPermitted];
+
+		if (type == LIZ_CLTOMA_FUSE_SETGOAL) {
+			matocl::fuseSetGoal::serialize(reply, msgid, changed, notchanged, notpermitted);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL,
+					msgid, changed, notchanged, notpermitted);
+		}
+	} else {
+		if (type == LIZ_CLTOMA_FUSE_SETGOAL) {
+			matocl::fuseSetGoal::serialize(reply, msgid, status);
+		} else {
+			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL, msgid, status);
+		}
+	}
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
 void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t inode, uid, msgid;
 	uint8_t goalId = 0, smode;
@@ -3353,7 +3384,8 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 		}
 	} else {
 		throw IncorrectDeserializationException(
-				"Unknown packet type for matoclserv_fuse_getgoal: " + std::to_string(header.type));
+				"Unknown packet type for matoclserv_fuse_getgoal: " +
+				std::to_string(header.type));
 	}
 
 	if (status == LIZARDFS_STATUS_OK && !GoalId::isValid(goalId)) {
@@ -3368,28 +3400,20 @@ void matoclserv_fuse_setgoal(matoclserventry *eptr, PacketHeader header, const u
 		}
 	}
 
-	uint32_t changed,notchanged,notpermitted;
+	// array for setgoal operation statistics
+	auto setgoal_stats = std::make_shared<SetGoalTask::StatsArray>();
+
 	if (status == LIZARDFS_STATUS_OK) {
-		status = fs_setgoal(matoclserv_get_context(eptr, uid, 0), inode, goalId, smode,
-				&changed, &notchanged, &notpermitted);
+		FsContext context = matoclserv_get_context(eptr, uid, 0);
+		status = fs_setgoal(context, inode, goalId, smode, setgoal_stats,
+			   std::bind(matoclserv_fuse_setgoal_wake_up, eptr->sesdata->sessionid,
+				     msgid, header.type, setgoal_stats, std::placeholders::_1));
 	}
 
-	MessageBuffer reply;
-	if (status == LIZARDFS_STATUS_OK) {
-		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
-			matocl::fuseSetGoal::serialize(reply, msgid, changed, notchanged, notpermitted);
-		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL,
-					msgid, changed, notchanged, notpermitted);
-		}
-	} else {
-		if (header.type == LIZ_CLTOMA_FUSE_SETGOAL) {
-			matocl::fuseSetGoal::serialize(reply, msgid, status);
-		} else {
-			serializeMooseFsPacket(reply, MATOCL_FUSE_SETGOAL, msgid, status);
-		}
+	if (status != LIZARDFS_ERROR_WAITING) {
+		matoclserv_fuse_setgoal_wake_up(eptr->sesdata->sessionid, msgid, header.type,
+						setgoal_stats, status);
 	}
-	matoclserv_createpacket(eptr, std::move(reply));
 }
 
 void matoclserv_fuse_geteattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {

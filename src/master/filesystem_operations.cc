@@ -2477,6 +2477,76 @@ uint8_t fs_geteattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 #endif
 
 uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
+		std::shared_ptr<SetGoalTask::StatsArray> setgoal_stats,
+		const std::function<void(int)> &callback) {
+	ChecksumUpdater cu(context.ts());
+	if (!SMODE_ISVALID(smode) || !GoalId::isValid(goal) ||
+	    (smode & (SMODE_INCREASE | SMODE_DECREASE))) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	FSNode *p;
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, MODE_MASK_EMPTY,
+	                                        inode, &p);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	if (p->type != FSNode::kDirectory && p->type != FSNode::kFile &&
+	    p->type != FSNode::kTrash && p->type != FSNode::kReserved) {
+		return LIZARDFS_ERROR_EPERM;
+	}
+	sassert(context.hasUidGidData());
+	(*setgoal_stats)[SetGoalTask::kChanged] = 0;      // - Number of inodes with changed goal
+	(*setgoal_stats)[SetGoalTask::kNotChanged] = 0;   // - Number of inodes with not changed goal
+	(*setgoal_stats)[SetGoalTask::kNotPermitted] = 0; // - Number of inodes with permission denied
+
+	std::unique_ptr<SetGoalTask> task(new SetGoalTask(inode, context.uid(), goal,
+							  smode, setgoal_stats));
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
+						  std::move(task), callback);
+}
+
+//This function is only used by Shadow
+uint8_t fs_apply_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
+		uint32_t master_result) {
+
+	assert(context.isPersonalityShadow());
+	ChecksumUpdater cu(context.ts());
+	if (!SMODE_ISVALID(smode) || !GoalId::isValid(goal) ||
+	    (smode & (SMODE_INCREASE | SMODE_DECREASE))) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	FSNode *p;
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, MODE_MASK_EMPTY,
+	                                        inode, &p);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	if (p->type != FSNode::kDirectory && p->type != FSNode::kFile &&
+	    p->type != FSNode::kTrash && p->type != FSNode::kReserved) {
+		return LIZARDFS_ERROR_EPERM;
+	}
+	sassert(context.hasUidGidData());
+
+	SetGoalTask task(inode, context.uid(), goal, smode);
+	uint32_t my_result = task.setGoal(p, context.ts());
+
+	gMetadata->metaversion++;
+	if (master_result != my_result) {
+		return LIZARDFS_ERROR_MISMATCH;
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_deprecated_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
 	if (!SMODE_ISVALID(smode) || !GoalId::isValid(goal) ||
@@ -2497,11 +2567,13 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 	    p->type != FSNode::kReserved) {
 		return LIZARDFS_ERROR_EPERM;
 	}
+	sassert(context.hasUidGidData());
 	uint32_t si = 0;
 	uint32_t nci = 0;
 	uint32_t nsi = 0;
-	sassert(context.hasUidGidData());
+
 	fsnodes_setgoal_recursive(p, context.ts(), context.uid(), goal, smode, &si, &nci, &nsi);
+
 	if (context.isPersonalityMaster()) {
 		if ((smode & SMODE_RMASK) == 0 && nsi > 0 && si == 0 && nci == 0) {
 			return LIZARDFS_ERROR_EPERM;

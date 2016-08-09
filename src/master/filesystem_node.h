@@ -441,6 +441,7 @@ void fsnodes_remove_edge(uint32_t ts, FSNodeDirectory *parent, const HString &no
 void fsnodes_link(uint32_t ts, FSNodeDirectory *parent, FSNode *child, const HString &name);
 
 uint8_t fsnodes_appendchunks(uint32_t ts, FSNodeFile *dstobj, FSNodeFile *srcobj);
+void fsnodes_changefilegoal(FSNodeFile *obj, uint8_t goal);
 uint32_t fsnodes_getdirsize(const FSNodeDirectory *p, uint8_t withattr);
 void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, FSNodeDirectory *p, uint8_t *dbuff,
@@ -457,6 +458,7 @@ void fsnodes_gettrashtime_recursive(FSNode *node, uint8_t gmode,
 	TrashtimeMap &fileTrashtimes, TrashtimeMap &dirTrashtimes);
 void fsnodes_geteattr_recursive(FSNode *node, uint8_t gmode, uint32_t feattrtab[16],
 	uint32_t deattrtab[16]);
+void fsnodes_enqueue_tape_copies(FSNode *node);
 void fsnodes_setgoal_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t goal, uint8_t smode,
 	uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
 void fsnodes_settrashtime_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint32_t trashtime,

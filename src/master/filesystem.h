@@ -37,6 +37,7 @@
 #include "master/hstring.h"
 #include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
+#include "master/setgoal_task.h"
 #include "master/settrashtime_task.h"
 #include "protocol/quota.h"
 
@@ -83,8 +84,12 @@ uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, Access
 uint8_t fs_seteattr(const FsContext&
 		context, uint32_t inode, uint8_t eattr, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
-uint8_t fs_setgoal(const FsContext& context,
-		uint32_t inode, uint8_t goal, uint8_t smode,
+uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
+		std::shared_ptr<SetGoalTask::StatsArray> setgoal_stats,
+		const std::function<void(int)> &callback);
+uint8_t fs_apply_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
+		uint32_t master_result);
+uint8_t fs_deprecated_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
 uint8_t fs_settrashpath(const FsContext& context,
 		uint32_t inode, const std::string &path);
