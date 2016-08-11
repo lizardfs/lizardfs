@@ -72,6 +72,7 @@
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
+#include "master/settrashtime_task.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 #include "protocol/MFSCommunication.h"
@@ -3175,7 +3176,6 @@ void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
-
 void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t gmode;
@@ -3208,54 +3208,67 @@ void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	}
 }
 
-void matoclserv_fuse_settrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,uid,trashtime;
-	uint32_t msgid;
-	uint8_t smode;
-	uint32_t changed,notchanged,notpermitted;
-	uint8_t *ptr;
-	uint8_t status;
-	if (length!=17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHTIME - wrong size (%" PRIu32 "/17)",length);
-		eptr->mode = KILL;
+void matoclserv_fuse_settrashtime_wake_up(uint32_t session_id, uint32_t msgid,
+					  std::shared_ptr<SetTrashtimeTask::StatsArray> settrashtime_stats,
+					  uint8_t status) {
+	matoclserventry *eptr = matoclserv_find_connection(session_id);
+	if (!eptr) {
 		return;
 	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	uid = get32bit(&data);
-	trashtime = get32bit(&data);
-	smode = get8bit(&data);
+
+	MessageBuffer reply;
+	if (status != LIZARDFS_STATUS_OK) {
+		serializeMooseFsPacket(reply, MATOCL_FUSE_SETTRASHTIME, msgid, status);
+	} else {
+		uint32_t changed, notchanged, notpermitted;
+		changed = (*settrashtime_stats)[SetTrashtimeTask::kChanged];
+		notchanged = (*settrashtime_stats)[SetTrashtimeTask::kNotChanged];
+		notpermitted = (*settrashtime_stats)[SetTrashtimeTask::kNotPermitted];
+		serializeMooseFsPacket(reply, MATOCL_FUSE_SETTRASHTIME, msgid, changed,
+				       notchanged, notpermitted);
+	}
+	matoclserv_createpacket(eptr, std::move(reply));
+}
+
+void matoclserv_fuse_settrashtime(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
+	uint32_t inode, uid, trashtime, msgid;
+	uint8_t smode, status;
+
+	deserializeAllMooseFsPacketDataNoHeader(data, header.length, msgid, inode,
+							uid, trashtime, smode);
 // limits check
 	status = LIZARDFS_STATUS_OK;
-	switch (smode&SMODE_TMASK) {
+	switch (smode & SMODE_TMASK) {
 	case SMODE_SET:
-		if (trashtime<eptr->sesdata->mintrashtime || trashtime>eptr->sesdata->maxtrashtime) {
+		if (trashtime < eptr->sesdata->mintrashtime || trashtime > eptr->sesdata->maxtrashtime) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
 		break;
 	case SMODE_INCREASE:
-		if (trashtime>eptr->sesdata->maxtrashtime) {
+		if (trashtime > eptr->sesdata->maxtrashtime) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
 		break;
 	case SMODE_DECREASE:
-		if (trashtime<eptr->sesdata->mintrashtime) {
+		if (trashtime < eptr->sesdata->mintrashtime) {
 			status = LIZARDFS_ERROR_EPERM;
 		}
 		break;
 	}
 
-	if (status==LIZARDFS_STATUS_OK) {
-		status = fs_settrashtime(matoclserv_get_context(eptr, uid, 0), inode, trashtime, smode, &changed, &notchanged, &notpermitted);
+	// array for settrashtime operation statistics
+	auto settrashtime_stats = std::make_shared<SetTrashtimeTask::StatsArray>();
+
+	if (status == LIZARDFS_STATUS_OK) {
+		status = fs_settrashtime(matoclserv_get_context(eptr, uid, 0), inode, trashtime,
+					 smode, settrashtime_stats,
+			   std::bind(matoclserv_fuse_settrashtime_wake_up, eptr->sesdata->sessionid,
+				     msgid, settrashtime_stats, std::placeholders::_1));
 	}
-	ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_SETTRASHTIME,(status!=LIZARDFS_STATUS_OK)?5:16);
-	put32bit(&ptr,msgid);
-	if (status!=LIZARDFS_STATUS_OK) {
-		put8bit(&ptr,status);
-	} else {
-		put32bit(&ptr,changed);
-		put32bit(&ptr,notchanged);
-		put32bit(&ptr,notpermitted);
+
+	if (status != LIZARDFS_ERROR_WAITING) {
+		matoclserv_fuse_settrashtime_wake_up(eptr->sesdata->sessionid, msgid,
+						     settrashtime_stats, status);
 	}
 }
 
@@ -4769,7 +4782,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_gettrashtime(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_SETTRASHTIME:
-					matoclserv_fuse_settrashtime(eptr,data,length);
+					matoclserv_fuse_settrashtime(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_GETGOAL:
 				case LIZ_CLTOMA_FUSE_GETGOAL:
@@ -4905,7 +4918,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_gettrashtime(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_SETTRASHTIME:
-					matoclserv_fuse_settrashtime(eptr,data,length);
+					matoclserv_fuse_settrashtime(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_GETGOAL:
 					matoclserv_fuse_getgoal(eptr, PacketHeader(type, length), data);

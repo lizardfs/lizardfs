@@ -55,6 +55,8 @@ static uint32_t stats_open = 0;
 static uint32_t stats_read = 0;
 static uint32_t stats_write = 0;
 
+static const int kInitialTaskBatchSize = 1000;
+
 template <class T>
 bool decodeChar(const char *keys, const std::vector<T> values, char key, T &value) {
 	const uint32_t count = strlen(keys);
@@ -2520,7 +2522,75 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 }
 
 uint8_t fs_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime, uint8_t smode,
-			uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes) {
+			std::shared_ptr<SetTrashtimeTask::StatsArray> settrashtime_stats,
+			const std::function<void(int)> &callback) {
+	ChecksumUpdater cu(context.ts());
+	if (!SMODE_ISVALID(smode)) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	FSNode *p;
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, MODE_MASK_EMPTY,
+	                                        inode, &p);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	if (p->type != FSNode::kDirectory && p->type != FSNode::kFile && p->type != FSNode::kTrash &&
+	    p->type != FSNode::kReserved) {
+		return LIZARDFS_ERROR_EPERM;
+	}
+	sassert(context.hasUidGidData());
+	(*settrashtime_stats)[SetTrashtimeTask::kChanged] = 0;      // - Number of inodes with changed trashtime
+	(*settrashtime_stats)[SetTrashtimeTask::kNotChanged] = 0;   // - Number of inodes with not changed trashtime
+	(*settrashtime_stats)[SetTrashtimeTask::kNotPermitted] = 0; // - Number of inodes with permission denied
+
+	std::unique_ptr<SetTrashtimeTask> task(new SetTrashtimeTask(inode, context.uid(), trashtime,
+							  smode, settrashtime_stats));
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
+						  std::move(task), callback);
+}
+
+uint8_t fs_apply_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,
+			      uint8_t smode, uint32_t master_result) {
+
+	assert(context.isPersonalityShadow());
+	ChecksumUpdater cu(context.ts());
+	if (!SMODE_ISVALID(smode)) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	FSNode *p;
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kAny, MODE_MASK_EMPTY,
+	                                        inode, &p);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	if (p->type != FSNode::kDirectory && p->type != FSNode::kFile && p->type != FSNode::kTrash &&
+	    p->type != FSNode::kReserved) {
+		return LIZARDFS_ERROR_EPERM;
+	}
+	sassert(context.hasUidGidData());
+
+	SetTrashtimeTask task(inode, context.uid(), trashtime, smode);
+	uint32_t my_result = task.setTrashtime(p, context.ts());
+
+	gMetadata->metaversion++;
+	if (master_result != my_result) {
+		return LIZARDFS_ERROR_MISMATCH;
+	}
+
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fs_deprecated_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,
+				   uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes,
+				   uint32_t *nsinodes) {
 	ChecksumUpdater cu(context.ts());
 	if (!SMODE_ISVALID(smode)) {
 		return LIZARDFS_ERROR_EINVAL;

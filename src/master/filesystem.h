@@ -37,6 +37,7 @@
 #include "master/hstring.h"
 #include "master/matotsserv.h"
 #include "master/metadata_dumper.h"
+#include "master/settrashtime_task.h"
 #include "protocol/quota.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
@@ -87,9 +88,14 @@ uint8_t fs_setgoal(const FsContext& context,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
 uint8_t fs_settrashpath(const FsContext& context,
 		uint32_t inode, const std::string &path);
-uint8_t fs_settrashtime(const FsContext& context,
-		uint32_t inode, uint32_t trashtime, uint8_t smode,
-		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
+uint8_t fs_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime, uint8_t smode,
+			std::shared_ptr<SetTrashtimeTask::StatsArray> settrashtime_stats,
+			const std::function<void(int)> &callback);
+uint8_t fs_apply_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,
+			      uint8_t smode, uint32_t master_result);
+uint8_t fs_deprecated_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,
+				   uint8_t smode, uint32_t *sinodes, uint32_t *ncinodes,
+				   uint32_t *nsinodes);
 uint8_t fs_symlink(const FsContext& context,
 		uint32_t parent, const HString &name, const std::string &path,
 		uint32_t *inode, Attributes* attr);
