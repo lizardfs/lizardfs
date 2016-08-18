@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -74,8 +74,7 @@ TEST(ChunkCopiesCalculator, removePart) {
 	}
 }
 
-
-TEST(ChunkCopiesCalculator, evalState) {
+TEST(ChunkCopiesCalculator, getState) {
 	Goal goal = goal_config::parseLine("1 gxor4: $xor4 {A B B B C}\n").second;
 	Goal goal2 = goal_config::parseLine("2 gstandard: A B\n").second;
 
@@ -92,34 +91,68 @@ TEST(ChunkCopiesCalculator, evalState) {
 	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("A"));
 	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("A"));
 
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
 
 	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
 	cccp.removePart(Goal::Slice::Type(Goal::Slice::Type::kStandard), 0,
 				MediaLabel("A"));
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
 
 	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("B"));
 	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("A"));
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
 
 	cccp.removePart(sneakyPartType(kXor4), 1, MediaLabel("B"));
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
 
 
 	cccp.addPart(slice_traits::xors::ChunkPartType(2, 0), MediaLabel("A"));
 	cccp.addPart(slice_traits::xors::ChunkPartType(2, 1), MediaLabel("B"));
 	cccp.addPart(slice_traits::xors::ChunkPartType(2, 2), MediaLabel("A"));
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
+}
+
+
+TEST(ChunkCopiesCalculator, evalRedundancyLevel) {
+	Goal goal = goal_config::parseLine("1 gxor4: $xor4 {A B B B C}\n").second;
+	Goal goal2 = goal_config::parseLine("2 gstandard: A B\n").second;
+
+	Goal melt;
+	melt.mergeIn(goal);
+	melt.mergeIn(goal2);
+
+	ChunkCopiesCalculator cccp(melt);
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 0), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 1), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 2), MediaLabel("B"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 3), MediaLabel("B"));
+
+	cccp.evalRedundancyLevel();
+	ASSERT_EQ(0, cccp.getRedundancyLevel());
+
+	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
+	cccp.evalRedundancyLevel();
+	ASSERT_EQ(1, cccp.getRedundancyLevel());
+
+	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
+	cccp.evalRedundancyLevel();
+	ASSERT_EQ(3, cccp.getRedundancyLevel());
+
+	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("B"));
+	cccp.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("B"));
+	cccp.evalRedundancyLevel();
+	ASSERT_EQ(5, cccp.getRedundancyLevel());
 }
 
 TEST(ChunkCopiesCalculator, optimize) {
@@ -146,7 +179,7 @@ TEST(ChunkCopiesCalculator, optimize) {
 	ASSERT_EQ(1, cost) << "result = " << to_string(cccp.getTarget()) << " ops=(" << cccp.countPartsToRecover() << "," << cccp.countPartsToRemove() << ")";
 }
 
-TEST(ChunkCopiesCalculator, updateState) {
+TEST(ChunkCopiesCalculator, updateRedundancyLevel) {
 	Goal goal = goal_config::parseLine("1 goalname: $xor3 {A B B C}\n").second;
 	ChunkCopiesCalculator cccp(goal);
 	cccp.addPart(slice_traits::xors::ChunkPartType(3, 3), MediaLabel("C"));
@@ -156,24 +189,24 @@ TEST(ChunkCopiesCalculator, updateState) {
 	Goal &avalible = cccp.getAvailable();
 	avalible.setName("goalname");
 
-	cccp.evalState();
+	cccp.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
 	cccp.removePart(sneakyPartType(kXor3), 0, MediaLabel("A"));
 
-	cccp.updateState(sneakyPartType(kXor3));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor3));
 	ASSERT_EQ(ChunksAvailabilityState::State::kEndangered, cccp.getState());
 
-	cccp.updateState(sneakyPartType(kXor3));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor3));
 	cccp.removePart(sneakyPartType(kXor3), 1, MediaLabel("B"));
 
-	cccp.updateState(sneakyPartType(kXor3));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor3));
 	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
 
 	cccp.removePart(sneakyPartType(kXor3), 2, MediaLabel("B"));
 	cccp.removePart(sneakyPartType(kXor3), 3, MediaLabel("C"));
 
-	cccp.updateState(sneakyPartType(kXor3));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor3));
 	ASSERT_EQ(ChunksAvailabilityState::State::kLost, cccp.getState());
 }
 
@@ -188,7 +221,7 @@ TEST(ChunkCopiesCalculator, canRemoveExtraPartsFromSliceSimple) {
 	ASSERT_FALSE(calculator.canRemovePart(sneakyPartType(kStandard), 0, MediaLabel("B")));
 
 	calculator.addPart(slice_traits::standard::ChunkPartType(), MediaLabel("A"));
-	calculator.evalState();
+	calculator.evalRedundancyLevel();
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, calculator.getState());
 
 	// We shouldn't drop to endangered state, but...
@@ -226,7 +259,7 @@ TEST(ChunkCopiesCalculator, canRemoveExtraPartsFromSlice) {
 
 	cccp.addPart(slice_traits::xors::ChunkPartType(5, 4), MediaLabel("B"));
 
-	cccp.updateState(sneakyPartType(kXor5));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor5));
 
 	// now we shouldn't drop to endangered state if we remove extra parts
 	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 0, MediaLabel("C")));
@@ -235,7 +268,7 @@ TEST(ChunkCopiesCalculator, canRemoveExtraPartsFromSlice) {
 
 	cccp.removePart(sneakyPartType(kXor5), 5, MediaLabel("C"));
 
-	cccp.updateState(sneakyPartType(kXor5));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor5));
 
 	// now we are in endangered state
 	ASSERT_FALSE(cccp.canRemovePart(sneakyPartType(kXor5), 3, MediaLabel("B")));
@@ -287,10 +320,12 @@ TEST(ChunkCopiesCalculator, getRemovePool) {
 	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
 	cccp.addPart(slice_traits::xors::ChunkPartType(4, 4), MediaLabel("C"));
 
+	cccp.evalRedundancyLevel();
+
 	Goal &avalible = cccp.getAvailable();
 	avalible.setName("goalname");
 
-	cccp.updateState(sneakyPartType(kXor4));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor4));
 	ASSERT_EQ(ChunksAvailabilityState::State::kSafe, cccp.getState());
 
 	cccp.optimize();
@@ -335,7 +370,7 @@ TEST(ChunkCopiesCalculator, countPartsToMove) {
 	Goal &avalible = cccp.getAvailable();
 	avalible.setName("goalname");
 
-	cccp.updateState(sneakyPartType(kXor4));
+	cccp.updateRedundancyLevel(sneakyPartType(kXor4));
 
 	cccp.optimize();
 	// target: $xor4 {A B B C A}

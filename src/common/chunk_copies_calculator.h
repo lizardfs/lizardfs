@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Skytechnology sp. z o.o.
+   Copyright 2015-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -44,8 +44,8 @@ class ChunkCopiesCalculator {
 	    small_vector<std::pair<Goal::Slice::Type,
 	                           small_vector<std::pair<int, int>, Goal::Slice::kMaxPartsCount>>,
 	                 5>> SliceOpCountContainer;
-	typedef flat_map<Goal::Slice::Type, ChunksAvailabilityState::State,
-	                 small_vector<std::pair<Goal::Slice::Type, ChunksAvailabilityState::State>, 5>>
+	typedef flat_map<Goal::Slice::Type, int,
+	                 small_vector<std::pair<Goal::Slice::Type, int>, 5>>
 	    SliceStateContainer;
 
 public:
@@ -73,32 +73,47 @@ public:
 	 *
 	 * This function computes parts permutation (for each slide) to reduce
 	 * number of required chunk operations to achieve target goal.
-	 * As by-product this functions also computes chunk state (executes evalState) and stores
-	 * number or required chunk ops for later use.
+	 * As by-product this functions also computes chunk state (executes evalRedundancyLevel)
+	 * and stores number or required chunk ops for later use.
 	 *
 	 * All query functions might be used only after this function has been executed.
 	 */
 	void optimize();
 
-	/*! \brief Evaluate chunk state.
+	/*! \brief Evaluate chunk redundancy level.
 	 *
-	 * This function evaluates chunk state (safe, endangered, lost).
+	 * This function evaluates number of redundant (above required) chunk parts that are
+	 * needed for a Chunk to be considered safe.
 	 *
-	 * Safe state is when chunk part can disappear and chunk is not lost.
-	 * Endangered state is when losing one chunk part leads to losing some of chunk data.
-	 * Lost state is when there is a part of chunk data that is not available.
+	 * X number of redundant chunk parts indicates that X parts can disappear and chunk is not lost.
+	 * 0 redundant chunk parts means that chunk is endangered and losing one chunk part
+	 * leads to losing some of chunk data.
+	 * Negative number of redundant chunk parts means that part of chunk data is not available.
 	 *
 	 * State query functions may be used only after this function has been executed.
 	 */
-	void evalState();
+	void evalRedundancyLevel();
 
-	/*! \brief Update chunk state after modifications to one slice.
+	/*! \brief Check whether state of the chunk meets given safety requirement
 	 *
-	 * This function may be used only after evalState has been run.
+	 * This function evaluates safety of the chunk comparing it to the
+	 * requirement given as parameter. In case of target goal which by definition
+	 * has less redundant chunk parts than given minimum, chunk is always considered
+	 * safe enough.
+	 *
+	 * \param min_redundant_parts minimum number of redundant chunk parts for chunk to be
+	 *                            considered safe.
+	 * \return true if state of chunk is safe enough, otherwise false.
+	 */
+	bool isSafeEnoughToWrite(int min_redundant_parts);
+
+	/*! \brief Update chunk redundancy level after modifications to one slice.
+	 *
+	 * This function may be used only after evalRedundancyLevel has been run.
 	 *
 	 * \param slice_type type of slice that has been modified.
 	 */
-	void updateState(const Goal::Slice::Type &slice_type);
+	void updateRedundancyLevel(const Goal::Slice::Type &slice_type);
 
 	/*! \brief Query if extra chunk part may be safely removed.
 	 *
@@ -192,9 +207,20 @@ public:
 		addPart(part_type.getSliceType(), part_type.getSlicePart(), label);
 	}
 
+	/*! \brief Return redundancy level of chunk. */
+	int getRedundancyLevel() const {
+		return redundancy_level_;
+	}
+
 	/*! \brief Return chunk state. */
 	ChunksAvailabilityState::State getState() const {
-		return state_;
+		if (target_.size() == 0 || redundancy_level_ > 0) {
+			return ChunksAvailabilityState::kSafe;
+		}
+		if (redundancy_level_ == 0) {
+			return ChunksAvailabilityState::kEndangered;
+		}
+		return ChunksAvailabilityState::kLost;
 	}
 
 	/*! \brief Get goal with available parts. */
@@ -232,16 +258,21 @@ protected:
 	std::pair<int, int> operationCount(const Goal::Slice::ConstPartProxy &src,
 	                                   const Goal::Slice::ConstPartProxy &dst) const;
 
-	ChunksAvailabilityState::State evalSliceState(const Goal::Slice &slice) const;
+	static int evalSliceRedundancyLevel(const Goal::Slice &slice);
 	bool removePartBasicTest(const Goal::Slice::Type &slice_type, bool &result) const;
 	void evalOperationCount();
+	int evalRedundancyLevel(const Goal &goal);
 
 protected:
 	Goal available_; /*!< Goal describing available chunk parts. */
 	Goal target_;    /*!< Goal describing desired chunk parts */
 
-	SliceStateContainer slice_state_;             /*!< State of each available slice. */
-	ChunksAvailabilityState::State state_;        /*!< State of whole chunk. */
+	int target_redundancy_level_;                 /*!< Number of redundant chunk parts for
+	                                                   target. */
+	int redundancy_level_;                        /*!< Number of redundant chunk parts for
+	                                                   whole chunk. */
+	SliceStateContainer slice_redundancy_level_;  /*!< Number of redundant chunk parts for
+	                                                   each available slice. */
 	SliceOpCountContainer slice_operation_count_; /*!< Operation count for each slice */
 	std::pair<int, int> operation_count_;         /*!< Operation count for whole chunk. */
 };

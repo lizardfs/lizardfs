@@ -83,6 +83,7 @@
 
 #ifndef METARESTORE
 
+static uint32_t gRedundancyLevel;
 static uint64_t gEndangeredChunksServingLimit;
 static uint64_t gEndangeredChunksMaxCapacity;
 static uint64_t gDisconnectedCounter = 0;
@@ -1059,6 +1060,14 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 				return LIZARDFS_ERROR_NOCHUNKSERVERS;
 			}
 		}
+		ChunkCopiesCalculator calculator(fs_get_goal_definition(goal));
+		for (const auto &server_with_type : serversWithChunkTypes) {
+			calculator.addPart(server_with_type.second, MediaLabel::kWildcard);
+		}
+		calculator.evalRedundancyLevel();
+		if (!calculator.isSafeEnoughToWrite(gRedundancyLevel)) {
+			return LIZARDFS_ERROR_NOCHUNKSERVERS;
+		}
 		c = chunk_new(gChunksMetadata->nextchunkid++, 1);
 		c->interrupted = 0;
 		c->operation = Chunk::CREATE;
@@ -1090,6 +1099,14 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 		}
 		if (oc->isLost()) {
 			return LIZARDFS_ERROR_CHUNKLOST;
+		}
+		ChunkCopiesCalculator calculator(oc->getGoal());
+		for (auto &part : oc->parts) {
+			calculator.addPart(part.type, MediaLabel::kWildcard);
+		}
+		calculator.evalRedundancyLevel();
+		if (!calculator.isSafeEnoughToWrite(gRedundancyLevel)) {
+			return LIZARDFS_ERROR_NOCHUNKSERVERS;
 		}
 
 		if (oc->fileCount() == 1) { // refcount==1
@@ -1972,7 +1989,7 @@ bool ChunkWorker::tryReplication(Chunk *c, ChunkPartType part_to_recover,
 		calc.addPart(part.type, matocsserv_get_label(part.server()));
 	}
 
-	calc.evalState();
+	calc.evalRedundancyLevel();
 	if (!calc.isRecoveryPossible()) {
 		return false;
 	}
@@ -2801,6 +2818,7 @@ void chunk_reload(void) {
 	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
 	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
 	gAvoidSameIpChunkservers = cfg_getuint32("AVOID_SAME_IP_CHUNKSERVERS", 0);
+	gRedundancyLevel = cfg_getuint32("REDUNDANCY_LEVEL", 0);
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	if (disableChunksDel) {
@@ -2894,6 +2912,8 @@ int chunk_strinit(void) {
 	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
 	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
 	gAvoidSameIpChunkservers = cfg_getuint32("AVOID_SAME_IP_CHUNKSERVERS", 0);
+	gRedundancyLevel = cfg_getuint32("REDUNDANCY_LEVEL", 0);
+
 	if (disableChunksDel) {
 		MaxDelHardLimit = MaxDelSoftLimit = 0;
 	} else {

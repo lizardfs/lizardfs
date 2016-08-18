@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Skytechnology sp. z o.o.
+   Copyright 2015-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -27,14 +27,20 @@
 #include "common/slice_traits.h"
 #include "common/random.h"
 
-ChunkCopiesCalculator::ChunkCopiesCalculator() {
+ChunkCopiesCalculator::ChunkCopiesCalculator() :
+	target_redundancy_level_(std::numeric_limits<int>::min()),
+	redundancy_level_(std::numeric_limits<int>::min()) {
 }
 
-ChunkCopiesCalculator::ChunkCopiesCalculator(Goal target) : target_(std::move(target)) {
+ChunkCopiesCalculator::ChunkCopiesCalculator(Goal target) :
+	target_(std::move(target)),
+	target_redundancy_level_(std::numeric_limits<int>::min()),
+	redundancy_level_(std::numeric_limits<int>::min()) {
 }
 
 void ChunkCopiesCalculator::setTarget(Goal target) {
 	target_ = std::move(target);
+	target_redundancy_level_ = std::numeric_limits<int>::min();
 }
 
 void ChunkCopiesCalculator::removePart(const Goal::Slice::Type &slice_type, int part,
@@ -99,7 +105,7 @@ void ChunkCopiesCalculator::optimize() {
 	}
 
 	evalOperationCount();
-	evalState();
+	evalRedundancyLevel();
 }
 
 void ChunkCopiesCalculator::evalOperationCount() {
@@ -205,33 +211,28 @@ std::pair<int, int> ChunkCopiesCalculator::operationCount(const Goal::Slice::Con
 	return result;
 }
 
-void ChunkCopiesCalculator::evalState() {
-	state_ = target_.size() == 0 ? ChunksAvailabilityState::kSafe
-	                             : ChunksAvailabilityState::kLost;
-	int count_endengered = 0;
-
-	assert(ChunksAvailabilityState::kSafe < ChunksAvailabilityState::kEndangered &&
-	       ChunksAvailabilityState::kEndangered < ChunksAvailabilityState::kLost);
-
+void ChunkCopiesCalculator::evalRedundancyLevel() {
+	redundancy_level_ = 0;
 	for (const auto &slice : available_) {
-		ChunksAvailabilityState::State state = evalSliceState(slice);
-
-		state_ = std::min(state_, state);
-		slice_state_[slice.getType()] = state;
-		if (state == ChunksAvailabilityState::kEndangered) {
-			++count_endengered;
-		}
+		int extra_parts = evalSliceRedundancyLevel(slice);
+		slice_redundancy_level_[slice.getType()] = extra_parts;
+		redundancy_level_ += std::max(extra_parts + 1, 0);
 	}
-
-	// if two or more slice are endangered than we can remove one chunk part
-	// and whole chunk data is still available.
-	if (count_endengered > 1) {
-		state_ = ChunksAvailabilityState::kSafe;
-	}
+	redundancy_level_ -= 1;
 }
 
-ChunksAvailabilityState::State ChunkCopiesCalculator::evalSliceState(
-		const Goal::Slice &slice) const {
+int ChunkCopiesCalculator::evalRedundancyLevel(const Goal &goal) {
+	int redundancy_level = 0;
+	for (const auto &slice : goal) {
+		int extra_parts = evalSliceRedundancyLevel(slice);
+		redundancy_level += std::max(extra_parts + 1, 0);
+	}
+	return redundancy_level - 1;
+}
+
+// Negative return value indicates that data is lost
+int ChunkCopiesCalculator::evalSliceRedundancyLevel(
+		const Goal::Slice &slice) {
 	int type_count = 0, copies = 0;
 
 	for (const auto &part : slice) {
@@ -240,43 +241,33 @@ ChunksAvailabilityState::State ChunkCopiesCalculator::evalSliceState(
 		type_count += count > 0;
 	}
 	if (slice_traits::isStandard(slice)) {
-		if (copies >= 2) {
-			return ChunksAvailabilityState::kSafe;
-		} else if (copies == 1) {
-			return ChunksAvailabilityState::kEndangered;
-		}
+		return copies - 1;
 	} else if (slice_traits::isXor(slice) || slice_traits::isEC(slice)) {
-		if (type_count > slice_traits::getNumberOfDataParts(slice)) {
-			return ChunksAvailabilityState::kSafe;
-		} else if (type_count >= slice_traits::getNumberOfDataParts(slice)) {
-			return ChunksAvailabilityState::kEndangered;
-		}
+		return type_count - slice_traits::getNumberOfDataParts(slice);
 	}
-
-	return ChunksAvailabilityState::kLost;
+	return -1;
 }
 
-void ChunkCopiesCalculator::updateState(const Goal::Slice::Type &slice_type) {
+bool ChunkCopiesCalculator::isSafeEnoughToWrite(int min_redundant_parts) {
+	if (target_redundancy_level_ == std::numeric_limits<int>::min()) {
+		target_redundancy_level_ = evalRedundancyLevel(target_);
+	}
+	if (redundancy_level_ == std::numeric_limits<int>::min()) {
+		evalRedundancyLevel();
+	}
+
+	min_redundant_parts = std::min(target_redundancy_level_, min_redundant_parts);
+
+	return redundancy_level_ >= min_redundant_parts;
+}
+
+void ChunkCopiesCalculator::updateRedundancyLevel(const Goal::Slice::Type &slice_type) {
 	if (available_.find(slice_type) == available_.end()) {
 		return;
 	}
-
-	slice_state_[slice_type] = evalSliceState(available_[slice_type]);
-
-	state_ = target_.size() == 0 ? ChunksAvailabilityState::kSafe
-	                             : ChunksAvailabilityState::kLost;
-	int count_endengered = 0;
-	for (const auto &slice : available_) {
-		ChunksAvailabilityState::State state;
-		state = slice_state_[slice.getType()];
-		state_ = std::min(state_, state);
-		if (state == ChunksAvailabilityState::kEndangered) {
-			++count_endengered;
-		}
-	}
-	if (count_endengered > 1) {
-		state_ = ChunksAvailabilityState::kSafe;
-	}
+	int old_redundancy_level_ = slice_redundancy_level_[slice_type];
+	slice_redundancy_level_[slice_type] = evalSliceRedundancyLevel(available_[slice_type]);
+	redundancy_level_ += std::max(slice_redundancy_level_[slice_type], -1) - std::max(old_redundancy_level_, -1);
 }
 
 std::pair<int, int> ChunkCopiesCalculator::countPartsToMove(const Goal::Slice::Type &slice_type,
@@ -314,7 +305,7 @@ bool ChunkCopiesCalculator::canRemovePart(const Goal::Slice::Type &slice_type, i
 		}
 	}
 
-	return evalSliceState(slice) == ChunksAvailabilityState::kSafe;
+	return evalSliceRedundancyLevel(slice) > 0;
 }
 
 /*! \brief Test if removing one chunk part doesn't make whole chunk unsafe.
@@ -331,9 +322,9 @@ bool ChunkCopiesCalculator::removePartBasicTest(const Goal::Slice::Type &slice_t
 		return true;
 	}
 
-	// if chunk state isn't safe or there is no chunk part of this type
+	// if chunk isn't safe or there is no chunk part of this type
 	// then we by design don't allow to remove anything
-	if (state_ != ChunksAvailabilityState::kSafe ||
+	if (redundancy_level_ < 1 ||
 	    available_.find(slice_type) == available_.end()) {
 		result = false;
 		return true;
@@ -344,8 +335,16 @@ bool ChunkCopiesCalculator::removePartBasicTest(const Goal::Slice::Type &slice_t
 	assert(ChunksAvailabilityState::kSafe == 0 && ChunksAvailabilityState::kEndangered == 1 &&
 	       ChunksAvailabilityState::kLost == 2);
 
-	for (const auto &state : slice_state_) {
-		state_count[state.second]++;
+	ChunksAvailabilityState::State slice_state;
+	for (const auto &state : slice_redundancy_level_) {
+		if (state.second > 0) {
+			slice_state = ChunksAvailabilityState::kSafe;
+		} else if (state.second == 0) {
+			slice_state = ChunksAvailabilityState::kEndangered;
+		} else {
+			slice_state = ChunksAvailabilityState::kLost;
+		}
+		state_count[slice_state]++;
 	}
 
 	int can_remove_count = 2 * state_count[ChunksAvailabilityState::kSafe] +
@@ -362,12 +361,12 @@ bool ChunkCopiesCalculator::removePartBasicTest(const Goal::Slice::Type &slice_t
 
 	// at this point we know that can_remove_count == 2
 
-	SliceStateContainer::const_iterator istate = slice_state_.find(slice_type);
-	assert(istate != slice_state_.end());
+	SliceStateContainer::const_iterator istate = slice_redundancy_level_.find(slice_type);
+	assert(istate != slice_redundancy_level_.end());
 
 	// if the slice is lost and chunk is safe then again we can remove it
 	// because this slice doesn't impact chunk safety.
-	if (istate->second == ChunksAvailabilityState::kLost) {
+	if (istate->second < 0) {
 		result = true;
 		return true;
 	}

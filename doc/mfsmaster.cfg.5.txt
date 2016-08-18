@@ -214,6 +214,10 @@ Size of memory cache (in MB) for file/directory names used by Berkeley DB storag
 When this option is set to 1, process of selecting chunkservers for chunks will try to avoid
 using those that share the same ip. (default is 0)
 
+*REDUNDANCY_LEVEL*::
+minimum number of required redundant chunk parts that can be lost before chunk becomes endangered
+(default is 0)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::

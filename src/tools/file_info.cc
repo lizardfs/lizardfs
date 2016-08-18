@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -208,7 +208,7 @@ static int file_info(const char *fileName) {
 					for(const auto &part : copies) {
 						chunk_calculator.addPart(part.chunkType, MediaLabel::kWildcard);
 					}
-					chunk_calculator.evalState();
+					chunk_calculator.evalRedundancyLevel();
 					if (copies.size() > 0) {
 						std::sort(copies.begin(), copies.end());
 						for (size_t i = 0; i < copies.size(); i++) {
