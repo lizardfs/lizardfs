@@ -42,6 +42,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfsbind=%s", bindhost, 0),
 	MFS_OPT("mfssubfolder=%s", subfolder, 0),
 	MFS_OPT("mfspassword=%s", password, 0),
+	MFS_OPT("askpassword", passwordask, 1),
 	MFS_OPT("mfsmd5pass=%s", md5pass, 0),
 	MFS_OPT("mfsrlimitnofile=%u", nofile, 0),
 	MFS_OPT("mfsnice=%d", nice, 0),
@@ -173,6 +174,7 @@ void usage(const char *progname) {
 "    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
+"    -o askpassword              show prompt and ask user for password\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
 "    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"

@@ -51,7 +51,7 @@ mount MFSMETA companion filesystem instead of primary LizardFS
 *-n*::
 omit default mount options (*-o allow_other,default_permissions*)
 
-*-p*::
+*-p*, *-o askpassword*::
 prompt for password (interactive version of *-o mfspassword=*'PASS')
 
 *-H* 'HOST', *-o mfsmaster=*'HOST'::
