@@ -1,12 +1,12 @@
 # Download GoogleTest
 if(ENABLE_TESTS)
   set(GTEST_VERSION 1.7.0)
-  set(GTEST_NAME gtest-${GTEST_VERSION})
+  set(GTEST_NAME googletest-release-${GTEST_VERSION})
 
   if(NOT IS_DIRECTORY ${CMAKE_SOURCE_DIR}/external/${GTEST_NAME})
-    set(GTEST_ARCHIVE ${GTEST_NAME}.zip)
-    set(GTEST_URL http://googletest.googlecode.com/files/${GTEST_ARCHIVE})
-    set(GTEST_ARCHIVE_MD5 2d6ec8ccdf5c46b05ba54a9fd1d130d7)
+    set(GTEST_ARCHIVE release-${GTEST_VERSION}.zip)
+    set(GTEST_URL https://github.com/google/googletest/archive/${GTEST_ARCHIVE})
+    set(GTEST_ARCHIVE_MD5 ef5e700c8a0f3ee123e2e0209b8b4961)
 
     message(STATUS "Downloading ${GTEST_URL}...")
     file(DOWNLOAD
