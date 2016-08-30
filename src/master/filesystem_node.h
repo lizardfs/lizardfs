@@ -36,6 +36,7 @@
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
 #  include "common/judy_map.h"
 #else
+#  include <map>
 #  include "common/flat_map.h"
 #endif
 
@@ -339,8 +340,8 @@ struct TrashPathKey {
 typedef judy_map<TrashPathKey, hstorage::Handle> TrashPathContainer;
 typedef judy_map<uint32_t, hstorage::Handle> ReservedPathContainer;
 #else
-typedef flat_map<TrashPathKey, hstorage::Handle> TrashPathContainer;
-typedef flat_map<uint32_t, hstorage::Handle> ReservedPathContainer;
+typedef std::map<TrashPathKey, hstorage::Handle> TrashPathContainer;
+typedef std::map<uint32_t, hstorage::Handle> ReservedPathContainer;
 #endif
 
 inline uint32_t fsnodes_hash(uint32_t parentid, const hstorage::Handle &name) {
