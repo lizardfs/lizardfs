@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -669,21 +669,9 @@ int do_setquota(const char *filename, uint64_t lv, uint32_t, const char *ptr) {
 	return fs_apply_setquota(rigor, resource, ownerType, ownerId, limit);
 }
 
-int do_snapshot(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
-	uint32_t inode,parent,canoverwrite;
-	uint8_t name[256];
-	EAT(ptr,filename,lv,'(');
-	GETU32(inode,ptr);
-	EAT(ptr,filename,lv,',');
-	GETU32(parent,ptr);
-	EAT(ptr,filename,lv,',');
-	GETNAME(name,ptr,filename,lv,',');
-	EAT(ptr,filename,lv,',');
-	GETU32(canoverwrite,ptr);
-	EAT(ptr,filename,lv,')');
-
-	return fs_deprecated_snapshot(FsContext::getForRestore(ts),
-			inode, parent, HString((const char*)name), canoverwrite);
+int do_snapshot(const char* /*filename*/, uint64_t /*lv*/, uint32_t /*ts*/, const char* /*ptr*/) {
+	lzfs_pretty_syslog(LOG_ERR, "Trying to execute deprecated do_snapshot");
+	return -1;
 }
 
 int do_clone_node(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
