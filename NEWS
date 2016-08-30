@@ -1,5 +1,17 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.10.2) (2016-08-30)
+ - (master) redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
+ - (master) name storage - a possibility to keep all file names in BerkeleyDB, thus saving even more RAM
+ - (master) redesign of trash - increased performance, reduced RAM usage and CPU pressure
+ - (master) huge boost of responsiveness - lengthy operations split into asynchronous bits
+ - (master) OPERATIONS_DELAY* config entries, which allow postponing metadata operations on restart/disconnect
+ - (master) fix improper handling of endangered chunks
+ - (chunkserver) memory optimizations - at least 60% reduction in RAM usage
+ - (chunkserver) introduce smart descriptor management
+ - (tools) brand new `lizardfs` command, a unified replacement for mfs* tools with prompt and bash completion
+ - (all) various fixes and community requests
+
  * Lizardfs (3.10.0-rc) (2016-03-14)
   - (all) Added erasure code goals
   - (all) Added per directory quotas

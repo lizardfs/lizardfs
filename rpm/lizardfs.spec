@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        3.10.1
+Version:        3.10.2
 Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -456,6 +456,18 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Tue Aug 30 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.2
+- (master) redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
+- (master) name storage - a possibility to keep all file names in BerkeleyDB, thus saving even more RAM
+- (master) redesign of trash - increased performance, reduced RAM usage and CPU pressure
+- (master) huge boost of responsiveness - lengthy operations split into asynchronous bits
+- (master) OPERATIONS_DELAY* config entries, which allow postponing metadata operations on restart/disconnect
+- (master) fix improper handling of endangered chunks
+- (chunkserver) memory optimizations - at least 60% reduction in RAM usage
+- (chunkserver) introduce smart descriptor management
+- (tools) brand new `lizardfs` command, a unified replacement for mfs* tools with prompt and bash completion
+- (all) various fixes and community requests
+
 * Thu Apr 14 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.1
 - (none) None
 
