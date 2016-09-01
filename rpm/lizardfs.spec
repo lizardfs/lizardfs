@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        3.10.2
+Version:        3.10.3
 Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -456,6 +456,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Thu Sep 1 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.3
+- (none) None
+
 * Tue Aug 30 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.2
 - (master) redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
 - (master) name storage - a possibility to keep all file names in BerkeleyDB, thus saving even more RAM

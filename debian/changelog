@@ -1,3 +1,10 @@
+lizardfs (3.10.3) unstable; urgency=low
+
+  * (none) None
+
+ -- Piotr Sarna <contact@lizardfs.org>  Thu, 1 Sep 2016 11:00:00 +0200
+
+
 lizardfs (3.10.2) stable; urgency=medium
 
   * (master) redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
