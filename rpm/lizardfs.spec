@@ -13,7 +13,7 @@ BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
 BuildRequires:  asciidoc
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 BuildRequires:  systemd
 %endif
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -38,7 +38,7 @@ http://lizardfs.com
 %package master
 Summary:        LizardFS master server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -50,7 +50,7 @@ LizardFS master (metadata) server together with metarestore utility.
 %package metalogger
 Summary:        LizardFS metalogger server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -62,7 +62,7 @@ LizardFS metalogger (metadata replication) server.
 %package chunkserver
 Summary:        LizardFS data server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -93,7 +93,7 @@ LizardFS CGI Monitor.
 Summary:        Simple CGI-capable HTTP server to run LizardFS CGI Monitor
 Group:          System Environment/Daemons
 Requires:       %{name}-cgi = %{version}-%{release}
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -133,7 +133,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-master
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-master.service
 %endif
 
@@ -144,7 +144,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-master
 fi
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-master.service
 %endif
 
@@ -152,7 +152,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-master condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-master.service
 %endif
 
@@ -172,7 +172,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-metalogger
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-metalogger.service
 %endif
 
@@ -183,7 +183,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-metalogger
 fi
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-metalogger.service
 %endif
 
@@ -191,7 +191,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-metalogger condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-metalogger.service
 %endif
 
@@ -219,7 +219,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-chunkserver
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-chunkserver.service
 %endif
 
@@ -230,7 +230,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-chunkserver
 fi
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-chunkserver.service
 %endif
 
@@ -238,7 +238,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-chunkserver condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-chunkserver.service
 %endif
 
@@ -249,7 +249,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-cgiserv
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-cgiserv.service
 %endif
 
@@ -260,7 +260,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-cgiserv
 fi
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-cgiserv.service
 %endif
 
@@ -268,7 +268,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-cgiserv condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-cgiserv.service
 %endif
 
@@ -293,7 +293,7 @@ for f in rpm/init-scripts/*.init ; do
                 s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
 done
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 install -d -m755 $RPM_BUILD_ROOT/%{_unitdir}
 for f in rpm/service-files/*.service ; do
 	install -m644 "$f" $RPM_BUILD_ROOT/%{_unitdir}/$(basename "$f")
@@ -332,7 +332,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-master
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-master.service
 %endif
 
@@ -347,7 +347,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-metalogger
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-metalogger.service
 %endif
 
@@ -364,7 +364,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-chunkserver
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-chunkserver.service
 %endif
 
@@ -443,7 +443,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-cgiserv
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-cgiserv.service
 %endif
 
