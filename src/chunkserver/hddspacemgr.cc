@@ -496,7 +496,7 @@ static inline void hdd_chunk_remove(Chunk *c) {
 	while ((cp=*cptr)) {
 		if (c==cp) {
 			*cptr = cp->next;
-			gOpenChunks.purge(cp->fd);
+			gOpenChunks.moveToPendingList(cp->fd);
 			if (cp->owner) {
 				zassert(pthread_mutex_lock(&testlock));
 				if (cp->testnext) {
@@ -641,7 +641,7 @@ static Chunk* hdd_chunk_get(
 		}
 		c = c->next;
 	}
-	if (c==NULL) {
+	if (c == NULL) {
 		if (cflag!=CH_NEW_NONE) {
 			c = hdd_chunk_recreate(nullptr, chunkid, chunkType, format);
 		}
@@ -927,7 +927,7 @@ void hdd_senddata(folder *f,int rmflag) {
 					hdd_report_lost_chunk(c->chunkid, c->type());
 					if (c->state==CH_AVAIL) {
 						*cptr = c->next;
-						gOpenChunks.purge(c->fd);
+						gOpenChunks.moveToPendingList(c->fd);
 						if (c->testnext) {
 							c->testnext->testprev = c->testprev;
 						} else {

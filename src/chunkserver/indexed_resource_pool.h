@@ -20,6 +20,7 @@
 
 #include "chunkserver/chunk.h"
 #include "common/platform.h"
+#include "common/small_vector.h"
 
 /*! Class for keeping resources that can be easily indexed with integers.
  *  Use case: Keeping open descriptors of chunks in order to close them
@@ -38,6 +39,8 @@ template <typename Resource,
 class IndexedResourcePool {
 public:
 	static const int kNullId = 0;
+	static const int kInitialPendingListCapacity = 256;
+	typedef small_vector<int, kInitialPendingListCapacity> PendingList;
 
 	/*! Helper structure for keeping resources in double-linked list implemented
 	 *  on top of a contiguous container.
@@ -52,7 +55,7 @@ public:
 	};
 
 	IndexedResourcePool(int capacity = DefaultCapacity)
-		: data_(capacity), mutex_(), garbage_collector_head_() {
+		: data_(capacity), mutex_(), pending_mutex_(), garbage_collector_head_() {
 	}
 
 	/*!
@@ -104,6 +107,29 @@ public:
 	}
 
 	/*!
+	 * \brief Enqueue resource to be purged
+	 *
+	 * \param id Resource's index.
+	 */
+	void moveToPendingList(int id) {
+		std::lock_guard<std::mutex> guard(pending_mutex_);
+		pending_list_.push_back(id);
+	}
+
+	/*!
+	 * \brief Purge all previously enqueued resources
+	 */
+	void flushPendingList() {
+		std::unique_lock<std::mutex> guard(pending_mutex_);
+		PendingList tmp = std::move(pending_list_);
+		pending_list_.clear();
+		guard.unlock();
+		for (auto free_id : tmp) {
+			purge(free_id);
+		}
+	}
+
+	/*!
 	 * \brief Immediately free resource.
 	 *
 	 * \param id Resource's index.
@@ -134,6 +160,7 @@ public:
 		int freed = 0;
 		small_vector<Resource, PopUnusedCount> candidates;
 		candidates.reserve(count);
+		flushPendingList();
 		mutex_.lock();
 		garbage_collector_head_ = front();
 		mutex_.unlock();
@@ -206,5 +233,7 @@ protected:
 
 	std::vector<Entry> data_;
 	std::mutex mutex_;
+	std::mutex pending_mutex_;
+	PendingList pending_list_;
 	int garbage_collector_head_;
 };
