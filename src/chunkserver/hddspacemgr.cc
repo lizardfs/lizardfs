@@ -462,7 +462,7 @@ static inline void hdd_chunk_remove(Chunk *c) {
 	while ((cp=*cptr)) {
 		if (c==cp) {
 			*cptr = cp->next;
-			gOpenChunks.moveToPendingList(cp->fd);
+			gOpenChunks.purge(cp->fd);
 			if (cp->owner) {
 				std::lock_guard<std::mutex> testlock_guard(testlock);
 				if (cp->testnext) {
@@ -518,9 +518,9 @@ static int hdd_chunk_getattr(Chunk *c) {
 }
 
 bool hdd_chunk_trylock(Chunk *c) {
+	assert(hashlock.try_lock() == false);
 	bool ret = false;
 	TRACETHIS1(chunkid);
-	std::lock_guard<std::mutex> hashlock_guard(hashlock);
 	if (c != nullptr && c->state == CH_AVAIL) {
 		c->state = CH_LOCKED;
 		ret = true;
@@ -881,7 +881,7 @@ void hdd_senddata(folder *f,int rmflag) {
 					hdd_report_lost_chunk(c->chunkid, c->type());
 					if (c->state==CH_AVAIL) {
 						*cptr = c->next;
-						gOpenChunks.moveToPendingList(c->fd);
+						gOpenChunks.purge(c->fd);
 						if (c->testnext) {
 							c->testnext->testprev = c->testprev;
 						} else {
@@ -1238,7 +1238,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 		gOpenChunks.acquire(c->fd);
 		if (c->fd < 0) {
 			// Try to free some long unused descriptors
-			gOpenChunks.freeUnused(main_time());
+			gOpenChunks.freeUnused(main_time(), hashlock);
 			for (int i = 0; i < kOpenRetryCount; ++i) {
 				if (newflag) {
 					c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
@@ -1258,7 +1258,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 				} else { // c->fd < 0 && errno == ENFILE
 					usleep((kOpenRetry_ms * 1000) << i);
 					// Force free unused descriptors
-					gOpenChunks.freeUnused(std::numeric_limits<uint32_t>::max(), 4);
+					gOpenChunks.freeUnused(std::numeric_limits<uint32_t>::max(), hashlock, 4);
 				}
 			}
 			if (c->fd < 0) {
@@ -3313,7 +3313,7 @@ void hdd_free_resources_thread() {
 	TRACETHIS();
 
 	while (!term) {
-		gOpenChunks.freeUnused(main_time(), kMaxFreeUnused);
+		gOpenChunks.freeUnused(main_time(), hashlock, kMaxFreeUnused);
 		sleep(kDelayedStep);
 	}
 }
@@ -3389,6 +3389,7 @@ void hdd_term(void) {
 				syslog(LOG_WARNING,"hdd_term: locked chunk !!!");
 			}
 		}
+		gOpenChunks.freeUnused(main_time(), hashlock);
 	}
 	for (f=folderhead ; f ; f=fn) {
 		fn = f->next;

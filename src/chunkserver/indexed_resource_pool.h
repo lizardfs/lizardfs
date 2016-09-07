@@ -39,8 +39,8 @@ template <typename Resource,
 class IndexedResourcePool {
 public:
 	static const int kNullId = 0;
-	static const int kInitialPendingListCapacity = 256;
-	typedef small_vector<int, kInitialPendingListCapacity> PendingList;
+	static const int kInitialPurgeListCapacity = 256;
+	typedef small_vector<Resource, kInitialPurgeListCapacity> PurgeList;
 
 	/*! Helper structure for keeping resources in double-linked list implemented
 	 *  on top of a contiguous container.
@@ -55,7 +55,7 @@ public:
 	};
 
 	IndexedResourcePool(int capacity = DefaultCapacity)
-		: data_(capacity), mutex_(), pending_mutex_(), garbage_collector_head_() {
+		: data_(capacity), mutex_(), garbage_collector_head_() {
 	}
 
 	/*!
@@ -107,43 +107,19 @@ public:
 	}
 
 	/*!
-	 * \brief Enqueue resource to be purged
-	 *
-	 * \param id Resource's index.
-	 */
-	void moveToPendingList(int id) {
-		std::lock_guard<std::mutex> guard(pending_mutex_);
-		pending_list_.push_back(id);
-	}
-
-	/*!
-	 * \brief Purge all previously enqueued resources
-	 */
-	void flushPendingList() {
-		std::unique_lock<std::mutex> guard(pending_mutex_);
-		PendingList tmp = std::move(pending_list_);
-		pending_list_.clear();
-		guard.unlock();
-		for (auto free_id : tmp) {
-			purge(free_id);
-		}
-	}
-
-	/*!
-	 * \brief Immediately free resource.
+	 * \brief Enqueue resource for being freed
 	 *
 	 * \param id Resource's index.
 	 * \return True if id was correct.
 	 */
-	int purge(int id) {
+	bool purge(int id) {
 		if (id <= kNullId) {
 			return false;
 		}
-		Resource tmp;
 		std::lock_guard<std::mutex> guard(mutex_);
+		data_[id].resource.purge();
+		purge_list_.emplace_back(std::move(data_[id].resource));
 		erase(id);
-		tmp = std::move(data_[id].resource);
-		tmp.purge();
 		return true;
 	}
 
@@ -156,15 +132,17 @@ public:
 	 * \param count Maximum number of resources to be freed.
 	 * \return Number of elements freed.
 	 */
-	int freeUnused(uint32_t now,  int count = PopUnusedCount) {
+	template<typename ExtraLock>
+	int freeUnused(uint32_t now, ExtraLock &extra_lock, int count = PopUnusedCount) {
 		int freed = 0;
 		small_vector<Resource, PopUnusedCount> candidates;
 		candidates.reserve(count);
-		flushPendingList();
+		flushPurgeList();
 		mutex_.lock();
 		garbage_collector_head_ = front();
 		mutex_.unlock();
 		while (true) {
+			std::lock_guard<ExtraLock> extra_guard(extra_lock);
 			std::lock_guard<std::mutex> guard(mutex_);
 			if (freed >= count || garbage_collector_head_ == kNullId) {
 				break;
@@ -198,6 +176,16 @@ public:
 	};
 
 protected:
+	/*!
+	 * \brief Purge all previously enqueued resources
+	 */
+	void flushPurgeList() {
+		PurgeList tmp;
+		std::unique_lock<std::mutex> guard(mutex_);
+		tmp = std::move(purge_list_);
+		purge_list_.clear();
+	}
+
 	void erase(int id) {
 		if (!contains(id)) {
 			return;
@@ -233,7 +221,6 @@ protected:
 
 	std::vector<Entry> data_;
 	std::mutex mutex_;
-	std::mutex pending_mutex_;
-	PendingList pending_list_;
+	PurgeList purge_list_;
 	int garbage_collector_head_;
 };
