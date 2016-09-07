@@ -20,10 +20,43 @@
 
 #include "common/platform.h"
 
+#include <atomic>
 #include <string>
 
 #include "common/moosefs_string.h"
 #include "common/serialization_macros.h"
+
+struct HddAtomicStatistics {
+	std::atomic<uint64_t> rbytes;
+	std::atomic<uint64_t> wbytes;
+	std::atomic<uint64_t> usecreadsum;
+	std::atomic<uint64_t> usecwritesum;
+	std::atomic<uint64_t> usecfsyncsum;
+	std::atomic<uint32_t> rops;
+	std::atomic<uint32_t> wops;
+	std::atomic<uint32_t> fsyncops;
+	std::atomic<uint32_t> usecreadmax;
+	std::atomic<uint32_t> usecwritemax;
+	std::atomic<uint32_t> usecfsyncmax;
+
+	HddAtomicStatistics() {
+		clear();
+	}
+
+	void clear() {
+		rbytes = 0;
+		wbytes = 0;
+		usecreadsum = 0;
+		usecwritesum = 0;
+		usecfsyncsum = 0;
+		rops = 0;
+		wops = 0;
+		fsyncops = 0;
+		usecreadmax = 0;
+		usecwritemax = 0;
+		usecfsyncmax = 0;
+	}
+};
 
 SERIALIZABLE_CLASS_BEGIN(HddStatistics)
 SERIALIZABLE_CLASS_BODY(HddStatistics,

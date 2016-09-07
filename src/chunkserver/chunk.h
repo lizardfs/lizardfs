@@ -81,7 +81,7 @@ struct folder {
 	uint64_t leavefree;
 	uint64_t avail;
 	uint64_t total;
-	HddStatistics cstat;
+	HddAtomicStatistics cstat;
 	HddStatistics stats[STATSHISTORY];
 	uint32_t statspos;
 	ioerror lasterrtab[LASTERRSIZE];

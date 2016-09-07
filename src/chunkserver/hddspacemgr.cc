@@ -136,9 +136,6 @@ static std::atomic<int> term(0);
 static uint8_t folderactions = 0;
 static uint8_t testerreset = 0;
 
-// stats_X
-static pthread_mutex_t statslock = PTHREAD_MUTEX_INITIALIZER;
-
 // master reports = damaged chunks, lost chunks, errorcounter, hddspacechanged
 static std::mutex gMasterReportsLock;
 
@@ -159,24 +156,26 @@ static uint32_t emptyblockcrc;
 
 static IndexedResourcePool<OpenChunk> gOpenChunks;
 
-static uint64_t stats_bytesr = 0;
-static uint64_t stats_bytesw = 0;
-static uint32_t stats_opr = 0;
-static uint32_t stats_opw = 0;
-static uint64_t stats_databytesr = 0;
-static uint64_t stats_databytesw = 0;
-static uint32_t stats_dataopr = 0;
-static uint32_t stats_dataopw = 0;
-static uint64_t stats_rtime = 0;
-static uint64_t stats_wtime = 0;
+// These stats_* variables are for charts only. Therefore there's no need
+// to keep an absolute consistency with a mutex.
+static std::atomic<uint64_t> stats_bytesr(0);
+static std::atomic<uint64_t> stats_bytesw(0);
+static std::atomic<uint32_t> stats_opr(0);
+static std::atomic<uint32_t> stats_opw(0);
+static std::atomic<uint64_t> stats_databytesr(0);
+static std::atomic<uint64_t> stats_databytesw(0);
+static std::atomic<uint32_t> stats_dataopr(0);
+static std::atomic<uint32_t> stats_dataopw(0);
+static std::atomic<uint64_t> stats_rtime(0);
+static std::atomic<uint64_t> stats_wtime(0);
 
-static uint32_t stats_create = 0;
-static uint32_t stats_delete = 0;
-static uint32_t stats_test = 0;
-static uint32_t stats_version = 0;
-static uint32_t stats_duplicate = 0;
-static uint32_t stats_truncate = 0;
-static uint32_t stats_duptrunc = 0;
+static std::atomic<uint32_t> stats_create(0);
+static std::atomic<uint32_t> stats_delete(0);
+static std::atomic<uint32_t> stats_test(0);
+static std::atomic<uint32_t> stats_version(0);
+static std::atomic<uint32_t> stats_duplicate(0);
+static std::atomic<uint32_t> stats_truncate(0);
+static std::atomic<uint32_t> stats_duptrunc(0);
 
 static const int kOpenRetryCount = 4;
 static const int kOpenRetry_ms = 5;
@@ -242,64 +241,46 @@ int hdd_spacechanged(void) {
 
 void hdd_stats(uint64_t *br,uint64_t *bw,uint32_t *opr,uint32_t *opw,uint64_t *dbr,uint64_t *dbw,uint32_t *dopr,uint32_t *dopw,uint64_t *rtime,uint64_t *wtime) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&statslock));
-	*br = stats_bytesr;
-	*bw = stats_bytesw;
-	*opr = stats_opr;
-	*opw = stats_opw;
-	*dbr = stats_databytesr;
-	*dbw = stats_databytesw;
-	*dopr = stats_dataopr;
-	*dopw = stats_dataopw;
-	*rtime = stats_rtime;
-	*wtime = stats_wtime;
-	stats_bytesr = 0;
-	stats_bytesw = 0;
-	stats_opr = 0;
-	stats_opw = 0;
-	stats_databytesr = 0;
-	stats_databytesw = 0;
-	stats_dataopr = 0;
-	stats_dataopw = 0;
-	stats_rtime = 0;
-	stats_wtime = 0;
-	zassert(pthread_mutex_unlock(&statslock));
+	*br = stats_bytesr.exchange(0);
+	*bw = stats_bytesw.exchange(0);
+	*opr = stats_opr.exchange(0);
+	*opw = stats_opw.exchange(0);
+	*dbr = stats_databytesr.exchange(0);
+	*dbw = stats_databytesw.exchange(0);
+	*dopr = stats_dataopr.exchange(0);
+	*dopw = stats_dataopw.exchange(0);
+	*rtime = stats_rtime.exchange(0);
+	*wtime = stats_wtime.exchange(0);
 }
 
 void hdd_op_stats(uint32_t *op_create,uint32_t *op_delete,uint32_t *op_version,uint32_t *op_duplicate,uint32_t *op_truncate,uint32_t *op_duptrunc,uint32_t *op_test) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&statslock));
-	*op_create = stats_create;
-	*op_delete = stats_delete;
-	*op_version = stats_version;
-	*op_duplicate = stats_duplicate;
-	*op_truncate = stats_truncate;
-	*op_duptrunc = stats_duptrunc;
-	*op_test = stats_test;
-	stats_create = 0;
-	stats_delete = 0;
-	stats_version = 0;
-	stats_duplicate = 0;
-	stats_truncate = 0;
-	stats_duptrunc = 0;
-	stats_test = 0;
-	zassert(pthread_mutex_unlock(&statslock));
+	*op_create = stats_create.exchange(0);
+	*op_delete = stats_delete.exchange(0);
+	*op_test = stats_test.exchange(0);
+	*op_version = stats_version.exchange(0);
+	*op_duplicate = stats_duplicate.exchange(0);
+	*op_truncate = stats_truncate.exchange(0);
+	*op_duptrunc = stats_duptrunc.exchange(0);
 }
 
 static inline void hdd_stats_read(uint32_t size) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&statslock));
 	stats_opr++;
 	stats_bytesr += size;
-	zassert(pthread_mutex_unlock(&statslock));
 }
 
 static inline void hdd_stats_write(uint32_t size) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&statslock));
 	stats_opw++;
 	stats_bytesw += size;
-	zassert(pthread_mutex_unlock(&statslock));
+}
+
+template<typename T>
+void atomic_max(std::atomic<T> &result, T value) {
+	T prev_value = result;
+	while(prev_value < value && !result.compare_exchange_weak(prev_value, value)) {
+	}
 }
 
 static inline void hdd_stats_dataread(folder *f,uint32_t size,int64_t rtime) {
@@ -307,17 +288,14 @@ static inline void hdd_stats_dataread(folder *f,uint32_t size,int64_t rtime) {
 	if (rtime<=0) {
 		return;
 	}
-	zassert(pthread_mutex_lock(&statslock));
 	stats_dataopr++;
 	stats_databytesr += size;
 	stats_rtime += rtime;
+
 	f->cstat.rops++;
 	f->cstat.rbytes += size;
 	f->cstat.usecreadsum += rtime;
-	if (rtime>f->cstat.usecreadmax) {
-		f->cstat.usecreadmax = rtime;
-	}
-	zassert(pthread_mutex_unlock(&statslock));
+	atomic_max<uint32_t>(f->cstat.usecreadmax, rtime);
 }
 
 static inline void hdd_stats_datawrite(folder *f,uint32_t size,int64_t wtime) {
@@ -325,17 +303,14 @@ static inline void hdd_stats_datawrite(folder *f,uint32_t size,int64_t wtime) {
 	if (wtime<=0) {
 		return;
 	}
-	zassert(pthread_mutex_lock(&statslock));
 	stats_dataopw++;
 	stats_databytesw += size;
 	stats_wtime += wtime;
+
 	f->cstat.wops++;
 	f->cstat.wbytes += size;
 	f->cstat.usecwritesum += wtime;
-	if (wtime>f->cstat.usecwritemax) {
-		f->cstat.usecwritemax = wtime;
-	}
-	zassert(pthread_mutex_unlock(&statslock));
+	atomic_max<uint32_t>(f->cstat.usecwritemax, wtime);
 }
 
 static inline void hdd_stats_datafsync(folder *f,int64_t fsynctime) {
@@ -343,14 +318,11 @@ static inline void hdd_stats_datafsync(folder *f,int64_t fsynctime) {
 	if (fsynctime<=0) {
 		return;
 	}
-	zassert(pthread_mutex_lock(&statslock));
 	stats_wtime += fsynctime;
+
 	f->cstat.fsyncops++;
 	f->cstat.usecfsyncsum += fsynctime;
-	if (fsynctime>f->cstat.usecfsyncmax) {
-		f->cstat.usecfsyncmax = fsynctime;
-	}
-	zassert(pthread_mutex_unlock(&statslock));
+	atomic_max<uint32_t>(f->cstat.usecfsyncmax, fsynctime);
 }
 
 uint32_t hdd_diskinfo_v1_size() {
@@ -427,7 +399,6 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 	uint32_t pos;
 	if (buff) {
 		MooseFSVector<DiskInfo> diskInfoVector;
-		zassert(pthread_mutex_lock(&statslock));
 		for (f = folderhead; f; f = f->next) {
 			diskInfoVector.emplace_back();
 			DiskInfo& diskInfo = diskInfoVector.back();
@@ -464,7 +435,6 @@ void hdd_diskinfo_v2_data(uint8_t *buff) {
 			}
 			diskInfo.lastDayStats = s;
 		}
-		zassert(pthread_mutex_unlock(&statslock));
 		serialize(&buff, diskInfoVector);
 	}
 	zassert(pthread_mutex_unlock(&folderlock));
@@ -474,7 +444,6 @@ void hdd_diskinfo_movestats(void) {
 	TRACETHIS();
 	folder *f;
 	zassert(pthread_mutex_lock(&folderlock));
-	zassert(pthread_mutex_lock(&statslock));
 	for (f=folderhead ; f ; f=f->next) {
 		if (f->statspos==0) {
 			f->statspos = STATSHISTORY-1;
@@ -484,7 +453,6 @@ void hdd_diskinfo_movestats(void) {
 		f->stats[f->statspos] = f->cstat;
 		f->cstat.clear();
 	}
-	zassert(pthread_mutex_unlock(&statslock));
 	zassert(pthread_mutex_unlock(&folderlock));
 }
 
@@ -2005,7 +1973,6 @@ std::pair<int, Chunk *> hdd_int_create_chunk(uint64_t chunkid, uint32_t version,
 	TRACETHIS2(chunkid, version);
 	folder *f;
 	int status;
-
 	zassert(pthread_mutex_lock(&folderlock));
 	f = hdd_getfolder();
 	if (f == nullptr) {
@@ -2055,6 +2022,9 @@ std::pair<int, Chunk *> hdd_int_create_chunk(uint64_t chunkid, uint32_t version,
 
 int hdd_int_create(uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
 	TRACETHIS2(chunkid, version);
+
+	stats_create++;
+
 	auto result = hdd_int_create_chunk(chunkid, version, chunkType);
 	if (result.first == LIZARDFS_STATUS_OK) {
 		hdd_chunk_release(result.second);
@@ -2068,6 +2038,9 @@ static int hdd_int_test(uint64_t chunkid, uint32_t version, ChunkPartType chunkT
 		int status;
 	Chunk *c;
 	uint8_t *blockbuffer;
+
+	stats_test++;
+
 	blockbuffer = hdd_get_block_buffer();
 	c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
@@ -2132,6 +2105,9 @@ static int hdd_int_duplicate(uint64_t chunkId, uint32_t chunkVersion, uint32_t c
 	int status;
 	Chunk *c,*oc;
 	uint8_t *blockbuffer;
+
+	stats_duplicate++;
+
 	blockbuffer = hdd_get_block_buffer();
 
 	oc = hdd_chunk_find(chunkId, chunkType);
@@ -2323,6 +2299,9 @@ int hdd_int_version(Chunk *chunk, uint32_t version, uint32_t newversion) {
 int hdd_int_version(uint64_t chunkid, uint32_t version, uint32_t newversion,
 		ChunkPartType chunkType) {
 	TRACETHIS();
+
+	stats_version++;
+
 	Chunk *c = hdd_chunk_find(chunkid, chunkType);
 	if (c==NULL) {
 		return LIZARDFS_ERROR_NOCHUNK;
@@ -2340,6 +2319,9 @@ static int hdd_int_truncate(uint64_t chunkId, ChunkPartType chunkType, uint32_t 
 	uint32_t blocks;
 	uint32_t i;
 	uint8_t *blockbuffer;
+
+	stats_truncate++;
+
 	blockbuffer = hdd_get_block_buffer();
 	if (length>MFSCHUNKSIZE) {
 		return LIZARDFS_ERROR_WRONGSIZE;
@@ -2485,6 +2467,9 @@ static int hdd_int_duptrunc(uint64_t chunkId, uint32_t chunkVersion, uint32_t ch
 	int status;
 	Chunk *c,*oc;
 	uint8_t *blockbuffer,*hdrbuffer;
+
+	stats_duptrunc++;
+
 	blockbuffer = hdd_get_block_buffer();
 	hdrbuffer = hdd_get_header_buffer();
 
@@ -2792,6 +2777,9 @@ int hdd_int_delete(Chunk* chunk, uint32_t version) {
 
 int hdd_int_delete(uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
 	TRACETHIS();
+
+	stats_delete++;
+
 	Chunk *chunk = hdd_chunk_find(chunkid, chunkType);
 	if (chunk == NULL) {
 		return LIZARDFS_ERROR_NOCHUNK;
@@ -2811,31 +2799,6 @@ int hdd_chunkop(uint64_t chunkId, uint32_t chunkVersion, ChunkPartType chunkType
 		uint32_t chunkNewVersion, uint64_t copyChunkId, uint32_t copyChunkVersion,
 		uint32_t length) {
 	TRACETHIS();
-	zassert(pthread_mutex_lock(&statslock));
-	if (chunkNewVersion>0) {
-		if (length==0xFFFFFFFF) {
-			if (copyChunkId==0) {
-				stats_version++;
-			} else {
-				stats_duplicate++;
-			}
-		} else if (length<=MFSCHUNKSIZE) {
-			if (copyChunkId==0) {
-				stats_truncate++;
-			} else {
-				stats_duptrunc++;
-			}
-		}
-	} else {
-		if (length==0) {
-			stats_delete++;
-		} else if (length==1) {
-			stats_create++;
-		} else if (length==2) {
-			stats_test++;
-		}
-	}
-	zassert(pthread_mutex_unlock(&statslock));
 	if (chunkNewVersion>0) {
 		if (length==0xFFFFFFFF) {
 			if (copyChunkId==0) {
@@ -2954,9 +2917,6 @@ void* hdd_tester_thread(void* arg) {
 		zassert(pthread_mutex_unlock(&hashlock));
 		zassert(pthread_mutex_unlock(&folderlock));
 		if (!path.empty()) {
-			zassert(pthread_mutex_lock(&statslock));
-			stats_test++;
-			zassert(pthread_mutex_unlock(&statslock));
 			if (hdd_int_test(chunkid, version, chunkType) !=LIZARDFS_STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid, chunkType);
 			}
