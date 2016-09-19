@@ -516,7 +516,7 @@ int do_seteattr(const char* filename, uint64_t lv, uint32_t ts, const char* ptr)
 	return fs_seteattr(FsContext::getForRestoreWithUidGid(ts, uid, 0), inode, eattr, smode, &ci, &nci, &npi);
 }
 
-int do_setgoal(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
+int do_setgoal(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	uint32_t inode, uid, ci, nci, npi;
 	uint8_t goal, smode;
 	EAT(ptr, filename, lv, '(');
@@ -528,18 +528,23 @@ int do_setgoal(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) 
 	EAT(ptr, filename, lv, ',');
 	GETU32(smode, ptr);
 	EAT(ptr, filename, lv, ')');
-	EAT(ptr, filename, lv, ':');
-	GETU32(ci, ptr);
-	if (*(ptr) == ',') {
-		EAT(ptr, filename, lv, ',');
-		GETU32(nci, ptr);
-		EAT(ptr, filename, lv, ',');
-		GETU32(npi, ptr);
-		return fs_deprecated_setgoal(FsContext::getForRestoreWithUidGid(ts, uid, 0),
-				inode, goal, smode, &ci, &nci, &npi);
+	if (*(ptr) == ':') {
+		EAT(ptr, filename, lv, ':');
+		GETU32(ci, ptr);
+		if (*(ptr) == ',') {
+			EAT(ptr, filename, lv, ',');
+			GETU32(nci, ptr);
+			EAT(ptr, filename, lv, ',');
+			GETU32(npi, ptr);
+			return fs_deprecated_setgoal(FsContext::getForRestoreWithUidGid(ts, uid, 0),
+			                             inode, goal, smode, &ci, &nci, &npi);
+		} else {
+			return fs_apply_setgoal(FsContext::getForRestoreWithUidGid(ts, uid, 0),
+			                        inode, goal, smode, ci);
+		}
 	} else {
-		return fs_apply_setgoal(FsContext::getForRestoreWithUidGid(ts, uid, 0),
-				inode, goal, smode, ci);
+		return fs_apply_setgoal(FsContext::getForRestoreWithUidGid(ts, uid, 0), inode, goal,
+		                        smode, SetGoalTask::kChanged);
 	}
 }
 

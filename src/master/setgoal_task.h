@@ -35,16 +35,18 @@ public:
 
 	typedef std::array<uint32_t, kStatsSize> StatsArray;
 
-	SetGoalTask(uint32_t inode, uint32_t uid, uint8_t goal, uint8_t smode,
+	SetGoalTask(std::vector<uint32_t> inode_list, uint32_t uid, uint8_t goal, uint8_t smode,
 		    const std::shared_ptr<StatsArray> &setgoal_stats) :
-		    inode_(inode), uid_(uid), goal_(goal), smode_(smode),
+		    inode_list_(std::move(inode_list)), uid_(uid), goal_(goal), smode_(smode),
 		    stats_(setgoal_stats) {
-		    }
+		assert(!inode_list_.empty());
+		current_inode_ = inode_list_.begin();
+	}
 
-	SetGoalTask(uint32_t inode, uint32_t uid, uint8_t goal, uint8_t smode) :
-		    inode_(inode), uid_(uid), goal_(goal), smode_(smode),
+	SetGoalTask(uint32_t uid, uint8_t goal, uint8_t smode) :
+		    uid_(uid), goal_(goal), smode_(smode),
 		    stats_() {
-		    }
+	}
 
 	/*! \brief Execute task specified by this SetGoalTask object.
 	 *
@@ -56,15 +58,16 @@ public:
 	 * \param work_queue a list to which this task adds newly created tasks.
 	 * \return status value that indicates whether operation was successful.
 	 */
-	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue);
+	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) override;
+
+	bool isFinished() const override;
 
 	uint8_t setGoal(FSNode *node, uint32_t ts);
 
-	bool isFinished() const {
-		return true;
-	}
 private:
-	uint32_t inode_;
+	std::vector<uint32_t> inode_list_;
+	std::vector<uint32_t>::iterator current_inode_;
+
 	uint32_t uid_;
 	uint8_t goal_;
 	uint8_t smode_;
@@ -73,3 +76,4 @@ private:
 			                    [kNotChanged] - number of inodes with not changed goal
 			                  [kNotPermitted] - number of inodes with permission denied */
 };
+

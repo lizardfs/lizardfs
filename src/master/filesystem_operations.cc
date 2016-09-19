@@ -56,6 +56,7 @@ static uint32_t stats_read = 0;
 static uint32_t stats_write = 0;
 
 static const int kInitialTaskBatchSize = 1000;
+static const int kInitialTaskBatchSizeForSetgoal = 10;
 
 template <class T>
 bool decodeChar(const char *keys, const std::vector<T> values, char key, T &value) {
@@ -2503,9 +2504,9 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 	(*setgoal_stats)[SetGoalTask::kNotChanged] = 0;   // - Number of inodes with not changed goal
 	(*setgoal_stats)[SetGoalTask::kNotPermitted] = 0; // - Number of inodes with permission denied
 
-	std::unique_ptr<SetGoalTask> task(new SetGoalTask(inode, context.uid(), goal,
+	std::unique_ptr<SetGoalTask> task(new SetGoalTask({inode}, context.uid(), goal,
 							  smode, setgoal_stats));
-	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSizeForSetgoal,
 						  std::move(task), callback);
 }
 
@@ -2535,7 +2536,7 @@ uint8_t fs_apply_setgoal(const FsContext &context, uint32_t inode, uint8_t goal,
 	}
 	sassert(context.hasUidGidData());
 
-	SetGoalTask task(inode, context.uid(), goal, smode);
+	SetGoalTask task(context.uid(), goal, smode);
 	uint32_t my_result = task.setGoal(p, context.ts());
 
 	gMetadata->metaversion++;

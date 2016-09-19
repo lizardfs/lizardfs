@@ -26,44 +26,55 @@
 #include "master/matotsserv.h"
 
 int SetGoalTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) {
+	assert(current_inode_ != inode_list_.end());
 
-	FSNode *node = fsnodes_id_to_node(inode_);
+	uint32_t inode = *current_inode_;
+	++current_inode_;
+	FSNode *node = fsnodes_id_to_node(inode);
 	if (!node) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
+
 	uint8_t result = setGoal(node, ts);
 
 	if (result != kNoAction) {
-		if (node->type == FSNode::kDirectory && (smode_ & SMODE_RMASK)) {
-			auto current_front = work_queue.begin();
-			for (const auto &entry : static_cast<const FSNodeDirectory*>(node)->entries) {
-				std::unique_ptr<SetGoalTask> task(new SetGoalTask(entry.second->id,
-								  uid_, goal_, smode_, stats_));
-				work_queue.insert(current_front, std::move(task));
+		if (node->type == FSNode::kDirectory && (smode_ & SMODE_RMASK) &&
+		    !static_cast<const FSNodeDirectory *>(node)->entries.empty()) {
+			std::vector<uint32_t> inode_list;
+			inode_list.reserve(static_cast<const FSNodeDirectory *>(node)->entries.size());
+			for (const auto &entry : static_cast<const FSNodeDirectory *>(node)->entries) {
+				inode_list.push_back(entry.second->id);
 			}
+			work_queue.emplace_front(new SetGoalTask(std::move(inode_list), uid_, goal_,
+			                                         smode_, stats_));
 		}
 
 		if ((smode_ & SMODE_RMASK) == 0 && result == kNotPermitted) {
 			return LIZARDFS_ERROR_EPERM;
 		}
 		(*stats_)[result] += 1;
-		fs_changelog(ts, "SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8
-			      "):%" PRIu32, inode_, uid_, goal_, smode_, result);
+		if (result == kChanged) {
+			fs_changelog(ts, "SETGOAL(%" PRIu32 ",%" PRIu32 ",%" PRIu8 ",%" PRIu8 ")",
+			             inode, uid_, goal_, smode_);
+		}
 	}
 
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t SetGoalTask::setGoal(FSNode *node, uint32_t ts) {
+bool SetGoalTask::isFinished() const {
+	return current_inode_ == inode_list_.end();
+}
 
-	if (node->type == FSNode::kFile || node->type == FSNode::kDirectory || node->type == FSNode::kTrash ||
-	    node->type == FSNode::kReserved) {
+uint8_t SetGoalTask::setGoal(FSNode *node, uint32_t ts) {
+	if (node->type == FSNode::kFile || node->type == FSNode::kDirectory ||
+	    node->type == FSNode::kTrash || node->type == FSNode::kReserved) {
 		if ((node->mode & (EATTR_NOOWNER << 12)) == 0 && uid_ != 0 && node->uid != uid_) {
 			return SetGoalTask::kNotPermitted;
 		} else {
 			if ((smode_ & SMODE_TMASK) == SMODE_SET && node->goal != goal_) {
 				if (node->type != FSNode::kDirectory) {
-					fsnodes_changefilegoal(static_cast<FSNodeFile*>(node), goal_);
+					fsnodes_changefilegoal(static_cast<FSNodeFile *>(node), goal_);
 #ifndef METARESTORE
 					if (matotsserv_can_enqueue_node()) {
 						fsnodes_enqueue_tape_copies(node);
