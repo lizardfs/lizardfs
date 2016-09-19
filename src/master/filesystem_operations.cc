@@ -55,8 +55,7 @@ static uint32_t stats_open = 0;
 static uint32_t stats_read = 0;
 static uint32_t stats_write = 0;
 
-static const int kInitialTaskBatchSize = 1000;
-static const int kInitialTaskBatchSizeForSetgoal = 10;
+static const int kInitialTaskBatchSize = 10;
 
 template <class T>
 bool decodeChar(const char *keys, const std::vector<T> values, char key, T &value) {
@@ -2506,7 +2505,7 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 
 	std::unique_ptr<SetGoalTask> task(new SetGoalTask({inode}, context.uid(), goal,
 							  smode, setgoal_stats));
-	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSizeForSetgoal,
+	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
 						  std::move(task), callback);
 }
 
@@ -2620,7 +2619,7 @@ uint8_t fs_settrashtime(const FsContext &context, uint32_t inode, uint32_t trash
 	(*settrashtime_stats)[SetTrashtimeTask::kNotChanged] = 0;   // - Number of inodes with not changed trashtime
 	(*settrashtime_stats)[SetTrashtimeTask::kNotPermitted] = 0; // - Number of inodes with permission denied
 
-	std::unique_ptr<SetTrashtimeTask> task(new SetTrashtimeTask(inode, context.uid(), trashtime,
+	std::unique_ptr<SetTrashtimeTask> task(new SetTrashtimeTask({inode}, context.uid(), trashtime,
 							  smode, settrashtime_stats));
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
 						  std::move(task), callback);
@@ -2650,7 +2649,7 @@ uint8_t fs_apply_settrashtime(const FsContext &context, uint32_t inode, uint32_t
 	}
 	sassert(context.hasUidGidData());
 
-	SetTrashtimeTask task(inode, context.uid(), trashtime, smode);
+	SetTrashtimeTask task(context.uid(), trashtime, smode);
 	uint32_t my_result = task.setTrashtime(p, context.ts());
 
 	gMetadata->metaversion++;

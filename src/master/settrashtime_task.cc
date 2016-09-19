@@ -24,31 +24,44 @@
 #include "master/filesystem_operations.h"
 
 int SetTrashtimeTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) {
+	assert(current_inode_ != inode_list_.end());
 
-	FSNode *node = fsnodes_id_to_node(inode_);
+	uint32_t inode = *current_inode_;
+	++current_inode_;
+	FSNode *node = fsnodes_id_to_node(inode);
 	if (!node) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
+
 	uint8_t result = setTrashtime(node, ts);
 
 	if (result != kNoAction) {
-		if (node->type == FSNode::kDirectory && (smode_ & SMODE_RMASK)) {
-			auto current_front = work_queue.begin();
-			for (const auto &entry : static_cast<const FSNodeDirectory*>(node)->entries) {
-				std::unique_ptr<SetTrashtimeTask> task(new SetTrashtimeTask(entry.second->id,
-								       uid_, trashtime_, smode_, stats_));
-				work_queue.insert(current_front, std::move(task));
+		if (node->type == FSNode::kDirectory && (smode_ & SMODE_RMASK) &&
+		    !static_cast<const FSNodeDirectory *>(node)->entries.empty()) {
+			std::vector<uint32_t> inode_list;
+			inode_list.reserve(static_cast<const FSNodeDirectory *>(node)->entries.size());
+			for (const auto &entry : static_cast<const FSNodeDirectory *>(node)->entries) {
+				inode_list.push_back(entry.second->id);
 			}
+			work_queue.emplace_front(new SetTrashtimeTask(std::move(inode_list), uid_,
+			                                              trashtime_, smode_, stats_));
 		}
 
 		if ((smode_ & SMODE_RMASK) == 0 && result == kNotPermitted) {
 			return LIZARDFS_ERROR_EPERM;
 		}
 		(*stats_)[result] += 1;
-		fs_changelog(ts, "SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32
-		             ",%" PRIu8 "):%" PRIu32, inode_, uid_, trashtime_, smode_, result);
+		if (result == kChanged) {
+			fs_changelog(ts,
+			             "SETTRASHTIME(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu8 ")",
+			             inode, uid_, trashtime_, smode_);
+		}
 	}
 	return LIZARDFS_STATUS_OK;
+}
+
+bool SetTrashtimeTask::isFinished() const {
+	return current_inode_ == inode_list_.end();
 }
 
 uint8_t SetTrashtimeTask::setTrashtime(FSNode *node, uint32_t ts) {
@@ -85,10 +98,10 @@ uint8_t SetTrashtimeTask::setTrashtime(FSNode *node, uint32_t ts) {
 				node->ctime = ts;
 				if (node->type == FSNode::kTrash) {
 					hstorage::Handle path =
-						std::move(gMetadata->trash.at(old_trash_key));
+					        std::move(gMetadata->trash.at(old_trash_key));
 					gMetadata->trash.erase(old_trash_key);
-					gMetadata->trash.insert({TrashPathKey(node),
-						                 std::move(path)});
+					gMetadata->trash.insert(
+					        {TrashPathKey(node), std::move(path)});
 				}
 				fsnodes_update_checksum(node);
 				return SetTrashtimeTask::kChanged;

@@ -35,16 +35,18 @@ public:
 
 	typedef std::array<uint32_t, kStatsSize> StatsArray;
 
-	SetTrashtimeTask(uint32_t inode, uint32_t uid, uint32_t trashtime, uint8_t smode,
+	SetTrashtimeTask(std::vector<uint32_t> inode_list, uint32_t uid, uint32_t trashtime, uint8_t smode,
 		         const std::shared_ptr<StatsArray> &settrashtime_stats) :
-		         inode_(inode), uid_(uid), trashtime_(trashtime), smode_(smode),
+		         inode_list_(inode_list), uid_(uid), trashtime_(trashtime), smode_(smode),
 		         stats_(settrashtime_stats) {
-		         }
+		assert(!inode_list_.empty());
+		current_inode_ = inode_list_.begin();
+	}
 
-	SetTrashtimeTask(uint32_t inode, uint32_t uid, uint32_t trashtime, uint8_t smode) :
-		         inode_(inode), uid_(uid), trashtime_(trashtime), smode_(smode),
+	SetTrashtimeTask(uint32_t uid, uint32_t trashtime, uint8_t smode) :
+		         inode_list_(), uid_(uid), trashtime_(trashtime), smode_(smode),
 		         stats_() {
-		         }
+	}
 
 	/*! \brief Execute task specified by this SetTrashtimeTask object.
 	 *
@@ -56,15 +58,16 @@ public:
 	 * \param work_queue a list to which this task adds newly created tasks.
 	 * \return status value that indicates whether operation was successful.
 	 */
-	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue);
+	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) override;
+
+	bool isFinished() const override;
 
 	uint8_t setTrashtime(FSNode *node, uint32_t ts);
 
-	bool isFinished() const {
-		return true;
-	}
 private:
-	uint32_t inode_;
+	std::vector<uint32_t> inode_list_;
+	std::vector<uint32_t>::iterator current_inode_;
+
 	uint32_t uid_;
 	uint32_t trashtime_;
 	uint8_t smode_;

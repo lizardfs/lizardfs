@@ -560,7 +560,7 @@ int do_setpath(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) 
 	return fs_settrashpath(FsContext::getForRestore(ts), inode, std::string((const char*)path));
 }
 
-int do_settrashtime(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
+int do_settrashtime(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	uint32_t inode, uid, ci, nci, npi;
 	uint32_t trashtime;
 	uint8_t smode;
@@ -573,18 +573,24 @@ int do_settrashtime(const char* filename, uint64_t lv, uint32_t ts, const char* 
 	EAT(ptr, filename, lv, ',');
 	GETU32(smode, ptr);
 	EAT(ptr, filename, lv, ')');
-	EAT(ptr, filename, lv, ':');
-	GETU32(ci, ptr);
-	if ((*ptr) == ',') {
-		EAT(ptr, filename, lv, ',');
-		GETU32(nci, ptr);
-		EAT(ptr, filename, lv, ',');
-		GETU32(npi, ptr);
-		return fs_deprecated_settrashtime(FsContext::getForRestoreWithUidGid(ts, uid, 0),
-						  inode, trashtime, smode, &ci, &nci, &npi);
+	if ((*ptr) == ':') {
+		EAT(ptr, filename, lv, ':');
+		GETU32(ci, ptr);
+		if ((*ptr) == ',') {
+			EAT(ptr, filename, lv, ',');
+			GETU32(nci, ptr);
+			EAT(ptr, filename, lv, ',');
+			GETU32(npi, ptr);
+			return fs_deprecated_settrashtime(
+			        FsContext::getForRestoreWithUidGid(ts, uid, 0), inode, trashtime,
+			        smode, &ci, &nci, &npi);
+		} else {
+			return fs_apply_settrashtime(FsContext::getForRestoreWithUidGid(ts, uid, 0),
+			                             inode, trashtime, smode, ci);
+		}
 	} else {
-		return fs_apply_settrashtime(FsContext::getForRestoreWithUidGid(ts, uid, 0),
-						  inode, trashtime, smode, ci);
+		return fs_apply_settrashtime(FsContext::getForRestoreWithUidGid(ts, uid, 0), inode,
+		                             trashtime, smode, SetTrashtimeTask::kChanged);
 	}
 }
 
