@@ -271,7 +271,7 @@ int snapshot_run(int argc, char **argv) {
 	int oflag = 0;
 	int lflag = 0;
 
-	while ((ch = getopt(argc, argv, "fo")) != -1) {
+	while ((ch = getopt(argc, argv, "fol")) != -1) {
 		switch (ch) {
 		case 'f':
 		case 'o':

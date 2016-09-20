@@ -28,17 +28,20 @@
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 
+static int kDefaultTimeout = 30 * 1000;
+static int kInfiniteTimeout = 10 * 24 * 3600 * 1000; // simulate infinite timeout (10 days)
+
 static void set_goal_usage() {
 	fprintf(stderr,
-	        "set objects goal (desired number of copies)\n\nusage:\n lizardfs setgoal <operation> name "
+	        "set objects goal (desired number of copies)\n\nusage:\n lizardfs setgoal [-l] GOAL name "
 	        "[name ...]\n");
 	print_numberformat_options();
 	print_recursive_option();
-	fprintf(stderr, "<operation> is one of:\n");
+	fprintf(stderr, " -l - wait until setgoal will finish (otherwise there is 30s timeout)\n");
 	fprintf(stderr, " GOAL - set goal to given goal name\n");
 }
 
-static int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
+static int set_goal(const char *fname, const std::string &goal, uint8_t mode, int long_wait) {
 	uint32_t inode;
 	int fd;
 	uint32_t messageId = 0;
@@ -49,7 +52,9 @@ static int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
 	}
 	try {
 		auto request = cltoma::fuseSetGoal::build(messageId, inode, uid, goal, mode);
-		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SETGOAL);
+		auto response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SETGOAL,
+		                    ServerConnection::ReceiveMode::kReceiveFirstNonNopMessage,
+		                    long_wait ? kInfiniteTimeout : kDefaultTimeout);
 		uint32_t changed;
 		uint32_t notChanged;
 		uint32_t notPermitted;
@@ -87,8 +92,9 @@ static int set_goal(const char *fname, const std::string &goal, uint8_t mode) {
 static int gene_set_goal_run(int argc, char **argv, int rflag) {
 	int ch, status;
 	std::string goal;
+	int long_wait = 0;
 
-	while ((ch = getopt(argc, argv, "rnhH")) != -1) {
+	while ((ch = getopt(argc, argv, "rnhHl")) != -1) {
 		switch (ch) {
 		case 'n':
 			humode = 0;
@@ -101,6 +107,9 @@ static int gene_set_goal_run(int argc, char **argv, int rflag) {
 			break;
 		case 'r':
 			rflag = 1;
+			break;
+		case 'l':
+			long_wait = 1;
 			break;
 		}
 	}
@@ -127,7 +136,7 @@ static int gene_set_goal_run(int argc, char **argv, int rflag) {
 	}
 	status = 0;
 	while (argc > 0) {
-		if (set_goal(*argv, goal, (rflag) ? (SMODE_SET | SMODE_RMASK) : SMODE_SET) < 0) {
+		if (set_goal(*argv, goal, (rflag) ? (SMODE_SET | SMODE_RMASK) : SMODE_SET, long_wait) < 0) {
 			status = 1;
 		}
 		argc--;
