@@ -2503,10 +2503,10 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 	(*setgoal_stats)[SetGoalTask::kNotChanged] = 0;   // - Number of inodes with not changed goal
 	(*setgoal_stats)[SetGoalTask::kNotPermitted] = 0; // - Number of inodes with permission denied
 
-	std::unique_ptr<SetGoalTask> task(new SetGoalTask({inode}, context.uid(), goal,
-							  smode, setgoal_stats));
+	auto task = new SetGoalTask({inode}, context.uid(), goal,
+							  smode, setgoal_stats);
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
-						  std::move(task), callback);
+						  task, callback);
 }
 
 //This function is only used by Shadow
@@ -2619,10 +2619,10 @@ uint8_t fs_settrashtime(const FsContext &context, uint32_t inode, uint32_t trash
 	(*settrashtime_stats)[SetTrashtimeTask::kNotChanged] = 0;   // - Number of inodes with not changed trashtime
 	(*settrashtime_stats)[SetTrashtimeTask::kNotPermitted] = 0; // - Number of inodes with permission denied
 
-	std::unique_ptr<SetTrashtimeTask> task(new SetTrashtimeTask({inode}, context.uid(), trashtime,
-							  smode, settrashtime_stats));
+	auto task = new SetTrashtimeTask({inode}, context.uid(), trashtime,
+							  smode, settrashtime_stats);
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
-						  std::move(task), callback);
+						  task, callback);
 }
 
 uint8_t fs_apply_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,

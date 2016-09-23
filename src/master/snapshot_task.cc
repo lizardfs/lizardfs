@@ -183,9 +183,10 @@ void SnapshotTask::cloneDirectoryData(const FSNodeDirectory *src_node, FSNodeDir
 		data.emplace_back(std::move(local_id), (HString)entry.first);
 	}
 	if (!data.empty()) {
-		local_tasks_.emplace_back(new SnapshotTask(std::move(data), orig_inode_,
+		auto task = new SnapshotTask(std::move(data), orig_inode_,
 		                                           dst_node->id, 0, can_overwrite_,
-		                                           emit_changelog_, enqueue_work_));
+		                                           emit_changelog_, enqueue_work_);
+		local_tasks_.push_back(*task);
 	}
 }
 
@@ -247,7 +248,7 @@ int SnapshotTask::cloneNode(uint32_t ts) {
 	return LIZARDFS_ERROR_EPERM;
 }
 
-int SnapshotTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) {
+int SnapshotTask::execute(uint32_t ts, intrusive_list<Task> &work_queue) {
 	assert(current_subtask_ != subtask_.end());
 
 	int status = cloneNode(ts);

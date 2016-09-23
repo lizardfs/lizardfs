@@ -25,6 +25,8 @@
 #include <memory>
 #include <string>
 
+#include "common/intrusive_list.h"
+
 /*! \brief Implementation of class for storing and executing tasks
  *
  * This class is responsible for managing execution of tasks.
@@ -34,7 +36,7 @@
 class TaskManager {
 public:
 	/*! \brief Class representing a single task to be executed by Task Manager*/
-	class Task {
+	class Task : public intrusive_list_base_hook {
 	public:
 		virtual ~Task() {
 		}
@@ -42,12 +44,12 @@ public:
 		 * \param ts current time stamp.
 		 * \param work_queue a list to which this task adds newly created tasks.
 		 */
-		virtual int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) = 0;
+		virtual int execute(uint32_t ts, intrusive_list<Task> &work_queue) = 0;
 
 		virtual bool isFinished() const = 0;
 	};
 
-	typedef typename std::list<std::unique_ptr<Task>>::iterator TaskIterator;
+	typedef typename intrusive_list<Task>::iterator TaskIterator;
 
 	/*! \brief Class representing the original task and all subtasks it created during execution*/
 	class Job {
@@ -57,6 +59,10 @@ public:
 
 		Job(Job &&other) : finish_callback_(std::move(other.finish_callback_)),
 				   tasks_(std::move(other.tasks_)) {
+		}
+
+		~Job() {
+			tasks_.clear_and_dispose([](Task *ptr) { delete ptr; });
 		}
 
 		/*! \brief Function finalizes processing of single task.
@@ -82,15 +88,15 @@ public:
 			return tasks_.empty();
 		}
 
-		void push_back(std::unique_ptr<Task> &&task) {
-			tasks_.push_back(std::move(task));
+		void addTask(Task *task) {
+			tasks_.push_back(*task);
 		}
 
 	private:
 		std::function<void(int)> finish_callback_; /*!< Callback function called when all tasks
 		                                                that belong to this Job are done. */
 
-		std::list<std::unique_ptr<Task>> tasks_;   /*!< List of tasks that belong to this Job*/
+		intrusive_list<Task> tasks_; /*!< List of tasks that belong to this Job*/
 	};
 
 	typedef typename std::list<Job> JobContainer;
@@ -115,7 +121,7 @@ public:
 	 *                 number of tasks.
 	 * \return Value representing the status.
 	 */
-	int submitTask(uint32_t ts, int initial_batch_size, std::unique_ptr<Task> &&task,
+	int submitTask(uint32_t ts, int initial_batch_size, Task *task,
 		       const std::function<void(int)> &callback);
 
 	/*! \brief Iterate over Jobs and execute tasks.

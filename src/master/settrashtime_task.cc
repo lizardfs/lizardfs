@@ -23,7 +23,7 @@
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_operations.h"
 
-int SetTrashtimeTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) {
+int SetTrashtimeTask::execute(uint32_t ts, intrusive_list<Task> &work_queue) {
 	assert(current_inode_ != inode_list_.end());
 
 	uint32_t inode = *current_inode_;
@@ -43,8 +43,9 @@ int SetTrashtimeTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &wor
 			for (const auto &entry : static_cast<const FSNodeDirectory *>(node)->entries) {
 				inode_list.push_back(entry.second->id);
 			}
-			work_queue.emplace_front(new SetTrashtimeTask(std::move(inode_list), uid_,
-			                                              trashtime_, smode_, stats_));
+			auto task = new SetTrashtimeTask(std::move(inode_list), uid_,
+			                                              trashtime_, smode_, stats_);
+			work_queue.push_front(*task);
 		}
 
 		if ((smode_ & SMODE_RMASK) == 0 && result == kNotPermitted) {

@@ -73,7 +73,7 @@ public:
 	 * \param ts current time stamp.
 	 * \param work_queue a list to which this task adds newly created tasks.
 	 */
-	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) override;
+	int execute(uint32_t ts, intrusive_list<Task> &work_queue) override;
 
 	bool isFinished() const override {
 		return current_subtask_ == subtask_.end();
@@ -113,6 +113,6 @@ private:
 	bool emit_changelog_;       /*!< If true change log message should be generated. */
 	bool enqueue_work_;         /*!< If true then new clone request should be created
 	                                 for source inode's children. */
-	std::list<std::unique_ptr<Task>> local_tasks_; /*< List of snapshot tasks created by this
+	intrusive_list<Task> local_tasks_; /*< List of snapshot tasks created by this
 	                                                   task for source inode's children. */
 };

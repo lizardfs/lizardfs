@@ -56,12 +56,11 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 
 	assert(context.isPersonalityMaster());
 
-	std::unique_ptr<SnapshotTask> task(new SnapshotTask({{src_node->id, name_dst}}, src_node->id,
+	auto task = new SnapshotTask({{src_node->id, name_dst}}, src_node->id,
 	                                   static_cast<FSNodeDirectory *>(dst_parent_node)->id,
-	                                   0, can_overwrite, true, true));
-
+	                                   0, can_overwrite, true, true);
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialSnapshotTaskBatch,
-						  std::move(task), callback);
+						  task, callback);
 }
 
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,

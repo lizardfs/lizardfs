@@ -24,25 +24,25 @@
 #include "protocol/MFSCommunication.h"
 
 void TaskManager::Job::finalizeTask(TaskIterator itask, int status) {
-	if (status || ((*itask)->isFinished() && tasks_.size() <= 1)) {
+	if (status || (itask->isFinished() && tasks_.size() <= 1)) {
 		if (finish_callback_) {
 			finish_callback_(status);
 		}
-		tasks_.clear();
-	} else if ((*itask)->isFinished()) {
-		tasks_.erase(itask);
+		tasks_.clear_and_dispose([](Task *ptr) { delete ptr; });
+	} else if (itask->isFinished()) {
+		tasks_.erase_and_dispose(itask, [](Task *ptr) { delete ptr; });
 	}
 }
 
 void TaskManager::Job::processTask(uint32_t ts) {
 	if (!tasks_.empty()) {
 		auto i_front = tasks_.begin();
-		int status = (*i_front)->execute(ts, tasks_);
+		int status = i_front->execute(ts, tasks_);
 		finalizeTask(i_front, status);
 	}
 }
 
-int TaskManager::submitTask(uint32_t ts, int initial_batch_size, std::unique_ptr<Task> &&task,
+int TaskManager::submitTask(uint32_t ts, int initial_batch_size, Task *task,
 			    const std::function<void(int)> &callback) {
 	Job new_job;
 
@@ -54,7 +54,7 @@ int TaskManager::submitTask(uint32_t ts, int initial_batch_size, std::unique_ptr
 		done = 1;
 	});
 
-	new_job.push_back(std::move(task));
+	new_job.addTask(task);
 	for (int i = 0; i < initial_batch_size; i++) {
 		new_job.processTask(ts);
 		if (new_job.isFinished()) {

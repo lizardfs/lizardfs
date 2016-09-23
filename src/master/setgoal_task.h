@@ -58,7 +58,7 @@ public:
 	 * \param work_queue a list to which this task adds newly created tasks.
 	 * \return status value that indicates whether operation was successful.
 	 */
-	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) override;
+	int execute(uint32_t ts, intrusive_list<Task> &work_queue) override;
 
 	bool isFinished() const override;
 
