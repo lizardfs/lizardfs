@@ -56,9 +56,9 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 
 	assert(context.isPersonalityMaster());
 
-	std::unique_ptr<SnapshotTask> task(new SnapshotTask(src_node->id, src_node->id,
+	std::unique_ptr<SnapshotTask> task(new SnapshotTask({{src_node->id, name_dst}}, src_node->id,
 	                                   static_cast<FSNodeDirectory *>(dst_parent_node)->id,
-	                                   0, name_dst, can_overwrite, true, true));
+	                                   0, can_overwrite, true, true));
 
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialSnapshotTaskBatch,
 						  std::move(task), callback);
@@ -67,7 +67,7 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
 			uint32_t inode_dst, const HString &name_dst, uint8_t can_overwrite) {
 
-	SnapshotTask task(0, inode_src, parent_dst, inode_dst, name_dst, can_overwrite,
+	SnapshotTask task({{inode_src, name_dst}}, 0, parent_dst, inode_dst, can_overwrite,
 			  false, false);
 
 	return task.cloneNode(context.ts());

@@ -53,7 +53,7 @@ int SnapshotTask::cloneNodeTest(FSNode *src_node, FSNode *dst_node, FSNodeDirect
 }
 
 FSNode *SnapshotTask::cloneToExistingNode(uint32_t ts, FSNode *src_node,
-					  FSNodeDirectory *dst_parent, FSNode *dst_node) {
+		FSNodeDirectory *dst_parent, FSNode *dst_node) {
 	if (dst_node->type != src_node->type) {
 		return NULL;
 	}
@@ -65,7 +65,7 @@ FSNode *SnapshotTask::cloneToExistingNode(uint32_t ts, FSNode *src_node,
 		break;
 	case FSNode::kFile:
 		dst_node = cloneToExistingFileNode(ts, static_cast<FSNodeFile *>(src_node),
-						   dst_parent, static_cast<FSNodeFile *>(dst_node));
+		                                   dst_parent, static_cast<FSNodeFile *>(dst_node));
 		break;
 	case FSNode::kSymlink:
 		cloneSymlinkData(static_cast<FSNodeSymlink *>(src_node),
@@ -74,7 +74,7 @@ FSNode *SnapshotTask::cloneToExistingNode(uint32_t ts, FSNode *src_node,
 	case FSNode::kBlockDev:
 	case FSNode::kCharDev:
 		static_cast<FSNodeDevice *>(dst_node)->rdev =
-			static_cast<FSNodeDevice *>(src_node)->rdev;
+		        static_cast<FSNodeDevice *>(src_node)->rdev;
 	}
 
 	dst_node->mode = src_node->mode;
@@ -95,9 +95,9 @@ FSNode *SnapshotTask::cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirect
 		return NULL;
 	}
 
-	FSNode *dst_node = fsnodes_create_node(ts, dst_parent, dst_name_, src_node->type,
-	                                       src_node->mode, 0, src_node->uid, src_node->gid, 0,
-	                                       AclInheritance::kDontInheritAcl, dst_inode_);
+	FSNode *dst_node = fsnodes_create_node(
+	        ts, dst_parent, current_subtask_->second, src_node->type, src_node->mode, 0,
+	        src_node->uid, src_node->gid, 0, AclInheritance::kDontInheritAcl, dst_inode_);
 
 	dst_node->goal = src_node->goal;
 	dst_node->trashtime = src_node->trashtime;
@@ -112,7 +112,7 @@ FSNode *SnapshotTask::cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirect
 		break;
 	case FSNode::kFile:
 		cloneChunkData(static_cast<FSNodeFile *>(src_node),
-			       static_cast<FSNodeFile *>(dst_node), dst_parent);
+		               static_cast<FSNodeFile *>(dst_node), dst_parent);
 		break;
 	case FSNode::kSymlink:
 		cloneSymlinkData(static_cast<FSNodeSymlink *>(src_node),
@@ -121,24 +121,24 @@ FSNode *SnapshotTask::cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirect
 	case FSNode::kBlockDev:
 	case FSNode::kCharDev:
 		static_cast<FSNodeDevice *>(dst_node)->rdev =
-			static_cast<FSNodeDevice *>(src_node)->rdev;
+		        static_cast<FSNodeDevice *>(src_node)->rdev;
 	}
 
 	return dst_node;
 }
 
 FSNodeFile *SnapshotTask::cloneToExistingFileNode(uint32_t ts, FSNodeFile *src_node,
-				    FSNodeDirectory *dst_parent, FSNodeFile *dst_node) {
+		FSNodeDirectory *dst_parent, FSNodeFile *dst_node) {
 	bool same = dst_node->length == src_node->length && dst_node->chunks == src_node->chunks;
 
 	if (same) {
 		return dst_node;
 	}
 
-	fsnodes_unlink(ts, dst_parent, dst_name_, dst_node);
+	fsnodes_unlink(ts, dst_parent, current_subtask_->second, dst_node);
 	dst_node = static_cast<FSNodeFile *>(fsnodes_create_node(
-	    ts, dst_parent, dst_name_, FSNode::kFile, src_node->mode, 0, src_node->uid,
-	    src_node->gid, 0, AclInheritance::kDontInheritAcl, dst_inode_));
+	        ts, dst_parent, current_subtask_->second, FSNode::kFile, src_node->mode, 0,
+	        src_node->uid, src_node->gid, 0, AclInheritance::kDontInheritAcl, dst_inode_));
 
 	cloneChunkData(src_node, dst_node, dst_parent);
 
@@ -146,7 +146,7 @@ FSNodeFile *SnapshotTask::cloneToExistingFileNode(uint32_t ts, FSNodeFile *src_n
 }
 
 void SnapshotTask::cloneChunkData(const FSNodeFile *src_node, FSNodeFile *dst_node,
-		    FSNodeDirectory *dst_parent) {
+		FSNodeDirectory *dst_parent) {
 	statsrecord psr, nsr;
 
 	fsnodes_get_stats(dst_node, &psr);
@@ -159,8 +159,9 @@ void SnapshotTask::cloneChunkData(const FSNodeFile *src_node, FSNodeFile *dst_no
 		auto chunkid = src_node->chunks[i];
 		if (chunkid > 0) {
 			if (chunk_add_file(chunkid, dst_node->goal) != LIZARDFS_STATUS_OK) {
-				syslog(LOG_ERR, "structure error - chunk %016" PRIX64
-				                " not found (inode: %" PRIu32 " ; index: %" PRIu32 ")",
+				syslog(LOG_ERR,
+				       "structure error - chunk %016" PRIX64
+				       " not found (inode: %" PRIu32 " ; index: %" PRIu32 ")",
 				       chunkid, src_node->id, i);
 			}
 		}
@@ -175,16 +176,21 @@ void SnapshotTask::cloneDirectoryData(const FSNodeDirectory *src_node, FSNodeDir
 	if (!enqueue_work_) {
 		return;
 	}
-	for(const auto &entry : src_node->entries) {
-		std::unique_ptr<SnapshotTask> task(new SnapshotTask(orig_inode_, entry.second->id,
-						   dst_node->id, 0, (HString)entry.first,
-						   can_overwrite_, emit_changelog_, enqueue_work_));
-		local_tasks_.push_back(std::move(task));
+	SubtaskContainer data;
+	data.reserve(src_node->entries.size());
+	for (const auto &entry : src_node->entries) {
+		auto local_id = entry.second->id;
+		data.emplace_back(std::move(local_id), (HString)entry.first);
+	}
+	if (!data.empty()) {
+		local_tasks_.emplace_back(new SnapshotTask(std::move(data), orig_inode_,
+		                                           dst_node->id, 0, can_overwrite_,
+		                                           emit_changelog_, enqueue_work_));
 	}
 }
 
 void SnapshotTask::cloneSymlinkData(FSNodeSymlink *src_node, FSNodeSymlink *dst_node,
-		      FSNodeDirectory *dst_parent) {
+		FSNodeDirectory *dst_parent) {
 	statsrecord psr, nsr;
 
 	fsnodes_get_stats(dst_node, &psr);
@@ -202,21 +208,20 @@ void SnapshotTask::emitChangelog(uint32_t ts, uint32_t dst_inode) {
 		return;
 	}
 
-	fs_changelog(ts, "CLONE(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")", src_inode_,
-	             dst_parent_inode_, dst_inode,
-	             fsnodes_escape_name(dst_name_).c_str(),
-	             can_overwrite_);
+	fs_changelog(ts, "CLONE(%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%s,%" PRIu8 ")",
+	             current_subtask_->first, dst_parent_inode_, dst_inode,
+	             fsnodes_escape_name(current_subtask_->second).c_str(), can_overwrite_);
 }
 
 int SnapshotTask::cloneNode(uint32_t ts) {
-	FSNode *src_node = fsnodes_id_to_node(src_inode_);
+	FSNode *src_node = fsnodes_id_to_node(current_subtask_->first);
 	FSNodeDirectory *dst_parent = fsnodes_id_to_node<FSNodeDirectory>(dst_parent_inode_);
 
 	if (!src_node || !dst_parent || dst_parent->type != FSNode::kDirectory) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
-	FSNode *dst_node = fsnodes_lookup(dst_parent, dst_name_);
+	FSNode *dst_node = fsnodes_lookup(dst_parent, current_subtask_->second);
 
 	int status = cloneNodeTest(src_node, dst_node, dst_parent);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -243,9 +248,13 @@ int SnapshotTask::cloneNode(uint32_t ts) {
 }
 
 int SnapshotTask::execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) {
+	assert(current_subtask_ != subtask_.end());
+
 	int status = cloneNode(ts);
 	if (status == LIZARDFS_STATUS_OK) {
 		work_queue.splice(work_queue.end(), local_tasks_);
 	}
+	++current_subtask_;
+
 	return status;
 }

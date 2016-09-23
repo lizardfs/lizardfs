@@ -20,6 +20,7 @@
 
 #include "common/platform.h"
 
+#include <cassert>
 #include <functional>
 #include <list>
 #include <string>
@@ -40,15 +41,18 @@
  */
 class SnapshotTask : public TaskManager::Task {
 public:
-	SnapshotTask(uint32_t orig_inode, uint32_t src_inode, uint32_t dst_parent_inode,
-		     uint32_t dst_inode, const HString &dst_name, uint8_t can_overwrite,
+	typedef std::vector<std::pair<uint32_t, HString>> SubtaskContainer;
+
+	SnapshotTask(SubtaskContainer &&subtask, uint32_t orig_inode, uint32_t dst_parent_inode,
+		     uint32_t dst_inode, uint8_t can_overwrite,
 		     bool emit_changelog, bool enqueue_work) :
-		     orig_inode_(orig_inode), src_inode_(src_inode),
+		     subtask_(std::move(subtask)), orig_inode_(orig_inode),
 		     dst_parent_inode_(dst_parent_inode),dst_inode_(dst_inode),
-		     dst_name_(dst_name), can_overwrite_(can_overwrite),
-		     emit_changelog_(emit_changelog), enqueue_work_(enqueue_work),
-		     local_tasks_() {
-		    }
+		     can_overwrite_(can_overwrite),
+		     emit_changelog_(emit_changelog), enqueue_work_(enqueue_work), local_tasks_() {
+		assert(subtask_.size() == 1 || (subtask_.size() > 1 && dst_inode == 0));
+		current_subtask_ = subtask_.begin();
+	}
 
 	 /*! \brief Clone one fsnode.
 	 *
@@ -69,10 +73,10 @@ public:
 	 * \param ts current time stamp.
 	 * \param work_queue a list to which this task adds newly created tasks.
 	 */
-	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue);
+	int execute(uint32_t ts, std::list<std::unique_ptr<Task>> &work_queue) override;
 
-	bool isFinished() const {
-		return true;
+	bool isFinished() const override {
+		return current_subtask_ == subtask_.end();
 	};
 
 protected:
@@ -98,16 +102,17 @@ protected:
 	void emitChangelog(uint32_t ts, uint32_t dst_inode);
 
 private:
-	uint32_t orig_inode_;          /*!< First inode of snapshot request. */
-	uint32_t src_inode_;           /*!< Inode to be cloned. */
-	uint32_t dst_parent_inode_;    /*!< Inode of clone parent. */
-	uint32_t dst_inode_;           /*!< Inode number of clone. If 0 means that
-					    inode number should be requested. */
-	HString dst_name_;             /*!< Clone file name. */
-	uint8_t can_overwrite_;        /*!< Can cloning operation overwrite existing node. */
-	bool emit_changelog_;          /*!< If true change log message should be generated. */
-	bool enqueue_work_;            /*!< If true then new clone request should be created
-					    for source inode's children. */
+	SubtaskContainer subtask_; /*!< List of pairs (inode to be cloned, clone file name). */
+	SubtaskContainer::iterator current_subtask_; /*!< Current subtask to execute. */
+
+	uint32_t orig_inode_;       /*!< First inode of snapshot request. */
+	uint32_t dst_parent_inode_; /*!< Inode of clone parent. */
+	uint32_t dst_inode_;        /*!< Inode number of clone. If 0 means that
+	                                 inode number should be requested. */
+	uint8_t can_overwrite_;     /*!< Can cloning operation overwrite existing node. */
+	bool emit_changelog_;       /*!< If true change log message should be generated. */
+	bool enqueue_work_;         /*!< If true then new clone request should be created
+	                                 for source inode's children. */
 	std::list<std::unique_ptr<Task>> local_tasks_; /*< List of snapshot tasks created by this
-							   task for source inode's children. */
+	                                                   task for source inode's children. */
 };
