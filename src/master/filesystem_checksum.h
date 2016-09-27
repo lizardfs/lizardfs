@@ -25,7 +25,7 @@
 #include "common/massert.h"
 #include "master/checksum.h"
 #include "master/filesystem_metadata.h"
-#include "master/filesystem_node.h"
+#include "master/filesystem_node_types.h"
 #include "master/personality.h"
 
 void fsnodes_checksum_add_to_background(FSNode *node);

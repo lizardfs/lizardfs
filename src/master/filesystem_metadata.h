@@ -30,7 +30,7 @@
 #include "master/id_pool_detainer.h"
 #include "master/filesystem_checksum_background_updater.h"
 #include "master/filesystem_freenode.h"
-#include "master/filesystem_node.h"
+#include "master/filesystem_node_types.h"
 #include "master/filesystem_xattr.h"
 #include "master/locks.h"
 #include "master/metadata_dumper.h"

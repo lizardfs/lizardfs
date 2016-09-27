@@ -220,27 +220,6 @@ int fsnodes_nameisused(FSNodeDirectory *node, const HString &name) {
 	return fsnodes_lookup(node, name) != nullptr;
 }
 
-/// searches for an edge with given name (`name`) in given directory (`node`)
-FSNode *fsnodes_lookup(FSNodeDirectory *node, const HString &name) {
-	auto it = node->find(name);
-	if (it != node->end()) {
-		return (*it).second;
-	}
-
-	return nullptr;
-}
-
-FSNode *detail::fsnodes_id_to_node_internal(uint32_t id) {
-	FSNode *p;
-	uint32_t nodepos = NODEHASHPOS(id);
-	for (p = gMetadata->nodehash[nodepos]; p; p = p->next) {
-		if (p->id == id) {
-			return p;
-		}
-	}
-	return nullptr;
-}
-
 /*! \brief Returns true iff \param ancestor is ancestor of \param node. */
 bool fsnodes_isancestor(FSNodeDirectory *ancestor, FSNode *node) {
 	for(const auto &parent_inode : node->parent) {

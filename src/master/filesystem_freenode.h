@@ -20,7 +20,7 @@
 #pragma once
 
 #include "common/platform.h"
-#include "master/filesystem_node.h"
+#include "master/filesystem_node_types.h"
 
 /*! \brief Get next free inode number.
  *
