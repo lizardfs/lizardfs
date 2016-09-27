@@ -489,6 +489,7 @@ void fsnodes_remove_edge(uint32_t ts, FSNodeDirectory *parent, const HString &na
 		node->parent.erase(it);
 	}
 
+	assert(node->type != FSNode::kTrash);
 	node->ctime = ts;
 	fsnodes_update_checksum(node);
 }
@@ -509,6 +510,7 @@ void fsnodes_link(uint32_t ts, FSNodeDirectory *parent, FSNode *child, const HSt
 	if (ts > 0) {
 		parent->mtime = parent->ctime = ts;
 		fsnodes_update_checksum(parent);
+		assert(child->type != FSNode::kTrash);
 		child->ctime = ts;
 		fsnodes_update_checksum(child);
 	}
@@ -517,6 +519,8 @@ void fsnodes_link(uint32_t ts, FSNodeDirectory *parent, FSNode *child, const HSt
 FSNode *fsnodes_create_node(uint32_t ts, FSNodeDirectory *parent, const HString &name,
 			uint8_t type, uint16_t mode, uint16_t umask, uint32_t uid, uint32_t gid,
 			uint8_t copysgid, AclInheritance inheritacl, uint32_t req_inode) {
+	assert(type != FSNode::kTrash);
+
 	FSNode *node = FSNode::create(type);
 	gMetadata->nodes++;
 	if (type == FSNode::kDirectory) {
@@ -1064,7 +1068,7 @@ void fsnodes_unlink(uint32_t ts, FSNodeDirectory *parent, const HString &child_n
 		FSNodeFile *file_node = static_cast<FSNodeFile*>(child);
 		if (child->trashtime > 0) {
 			child->type = FSNode::kTrash;
-			child->atime = ts;
+			child->ctime = ts;
 			fsnodes_update_checksum(child);
 
 			gMetadata->trash.insert({TrashPathKey(child), hstorage::Handle(path)});
@@ -1369,7 +1373,7 @@ void fsnodes_setgoal_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t 
 					node->goal = goal;
 					(*sinodes)++;
 				}
-				node->ctime = ts;
+				fsnodes_update_ctime(node, ts);
 				fsnodes_update_checksum(node);
 			} else {
 				(*ncinodes)++;
@@ -1466,7 +1470,7 @@ void fsnodes_seteattr_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t
 		if (neweattr != (node->mode >> 12)) {
 			node->mode = (node->mode & 0xFFF) | (((uint16_t)neweattr) << 12);
 			(*sinodes)++;
-			node->ctime = ts;
+			fsnodes_update_ctime(node, ts);
 		} else {
 			(*ncinodes)++;
 		}
@@ -1490,7 +1494,7 @@ uint8_t fsnodes_deleteacl(FSNode *p, AclType type, uint32_t ts) {
 	} else {
 		p->extendedAcl.reset();
 	}
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
 }
@@ -1523,7 +1527,7 @@ uint8_t fsnodes_setacl(FSNode *p, AclType type, AccessControlList acl, uint32_t 
 		p->mode = (p->mode & ~0777) | (acl.mode & 0777);
 		p->extendedAcl = std::move(acl.extendedAcl);
 	}
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
 }

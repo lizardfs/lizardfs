@@ -83,7 +83,7 @@ uint8_t SetGoalTask::setGoal(FSNode *node, uint32_t ts) {
 				} else {
 					node->goal = goal_;
 				}
-				node->ctime = ts;
+				fsnodes_update_ctime(node, ts);
 				fsnodes_update_checksum(node);
 				return SetGoalTask::kChanged;
 			} else {

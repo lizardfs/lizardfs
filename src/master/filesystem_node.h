@@ -98,6 +98,21 @@ inline NodeType *fsnodes_id_to_node(uint32_t id) {
 	return static_cast<NodeType*>(detail::fsnodes_id_to_node_internal(id));
 }
 
+inline void fsnodes_update_ctime(FSNode *node, uint32_t ctime) {
+	if (node->type == FSNode::kTrash && node->ctime != ctime) {
+		auto old_key = TrashPathKey(node);
+		node->ctime = ctime;
+		auto it = gMetadata->trash.find(old_key);
+		if (it != gMetadata->trash.end()) {
+			hstorage::Handle path = std::move((*it).second);
+			gMetadata->trash.erase(it);
+			gMetadata->trash.insert({TrashPathKey(node), std::move(path)});
+		}
+	} else {
+		node->ctime = ctime;
+	}
+}
+
 std::string fsnodes_escape_name(const std::string &name);
 int fsnodes_purge(uint32_t ts, FSNode *p);
 uint32_t fsnodes_getdetachedsize(const TrashPathContainer &data);

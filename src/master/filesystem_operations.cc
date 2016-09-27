@@ -734,7 +734,8 @@ uint8_t fs_do_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 
 	fsnodes_setlength(static_cast<FSNodeFile*>(p), length);
 	fs_changelog(ts, "LENGTH(%" PRIu32 ",%" PRIu64 ")", inode, static_cast<FSNodeFile*>(p)->length);
-	p->ctime = p->mtime = ts;
+	p->mtime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
 	stats_setattr++;
@@ -881,7 +882,7 @@ uint8_t fs_setattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 	}
 	fs_changelog(ts, "ATTR(%" PRIu32 ",%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ")",
 	             inode, p->mode & 07777, p->uid, p->gid, p->atime, p->mtime);
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
 	fsnodes_update_checksum(p);
 	stats_setattr++;
@@ -904,7 +905,7 @@ uint8_t fs_apply_attr(uint32_t ts, uint32_t inode, uint32_t mode, uint32_t uid, 
 	}
 	p->atime = atime;
 	p->mtime = mtime;
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	gMetadata->metaversion++;
 	return LIZARDFS_STATUS_OK;
@@ -920,7 +921,7 @@ uint8_t fs_apply_length(uint32_t ts, uint32_t inode, uint64_t length) {
 	}
 	fsnodes_setlength(static_cast<FSNodeFile*>(p), length);
 	p->mtime = ts;
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	gMetadata->metaversion++;
 	return LIZARDFS_STATUS_OK;
@@ -2176,9 +2177,8 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 	} else {
 		gMetadata->metaversion++;
 	}
-	if (p->mtime != context.ts() || p->ctime != context.ts()) {
-		p->mtime = p->ctime = context.ts();
-	}
+	p->mtime = context.ts();
+	fsnodes_update_ctime(p, context.ts());
 	fsnodes_update_checksum(p);
 #ifndef METARESTORE
 	stats_write++;
@@ -2204,7 +2204,8 @@ uint8_t fs_writeend(uint32_t inode, uint64_t length, uint64_t chunkid, uint32_t 
 		}
 		if (length > p->length) {
 			fsnodes_setlength(p, length);
-			p->mtime = p->ctime = ts;
+			p->mtime = ts;
+			fsnodes_update_ctime(p, ts);
 			fsnodes_update_checksum(p);
 			fs_changelog(ts, "LENGTH(%" PRIu32 ",%" PRIu64 ")", inode, length);
 		}
@@ -2278,7 +2279,8 @@ uint8_t fs_repair(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_t
 		if (chunk_repair(p->goal, node_file->chunks[indx], &nversion)) {
 			fs_changelog(ts, "REPAIR(%" PRIu32 ",%" PRIu32 "):%" PRIu32, inode, indx,
 			             nversion);
-			p->mtime = p->ctime = ts;
+			p->mtime = ts;
+			fsnodes_update_ctime(p, ts);
 			if (nversion > 0) {
 				(*repaired)++;
 			} else {
@@ -2335,7 +2337,8 @@ uint8_t fs_apply_repair(uint32_t ts, uint32_t inode, uint32_t indx, uint32_t nve
 	}
 	fsnodes_quota_update(p, {{QuotaResource::kSize, nsr.size - psr.size}});
 	gMetadata->metaversion++;
-	p->mtime = p->ctime = ts;
+	p->mtime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	return status;
 }
@@ -2839,7 +2842,7 @@ uint8_t fs_setxattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint8_
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	fs_changelog(ts, "SETXATTR(%" PRIu32 ",%s,%s,%" PRIu8 ")", inode,
 	             fsnodes_escape_name(std::string((const char*)attrname, anleng)).c_str(),
@@ -2906,7 +2909,7 @@ uint8_t fs_apply_setxattr(uint32_t ts, uint32_t inode, uint32_t anleng, const ui
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
-	p->ctime = ts;
+	fsnodes_update_ctime(p, ts);
 	gMetadata->metaversion++;
 	fsnodes_update_checksum(p);
 	return status;

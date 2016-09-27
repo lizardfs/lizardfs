@@ -315,11 +315,11 @@ struct FSNodeDirectory : public FSNode {
 struct TrashPathKey {
 	explicit TrashPathKey(const FSNode *node) :
 #ifdef WORDS_BIGENDIAN
-	    timestamp(std::min((uint64_t)node->atime + node->trashtime, (uint64_t)UINT32_MAX)),
+	    timestamp(std::min((uint64_t)node->ctime + node->trashtime, (uint64_t)UINT32_MAX)),
 	    id(node->id)
 #else
 	    id(node->id),
-	    timestamp(std::min((uint64_t)node->atime + node->trashtime, (uint64_t)UINT32_MAX))
+	    timestamp(std::min((uint64_t)node->ctime + node->trashtime, (uint64_t)UINT32_MAX))
 #endif
 	{}
 
