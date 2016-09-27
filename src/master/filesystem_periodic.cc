@@ -445,10 +445,16 @@ struct InodeInfo {
 static void fs_do_emptytrash(uint32_t ts) {
 	SignalLoopWatchdog watchdog;
 
-	auto it = gMetadata->trash.cbegin();
+	auto it = gMetadata->trash.begin();
 	watchdog.start();
-	while (it != gMetadata->trash.cend() && ((*it).first.timestamp < ts)) {
+	while (it != gMetadata->trash.end() && ((*it).first.timestamp < ts)) {
 		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first.id);
+
+		if (!node) {
+			gMetadata->trash.erase(it);
+			it = gMetadata->trash.begin();
+			continue;
+		}
 
 		assert(node->type == FSNode::kTrash);
 
@@ -458,7 +464,7 @@ static void fs_do_emptytrash(uint32_t ts) {
 		// Purge operation should be performed anyway - if it fails, inode will be reserved
 		fs_changelog(ts, "PURGE(%" PRIu32 ")", node_id);
 
-		it = gMetadata->trash.cbegin();
+		it = gMetadata->trash.begin();
 
 		if (watchdog.expired()) {
 			break;
@@ -470,9 +476,15 @@ static void fs_do_emptytrash(uint32_t ts) {
 static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 	InodeInfo ii{0, 0};
 
-	auto it = gMetadata->trash.cbegin();
-	while (it != gMetadata->trash.cend() && ((*it).first.timestamp < ts)) {
+	auto it = gMetadata->trash.begin();
+	while (it != gMetadata->trash.end() && ((*it).first.timestamp < ts)) {
 		FSNodeFile *node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first.id);
+
+		if (!node) {
+			gMetadata->trash.erase(it);
+			it = gMetadata->trash.begin();
+			continue;
+		}
 
 		assert(node->type == FSNode::kTrash);
 
@@ -482,7 +494,7 @@ static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 			ii.reserved++;
 		}
 
-		it = gMetadata->trash.cbegin();
+		it = gMetadata->trash.begin();
 	}
 	return ii;
 }
