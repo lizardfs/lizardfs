@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # vim: noexpandtab shiftwidth=4 softtabstop=4 tabstop=4
 
 import fcntl
