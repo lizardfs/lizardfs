@@ -145,6 +145,7 @@ void fs_term(void) {
 			gMetadataLockfile->writeMessage("no_metadata: 0\n");
 		}
 	}
+	delete gMetadata;
 }
 
 void fs_disable_metadata_dump_on_exit() {
