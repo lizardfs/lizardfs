@@ -1,5 +1,9 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.10.4) (2016-10-07)
+ - (master) task manager performance improvements
+ - (master) trash fixes
+
  * Lizardfs (3.10.2) (2016-08-30)
  - (master) redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
  - (master) name storage - a possibility to keep all file names in BerkeleyDB, thus saving even more RAM
