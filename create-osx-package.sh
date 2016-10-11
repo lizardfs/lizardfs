@@ -27,12 +27,11 @@ fi
 mkdir build-osx
 mkdir build
 cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=${working_dir}/lizardfs/build-osx/usr/local/ \
-	-DCMAKE_BUILD_TYPE=Release \
+cmake .. -DCMAKE_BUILD_TYPE=Release \
 	-DENABLE_TESTS=NO \
 	-DENABLE_DOCS=YES
 make
-make install
+make DESTDIR=${working_dir}/lizardfs/build-osx/ install
 
 pkgbuild --root ${working_dir}/lizardfs/build-osx/ --identifier com.lizardfs --version $version --ownership recommended ../lizardfs-${version}.pkg
 
