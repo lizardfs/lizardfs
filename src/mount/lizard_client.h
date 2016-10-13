@@ -111,6 +111,7 @@ struct RequestException : public std::exception {
 
 // TODO what about this one? Will decide when writing non-fuse client
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
+bool isSpecialInode(LizardClient::Inode ino);
 
 EntryParam lookup(Context ctx, Inode parent, const char *name);
 
@@ -124,7 +125,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi);
 #define LIZARDFS_SET_ATTR_MTIME     (1 << 5)
 #define LIZARDFS_SET_ATTR_ATIME_NOW (1 << 7)
 #define LIZARDFS_SET_ATTR_MTIME_NOW (1 << 8)
-AttrReply setattr(Context ctx, Inode ino, struct stat *attr, int to_set, FileInfo* fi);
+AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi);
 
 std::string readlink(Context ctx, Inode ino);
 
@@ -144,6 +145,8 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname);
 
 void open(Context ctx, Inode ino, FileInfo* fi);
 
+std::vector<uint8_t> read_special_inode(Context ctx, Inode ino, size_t size, off_t off,
+				        FileInfo* fi);
 std::vector<uint8_t> read(Context ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
 
 typedef size_t BytesWritten;

@@ -658,13 +658,24 @@ public:
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			throw makeFailure("Null descriptor");
 		}
-		std::vector<uint8_t> buffer = LizardClient::read(
-				toLizardFsContext(context),
-				toUint64(inode),
-				size,
-				offset,
-				getFileInfo(descriptor));
-		_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+
+		if (LizardClient::isSpecialInode(inode)) {
+			std::vector<uint8_t> buffer = LizardClient::read_special_inode(
+					toLizardFsContext(context),
+					toUint64(inode),
+					size,
+					offset,
+					getFileInfo(descriptor));
+			_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+		} else {
+			std::vector<uint8_t> buffer = LizardClient::read(
+					toLizardFsContext(context),
+					toUint64(inode),
+					size,
+					offset,
+					getFileInfo(descriptor));
+			_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+		}
 		OPERATION_EPILOG
 	}
 

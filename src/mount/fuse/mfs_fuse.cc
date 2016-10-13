@@ -382,9 +382,15 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi) {
 	try {
-		auto ret = LizardClient::read(
-				get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
-		fuse_reply_buf(req, (char*) ret.data(), ret.size());
+		if (LizardClient::isSpecialInode(ino)) {
+			auto ret = LizardClient::read_special_inode(
+				   get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
+			fuse_reply_buf(req, (char*) ret.data(), ret.size());
+		} else {
+			auto ret = LizardClient::read(
+				   get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
+			fuse_reply_buf(req, (char*) ret.data(), ret.size());
+		}
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.errNo);
 	}
