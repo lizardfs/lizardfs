@@ -38,22 +38,12 @@
 #include "master/matomlserv.h"
 #include "protocol/matocl.h"
 
-static uint32_t stats_statfs = 0;
-static uint32_t stats_getattr = 0;
-static uint32_t stats_setattr = 0;
-static uint32_t stats_lookup = 0;
-static uint32_t stats_mkdir = 0;
-static uint32_t stats_rmdir = 0;
-static uint32_t stats_symlink = 0;
-static uint32_t stats_readlink = 0;
-static uint32_t stats_mknod = 0;
-static uint32_t stats_unlink = 0;
-static uint32_t stats_rename = 0;
-static uint32_t stats_link = 0;
-static uint32_t stats_readdir = 0;
-static uint32_t stats_open = 0;
-static uint32_t stats_read = 0;
-static uint32_t stats_write = 0;
+std::array<uint32_t, FsStats::Size> gFsStatsArray = {{}};
+
+void fs_retrieve_stats(std::array<uint32_t, FsStats::Size> &output_stats) {
+	output_stats = gFsStatsArray;
+	gFsStatsArray.fill(0);
+}
 
 static const int kInitialTaskBatchSize = 10;
 
@@ -68,41 +58,6 @@ bool decodeChar(const char *keys, const std::vector<T> values, char key, T &valu
 		}
 	}
 	return false;
-}
-
-void fs_stats(uint32_t stats[16]) {
-	stats[0] = stats_statfs;
-	stats[1] = stats_getattr;
-	stats[2] = stats_setattr;
-	stats[3] = stats_lookup;
-	stats[4] = stats_mkdir;
-	stats[5] = stats_rmdir;
-	stats[6] = stats_symlink;
-	stats[7] = stats_readlink;
-	stats[8] = stats_mknod;
-	stats[9] = stats_unlink;
-	stats[10] = stats_rename;
-	stats[11] = stats_link;
-	stats[12] = stats_readdir;
-	stats[13] = stats_open;
-	stats[14] = stats_read;
-	stats[15] = stats_write;
-	stats_statfs = 0;
-	stats_getattr = 0;
-	stats_setattr = 0;
-	stats_lookup = 0;
-	stats_mkdir = 0;
-	stats_rmdir = 0;
-	stats_symlink = 0;
-	stats_readlink = 0;
-	stats_mknod = 0;
-	stats_unlink = 0;
-	stats_rename = 0;
-	stats_link = 0;
-	stats_readdir = 0;
-	stats_open = 0;
-	stats_read = 0;
-	stats_write = 0;
 }
 
 void fs_changelog(uint32_t ts, const char *format, ...) {
@@ -377,7 +332,7 @@ void fs_statfs(uint32_t rootinode, uint8_t sesflags, uint64_t *totalspace, uint6
 			*totalspace = sr.realsize + *availspace;
 		}
 	}
-	stats_statfs++;
+	++gFsStatsArray[FsStats::Statfs];
 }
 #endif /* #ifndef METARESTORE */
 
@@ -483,7 +438,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const H
 				*inode = wd->id;
 			}
 			fsnodes_fill_attr(wd, wd, uid, gid, auid, agid, sesflags, attr);
-			stats_lookup++;
+			++gFsStatsArray[FsStats::Lookup];
 			return LIZARDFS_STATUS_OK;
 		}
 		if (name.length() == 2 && name[1] == '.') {  // parent
@@ -506,7 +461,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const H
 					                  attr);
 				}
 			}
-			stats_lookup++;
+			++gFsStatsArray[FsStats::Lookup];
 			return LIZARDFS_STATUS_OK;
 		}
 	}
@@ -519,7 +474,7 @@ uint8_t fs_lookup(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const H
 	}
 	*inode = child->id;
 	fsnodes_fill_attr(child, wd, uid, gid, auid, agid, sesflags, attr);
-	stats_lookup++;
+	++gFsStatsArray[FsStats::Lookup];
 	return LIZARDFS_STATUS_OK;
 }
 
@@ -552,7 +507,7 @@ uint8_t fs_getattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 		}
 	}
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
-	stats_getattr++;
+	++gFsStatsArray[FsStats::Getattr];
 	return LIZARDFS_STATUS_OK;
 }
 
@@ -626,7 +581,7 @@ uint8_t fs_try_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, u
 		}
 	}
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
-	stats_setattr++;
+	++gFsStatsArray[FsStats::Setattr];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -738,7 +693,7 @@ uint8_t fs_do_setlength(uint32_t rootinode, uint8_t sesflags, uint32_t inode, ui
 	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
-	stats_setattr++;
+	++gFsStatsArray[FsStats::Setattr];
 	return LIZARDFS_STATUS_OK;
 }
 
@@ -885,7 +840,7 @@ uint8_t fs_setattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint32_
 	fsnodes_update_ctime(p, ts);
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
 	fsnodes_update_checksum(p);
-	stats_setattr++;
+	++gFsStatsArray[FsStats::Setattr];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -973,7 +928,7 @@ uint8_t fs_readlink(uint32_t rootinode, uint8_t sesflags, uint32_t inode, std::s
 	}
 	path = (std::string)static_cast<FSNodeSymlink*>(p)->path;
 	fs_update_atime(p, ts);
-	stats_readlink++;
+	++gFsStatsArray[FsStats::Readlink];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -1036,7 +991,7 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, const HString &nam
 		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
-	stats_symlink++;
+	++gFsStatsArray[FsStats::Symlink];
 #endif /* #ifndef METARESTORE */
 	return LIZARDFS_STATUS_OK;
 }
@@ -1108,7 +1063,7 @@ uint8_t fs_mknod(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HS
 	             "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
 	             parent, fsnodes_escape_name(name).c_str(), type, p->mode & 07777, uid, gid,
 	             rdev, p->id);
-	stats_mknod++;
+	++gFsStatsArray[FsStats::Mknod];
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
 }
@@ -1171,7 +1126,7 @@ uint8_t fs_mkdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent,
 	fs_changelog(ts, "CREATE(%" PRIu32 ",%s,%c,%d,%" PRIu32 ",%" PRIu32 ",%" PRIu32 "):%" PRIu32,
 	             parent, fsnodes_escape_name(name).c_str(), FSNode::kDirectory, p->mode & 07777,
 	             uid, gid, 0, p->id);
-	stats_mkdir++;
+	++gFsStatsArray[FsStats::Mkdir];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -1263,7 +1218,7 @@ uint8_t fs_unlink(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const H
 	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32, parent,
 	             fsnodes_escape_name(name).c_str(), child->id);
 	fsnodes_unlink(ts, static_cast<FSNodeDirectory*>(wd), name, child);
-	stats_unlink++;
+	++gFsStatsArray[FsStats::Unlink];
 	return LIZARDFS_STATUS_OK;
 }
 
@@ -1323,7 +1278,7 @@ uint8_t fs_rmdir(uint32_t rootinode, uint8_t sesflags, uint32_t parent, const HS
 	fs_changelog(ts, "UNLINK(%" PRIu32 ",%s):%" PRIu32, parent,
 	             fsnodes_escape_name(name).c_str(), child->id);
 	fsnodes_unlink(ts, static_cast<FSNodeDirectory*>(wd), name, child);
-	stats_rmdir++;
+	++gFsStatsArray[FsStats::Rmdir];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -1446,7 +1401,7 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, const HString &
 		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
-	stats_rename++;
+	++gFsStatsArray[FsStats::Rename];
 #endif
 	return LIZARDFS_STATUS_OK;
 }
@@ -1493,7 +1448,7 @@ uint8_t fs_link(const FsContext &context, uint32_t inode_src, uint32_t parent_ds
 		gMetadata->metaversion++;
 	}
 #ifndef METARESTORE
-	stats_link++;
+	++gFsStatsArray[FsStats::Link];
 #endif
 	return LIZARDFS_STATUS_OK;
 }
@@ -1864,7 +1819,7 @@ void fs_readdir_data(uint32_t rootinode, uint8_t sesflags, uint32_t uid, uint32_
 	fs_update_atime(p, ts);
 	fsnodes_getdirdata(rootinode, uid, gid, auid, agid, sesflags, static_cast<FSNodeDirectory*>(p), dbuff,
 	                   flags & GETDIR_FLAG_WITHATTR);
-	stats_readdir++;
+	++gFsStatsArray[FsStats::Readdir];
 }
 
 uint8_t fs_checkfile(uint32_t rootinode, uint8_t sesflags, uint32_t inode,
@@ -1953,7 +1908,7 @@ uint8_t fs_opencheck(uint32_t rootinode, uint8_t sesflags, uint32_t inode, uint3
 		}
 	}
 	fsnodes_fill_attr(p, NULL, uid, gid, auid, agid, sesflags, attr);
-	stats_open++;
+	++gFsStatsArray[FsStats::Open];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -2081,7 +2036,7 @@ uint8_t fs_readchunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t 
 	}
 	*length = p->length;
 	fs_update_atime(p, ts);
-	stats_read++;
+	++gFsStatsArray[FsStats::Read];
 	return LIZARDFS_STATUS_OK;
 }
 #endif
@@ -2181,7 +2136,7 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 	fsnodes_update_ctime(p, context.ts());
 	fsnodes_update_checksum(p);
 #ifndef METARESTORE
-	stats_write++;
+	++gFsStatsArray[FsStats::Write];
 #endif
 	return LIZARDFS_STATUS_OK;
 }

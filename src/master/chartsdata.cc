@@ -32,6 +32,7 @@
 #include "common/main.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
+#include "master/filesystem_operations.h"
 #include "master/matoclserv.h"
 
 #if defined(LIZARDFS_HAVE_GETRUSAGE) && defined(LIZARDFS_HAVE_STRUCT_RUSAGE_RU_MAXRSS)
@@ -153,7 +154,7 @@ uint64_t chartsdata_memusage(void) {
 
 void chartsdata_refresh(void) {
 	uint64_t data[CHARTS];
-	uint32_t fsdata[16];
+	std::array<uint32_t, FsStats::Size> fsdata;
 	uint32_t i,del,repl; //,bin,bout,opr,opw,dbr,dbw,dopr,dopw,repl;
 #ifdef CPU_USAGE
 	struct itimerval uc,pc;
@@ -230,9 +231,9 @@ void chartsdata_refresh(void) {
 	chunk_stats(&del,&repl);
 	data[CHARTS_DELCHUNK]=del;
 	data[CHARTS_REPLCHUNK]=repl;
-	fs_stats(fsdata);
-	for (i=0 ; i<16 ; i++) {
-		data[CHARTS_STATFS+i]=fsdata[i];
+	fs_retrieve_stats(fsdata);
+	for (i = 0 ; i < FsStats::Size; ++i) {
+		data[CHARTS_STATFS + i] = fsdata[i];
 	}
 	matoclserv_stats(data+CHARTS_PACKETSRCVD);
 

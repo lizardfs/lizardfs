@@ -154,7 +154,6 @@ void fs_disable_checksum_verification(bool value);
 
 // Functions which modify metadata or return some information.
 // To be used by the master server with personality == kMaster
-void fs_stats(uint32_t stats[16]);
 void fs_info(uint64_t *totalspace,uint64_t *availspace,uint64_t *trspace,uint32_t *trnodes,uint64_t *respace,uint32_t *renodes,uint32_t *inodes,uint32_t *dnodes,uint32_t *fnodes);
 void fs_test_getdata(uint32_t *loopstart,uint32_t *loopend,uint32_t *files,uint32_t *ugfiles,uint32_t *mfiles,uint32_t *chunks,uint32_t *ugchunks,uint32_t *mchunks,char **msgbuff,uint32_t *msgbuffleng);
 uint32_t fs_getdirpath_size(uint32_t inode);

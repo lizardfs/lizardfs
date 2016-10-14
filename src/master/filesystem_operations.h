@@ -32,6 +32,32 @@
 #define DEFAULT_GOAL 1
 #define DEFAULT_TRASHTIME 86400
 
+namespace FsStats {
+enum {
+	Statfs = 0,
+	Getattr,
+	Setattr,
+	Lookup,
+	Mkdir,
+	Rmdir,
+	Symlink,
+	Readlink,
+	Mknod,
+	Unlink,
+	Rename,
+	Link,
+	Readdir,
+	Open,
+	Read,
+	Write,
+	Size
+};
+}
+
+extern std::array<uint32_t, FsStats::Size> gFsStatsArray;
+
+void fs_retrieve_stats(std::array<uint32_t, FsStats::Size> &output_stats);
+
 const std::map<int, Goal> &fs_get_goal_definitions();
 const Goal &fs_get_goal_definition(uint8_t goalId);
 
