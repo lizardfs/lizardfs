@@ -668,13 +668,18 @@ public:
 					getFileInfo(descriptor));
 			_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
 		} else {
-			std::vector<uint8_t> buffer = LizardClient::read(
+			auto result = LizardClient::read(
 					toLizardFsContext(context),
 					toUint64(inode),
 					size,
 					offset,
 					getFileInfo(descriptor));
-			_return.assign(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+			small_vector<struct iovec, 8> reply;
+			result.toIoVec(reply, offset, size);
+			for (const auto &iov : reply) {
+				const char *base = (const char *)iov.iov_base;
+				_return.append(base, base + iov.iov_len);
+			}
 		}
 		OPERATION_EPILOG
 	}
