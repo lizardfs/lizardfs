@@ -181,7 +181,7 @@ public:
 
 		void add(Entry &entry) {
 			entry.acquire();
-			assert(entries.empty() || entries.back()->endOffset() >= entry.offset);
+			assert(entries.empty() || endOffset() >= entry.offset);
 			entries.push_back(std::addressof(entry));
 		}
 
@@ -190,6 +190,17 @@ public:
 			assert(real_offset <= endOffset());
 			return std::min<Size>(endOffset() - real_offset, real_size);
 		}
+
+		std::string toString() const {
+			std::string text;
+			for(const auto &entry : entries) {
+				text += "(" + std::to_string(entry->refcount) + "|"
+				+ std::to_string(entry->offset) + ":"
+				+ std::to_string(entry->buffer.size()) + "),";
+			}
+			return text;
+		}
+
 	};
 
 	explicit ReadCache(uint32_t expiration_time)
@@ -215,23 +226,41 @@ public:
 	 */
 	Result query(Offset offset, Size size) {
 		collectGarbage();
+
 		Result result;
 		auto it = entries_.upper_bound(offset, Entry::OffsetComp());
-		if (it == entries_.begin()) {
-			auto inserted = insert(it, offset, size);
-			result.add(*inserted);
-			return result;
+		if (it != entries_.begin()) {
+			--it;
 		}
 
-		auto candidate = std::prev(it);
-		if (candidate->expired(expiration_time_) && candidate->refcount == 0) {
-			candidate = erase(candidate);
-			auto inserted = insert(candidate, offset, size);
-			result.add(*inserted);
-			return result;
+		assert(size > 0);
+
+		Size bytes_left = size;
+		while (it != entries_.end() && bytes_left > 0) {
+			if (offset < it->offset) {
+				break;
+			}
+
+			if (it->expired(expiration_time_) || it->buffer.empty()) {
+				it = erase(it);
+				continue;
+			}
+
+			if (offset < it->endOffset()) {
+				Size bytes_from_buffer = std::min<Size>(it->buffer.size() - (offset - it->offset), bytes_left);
+
+				bytes_left -= bytes_from_buffer;
+				offset += bytes_from_buffer;
+				result.add(*it);
+			}
+			++it;
 		}
 
-		fillResult(result, candidate, offset, size);
+		if (bytes_left > 0) {
+			auto inserted = insert(it, offset, bytes_left);
+			result.add(*inserted);
+		}
+
 		return result;
 	}
 
@@ -243,46 +272,6 @@ public:
 	}
 
 protected:
-
-	/*!
-	 * \brief Try to fill all available data to result.
-	 *
-	 * Result will be filled with as many consecutive data buffers that contain
-	 * given range [offset, offset + size) as possible.
-	 *
-	 */
-	void fillResult(Result &result, EntrySet::iterator candidate, Offset offset, Size size) {
-		auto next_it = std::next(candidate);
-		while (next_it != entries_.end() && !(next_it->expired(expiration_time_) && next_it->refcount == 0)
-		       && offset >= candidate->offset && offset < candidate->endOffset() && offset + size > candidate->endOffset()) {
-			result.add(*candidate);
-			candidate = next_it;
-			next_it++;
-		}
-
-		if (result.empty()) {
-			if (offset >= candidate->offset && offset + size <= candidate->endOffset()) {
-				// hit
-			} else if (offset >= candidate->offset && offset < candidate->endOffset()) {
-				result.add(*candidate);
-				candidate = insert(candidate, candidate->endOffset(),
-						   size - (candidate->endOffset() - offset));
-			} else {
-				candidate = insert(candidate, offset, size);
-			}
-		} else if (candidate->offset == result.endOffset()) {
-			if (offset >= result.frontOffset() && offset + size <= candidate->endOffset()) {
-			} else if (offset >= result.frontOffset() && offset < candidate->endOffset()) {
-				result.add(*candidate);
-				candidate = insert(candidate, candidate->endOffset(),
-						   size - (candidate->endOffset() - offset));
-			}
-		} else {
-			candidate = insert(candidate, result.endOffset(), size - (result.endOffset() - offset));
-		}
-		result.add(*candidate);
-	}
-
 	EntrySet::iterator insert(EntrySet::iterator it, Offset offset, Size size) {
 		it = clearCollisions(it, offset + size);
 		Entry *e = new Entry(offset);
@@ -336,6 +325,16 @@ protected:
 			it = erase(it);
 		}
 		return it;
+	}
+
+	std::string toString() const {
+		std::string text;
+		for(const auto &entry : entries_) {
+			text += "(" + std::to_string(entry.refcount) + "|"
+			+ std::to_string(entry.offset) + ":"
+			+ std::to_string(entry.buffer.size()) + "),";
+		}
+		return text;
 	}
 
 	EntrySet entries_;
