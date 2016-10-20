@@ -159,6 +159,33 @@ TEST(LimiterGroupTests, NoSleepWhenLimitNotReached) {
 	ASSERT_EQ(testBegin, clock.now());
 }
 
+TEST(LimiterGroupTests, Die) {
+	ManuallyAdjustedClock clock;
+	IoLimitsDatabaseLimiter limiter(clock);
+	limiter.database.setLimits(clock.now(), {{"group", 1000}}, 250);
+	SharedState shared{limiter, std::chrono::seconds(100)};
+	Group group(shared, "group", clock);
+
+	std::mutex mutex;
+
+	// Reading works...
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+		clock.increase(std::chrono::seconds(1));
+		ASSERT_EQ(LIZARDFS_STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+	}
+	group.die(); // .. but not after 'die' is called:
+	{
+		std::unique_lock<std::mutex> lock(mutex);
+		clock.increase(std::chrono::seconds(1));
+		ASSERT_EQ(LIZARDFS_ERROR_ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
+	}
+}
+
+// It would be nice to provide this test, but we don't have any cgroup mock:
+// TEST(LimiterProxyTests, GroupRemoved)
+
+#if defined(LIZARDFS_HAVE_STD_FUTURE)
 // Check if the throughput is properly limited during a reconfiguration
 TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 	const int N = 20;
@@ -211,32 +238,6 @@ TEST(LimiterGroupTests, ThroughputChangeAfterReconfiguration) {
 		ASSERT_EQ(N + 2*i, total);
 	}
 }
-
-TEST(LimiterGroupTests, Die) {
-	ManuallyAdjustedClock clock;
-	IoLimitsDatabaseLimiter limiter(clock);
-	limiter.database.setLimits(clock.now(), {{"group", 1000}}, 250);
-	SharedState shared{limiter, std::chrono::seconds(100)};
-	Group group(shared, "group", clock);
-
-	std::mutex mutex;
-
-	// Reading works...
-	{
-		std::unique_lock<std::mutex> lock(mutex);
-		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(LIZARDFS_STATUS_OK, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
-	}
-	group.die(); // .. but not after 'die' is called:
-	{
-		std::unique_lock<std::mutex> lock(mutex);
-		clock.increase(std::chrono::seconds(1));
-		ASSERT_EQ(LIZARDFS_ERROR_ENOENT, group.wait(1, clock.now() + std::chrono::seconds(1), lock));
-	}
-}
-
-// It would be nice to provide this test, but we don't have any cgroup mock:
-// TEST(LimiterProxyTests, GroupRemoved)
 
 // Check if multiple parallel operations terminate after expected time for various parameter
 // combinations
@@ -404,3 +405,4 @@ TEST(LimiterProxyTests, NumberOfRequestesSentToMaster) {
 		}
 	}
 }
+#endif

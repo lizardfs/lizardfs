@@ -156,6 +156,7 @@ TEST(LruCacheTests, TestMaxSize) {
 	}
 }
 
+#if defined(LIZARDFS_HAVE_STD_FUTURE)
 typedef LruCache<
 		LruCacheOption::UseTreeMap,
 		LruCacheOption::Reentrant,
@@ -181,3 +182,4 @@ TEST(LruCacheTests, TestMultiThreadedCache) {
 				}));
 	}
 }
+#endif
