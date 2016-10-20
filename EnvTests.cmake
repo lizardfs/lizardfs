@@ -96,3 +96,12 @@ endif()
 set(CMAKE_REQUIRED_FLAGS "-D_GNU_SOURCE")
 check_symbol_exists(FALLOC_FL_PUNCH_HOLE "fcntl.h" LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE)
 unset(CMAKE_REQUIRED_FLAGS)
+
+set(CMAKE_REQUIRED_FLAGS "-std=c++11")
+set(_CHECK_CXX_STD_FUTURE_CODE "
+#include <future>
+std::future<void> test_future;
+int main() { return 0; }
+")
+check_cxx_source_compiles("${_CHECK_CXX_STD_FUTURE_CODE}" LIZARDFS_HAVE_STD_FUTURE)
+unset(CMAKE_REQUIRED_FLAGS)
