@@ -23,6 +23,11 @@ setup_local_empty_lizardfs() {
 	lizardfs_info_[chunkserver_count]=$number_of_chunkservers
 	lizardfs_info_[admin_password]=${ADMIN_PASSWORD:-password}
 
+	# Try to enable core dumps if possible
+	if [[ $(ulimit -c) == 0 ]]; then
+		ulimit -c unlimited || ulimit -c 100000000 || ulimit -c 1000000 || ulimit -c 10000 || :
+	fi
+
 	# Prepare directories for LizardFS
 	mkdir -p "$etcdir" "$vardir"
 
@@ -466,6 +471,9 @@ create_mfsmount_cfg_() {
 
 do_mount_() {
 	local mount_id=$1
+	# Make sure mount process is in a writable directory (for core dumps)
+	mkdir $vardir/mount$mount_id
+	cd $vardir/mount$mount_id
 	for try in $(seq 1 $max_tries); do
 		${lizardfs_info_[mntcall${mount_id}]} && return 0
 		echo "Retrying in 1 second ($try/$max_tries)..."
