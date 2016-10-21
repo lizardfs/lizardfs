@@ -1,0 +1,62 @@
+mfsmount.cfg(5)
+===============
+
+== NAME
+
+mfsmount.cfg - configuration file for the mfsmount command
+
+== SYNTAX
+
+OPTION,OPTION,OPTION,...
+
+OPTION
+
+PATH
+
+The *#* character starts comments.
+
+== DESCRIPTION
+
+The *mfsmount.cfg* file defines the default mountpoint and the default mfsmount
+specific mount options for the mfsmount command. Options can be either stated
+in one line as a comma seperated list of options, or by giving one option per
+line. Options not mfsmount specific will be ignored.
+
+The default mount point should be listed on a seperate line, giving the full
+path. Lines starting with the *#* character are ignored.
+
+=== EXAMPLES
+
+ #
+ # Default Options
+ #
+ mfsmaster=192.168.1.1
+ mfspassword=changeme
+ #
+ # Default mount point
+ #
+ /mnt/lizardfs
+
+
+=== REPORTING BUGS
+
+Report bugs to <contact@lizardfs.org>.
+
+=== COPYRIGHT
+
+2016 Skytechnology Sp. z o.o.
+
+LizardFS is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, version 3.
+
+LizardFS is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+LizardFS. If not, see <http://www.gnu.org/licenses/>.
+
+== SEE ALSO
+
+mfsmount(1) lizardfs(7)

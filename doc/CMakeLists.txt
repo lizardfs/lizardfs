@@ -38,6 +38,7 @@ set(MANPAGES
     mfshdd.cfg.5
     mfsmaster.cfg.5
     mfsmetalogger.cfg.5
+    mfsmount.cfg.5
     mfstopology.cfg.5
     mfsmetadump.8
     mfsrestoremaster.8
