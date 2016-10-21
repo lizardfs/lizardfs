@@ -391,9 +391,15 @@ except Exception:
 	print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
 	print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
 	print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
+	print """<script type="text/javascript">changemaster = function() {
+		window.location="mfs.cgi?masterhost=" + document.getElementById("masterhost").value + "&masterport=" + document.getElementById("masterport").value }
+	</script>"""
 	print """</head>"""
 	print """<body>"""
 	print """<h1 align="center">Can't connect to LizardFS master (IP:%s ; PORT:%u)</h1>""" % (htmlentities(masterhost),masterport)
+	print """<h2 align="center">Please enter alternative master address:"""
+	print """<input type="text" id="masterhost" value="mfsmaster" size="32" /><input type="number" id="masterport" size="6" value="9421" />"""
+	print """<input type="button" value="Go" onclick="changemaster()" /></h2>"""
 	print """</body>"""
 	print """</html>"""
 	exit()
