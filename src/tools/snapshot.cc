@@ -110,7 +110,7 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 	}
 	close_master_conn(0);
 	if (*rptr != 0) {
-		printf("%s->%s/%s: %s\n", srcname, dstdir, dstbase, mfsstrerr(*rptr));
+		printf("%s -> %s/%s: %s\n", srcname, dstdir, dstbase, mfsstrerr(*rptr));
 		free(buff);
 		return -1;
 	}

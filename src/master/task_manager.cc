@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2016-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -21,6 +21,8 @@
 #include "master/task_manager.h"
 
 #include "common/loop_watchdog.h"
+#include "master/filesystem_metadata.h"
+#include "master/filesystem_node.h"
 #include "protocol/MFSCommunication.h"
 
 void TaskManager::Job::finalizeTask(TaskIterator itask, int status) {
@@ -42,9 +44,13 @@ void TaskManager::Job::processTask(uint32_t ts) {
 	}
 }
 
+JobInfo TaskManager::Job::getInfo() const {
+	return { id_, description_ };
+}
+
 int TaskManager::submitTask(uint32_t ts, int initial_batch_size, Task *task,
-			    const std::function<void(int)> &callback) {
-	Job new_job;
+			    const std::string &description, const std::function<void(int)> &callback) {
+	Job new_job(next_job_id_++, description);
 
 	int done = 0;
 	int status = LIZARDFS_STATUS_OK;
@@ -91,4 +97,13 @@ void TaskManager::processJobs(uint32_t ts, int number_of_tasks) {
 			it = job_list_.begin();
 		}
 	}
+}
+
+TaskManager::JobsInfoContainer TaskManager::getCurrentJobsInfo() const {
+	JobsInfoContainer info;
+	info.reserve(job_list_.size());
+	for (const Job &j : job_list_) {
+		info.push_back(j.getInfo());
+	}
+	return info;
 }

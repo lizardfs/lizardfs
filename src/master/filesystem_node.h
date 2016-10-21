@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017
    Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
@@ -193,3 +193,4 @@ uint32_t fsnodes_getpath_size(FSNodeDirectory *parent, FSNode *child);
 void fsnodes_getpath_data(FSNodeDirectory *parent, FSNode *child, uint8_t *path, uint32_t size);
 
 int64_t fsnodes_get_size(FSNode *node);
+FSNodeDirectory *fsnodes_get_first_parent(FSNode *node);

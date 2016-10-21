@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -30,6 +30,7 @@
 #include "admin/list_metadataservers_command.h"
 #include "admin/list_mounts_command.h"
 #include "admin/list_tapeservers_command.h"
+#include "admin/list_tasks_command.h"
 #include "admin/magic_recalculate_metadata_checksum_command.h"
 #include "admin/manage_locks_command.h"
 #include "admin/metadataserver_status_command.h"
@@ -54,6 +55,7 @@ int main(int argc, const char** argv) {
 			new ListMountsCommand(),
 			new ListMetadataserversCommand(),
 			new ListTapeserversCommand(),
+			new ListTasksCommand(),
 			new ManageLocksCommand(),
 			new MetadataserverStatusCommand(),
 			new ReadyChunkserversCountCommand(),

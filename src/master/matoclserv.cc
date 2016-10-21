@@ -4134,6 +4134,12 @@ void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, 
 	matocl::manageLocksUnlock::serialize(reply, status);
 	matoclserv_createpacket(eptr, std::move(reply));
 }
+
+void matoclserv_list_tasks(matoclserventry *eptr) {
+	std::vector<JobInfo> jobs_info = fs_get_current_tasks_info();
+	matoclserv_createpacket(eptr, matocl::listTasks::build(jobs_info));
+}
+
 void matoclserv_fuse_locks_interrupt(matoclserventry *eptr, const uint8_t *data, uint32_t length,
 				     uint8_t type) {
 	FsContext context = FsContext::getForMaster(eventloop_time());
@@ -4664,6 +4670,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_MANAGE_LOCKS_UNLOCK:
 					matoclserv_manage_locks_unlock(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_LIST_TASKS:
+					matoclserv_list_tasks(eptr);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

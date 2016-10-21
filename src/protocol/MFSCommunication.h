@@ -1815,6 +1815,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_FUSE_GETDIR (1000U + 588U)
 /// msgid:32 status:8
 
+// 0x635
+#define LIZ_CLTOMA_LIST_TASKS (1000U + 589U)
+/// dummy:8
+
+// 0x636
+#define LIZ_MATOCL_LIST_TASKS (1000U + 590U)
+/// goals:(vector<JobInfo>)
+
 // CHUNKSERVER STATS
 
 // 0x0258

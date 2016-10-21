@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Skytechnology sp. z o.o.
+   Copyright 2015-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -59,8 +59,21 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 	auto task = new SnapshotTask({{src_node->id, name_dst}}, src_node->id,
 	                                   static_cast<FSNodeDirectory *>(dst_parent_node)->id,
 	                                   0, can_overwrite, true, true);
+	std::string src_path;
+	FSNodeDirectory *parent = fsnodes_get_first_parent(src_node);
+	fsnodes_getpath(parent, src_node, src_path);
+
+	std::string dst_path;
+	FSNodeDirectory *grandparent = fsnodes_get_first_parent(dst_parent_node);
+	fsnodes_getpath(grandparent, dst_parent_node, dst_path);
+	if (dst_path.size() > 1) {
+		dst_path += "/";
+	}
+	dst_path += name_dst;
+
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialSnapshotTaskBatch,
-						  task, callback);
+						  task, SnapshotTask::generateDescription(src_path, dst_path),
+						  callback);
 }
 
 uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,

@@ -26,6 +26,7 @@
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/io_limits_database.h"
+#include "common/job_info.h"
 #include "common/legacy_acl.h"
 #include "common/metadataserver_list_entry.h"
 #include "common/moosefs_string.h"
@@ -422,6 +423,10 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, message_id,
 		uint64_t, first_entry_index,
 		std::vector<DirectoryEntry>, dir_entry)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, listTasks, LIZ_MATOCL_LIST_TASKS, 0,
+		std::vector<JobInfo>, jobs_info)
 
 namespace matocl {
 

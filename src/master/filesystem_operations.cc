@@ -47,7 +47,7 @@ void fs_retrieve_stats(std::array<uint32_t, FsStats::Size> &output_stats) {
 	gFsStatsArray.fill(0);
 }
 
-static const int kInitialTaskBatchSize = 10;
+static const int kInitialTaskBatchSize = 1000;
 
 template <class T>
 bool decodeChar(const char *keys, const std::vector<T> values, char key, T &value) {
@@ -1083,11 +1083,21 @@ uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent,
 	if (status != LIZARDFS_STATUS_OK) {
 		return status;
 	}
+
+	FSNode *child = fsnodes_lookup(static_cast<FSNodeDirectory*>(wd_tmp), name);
+	if (!child) {
+		return LIZARDFS_ERROR_ENOENT;
+	}
+
 	auto shared_context = std::make_shared<FsContext>(context);
 	auto task = new RemoveTask({name}, wd_tmp->id, shared_context);
 
+	std::string node_name;
+
+	fsnodes_getpath(static_cast<FSNodeDirectory*>(wd_tmp), child, node_name);
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
-	                                          task, callback);
+	                                          task, RemoveTask::generateDescription(node_name),
+	                                          callback);
 }
 
 uint8_t fs_rmdir(const FsContext &context, uint32_t parent, const HString &name) {
@@ -2214,8 +2224,19 @@ uint8_t fs_setgoal(const FsContext &context, uint32_t inode, uint8_t goal, uint8
 
 	auto task = new SetGoalTask({p->id}, context.uid(), goal,
 							  smode, setgoal_stats);
+	std::string node_name;
+	FSNodeDirectory *parent = fsnodes_get_first_parent(p);
+	fsnodes_getpath(parent, p, node_name);
+
+	std::string goal_name;
+#ifndef METARESTORE
+	goal_name = gGoalDefinitions[goal].getName();
+#else
+	goal_name = "goal id: " + std::to_string(goal);
+#endif
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
-						  task, callback);
+						  task, SetGoalTask::generateDescription(node_name, goal_name),
+						  callback);
 }
 
 //This function is only used by Shadow
@@ -2330,8 +2351,12 @@ uint8_t fs_settrashtime(const FsContext &context, uint32_t inode, uint32_t trash
 
 	auto task = new SetTrashtimeTask({p->id}, context.uid(), trashtime,
 							  smode, settrashtime_stats);
+	std::string node_name;
+	FSNodeDirectory *parent = fsnodes_get_first_parent(p);
+	fsnodes_getpath(parent, p, node_name);
 	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
-						  task, callback);
+	                                          task, SetTrashtimeTask::generateDescription(node_name, trashtime),
+	                                          callback);
 }
 
 uint8_t fs_apply_settrashtime(const FsContext &context, uint32_t inode, uint32_t trashtime,
@@ -2841,4 +2866,7 @@ const Goal &fs_get_goal_definition(uint8_t goalId) {
 	return gGoalDefinitions[goalId];
 }
 
+std::vector<JobInfo> fs_get_current_tasks_info() {
+	return gMetadata->task_manager.getCurrentJobsInfo();
+}
 #endif

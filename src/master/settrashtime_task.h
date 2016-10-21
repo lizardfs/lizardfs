@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2016-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -61,6 +61,10 @@ public:
 	int execute(uint32_t ts, intrusive_list<Task> &work_queue) override;
 
 	bool isFinished() const override;
+
+	static std::string generateDescription(const std::string &target, uint32_t trashtime) {
+		return "Setting trashtime (" + std::to_string(trashtime) + "): " + target;
+	}
 
 	uint8_t setTrashtime(FSNode *node, uint32_t ts);
 

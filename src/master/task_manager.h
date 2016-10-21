@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2016-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -26,6 +26,7 @@
 #include <string>
 
 #include "common/intrusive_list.h"
+#include "common/job_info.h"
 
 /*! \brief Implementation of class for storing and executing tasks
  *
@@ -54,10 +55,14 @@ public:
 	/*! \brief Class representing the original task and all subtasks it created during execution*/
 	class Job {
 	public:
-		Job() : finish_callback_(), tasks_() {
+		Job(uint32_t id, const std::string &description) :
+		    id_(id), description_(description),
+		    finish_callback_(), tasks_() {
 		}
 
-		Job(Job &&other) : finish_callback_(std::move(other.finish_callback_)),
+		Job(Job &&other) : id_(std::move(other.id_)),
+				   description_(std::move(other.description_)),
+				   finish_callback_(std::move(other.finish_callback_)),
 				   tasks_(std::move(other.tasks_)) {
 		}
 
@@ -92,7 +97,11 @@ public:
 			tasks_.push_back(*task);
 		}
 
+		JobInfo getInfo() const;
+
 	private:
+		uint32_t id_;
+		std::string description_;
 		std::function<void(int)> finish_callback_; /*!< Callback function called when all tasks
 		                                                that belong to this Job are done. */
 
@@ -101,9 +110,10 @@ public:
 
 	typedef typename std::list<Job> JobContainer;
 	typedef typename JobContainer::iterator JobIterator;
+	typedef typename std::vector<JobInfo> JobsInfoContainer;
 
 public:
-	TaskManager() : job_list_() {
+	TaskManager() : job_list_(), next_job_id_(0) {
 	}
 
 	/*! \brief Submit task to be enqueued and executed by TaskManager.
@@ -122,7 +132,7 @@ public:
 	 * \return Value representing the status.
 	 */
 	int submitTask(uint32_t ts, int initial_batch_size, Task *task,
-		       const std::function<void(int)> &callback);
+		       const std::string &description, const std::function<void(int)> &callback);
 
 	/*! \brief Iterate over Jobs and execute tasks.
 	 *
@@ -133,10 +143,13 @@ public:
 	 */
 	void processJobs(uint32_t ts, int number_of_tasks);
 
+	JobsInfoContainer getCurrentJobsInfo() const;
+
 	bool workAvailable() const {
 		return !job_list_.empty();
 	}
 
 private:
 	JobContainer job_list_; /*!< List with Jobs to execute. */
+	uint32_t next_job_id_;
 };

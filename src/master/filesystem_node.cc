@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017
    Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
@@ -299,6 +299,17 @@ int64_t fsnodes_get_size(FSNode *node) {
 	statsrecord sr;
 	fsnodes_get_stats(node, &sr);
 	return sr.size;
+}
+
+FSNodeDirectory *fsnodes_get_first_parent(FSNode *node) {
+	assert(node);
+	FSNodeDirectory *parent;
+	if (!node->parent.empty()) {
+		parent = fsnodes_id_to_node_verify<FSNodeDirectory>(node->parent[0]);
+	} else {
+		parent = gMetadata->root;
+	}
+	return parent;
 }
 
 static inline void fsnodes_sub_stats(FSNodeDirectory *parent, statsrecord *sr) {

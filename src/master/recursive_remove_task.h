@@ -62,6 +62,11 @@ public:
 	int execute(uint32_t ts, intrusive_list<Task> &work_queue) override;
 
 	bool isFinished() const override;
+
+	static std::string generateDescription(const std::string &target) {
+		return "Recursive remove: " + target;
+	}
+
 private:
 	int retrieveNodes(FSNodeDirectory *&wd, FSNode *&child);
 

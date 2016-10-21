@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2016-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -78,6 +78,10 @@ public:
 	bool isFinished() const override {
 		return current_subtask_ == subtask_.end();
 	};
+
+	static std::string generateDescription(const std::string &src, const std::string &dst) {
+		return "Creating snapshot: " + src + " -> " + dst;
+	}
 
 protected:
 	/*! \brief Test if node can be cloned. */
