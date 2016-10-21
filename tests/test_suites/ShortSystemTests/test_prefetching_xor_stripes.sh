@@ -25,9 +25,10 @@ file-validate file
 # of them to be prefetched, but in case of timeouts it can be more)
 assert_less_or_equal "$(grep ^chunkserver.hdd_prefetch_blocks "$TEMP_DIR"/log | wc -l)" "8"
 
-# Check if first blocks of all chunks were prefetched
+# Check if at least first blocks of all chunks were prefetched
 for i in {1..3}; do
-	assert_awk_finds \
-		"/^chunkserver.hdd_prefetch_blocks: chunk:$i status:0 firstBlock:0 nrOfBlocks:1$/" \
-		"$(cat "$TEMP_DIR"/log)"
+	fetched=($(grep nrOfBlocks "$TEMP_DIR/log" | cut -f5 -d' ' | cut -f2 -d':'))
+	for block in ${fetched[@]}; do
+		assert_less_or_equal 1 $block
+	done
 done
