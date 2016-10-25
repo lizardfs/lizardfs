@@ -145,6 +145,12 @@ set timeout for executing each wave of a read operation in milliseconds (default
 *-o mfschunkservertotalreadto=*'MSEC'::
 set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: 2000)
 
+*-o cacheexpirationtime=*'MSEC'::
+set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: 0)
+
+*-o readaheadmaxwindowsize=*'KB'::
+set max value of readahead window per single descriptor in kibibytes (default: 4096)
+
 *-o mfsrlimitnofile=*'N'::
 try to change limit of simultaneously opened file descriptors on startup
 (default: 100000)

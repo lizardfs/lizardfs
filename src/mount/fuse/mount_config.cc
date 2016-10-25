@@ -75,7 +75,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfschunkserverconnectreadto=%d", chunkserverconnectreadto, 0),
 	MFS_OPT("mfschunkserverwavereadto=%d", chunkserverwavereadto, 0),
 	MFS_OPT("mfschunkservertotalreadto=%d", chunkservertotalreadto, 0),
-	MFS_OPT("cacheexpirationtime=%d", cacheexpirationtime, 500),
+	MFS_OPT("cacheexpirationtime=%d", cacheexpirationtime, 0),
 	MFS_OPT("readaheadmaxwindowsize=%d", readaheadmaxwindowsize, 4096),
 	MFS_OPT("mfsprefetchxorstripes", prefetchxorstripes, 1),
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
