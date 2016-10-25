@@ -471,15 +471,17 @@ create_mfsmount_cfg_() {
 
 do_mount_() {
 	local mount_id=$1
+	local workingdir=$TEMP_DIR/var/mount$mount_id
 	# Make sure mount process is in a writable directory (for core dumps)
-	mkdir $vardir/mount$mount_id
-	cd $vardir/mount$mount_id
+	mkdir -p $workingdir
+	cd $workingdir
 	for try in $(seq 1 $max_tries); do
 		${lizardfs_info_[mntcall${mount_id}]} && return 0
 		echo "Retrying in 1 second ($try/$max_tries)..."
 		sleep 1
 	done
 	echo "Cannot mount in $mount_dir, exiting"
+	cd -
 	exit 2
 }
 
