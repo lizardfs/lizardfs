@@ -281,6 +281,7 @@ protected:
 	}
 
 	void collectGarbage(unsigned count = 4) {
+		unsigned reserved_count = count;
 		while (!lru_.empty() && count-- > 0) {
 			Entry *e = std::addressof(lru_.front());
 			if (e->expired(expiration_time_)) {
@@ -289,7 +290,7 @@ protected:
 				break;
 			}
 		}
-		clearReserved();
+		clearReserved(reserved_count);
 	}
 
 	EntrySet::iterator erase(EntrySet::iterator it) {
@@ -306,14 +307,14 @@ protected:
 		return ret;
 	}
 
-	void clearReserved(unsigned count = 4) {
+	void clearReserved(unsigned count) {
 		while (!reserved_entries_.empty() && count-- > 0) {
 			Entry *e = std::addressof(reserved_entries_.front());
 			if (e->refcount == 0) {
 				reserved_entries_.pop_front();
 				delete e;
 			} else {
-				assert(e->refcount > 0);
+				assert(e->refcount >= 0);
 				reserved_entries_.splice(reserved_entries_.end(), reserved_entries_,
 							 reserved_entries_.begin());
 			}
