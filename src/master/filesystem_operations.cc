@@ -2869,4 +2869,12 @@ const Goal &fs_get_goal_definition(uint8_t goalId) {
 std::vector<JobInfo> fs_get_current_tasks_info() {
 	return gMetadata->task_manager.getCurrentJobsInfo();
 }
+
+uint8_t fs_cancel_job(uint32_t job_id) {
+	if (gMetadata->task_manager.cancelJob(job_id)) {
+		return LIZARDFS_STATUS_OK;
+	} else {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+}
 #endif

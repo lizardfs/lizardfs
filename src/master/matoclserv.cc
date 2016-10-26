@@ -4140,6 +4140,19 @@ void matoclserv_list_tasks(matoclserventry *eptr) {
 	matoclserv_createpacket(eptr, matocl::listTasks::build(jobs_info));
 }
 
+void matoclserv_stop_task(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t job_id, msgid;
+	uint8_t status;
+	if (eptr->registered != ClientState::kAdmin) {
+		syslog(LOG_NOTICE, "Stopping execution of tasks is available only for registered admins");
+		eptr->mode = KILL;
+		return;
+	}
+	cltoma::stopTask::deserialize(data, length, msgid, job_id);
+	status = fs_cancel_job(job_id);
+	matoclserv_createpacket(eptr, matocl::stopTask::build(msgid, status));
+}
+
 void matoclserv_fuse_locks_interrupt(matoclserventry *eptr, const uint8_t *data, uint32_t length,
 				     uint8_t type) {
 	FsContext context = FsContext::getForMaster(eventloop_time());
@@ -4673,6 +4686,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_LIST_TASKS:
 					matoclserv_list_tasks(eptr);
+					break;
+				case LIZ_CLTOMA_STOP_TASK:
+					matoclserv_stop_task(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);

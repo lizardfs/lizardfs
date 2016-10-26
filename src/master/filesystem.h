@@ -241,6 +241,8 @@ const Goal& fs_get_goal_definition(uint8_t goalId);
 /// Return info about currently executed tasks
 std::vector<JobInfo> fs_get_current_tasks_info();
 
+uint8_t fs_cancel_job(uint32_t job_id);
+
 // Disable saving metadata on exit
 void fs_disable_metadata_dump_on_exit();
 

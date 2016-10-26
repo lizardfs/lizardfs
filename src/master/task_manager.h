@@ -70,6 +70,8 @@ public:
 			tasks_.clear_and_dispose([](Task *ptr) { delete ptr; });
 		}
 
+		void finalize(int status);
+
 		/*! \brief Function finalizes processing of single task.
 		 * \param itask iterator to a task that was executed.
 		 * \param status indicates whether task execution was successful.
@@ -95,6 +97,10 @@ public:
 
 		void addTask(Task *task) {
 			tasks_.push_back(*task);
+		}
+
+		uint32_t getId() {
+			return id_;
 		}
 
 		JobInfo getInfo() const;
@@ -144,6 +150,8 @@ public:
 	void processJobs(uint32_t ts, int number_of_tasks);
 
 	JobsInfoContainer getCurrentJobsInfo() const;
+
+	bool cancelJob(uint32_t job_id);
 
 	bool workAvailable() const {
 		return !job_list_.empty();

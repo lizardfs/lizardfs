@@ -102,7 +102,7 @@
 #define LIZARDFS_ERROR_NOCHUNK                 13    // No such chunk
 #define LIZARDFS_ERROR_CHUNKBUSY               14    // Chunk is busy
 #define LIZARDFS_ERROR_REGISTER                15    // Incorrect register BLOB
-#define LIZARDFS_ERROR_NOTDONE                 16    // None of chunk servers performed requested operation
+#define LIZARDFS_ERROR_NOTDONE                 16    // Requested operation not completed
 #define LIZARDFS_ERROR_GROUPNOTREGISTERED      17    // Group info is not registered in master server
 #define LIZARDFS_ERROR_NOTSTARTED              18    // Write not started
 #define LIZARDFS_ERROR_WRONGVERSION            19    // Wrong chunk version
@@ -158,7 +158,7 @@
 	"No such chunk", \
 	"Chunk is busy", \
 	"Incorrect register BLOB", \
-	"None of chunk servers performed requested operation", \
+	"Requested operation not completed", \
 	"Group info is not registered in master server", \
 	"Write not started", \
 	"Wrong chunk version", \
@@ -1822,6 +1822,14 @@ enum class SugidClearMode {
 // 0x636
 #define LIZ_MATOCL_LIST_TASKS (1000U + 590U)
 /// goals:(vector<JobInfo>)
+
+// 0x637
+#define LIZ_CLTOMA_STOP_TASK (1000U + 591U)
+/// msgid:32 taskid:32
+
+// 0x638
+#define LIZ_MATOCL_STOP_TASK (1000U + 592U)
+/// msgid:32 status:8
 
 // CHUNKSERVER STATS
 

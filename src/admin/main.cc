@@ -39,6 +39,7 @@
 #include "admin/reload_config_command.h"
 #include "admin/save_metadata_command.h"
 #include "admin/stop_master_without_saving_metadata.h"
+#include "admin/stop_task_command.h"
 #include "common/human_readable_format.h"
 #include "protocol/MFSCommunication.h"
 #include "common/mfserr.h"
@@ -63,6 +64,7 @@ int main(int argc, const char** argv) {
 			new MetadataserverStopWithoutSavingMetadataCommand(),
 			new ReloadConfigCommand(),
 			new SaveMetadataCommand(),
+			new StopTaskCommand(),
 			new MagicRecalculateMetadataChecksumCommand(),
 	};
 

@@ -428,6 +428,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, listTasks, LIZ_MATOCL_LIST_TASKS, 0,
 		std::vector<JobInfo>, jobs_info)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, stopTask, LIZ_MATOCL_STOP_TASK, 0,
+		uint32_t, msgid,
+		uint8_t, status)
+
 namespace matocl {
 
 namespace fuseReadChunk {

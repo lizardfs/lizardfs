@@ -353,6 +353,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, listTasks, LIZ_CLTOMA_LIST_TASKS, 0,
 		bool, dummy)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, stopTask, LIZ_CLTOMA_STOP_TASK, 0,
+		uint32_t, msgid,
+		uint32_t, taskid)
+
 namespace cltoma {
 
 namespace fuseReadChunk {

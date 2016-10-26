@@ -25,12 +25,16 @@
 #include "master/filesystem_node.h"
 #include "protocol/MFSCommunication.h"
 
+void TaskManager::Job::finalize(int status) {
+	if (finish_callback_) {
+		finish_callback_(status);
+	}
+	tasks_.clear_and_dispose([](Task *ptr) { delete ptr; });
+}
+
 void TaskManager::Job::finalizeTask(TaskIterator itask, int status) {
 	if (status || (itask->isFinished() && tasks_.size() <= 1)) {
-		if (finish_callback_) {
-			finish_callback_(status);
-		}
-		tasks_.clear_and_dispose([](Task *ptr) { delete ptr; });
+		finalize(status);
 	} else if (itask->isFinished()) {
 		tasks_.erase_and_dispose(itask, [](Task *ptr) { delete ptr; });
 	}
@@ -106,4 +110,14 @@ TaskManager::JobsInfoContainer TaskManager::getCurrentJobsInfo() const {
 		info.push_back(j.getInfo());
 	}
 	return info;
+}
+
+bool TaskManager::cancelJob(uint32_t job_id) {
+	for (auto it = job_list_.begin(); it != job_list_.end(); ++it) {
+		if (it->getId() == job_id) {
+			it->finalize(LIZARDFS_ERROR_NOTDONE);
+			return true;
+		}
+	}
+	return false;
 }
