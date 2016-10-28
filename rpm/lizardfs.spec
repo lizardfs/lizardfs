@@ -418,6 +418,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/mfs.7*
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man1/mfsmount.1*
+%{_mandir}/man5/mfsmount.cfg.5*
 %{liz_confdir}/mfsmount.cfg.dist
 %{liz_confdir}/iolimits.cfg.dist
 %{_sysconfdir}/bash_completion.d/lizardfs
