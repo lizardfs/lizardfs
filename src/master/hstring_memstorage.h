@@ -4,7 +4,7 @@
 
 #include "master/hstring_storage.h"
 
-#include <vector>
+#include <set>
 
 namespace hstorage {
 
@@ -49,7 +49,7 @@ private:
 	static const ValueType kMask = ((static_cast<ValueType>(1) << kShift) - static_cast<ValueType>(1));
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
-	static std::vector<char *> *debug_ptr_; /*!< Vector with unobfuscated pointers to stored strings.
+	static std::set<char *> *debug_ptr_; /*!< Set with unobfuscated pointers to stored strings.
 	                                            Just to make valgrind happy. */
 #endif
 };

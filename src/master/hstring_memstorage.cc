@@ -10,7 +10,7 @@
 using namespace hstorage;
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
-	std::vector<char *> *MemStorage::debug_ptr_ = nullptr;
+	std::set<char *> *MemStorage::debug_ptr_ = nullptr;
 #endif
 
 bool MemStorage::compare(const Handle &handle, const HString &str) {
@@ -33,9 +33,9 @@ void MemStorage::copy(Handle &handle, const Handle &other) {
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
 	if (!debug_ptr_) {
-		debug_ptr_ = new std::vector<char *>();
+		debug_ptr_ = new std::set<char *>();
 	}
-	debug_ptr_->push_back(copied);
+	debug_ptr_->insert(copied);
 #endif
 }
 
@@ -55,9 +55,9 @@ void MemStorage::bind(Handle &handle, const HString &str) {
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
 	if (!debug_ptr_) {
-		debug_ptr_ = new std::vector<char *>();
+		debug_ptr_ = new std::set<char *>();
 	}
-	debug_ptr_->push_back(copied);
+	debug_ptr_->insert(copied);
 #endif
 }
 
@@ -71,9 +71,9 @@ void MemStorage::unbind(Handle &handle) {
 	char *ptr = c_str(handle);
 	if (ptr) {
 		if (!debug_ptr_) {
-			debug_ptr_ = new std::vector<char *>();
+			debug_ptr_ = new std::set<char *>();
 		}
-		auto it = std::find(debug_ptr_->begin(), debug_ptr_->end(), ptr);
+		auto it = debug_ptr_->find(ptr);
 		assert(it != debug_ptr_->end());
 		debug_ptr_->erase(it);
 	}
