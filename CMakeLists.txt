@@ -32,6 +32,7 @@ option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                    
 option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                   OFF)
 option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  OFF)
 option(ENABLE_POLONAISE     "Enable polonaise"                                        ON)
+option(ENABLE_CLIENT_LIB    "Enable dynamic client library (liblizardfs-client)"      OFF)
 option(ENABLE_OFFICIAL_BUILD "Make the build official"                                OFF)
 # end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)
@@ -57,6 +58,7 @@ message(STATUS "ENABLE_DEBUG_LOG: ${ENABLE_DEBUG_LOG}")
 message(STATUS "ENABLE_VERBOSE_ASCIIDOC: ${ENABLE_VERBOSE_ASCIIDOC}")
 message(STATUS "ENABLE_TCMALLOC: ${ENABLE_TCMALLOC}")
 message(STATUS "ENABLE_POLONAISE: ${ENABLE_POLONAISE}")
+message(STATUS "ENABLE_CLIENT_LIB: ${ENABLE_CLIENT_LIB}")
 message(STATUS "ENABLE_OFFICIAL_BUILD: ${ENABLE_OFFICIAL_BUILD}")
 # end of LizardFS options values
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")

@@ -22,6 +22,7 @@
 
 #include "common/syslog_defs.h"
 
+extern "C" {
 /// Returns true iff lzfs_*log functions print messages to stderr.
 bool lzfs_is_printf_enabled();
 
@@ -54,3 +55,4 @@ void lzfs_silent_syslog(int priority, const char* format, ...)
 
 void lzfs_silent_errlog(int priority, const char* format, ...)
 		__attribute__ ((__format__ (__printf__, 2, 3)));
+} // extern "C"

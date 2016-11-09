@@ -17,6 +17,7 @@
 #define DATA_PATH "@DATA_PATH@"
 #define ETC_PATH "@ETC_PATH@"
 #define SBIN_PATH "@SBIN_PATH@"
+#define LIB_PATH "@LIB_PATH@"
 
 #define DEFAULT_USER "@DEFAULT_USER@"
 #define DEFAULT_GROUP "@DEFAULT_GROUP@"

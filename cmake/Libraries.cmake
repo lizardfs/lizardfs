@@ -160,5 +160,9 @@ find_package(DB 11.2.5.2)
 
 # Find Intel Storage Acceleration library
 find_library(ISAL_LIBRARY isal)
+find_library(ISAL_PIC_LIBRARY isal.so)
+if (NOT ISAL_PIC_LIBRARY_FOUND)
+  find_library(ISAL_PIC_LIBRARY isal_pic)
+endif()
 message(STATUS "ISAL(Intel Storage Acceleration) LIBRARY: ${ISAL_LIBRARY}")
-
+message(STATUS "ISAL PIC LIBRARY: ${ISAL_PIC_LIBRARY}")
