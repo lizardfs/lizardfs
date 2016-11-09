@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -112,9 +112,15 @@ int master_register(int rfd, uint32_t cuid) {
 	return 0;
 }
 
-static dev_t current_device = 0;
-static int current_master = -1;
-static uint32_t masterversion = 0;
+#ifdef LIZARDFS_HAVE_THREAD_LOCAL
+static thread_local dev_t current_device = 0;
+static thread_local int current_master = -1;
+static thread_local uint32_t masterversion = 0;
+#else
+static __thread dev_t current_device = 0;
+static __thread int current_master = -1;
+static __thread uint32_t masterversion = 0;
+#endif
 
 int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t needsamedev,
 					 uint8_t needrwfs) {

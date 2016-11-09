@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -25,17 +25,58 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <math.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "common/human_readable_format.h"
 #include "common/mfserr.h"
+#include "common/server_connection.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 
 uint8_t humode = 0;
 
 const char *eattrtab[EATTR_BITS] = {EATTR_STRINGS};
 const char *eattrdesc[EATTR_BITS] = {EATTR_DESCRIPTIONS};
+
+void signalHandler(uint32_t job_id) {
+	sigset_t set;
+	uint32_t msgid = 0;
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGUSR1);
+	int sig;
+	sigwait(&set, &sig);
+	if (sig == SIGINT || sig == SIGTERM || sig == SIGHUP) {
+		uint32_t inode;
+		int fd = open_master_conn(".", &inode, nullptr, 0, 0);
+		if (fd < 0) {
+			printf("Connection to master failed\n");
+			return;
+		}
+		try {
+			auto request = cltoma::stopTask::build(msgid, job_id);
+			auto response = ServerConnection::sendAndReceive(fd, request,
+					LIZ_MATOCL_STOP_TASK);
+			uint8_t status;
+			matocl::stopTask::deserialize(response, msgid, status);
+			if (status == LIZARDFS_STATUS_OK) {
+				printf("Task has been cancelled\n");
+			} else {
+				printf("Task could not be found\n");
+			}
+			close_master_conn(0);
+		} catch (Exception &e) {
+			fprintf(stderr, "%s\n", e.what());
+			close_master_conn(1);
+			return;
+		}
+	}
+}
 
 bool check_usage(std::function<void()> f, bool expressionExpectedToBeFalse, const char *format, ...) {
 	if (expressionExpectedToBeFalse) {

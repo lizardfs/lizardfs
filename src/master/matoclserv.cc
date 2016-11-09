@@ -2522,7 +2522,8 @@ void matoclserv_fuse_recursive_remove(matoclserventry *eptr, const uint8_t *data
 	uint8_t status;
 
 	std::string name;
-	cltoma::recursiveRemove::deserialize(data, length, msgid, parent_inode, name, uid, gid);
+	uint32_t job_id;
+	cltoma::recursiveRemove::deserialize(data, length, msgid, job_id, parent_inode, name, uid, gid);
 
 	status = matoclserv_check_group_cache(eptr, gid);
 	if (status == LIZARDFS_STATUS_OK) {
@@ -2530,7 +2531,7 @@ void matoclserv_fuse_recursive_remove(matoclserventry *eptr, const uint8_t *data
 
 		status = fs_recursive_remove(context, parent_inode, HString(name),
 					    std::bind(matoclserv_fuse_recursive_remove_wake_up,
-				      eptr->sesdata->sessionid, msgid, std::placeholders::_1));
+				      eptr->sesdata->sessionid, msgid, std::placeholders::_1), job_id);
 	}
 	if (status != LIZARDFS_ERROR_WAITING) {
 		matoclserv_createpacket(eptr, matocl::recursiveRemove::build(msgid, status));
@@ -3078,6 +3079,15 @@ void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	}
 }
 
+void matoclserv_fuse_request_task_id(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t msgid, taskid;
+	cltoma::requestTaskId::deserialize(data, length, msgid);
+	taskid = fs_reserve_job_id();
+	MessageBuffer reply;
+	matocl::requestTaskId::serialize(reply, msgid, taskid);
+	matoclserv_createpacket(eptr, reply);
+}
+
 void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	uint8_t gmode;
@@ -3542,60 +3552,51 @@ void matoclserv_fuse_append(matoclserventry *eptr, const uint8_t *data, uint32_t
 	put8bit(&ptr,status);
 }
 
-void matoclserv_fuse_snapshot_wake_up(uint32_t session_id, uint32_t msgid, int status) {
+void matoclserv_fuse_snapshot_wake_up(uint32_t type, uint32_t session_id, uint32_t msgid, int status) {
 	matoclserventry *eptr = matoclserv_find_connection(session_id);
 	if (!eptr) {
 		return;
 	}
 
-	uint8_t *ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_SNAPSHOT, 5);
-	put32bit(&ptr, msgid);
-	put8bit(&ptr, status);
+	MessageBuffer buffer;
+	if (type == LIZ_CLTOMA_FUSE_SNAPSHOT) {
+		matocl::snapshot::serialize(buffer, msgid, status);
+	} else {
+		serializeMooseFsPacket(buffer, MATOCL_FUSE_SNAPSHOT, msgid, status);
+	}
+	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
-void matoclserv_fuse_snapshot(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+void matoclserv_fuse_snapshot(matoclserventry *eptr, PacketHeader header, const uint8_t *data) {
 	uint32_t inode, inode_dst;
-	uint8_t nleng_dst;
-	const uint8_t *name_dst;
 	uint32_t uid, gid;
 	uint8_t canoverwrite;
 	uint32_t msgid;
-	uint8_t *ptr;
 	uint8_t status;
-	if (length < 22) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ")", length);
-		eptr->mode = KILL;
-		return;
-	}
-	msgid = get32bit(&data);
-	inode = get32bit(&data);
-	inode_dst = get32bit(&data);
-	nleng_dst = get8bit(&data);
-	if (length != 22U + nleng_dst) {
-		syslog(LOG_NOTICE,
-		       "CLTOMA_FUSE_SNAPSHOT - wrong size (%" PRIu32 ":nleng_dst=%" PRIu8 ")",
-		       length, nleng_dst);
-		eptr->mode = KILL;
-		return;
-	}
-	name_dst = data;
-	data += nleng_dst;
-	uid = get32bit(&data);
-	gid = get32bit(&data);
-	canoverwrite = get8bit(&data);
+	uint32_t job_id;
+	MooseFsString<uint8_t> name_dst;
 
+	if (header.type == CLTOMA_FUSE_SNAPSHOT) {
+		deserializeAllMooseFsPacketDataNoHeader(data, header.length,
+				msgid, inode, inode_dst, name_dst, uid, gid, canoverwrite);
+		job_id = fs_reserve_job_id();
+	} else if (header.type == LIZ_CLTOMA_FUSE_SNAPSHOT) {
+		cltoma::snapshot::deserialize(data, header.length, msgid, job_id, inode,
+					      inode_dst, name_dst, uid, gid, canoverwrite);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown packet type for matoclserv_fuse_snapshot: " +
+				std::to_string(header.type));
+	}
 	status = matoclserv_check_group_cache(eptr, gid);
 	if (status == LIZARDFS_STATUS_OK) {
 		FsContext context = matoclserv_get_context(eptr, uid, gid);
-		status = fs_snapshot(context, inode, inode_dst, HString((char*)name_dst, nleng_dst),
-	                     canoverwrite,
-	                     std::bind(matoclserv_fuse_snapshot_wake_up, eptr->sesdata->sessionid,
-	                               msgid, std::placeholders::_1));
+		status = fs_snapshot(context, inode, inode_dst, HString(std::move(name_dst)),
+		                     canoverwrite, std::bind(matoclserv_fuse_snapshot_wake_up, header.type,
+		                     eptr->sesdata->sessionid, msgid, std::placeholders::_1), job_id);
 	}
 	if (status != LIZARDFS_ERROR_WAITING) {
-		ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_SNAPSHOT, 5);
-		put32bit(&ptr, msgid);
-		put8bit(&ptr, status);
+		matoclserv_fuse_snapshot_wake_up(header.type, eptr->sesdata->sessionid, msgid, status);
 	}
 }
 
@@ -4143,11 +4144,6 @@ void matoclserv_list_tasks(matoclserventry *eptr) {
 void matoclserv_stop_task(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t job_id, msgid;
 	uint8_t status;
-	if (eptr->registered != ClientState::kAdmin) {
-		syslog(LOG_NOTICE, "Stopping execution of tasks is available only for registered admins");
-		eptr->mode = KILL;
-		return;
-	}
 	cltoma::stopTask::deserialize(data, length, msgid, job_id);
 	status = fs_cancel_job(job_id);
 	matoclserv_createpacket(eptr, matocl::stopTask::build(msgid, status));
@@ -4829,7 +4825,8 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_repair(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_SNAPSHOT:
-					matoclserv_fuse_snapshot(eptr,data,length);
+				case LIZ_CLTOMA_FUSE_SNAPSHOT:
+					matoclserv_fuse_snapshot(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_GETEATTR:
 					matoclserv_fuse_geteattr(eptr,data,length);
@@ -4918,6 +4915,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case LIZ_CLTOMA_RECURSIVE_REMOVE:
 					matoclserv_fuse_recursive_remove(eptr, data, length);
 					break;
+				case LIZ_CLTOMA_REQUEST_TASK_ID:
+					matoclserv_fuse_request_task_id(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_STOP_TASK:
+					matoclserv_stop_task(eptr, data, length);
+					break;
 				case LIZ_CLTOMA_UPDATE_CREDENTIALS:
 					matoclserv_update_credentials(eptr, data, length);
 					break;
@@ -4970,7 +4973,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_repair(eptr,data,length);
 					break;
 				case CLTOMA_FUSE_SNAPSHOT:
-					matoclserv_fuse_snapshot(eptr,data,length);
+					matoclserv_fuse_snapshot(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_GETEATTR:
 					matoclserv_fuse_geteattr(eptr,data,length);

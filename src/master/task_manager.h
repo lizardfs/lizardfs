@@ -126,6 +126,7 @@ public:
 	 *
 	 * Submitting task creates Job object which contains data of original
 	 * task and all tasks that were created during execution.
+	 * \param job_id id of the created Job
 	 * \param ts current time stamp.
 	 * \param initial_batch_size initial number of tasks to be processed
 	 *                           before putting the Job on the list
@@ -136,6 +137,15 @@ public:
 	 *                 finished after completing the 'initial_batch_size'
 	 *                 number of tasks.
 	 * \return Value representing the status.
+	 */
+	int submitTask(uint32_t job_id, uint32_t ts, int initial_batch_size, Task *task,
+		       const std::string &description, const std::function<void(int)> &callback);
+
+	/*! \brief Submit task to be enqueued and executed by TaskManager.
+	 *
+	 * Calls submitTask declared above without specifying job_id.
+	 * This version is used by Tasks which do not support cancelling
+	 * their execution.
 	 */
 	int submitTask(uint32_t ts, int initial_batch_size, Task *task,
 		       const std::string &description, const std::function<void(int)> &callback);
@@ -149,14 +159,19 @@ public:
 	 */
 	void processJobs(uint32_t ts, int number_of_tasks);
 
+	/*! \brief Get information about all currently executed Job. */
 	JobsInfoContainer getCurrentJobsInfo() const;
 
+	/*! \brief Stop execution of a Job specified by given id. */
 	bool cancelJob(uint32_t job_id);
 
 	bool workAvailable() const {
 		return !job_list_.empty();
 	}
 
+	uint32_t reserveJobId() {
+		return next_job_id_++;
+	}
 private:
 	JobContainer job_list_; /*!< List with Jobs to execute. */
 	uint32_t next_job_id_;

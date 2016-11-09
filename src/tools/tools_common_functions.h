@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -58,6 +58,8 @@ int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t ne
 					 uint8_t needrwfs);
 void close_master_conn(int err);
 void force_master_conn_close();
+
+void signalHandler(uint32_t job_id);
 
 inline void print_numberformat_options() {
 	fprintf(stderr, " -n - show numbers in plain format\n");

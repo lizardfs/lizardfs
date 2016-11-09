@@ -1070,7 +1070,8 @@ uint8_t fs_unlink(const FsContext &context, uint32_t parent, const HString &name
 }
 
 uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent,
-			    const HString &name, const std::function<void(int)> &callback) {
+			    const HString &name, const std::function<void(int)> &callback,
+			    uint32_t job_id) {
 	ChecksumUpdater cu(context.ts());
 	FSNode *wd_tmp;
 
@@ -1095,7 +1096,7 @@ uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent,
 	std::string node_name;
 
 	fsnodes_getpath(static_cast<FSNodeDirectory*>(wd_tmp), child, node_name);
-	return gMetadata->task_manager.submitTask(context.ts(), kInitialTaskBatchSize,
+	return gMetadata->task_manager.submitTask(job_id, context.ts(), kInitialTaskBatchSize,
 	                                          task, RemoveTask::generateDescription(node_name),
 	                                          callback);
 }
@@ -2877,4 +2878,9 @@ uint8_t fs_cancel_job(uint32_t job_id) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 }
+
+uint32_t fs_reserve_job_id() {
+	return gMetadata->task_manager.reserveJobId();
+}
+
 #endif

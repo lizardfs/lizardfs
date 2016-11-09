@@ -1791,10 +1791,11 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_MANAGE_LOCKS_UNLOCK (1000U + 582U)
 /// status:8
 
-// 0x062F
+// 0x62F
 #define LIZ_CLTOMA_WHOLE_PATH_LOOKUP (1000U + 583U)
 /// msgid:32 inode:32 name:NAME uid:32 gid:32
 
+// 0x630
 #define LIZ_MATOCL_WHOLE_PATH_LOOKUP (1000U + 584U)
 /// msgid:32 status:8
 /// msgid:32 inode:32 attr:35B
@@ -1829,6 +1830,22 @@ enum class SugidClearMode {
 
 // 0x638
 #define LIZ_MATOCL_STOP_TASK (1000U + 592U)
+/// msgid:32 status:8
+
+// 0x639
+#define LIZ_CLTOMA_REQUEST_TASK_ID (1000U + 593U)
+/// msgid:32
+
+// 0x63A
+#define LIZ_MATOCL_REQUEST_TASK_ID (1000U + 594U)
+/// msgid:32 taskid:32
+
+// 0x63B
+#define LIZ_CLTOMA_FUSE_SNAPSHOT (1000U + 595U)
+/// msgid:32 jobid:32 inode:32 inode_dst:32 name_dst:NAME uid:32 gid:32 canoverwrite:8
+
+// 0x63C
+#define LIZ_MATOCL_FUSE_SNAPSHOT (1000U + 596U)
 /// msgid:32 status:8
 
 // CHUNKSERVER STATS

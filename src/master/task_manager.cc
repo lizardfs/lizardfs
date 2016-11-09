@@ -52,9 +52,9 @@ JobInfo TaskManager::Job::getInfo() const {
 	return { id_, description_ };
 }
 
-int TaskManager::submitTask(uint32_t ts, int initial_batch_size, Task *task,
-			    const std::string &description, const std::function<void(int)> &callback) {
-	Job new_job(next_job_id_++, description);
+int TaskManager::submitTask(uint32_t taskid, uint32_t ts, int initial_batch_size, Task *task,
+	                    const std::string &description, const std::function<void(int)> &callback) {
+	Job new_job(taskid, description);
 
 	int done = 0;
 	int status = LIZARDFS_STATUS_OK;
@@ -81,6 +81,11 @@ int TaskManager::submitTask(uint32_t ts, int initial_batch_size, Task *task,
 	job_list_.push_back(std::move(new_job));
 
 	return LIZARDFS_ERROR_WAITING;
+}
+
+int TaskManager::submitTask(uint32_t ts, int initial_batch_size, Task *task,
+	                    const std::string &description, const std::function<void(int)> &callback) {
+	return submitTask(reserveJobId(), ts, initial_batch_size, task, description, callback);
 }
 
 void TaskManager::processJobs(uint32_t ts, int number_of_tasks) {

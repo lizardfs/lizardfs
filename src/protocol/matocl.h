@@ -433,6 +433,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, msgid,
 		uint8_t, status)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, requestTaskId, LIZ_MATOCL_REQUEST_TASK_ID, 0,
+		uint32_t, msgid,
+		uint32_t, taskid)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, snapshot, LIZ_MATOCL_FUSE_SNAPSHOT, 0,
+		uint32_t, msgid,
+		uint8_t, status)
+
 namespace matocl {
 
 namespace fuseReadChunk {

@@ -336,6 +336,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, wholePathLookup, LIZ_CLTOMA_WHOLE_P
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, recursiveRemove, LIZ_CLTOMA_RECURSIVE_REMOVE, 0,
 		uint32_t, msgid,
+		uint32_t, jobId,
 		uint32_t, inode,
 		std::string, file_name,
 		uint32_t, uid,
@@ -357,6 +358,21 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, stopTask, LIZ_CLTOMA_STOP_TASK, 0,
 		uint32_t, msgid,
 		uint32_t, taskid)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, requestTaskId, LIZ_CLTOMA_REQUEST_TASK_ID, 0,
+		uint32_t, msgid)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, snapshot, LIZ_CLTOMA_FUSE_SNAPSHOT, 0,
+		uint32_t, msgid,
+		uint32_t, jobid,
+		uint32_t, inode,
+		uint32_t, inode_dst,
+		std::string, name_dst,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint8_t, canoverwrite)
 
 namespace cltoma {
 

@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2016 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -21,14 +21,23 @@
 
 #include <errno.h>
 #include <limits.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
 #include "common/datapack.h"
+#include "common/lambda_guard.h"
+#include "common/moosefs_string.h"
 #include "common/server_connection.h"
+#include "protocol/cltoma.h"
+#include "protocol/matocl.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
+
+static int kDefaultTimeout = 60 * 1000;              // default timeout (60 seconds)
+static int kInfiniteTimeout = 10 * 24 * 3600 * 1000; // simulate infinite timeout (10 days)
+
 
 static void snapshot_usage() {
 	fprintf(stderr,
@@ -38,80 +47,70 @@ static void snapshot_usage() {
 }
 
 static int make_snapshot(const char *dstdir, const char *dstbase, const char *srcname,
-						 uint32_t srcinode, uint8_t canoverwrite, int long_wait) {
-	uint8_t reqbuff[8 + 22 + 255], *wptr, *buff;
-	const uint8_t *rptr;
-	uint32_t cmd, leng, dstinode, uid, gid;
-	uint32_t nleng;
+	                 uint32_t srcinode, uint8_t canoverwrite, int long_wait) {
+	uint32_t nleng, dstinode, uid, gid;
+	uint8_t status;
+	uint32_t msgid = 0, job_id;
 	int fd;
+
+	sigset_t set;
+	sigemptyset(&set);
+	sigaddset(&set, SIGINT);
+	sigaddset(&set, SIGTERM);
+	sigaddset(&set, SIGHUP);
+	sigaddset(&set, SIGUSR1);
+	sigprocmask(SIG_BLOCK, &set, NULL);
+
 	nleng = strlen(dstbase);
 	if (nleng > 255) {
 		printf("%s: name too long\n", dstbase);
 		return -1;
 	}
+
 	fd = open_master_conn(dstdir, &dstinode, NULL, 0, 1);
 	if (fd < 0) {
 		return -1;
 	}
+
 	uid = getuid();
 	gid = getgid();
-	wptr = reqbuff;
-	put32bit(&wptr, CLTOMA_FUSE_SNAPSHOT);
-	put32bit(&wptr, 22 + nleng);
-	put32bit(&wptr, 0);
-	put32bit(&wptr, srcinode);
-	put32bit(&wptr, dstinode);
-	put8bit(&wptr, nleng);
-	memcpy(wptr, dstbase, nleng);
-	wptr += nleng;
-	put32bit(&wptr, uid);
-	put32bit(&wptr, gid);
-	put8bit(&wptr, canoverwrite);
-	if (tcpwrite(fd, reqbuff, 30 + nleng) != (int32_t)(30 + nleng)) {
-		printf("%s->%s/%s: master query: send error\n", srcname, dstdir, dstbase);
+
+	printf("Creating snapshot: %s -> %s/%s ...\n", srcname, dstdir, dstbase);
+	try {
+		auto request = cltoma::requestTaskId::build(msgid);
+		auto response = ServerConnection::sendAndReceive(fd, request,
+				LIZ_MATOCL_REQUEST_TASK_ID,
+				ServerConnection::ReceiveMode::kReceiveFirstNonNopMessage,
+				long_wait ? kInfiniteTimeout : kDefaultTimeout);
+		matocl::requestTaskId::deserialize(response, msgid, job_id);
+
+		std::thread signal_thread(std::bind(signalHandler, job_id));
+
+		/* destructor of LambdaGuard will send SIGUSR1 signal in order to
+		 * return from signalHandler function and join thread */
+		auto join_guard = makeLambdaGuard([&signal_thread]() {
+			kill(getpid(), SIGUSR1);
+			signal_thread.join();
+		});
+		request = cltoma::snapshot::build(msgid, job_id, srcinode, dstinode, MooseFsString<uint8_t>(dstbase), uid, gid, canoverwrite);
+		response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SNAPSHOT,
+				ServerConnection::ReceiveMode::kReceiveFirstNonNopMessage,
+				long_wait ? kInfiniteTimeout : kDefaultTimeout);
+		matocl::snapshot::deserialize(response, msgid, status);
+
+		close_master_conn(0);
+
+		if (status == LIZARDFS_STATUS_OK) {
+			printf("Snapshot %s -> %s/%s completed\n", srcname, dstdir, dstbase);
+			return 0;
+		} else {
+			printf("Snapshot %s -> %s/%s:\n returned error status %d: %s\n", srcname, dstdir, dstbase, status, mfsstrerr(status));
+			return -1;
+		}
+
+	} catch (Exception &e) {
+		fprintf(stderr, "%s\n", e.what());
 		close_master_conn(1);
-		return -1;
-	}
-	if (tcptoread(fd, reqbuff, 8, long_wait ? -1 : 60000) != 8) {
-		printf("%s->%s/%s: master query: receive error\n", srcname, dstdir, dstbase);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = reqbuff;
-	cmd = get32bit(&rptr);
-	leng = get32bit(&rptr);
-	if (cmd != MATOCL_FUSE_SNAPSHOT) {
-		printf("%s->%s/%s: master query: wrong answer (type)\n", srcname, dstdir, dstbase);
-		close_master_conn(1);
-		return -1;
-	}
-	buff = (uint8_t *)malloc(leng);
-	// snapshot can take long time to finish so we increase timeout
-	if (tcptoread(fd, buff, leng, 60 * 1000) != (int32_t)leng) {
-		printf("%s->%s/%s: master query: receive error\n", srcname, dstdir, dstbase);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	rptr = buff;
-	cmd = get32bit(&rptr);  // queryid
-	if (cmd != 0) {
-		printf("%s->%s/%s: master query: wrong answer (queryid)\n", srcname, dstdir, dstbase);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	leng -= 4;
-	if (leng != 1) {
-		printf("%s->%s/%s: master query: wrong answer (leng)\n", srcname, dstdir, dstbase);
-		free(buff);
-		close_master_conn(1);
-		return -1;
-	}
-	close_master_conn(0);
-	if (*rptr != 0) {
-		printf("%s -> %s/%s: %s\n", srcname, dstdir, dstbase, mfsstrerr(*rptr));
-		free(buff);
 		return -1;
 	}
 	return 0;

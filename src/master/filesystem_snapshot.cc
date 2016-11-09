@@ -28,8 +28,8 @@
 static const int kInitialSnapshotTaskBatch = 1000;
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-					const HString &name_dst, uint8_t can_overwrite,
-			const std::function<void(int)> &callback) {
+	            const HString &name_dst, uint8_t can_overwrite,
+	            const std::function<void(int)> &callback, uint32_t job_id) {
 	ChecksumUpdater cu(context.ts());
 	FSNode *src_node = nullptr;
 	FSNode *dst_parent_node = nullptr;
@@ -71,7 +71,7 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 	}
 	dst_path += name_dst;
 
-	return gMetadata->task_manager.submitTask(context.ts(), kInitialSnapshotTaskBatch,
+	return gMetadata->task_manager.submitTask(job_id, context.ts(), kInitialSnapshotTaskBatch,
 						  task, SnapshotTask::generateDescription(src_path, dst_path),
 						  callback);
 }

@@ -43,6 +43,9 @@
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
 
+uint8_t fs_cancel_job(uint32_t job_id);
+uint32_t fs_reserve_job_id();
+
 /// Returns version of the loaded metadata.
 uint64_t fs_getversion();
 
@@ -123,7 +126,7 @@ uint8_t fs_mknod(const FsContext &context,uint32_t parent,const HString &name,ui
 uint8_t fs_mkdir(const FsContext &context,uint32_t parent,const HString &name,uint16_t mode,uint16_t umask,uint8_t copysgid,uint32_t *inode,Attributes& attr);
 uint8_t fs_repair(const FsContext &context,uint32_t inode,uint8_t correct_only,uint32_t *notchanged,uint32_t *erased,uint32_t *repaired);
 uint8_t fs_rmdir(const FsContext &context,uint32_t parent,const HString &name);
-uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent, const HString &name, const std::function<void(int)> &callback);
+uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent, const HString &name, const std::function<void(int)> &callback, uint32_t job_id = fs_reserve_job_id());
 uint8_t fs_readdir_size(const FsContext &context,uint32_t inode,uint8_t flags,void **dnode,uint32_t *dbuffsize);
 void fs_readdir_data(const FsContext &context,uint8_t flags,void *dnode,uint8_t *dbuff);
 uint8_t fs_readdir(const FsContext &context, uint32_t inode, uint64_t first_entry, uint64_t number_of_entries,
@@ -240,9 +243,6 @@ const Goal& fs_get_goal_definition(uint8_t goalId);
 
 /// Return info about currently executed tasks
 std::vector<JobInfo> fs_get_current_tasks_info();
-
-uint8_t fs_cancel_job(uint32_t job_id);
-
 // Disable saving metadata on exit
 void fs_disable_metadata_dump_on_exit();
 
