@@ -98,6 +98,9 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_makesnapshot);
+		LIZARDFS_LINK_FUNCTION(lizardfs_getgoal);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setgoal);
+
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -392,4 +395,34 @@ LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, In
 	auto ret = lizardfs_makesnapshot_(ctx, src_inode, dst_inode, dst_name, can_overwrite);
 	ec = make_error_code(ret.first);
 	return ret.second;
+}
+
+std::string Client::getgoal(const Context &ctx, Inode inode) {
+	std::error_code ec;
+	std::string res = getgoal(ctx, inode, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return res;
+}
+
+std::string Client::getgoal(const Context &ctx, Inode inode, std::error_code &ec) {
+	std::string goal;
+	int ret = lizardfs_getgoal_(ctx, inode, goal);
+	ec = make_error_code(ret);
+	return goal;
+}
+
+void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode) {
+	std::error_code ec;
+	setgoal(ctx, inode, goal_name, smode, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_name,
+	             uint8_t smode, std::error_code &ec) {
+	int ret = lizardfs_setgoal_(ctx, inode, goal_name, smode);
+	ec = make_error_code(ret);
 }

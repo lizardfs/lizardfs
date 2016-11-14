@@ -2918,3 +2918,76 @@ uint8_t fs_makesnapshot(uint32_t src_inode, uint32_t dst_inode, const std::strin
 		return LIZARDFS_ERROR_IO;
 	}
 }
+
+
+uint8_t fs_getgoal(uint32_t inode, std::string &goal) {
+	threc *rec = fs_get_my_threc();
+
+	goal.clear();
+	auto message = cltoma::fuseGetGoal::build(rec->packetId, inode, GMODE_NORMAL);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GETGOAL, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::fuseGetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			uint32_t dummy_message_id;
+			matocl::fuseGetGoal::deserialize(message, dummy_message_id, status);
+			return status;
+		} else if (packet_version == matocl::fuseGetGoal::kResponsePacketVersion) {
+			std::vector<FuseGetGoalStats> goalsStats;
+			uint32_t messageId;
+			matocl::fuseGetGoal::deserialize(message, messageId, goalsStats);
+			if (goalsStats.size() != 1) {
+				return LIZARDFS_ERROR_EINVAL;
+			}
+			goal = goalsStats[0].goalName;
+			return LIZARDFS_STATUS_OK;
+		} else {
+			return LIZARDFS_ERROR_EINVAL;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_GETGOAL", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+uint8_t fs_setgoal(uint32_t inode, uint32_t uid, const std::string &goal_name, uint8_t smode) {
+	threc *rec = fs_get_my_threc();
+
+	auto message = cltoma::fuseSetGoal::build(rec->packetId, inode, uid, goal_name, smode);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SETGOAL, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::fuseSetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			uint32_t dummy_message_id;
+			matocl::fuseSetGoal::deserialize(message, dummy_message_id, status);
+			return status;
+		} else if (packet_version == matocl::fuseSetGoal::kResponsePacketVersion) {
+			return LIZARDFS_STATUS_OK;
+		} else {
+			return LIZARDFS_ERROR_EINVAL;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_SETGOAL", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}

@@ -98,6 +98,28 @@ std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(Context ctx, Inode ino
 	}
 }
 
+int lizardfs_getgoal(LizardClient::Context ctx, LizardClient::Inode ino, std::string &goal) {
+	try {
+		goal = LizardClient::getgoal(ctx, ino);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
+	try {
+		LizardClient::setgoal(ctx, ino, goal_name, smode);
+		return LIZARDFS_STATUS_OK;
+	} catch (RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 std::pair<int, ReadCache::Result> lizardfs_read(Context ctx, Inode ino, size_t size, off_t off,
 	                                        FileInfo *fi) {
 	try {

@@ -2874,6 +2874,35 @@ JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &
 	return job_id;
 }
 
+std::string getgoal(Context ctx, Inode ino) {
+	if (IS_SPECIAL_INODE(ino)) {
+		oplog_printf(ctx, "getgoal (%lu): %s",
+				(unsigned long)ino, strerr(EINVAL));
+		throw RequestException(EINVAL);
+	}
+
+	std::string goal;
+	uint8_t status = fs_getgoal(ino, goal);
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+
+	return goal;
+}
+
+void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
+	if (IS_SPECIAL_INODE(ino)) {
+		oplog_printf(ctx, "setgoal (%lu, %s): %s",
+				(unsigned long)ino, goal_name.c_str(), strerr(EINVAL));
+		throw RequestException(EINVAL);
+	}
+
+	uint8_t status = fs_setgoal(ino, ctx.uid, goal_name, smode);
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+}
+
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,

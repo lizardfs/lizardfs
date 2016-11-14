@@ -339,3 +339,29 @@ int liz_makesnapshot(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, liz
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }
+
+int liz_getgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, char *goal_name) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	std::string goal = client.getgoal(context, inode, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	size_t copied = goal.copy(goal_name, LIZARDFS_MAX_GOAL_NAME - 1);
+	goal_name[copied] = '\0';
+
+	return 0;
+}
+
+int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const char *goal_name,
+	        int is_recursive) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.setgoal(context, inode, goal_name, is_recursive ? SMODE_RMASK : 0, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+

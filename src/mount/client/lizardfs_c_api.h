@@ -23,6 +23,8 @@
 extern "C" {
 #endif
 
+#define LIZARDFS_MAX_GOAL_NAME 64
+
 typedef uint32_t liz_inode_t;
 typedef int liz_err_t;
 struct liz;
@@ -273,6 +275,27 @@ int liz_rmdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const cha
  */
 int liz_makesnapshot(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, liz_inode_t dst_parent,
 	             const char *dst_name, int can_overwrite, uint32_t *job_id);
+
+/*! \brief Get file goal
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a file
+ * \param goal_name buffer to be filled with goal, must be at least LIZARDFS_MAX_GOAL_NAME long
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_getgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, char *goal_name);
+
+/*! \brief Set file goal
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a file
+ * \param goal_name goal name to be set
+ * \param is_recursive if true, operation will apply to all subdirectories and files within them
+ * \param job_id id of setgoal task, can be used to cancel it, can be NULL
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const char *goal_name,
+	        int is_recursive);
 
 #ifdef __cplusplus
 } // extern "C"

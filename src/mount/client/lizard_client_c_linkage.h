@@ -64,5 +64,7 @@ std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(LizardClient::Context 
 	                                                  LizardClient::Inode dst_parent,
 	                                                  const std::string &dst_name,
 	                                                  bool can_overwrite);
+int lizardfs_getgoal(LizardClient::Context ctx, LizardClient::Inode ino, std::string &goal);
+int lizardfs_setgoal(LizardClient::Context ctx, LizardClient::Inode ino, const std::string &goal_name, uint8_t smode);
 
 } // extern "C"

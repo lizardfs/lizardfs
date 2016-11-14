@@ -117,6 +117,14 @@ public:
 	JobId makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
 	                  const std::string &dst_name, bool can_overwrite, std::error_code &ec);
 
+	/*! \brief Get replication goal for a file */
+	std::string getgoal(const Context &ctx, Inode ino);
+	std::string getgoal(const Context &ctx, Inode ino, std::error_code &ec);
+
+	/*! \brief Set replication goal for a file */
+	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode);
+	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode, std::error_code &ec);
+
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name
 	 * \param host - master server connection address
@@ -147,6 +155,8 @@ protected:
 	typedef decltype(&lizardfs_isSpecialInode) IsSpecialInodeFunction;
 	typedef decltype(&lizardfs_update_groups) UpdateGroupsFunction;
 	typedef decltype(&lizardfs_makesnapshot) MakesnapshotFunction;
+	typedef decltype(&lizardfs_getgoal) GetGoalFunction;
+	typedef decltype(&lizardfs_setgoal) SetGoalFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -168,6 +178,8 @@ protected:
 	RmDirFunction lizardfs_rmdir_;
 	MkDirFunction lizardfs_mkdir_;
 	MakesnapshotFunction lizardfs_makesnapshot_;
+	GetGoalFunction lizardfs_getgoal_;
+	SetGoalFunction lizardfs_setgoal_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

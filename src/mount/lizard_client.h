@@ -383,6 +383,8 @@ void remove_dir_info(FileInfo *f);
 
 JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
 	          bool can_overwrite);
+std::string getgoal(Context ctx, Inode ino);
+void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode);
 
 void fs_init(FsInitParams &params);
 void fs_term();
