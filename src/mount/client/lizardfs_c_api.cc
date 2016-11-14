@@ -325,3 +325,17 @@ int liz_rmdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const cha
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }
+
+int liz_makesnapshot(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, liz_inode_t dst_parent,
+	             const char *dst_name, int can_overwrite, uint32_t *job_id) {
+	static_assert(sizeof(LizardClient::JobId) <= sizeof(uint32_t), "JobId type too large");
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	LizardClient::JobId ret = client.makesnapshot(context, inode, dst_parent, dst_name, can_overwrite, ec);
+	if (job_id) {
+		*job_id = ret;
+	}
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}

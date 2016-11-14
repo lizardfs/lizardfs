@@ -2855,6 +2855,25 @@ void flock_recv() {
 	}
 }
 
+JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
+	          bool can_overwrite) {
+	if (IS_SPECIAL_INODE(ino)) {
+		oplog_printf(ctx, "makesnapshot (%lu, %lu, %s): %s",
+				(unsigned long)ino, (unsigned long)dst_parent, dst_name.c_str(), strerr(EINVAL));
+		throw RequestException(EINVAL);
+	}
+
+	JobId job_id;
+	uint8_t status;
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_makesnapshot(ino, dst_parent, dst_name, ctx.uid, ctx.gid, can_overwrite, job_id));
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+
+	return job_id;
+}
+
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,

@@ -85,8 +85,21 @@ int lizardfs_getattr(Context ctx, Inode ino, AttrReply &reply) {
 	}
 }
 
+std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(Context ctx, Inode ino, Inode dst_parent,
+	                                       const std::string &dst_name, bool can_overwrite) {
+	try {
+		LizardClient::JobId job_id = LizardClient::makesnapshot(ctx, ino, dst_parent,
+		                                                        dst_name, can_overwrite);
+		return {LIZARDFS_STATUS_OK, job_id};
+	} catch (RequestException &e) {
+		return {e.lizardfs_error_code, 0};
+	} catch (...) {
+		return {LIZARDFS_ERROR_IO, 0};
+	}
+}
+
 std::pair<int, ReadCache::Result> lizardfs_read(Context ctx, Inode ino, size_t size, off_t off,
-		FileInfo *fi) {
+	                                        FileInfo *fi) {
 	try {
 		return std::pair<int, ReadCache::Result>(
 		        LIZARDFS_STATUS_OK, LizardClient::read(ctx, ino, size, off, fi));

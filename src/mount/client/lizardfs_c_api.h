@@ -261,6 +261,19 @@ int liz_mkdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const cha
  */
 int liz_rmdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name);
 
+/*! \brief Make a snapshot of a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a file
+ * \param dst_parent inode of a new parent directory for a snapshot
+ * \param dst_name name of a newly created snapshot
+ * \param can_overwrite if true, snapshot creation will be able to overwrite existing files
+ * \param job_id id of makesnapshot task, can be used to cancel it, can be NULL
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_makesnapshot(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, liz_inode_t dst_parent,
+	             const char *dst_name, int can_overwrite, uint32_t *job_id);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -16,6 +16,8 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+
 #include "common/platform.h"
 
 #include "client/lizard_client_c_linkage.h"
@@ -34,6 +36,7 @@ namespace lizardfs {
 class Client {
 public:
 	typedef LizardClient::Inode Inode;
+	typedef LizardClient::JobId JobId;
 	typedef LizardClient::AttrReply AttrReply;
 	typedef LizardClient::DirEntry DirEntry;
 	typedef LizardClient::EntryParam EntryParam;
@@ -108,6 +111,12 @@ public:
 	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply);
 	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply, std::error_code &ec);
 
+	/*! \brief Create a snapshot of a file */
+	JobId makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	                  const std::string &dst_name, bool can_overwrite);
+	JobId makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	                  const std::string &dst_name, bool can_overwrite, std::error_code &ec);
+
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name
 	 * \param host - master server connection address
@@ -137,6 +146,7 @@ protected:
 	typedef decltype(&lizardfs_flush) FlushFunction;
 	typedef decltype(&lizardfs_isSpecialInode) IsSpecialInodeFunction;
 	typedef decltype(&lizardfs_update_groups) UpdateGroupsFunction;
+	typedef decltype(&lizardfs_makesnapshot) MakesnapshotFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -157,6 +167,7 @@ protected:
 	ReleaseDirFunction lizardfs_releasedir_;
 	RmDirFunction lizardfs_rmdir_;
 	MkDirFunction lizardfs_mkdir_;
+	MakesnapshotFunction lizardfs_makesnapshot_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

@@ -38,6 +38,7 @@
 namespace LizardClient {
 
 typedef uint32_t Inode;
+typedef uint32_t JobId;
 
 struct FsInitParams {
 	static constexpr const char *kDefaultSubfolder = "/";
@@ -380,8 +381,10 @@ void setlk_interrupt(const lzfs_locks::InterruptData &data);
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);
 
-void fs_init(FsInitParams &params);
+JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
+	          bool can_overwrite);
 
+void fs_init(FsInitParams &params);
 void fs_term();
 
 }

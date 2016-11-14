@@ -97,6 +97,7 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_makesnapshot);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -373,4 +374,22 @@ void Client::flush(const Context &ctx, FileInfo *fileinfo) {
 void Client::flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
 	int ret = lizardfs_flush_(ctx, fileinfo->inode, fileinfo);
 	ec = make_error_code(ret);
+}
+
+LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	                                 const std::string &dst_name, bool can_overwrite) {
+	std::error_code ec;
+	JobId job_id = makesnapshot(ctx, src_inode, dst_inode, dst_name, can_overwrite, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return job_id;
+}
+
+LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	                                 const std::string &dst_name, bool can_overwrite,
+	                                 std::error_code &ec) {
+	auto ret = lizardfs_makesnapshot_(ctx, src_inode, dst_inode, dst_name, can_overwrite);
+	ec = make_error_code(ret.first);
+	return ret.second;
 }

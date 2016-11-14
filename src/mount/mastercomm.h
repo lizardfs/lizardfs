@@ -98,6 +98,9 @@ uint8_t fs_flock_recv();
 void fs_flock_interrupt(const lzfs_locks::InterruptData &data);
 void fs_setlk_interrupt(const lzfs_locks::InterruptData &data);
 
+uint8_t fs_makesnapshot(uint32_t src_inode, uint32_t dst_parent, const std::string &dst_name,
+	                uint32_t uid, uint32_t gid, uint8_t can_overwrite, uint32_t &job_id);
+
 uint8_t fs_custom(MessageBuffer& buffer);
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);
 uint8_t fs_send_custom(MessageBuffer buffer);

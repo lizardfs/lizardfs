@@ -60,5 +60,9 @@ std::pair<int, ssize_t> lizardfs_write(LizardClient::Context ctx, LizardClient::
 int lizardfs_flush(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 bool lizardfs_isSpecialInode(LizardClient::Inode ino);
 int lizardfs_update_groups(LizardClient::Context &ctx);
+std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(LizardClient::Context ctx, LizardClient::Inode ino,
+	                                                  LizardClient::Inode dst_parent,
+	                                                  const std::string &dst_name,
+	                                                  bool can_overwrite);
 
 } // extern "C"

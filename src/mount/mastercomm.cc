@@ -2869,3 +2869,52 @@ uint8_t fs_flock_recv() {
 		return LIZARDFS_ERROR_IO;
 	}
 }
+
+uint8_t fs_makesnapshot(uint32_t src_inode, uint32_t dst_inode, const std::string &dst_parent,
+	                uint32_t uid, uint32_t gid, uint8_t can_overwrite, LizardClient::JobId &job_id) {
+	static const int kBatchSize = 1024;
+	threc *rec = fs_get_my_threc();
+	job_id = 0;
+
+	uint32_t msg_id;
+	MessageBuffer response;
+	auto request = cltoma::requestTaskId::build(rec->packetId);
+	if (!fs_lizcreatepacket(rec, request)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_REQUEST_TASK_ID, response)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		matocl::requestTaskId::deserialize(response, msg_id, job_id);
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_REQUEST_TASK_ID", request.size(), ex.what());
+		job_id = 0;
+		return LIZARDFS_ERROR_IO;
+	}
+
+	request = cltoma::snapshot::build(rec->packetId, job_id, src_inode, dst_inode, dst_parent,
+	                                  uid, gid, can_overwrite, true, kBatchSize);
+
+	if (!fs_lizcreatepacket(rec, request)) {
+		job_id = 0;
+		return LIZARDFS_ERROR_IO;
+	}
+
+	response.clear();
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SNAPSHOT, response)) {
+		job_id = 0;
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		uint8_t status;
+		matocl::snapshot::deserialize(response, msg_id, status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_SNAPSHOT", request.size(), ex.what());
+		job_id = 0;
+		return LIZARDFS_ERROR_IO;
+	}
+}
