@@ -1057,6 +1057,7 @@ static inline uint8_t matoclserv_check_group_cache(matoclserventry *eptr, uint32
 		return LIZARDFS_STATUS_OK;
 	}
 
+	assert(eptr && eptr->sesdata);
 	auto it = eptr->sesdata->group_cache.find(gid ^ kSecondaryGroupsBit);
 	return it == eptr->sesdata->group_cache.end() ? LIZARDFS_ERROR_GROUPNOTREGISTERED : LIZARDFS_STATUS_OK;
 }
@@ -2257,6 +2258,30 @@ void matoclserv_fuse_access(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	put8bit(&ptr,status);
 }
 
+void matoclserv_liz_whole_path_lookup(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t msgid;
+	uint32_t inode, found_inode;
+	std::string path;
+	uint32_t uid, gid;
+	Attributes attr;
+	uint8_t status = LIZARDFS_STATUS_OK;
+
+	cltoma::wholePathLookup::deserialize(data, length, msgid, inode, path, uid, gid);
+
+	status = matoclserv_check_group_cache(eptr, gid);
+	if (status == LIZARDFS_STATUS_OK) {
+		FsContext context = matoclserv_get_context(eptr, uid, gid);
+		status = fs_whole_path_lookup(context, inode, path, &found_inode, attr);
+	}
+
+	if (status != LIZARDFS_STATUS_OK) {
+		matoclserv_createpacket(eptr, matocl::wholePathLookup::build(msgid, status));
+	} else {
+		matoclserv_createpacket(eptr, matocl::wholePathLookup::build(msgid, found_inode, attr));
+	}
+	eptr->sesdata->currentopstats[3]++;
+}
+
 void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t nleng;
@@ -2296,9 +2321,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		put32bit(&ptr,newinode);
 		memcpy(ptr,attr,35);
 	}
-	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[3]++;
-	}
+	eptr->sesdata->currentopstats[3]++;
 }
 
 void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -5061,6 +5084,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_UPDATE_CREDENTIALS:
 					matoclserv_update_credentials(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_WHOLE_PATH_LOOKUP:
+					matoclserv_liz_whole_path_lookup(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);

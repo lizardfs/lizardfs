@@ -119,7 +119,7 @@ bool isSpecialInode(LizardClient::Inode ino);
 
 void update_credentials(int index, const GroupCache::Groups &groups);
 
-EntryParam lookup(Context ctx, Inode parent, const char *name);
+EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_lookup = false);
 
 AttrReply getattr(Context ctx, Inode ino, FileInfo* fi);
 

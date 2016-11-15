@@ -380,6 +380,20 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, manageLocksUnlock, LIZ_MATOCL_MANAGE_LOCKS_UNLOCK, 0,
 		uint8_t, status)
 
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, wholePathLookup, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, wholePathLookup, kResponsePacketVersion, 1)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, wholePathLookup, LIZ_MATOCL_WHOLE_PATH_LOOKUP, kStatusPacketVersion,
+		uint32_t, messageId,
+		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, wholePathLookup, LIZ_MATOCL_WHOLE_PATH_LOOKUP, kResponsePacketVersion,
+		uint32_t, messageId,
+		uint32_t, inode,
+		Attributes, attr)
+
 namespace matocl {
 
 namespace fuseReadChunk {

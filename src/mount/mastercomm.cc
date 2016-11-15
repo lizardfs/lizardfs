@@ -1402,6 +1402,42 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	return ret;
 }
 
+uint8_t fs_whole_path_lookup(uint32_t parent, const std::string &name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
+	threc *rec = fs_get_my_threc();
+	auto message = cltoma::wholePathLookup::build(rec->packetId, parent, name, uid, gid);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_WHOLE_PATH_LOOKUP, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		uint32_t msgid;
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::wholePathLookup::kStatusPacketVersion) {
+			uint8_t status;
+			matocl::wholePathLookup::deserialize(message, msgid, status);
+			if (status == LIZARDFS_STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_WHOLE_PATH_LOOKUP", message.size(),
+				                    "version 0 and LIZARDFS_STATUS_OK");
+				return LIZARDFS_ERROR_IO;
+			}
+			return status;
+		} else if (packet_version == matocl::wholePathLookup::kResponsePacketVersion) {
+			matocl::wholePathLookup::deserialize(message, msgid, *inode, attr);
+			return LIZARDFS_STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_WHOLE_PATH_LOOKUP", message.size(),
+					"unknown version " + std::to_string(packet_version));
+			return LIZARDFS_ERROR_IO;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_WHOLE_PATH_LOOKUP", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
 	uint8_t *wptr;
 	const uint8_t *rptr;

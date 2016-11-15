@@ -1787,6 +1787,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_MANAGE_LOCKS_UNLOCK (1000U + 582U)
 /// status:8
 
+// 0x062F
+#define LIZ_CLTOMA_WHOLE_PATH_LOOKUP (1000U + 583U)
+/// msgid:32 inode:32 name:NAME uid:32 gid:32
+
+#define LIZ_MATOCL_WHOLE_PATH_LOOKUP (1000U + 584U)
+/// msgid:32 status:8
+/// msgid:32 inode:32 attr:35B
+
 // CHUNKSERVER STATS
 
 // 0x0258

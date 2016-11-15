@@ -584,7 +584,7 @@ void access(Context ctx, Inode ino, int mask) {
 	}
 }
 
-EntryParam lookup(Context ctx, Inode parent, const char *name) {
+EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_lookup) {
 	EntryParam e;
 	uint64_t maxfleng;
 	uint32_t inode;
@@ -640,8 +640,13 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 //              oplog_printf(ctx, "lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		stats_inc(OP_LOOKUP);
-		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-		fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr));
+		if (whole_path_lookup) {
+			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_whole_path_lookup(parent, std::string(name, nleng), ctx.uid, ctx.gid, &inode, attr));
+		} else {
+			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr));
+		}
 		status = errorconv_dbg(status);
 		icacheflag = 0;
 	}

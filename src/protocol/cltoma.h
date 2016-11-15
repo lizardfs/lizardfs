@@ -326,6 +326,13 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		lzfs_locks::Type, type,
 		uint32_t, inode)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, wholePathLookup, LIZ_CLTOMA_WHOLE_PATH_LOOKUP, 0,
+		uint32_t, messageId,
+		uint32_t, inode,
+		std::string, name,
+		uint32_t, uid,
+		uint32_t, gid)
+
 namespace cltoma {
 
 namespace fuseReadChunk {

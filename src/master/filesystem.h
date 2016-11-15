@@ -111,6 +111,7 @@ uint8_t fs_writechunk(const FsContext& context, uint32_t inode, uint32_t indx,
 uint8_t fs_set_nextchunkid(const FsContext& context, uint64_t nextChunkId);
 uint8_t fs_access(const FsContext& context,uint32_t inode,int modemask);
 uint8_t fs_lookup(const FsContext &context, uint32_t parent, const HString &name, uint32_t *inode, Attributes &attr);
+uint8_t fs_whole_path_lookup(const FsContext &context, uint32_t parent, const std::string &path, uint32_t *found_inode, Attributes &attr);
 uint8_t fs_getattr(const FsContext &context, uint32_t inode, Attributes &attr);
 uint8_t fs_try_setlength(const FsContext &context, uint32_t inode, uint8_t opened, uint64_t length,
 						 bool denyTruncatingParity,uint32_t lockid,Attributes& attr,uint64_t *chunkid);

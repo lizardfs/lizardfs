@@ -438,6 +438,31 @@ uint8_t fs_lookup(const FsContext &context, uint32_t parent, const HString &name
 	return LIZARDFS_STATUS_OK;
 }
 
+uint8_t fs_whole_path_lookup(const FsContext &context, uint32_t parent, const std::string &path, uint32_t *found_inode, Attributes &attr) {
+	uint8_t status;
+	uint32_t tmp_inode = context.rootinode();
+
+	auto current_it = path.begin();
+	while (current_it != path.end()) {
+		auto delim_it = std::find(current_it, path.end(), '/');
+		if (current_it != delim_it) {
+			HString hstr(current_it, delim_it);
+			status = fs_lookup(context, parent, hstr, &tmp_inode, attr);
+			if (status != LIZARDFS_STATUS_OK) {
+				return status;
+			}
+			parent = tmp_inode;
+		}
+		if (delim_it == path.end()) {
+			break;
+		}
+		current_it = std::next(delim_it);
+	}
+
+	*found_inode = tmp_inode;
+	return LIZARDFS_STATUS_OK;
+}
+
 uint8_t fs_getattr(const FsContext &context, uint32_t inode, Attributes &attr) {
 	FSNode *p;
 
