@@ -19,6 +19,10 @@
 #include "common/platform.h"
 #include "chunkserver/hddspacemgr.h"
 
+#ifdef LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE_IN_LINUX_FALLOC_H
+#  define LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE
+#endif
+
 #if defined(LIZARDFS_HAVE_FALLOCATE) && defined(LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE) && !defined(_GNU_SOURCE)
   #define _GNU_SOURCE
 #endif
@@ -26,6 +30,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#ifdef LIZARDFS_HAVE_FALLOC_FL_PUNCH_HOLE_IN_LINUX_FALLOC_H
+#  include <linux/falloc.h>
+#endif
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
