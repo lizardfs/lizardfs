@@ -146,6 +146,7 @@ endif()
 find_package(Judy)
 if(JUDY_FOUND)
   set(LIZARDFS_HAVE_JUDY YES)
+  set(LIZARDFS_HAVE_WORKING_JUDY1 ${JUDY_HAVE_WORKING_JUDY1})
 endif()
 
 # Find PAM libraries
