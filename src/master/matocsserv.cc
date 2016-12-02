@@ -361,8 +361,16 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 		if (eptr->mode != KILL && eptr->totalspace > 0 &&
 		    eptr->usedspace <= eptr->totalspace &&
 		    (eptr->totalspace - eptr->usedspace) >= MFSCHUNKSIZE) {
-			int64_t weight =
-			        eptr->totalspace / 1024U / 1024U;  // weight = total space in MB
+
+			// A good weight formula will do the following:
+			//   * Agree with the chunk balancing algorithm, i.e. avoid creating a distribution which
+			//     immediately needs to be re-balanced.
+			//   * Be coarse enough that when the cluster is balanced, weights are generally equal.
+			//   * Keep weights constant across the cluster for long enough periods
+			//     that the 'history' can also do its job.
+			//
+			// weight = percent free space
+			const int64_t weight = 100 - (eptr->usedspace * 100 / eptr->totalspace);
 			getter.addServer(eptr, eptr->label, weight, eptr->version);
 		}
 	}
