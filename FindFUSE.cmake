@@ -13,14 +13,24 @@ if(APPLE)
     find_path(FUSE_INCLUDE_DIR "fuse/fuse.h" PATHS ${PC_FUSE_INCLUDE_DIRS} ${PC_FUSE_INCLUDE_DIRS}/..)
   endif()
 else()
-  find_library(FUSE_LIBRARY fuse)
-  find_path(FUSE_INCLUDE_DIR "fuse/fuse.h")
+  # Check if we're on a system which uses librefuse instead of libfuse
+  # (NetBSD and friends).
+  find_library(REFUSE_LIBRARY refuse)
 
-  file(STRINGS "${FUSE_INCLUDE_DIR}/fuse/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
-  string(REGEX REPLACE ".*#define[\t ]+FUSE_MAJOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_major "${fuse_version_str}")
-  string(REGEX REPLACE ".*#define[\t ]+FUSE_MINOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_minor "${fuse_version_str}")
+  if(NOT ${REFUSE_LIBRARY} MATCHES "NOTFOUND")
+    set(FUSE_LIBRARY ${REFUSE_LIBRARY})
+    find_path(FUSE_INCLUDE_DIR "fuse.h")
+    MESSAGE(STATUS "NOTE: This system uses librefuse")
+  else()
+    find_library(FUSE_LIBRARY fuse)
+    find_path(FUSE_INCLUDE_DIR "fuse/fuse.h")
 
-  set(FUSE_VERSION_STRING "${fuse_version_major}.${fuse_version_minor}")
+    file(STRINGS "${FUSE_INCLUDE_DIR}/fuse/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
+    string(REGEX REPLACE ".*#define[\t ]+FUSE_MAJOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_major "${fuse_version_str}")
+    string(REGEX REPLACE ".*#define[\t ]+FUSE_MINOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_minor "${fuse_version_str}")
+
+    set(FUSE_VERSION_STRING "${fuse_version_major}.${fuse_version_minor}")
+  endif()
 endif()
 
 find_package_handle_standard_args(FUSE REQUIRED_VARS FUSE_LIBRARY FUSE_INCLUDE_DIR
