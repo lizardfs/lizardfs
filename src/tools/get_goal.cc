@@ -64,6 +64,7 @@ static int get_goal(const char *fname, uint8_t mode) {
 			}
 			printf("%s: %s\n", fname, goalsStats[0].goalName.c_str());
 		} else {
+			printf("%s:\n", fname);
 			for (FuseGetGoalStats goalStats : goalsStats) {
 				if (goalStats.files > 0) {
 					printf(" files with goal        %s :", goalStats.goalName.c_str());
