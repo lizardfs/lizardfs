@@ -1,5 +1,9 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.10.6) (2016-12-28)
+ - (master) judy library fixes
+ - (master) ARM compilation fixes
+
  * Lizardfs (3.10.4) (2016-10-07)
  - (master) task manager performance improvements
  - (master) trash fixes
