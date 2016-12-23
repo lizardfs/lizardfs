@@ -15,12 +15,18 @@ cd "$(dirname "$0")"
 mkdir -p build-pack
 cd build-pack
 rm -f CMakeCache.txt
+
+if [ -z $LIZARDFS_OFFICIAL_BUILD ]; then
+	LIZARDFS_OFFICIAL_BUILD=NO
+fi
+
 cmake .. \
 	-DCMAKE_BUILD_TYPE=Release \
 	-DENABLE_TESTS=NO \
 	-DCMAKE_INSTALL_PREFIX=/ \
 	-DENABLE_DEBIAN_PATHS=YES \
 	-DENABLE_DOCS=$doc \
+	-DENABLE_OFFICIAL_BUILD=$LIZARDFS_OFFICIAL_BUILD \
 
 cat >../Makefile <<END
 all:

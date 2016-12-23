@@ -28,16 +28,7 @@ cd "$working_dir/lizardfs"
 # Move service files to debian/
 cp rpm/service-files/* debian/
 
-if [[ ${BUILD_NUMBER:-} && ${OFFICIAL_RELEASE:-} == "false" ]] ; then
-	# Jenkins has called us. Add build number to the package version
-	# and add information about commit to changelog.
-	lizard_version=$(dpkg-parsechangelog | awk '/^Version:/{print $2}')
-	version="${lizard_version}.${BUILD_NUMBER}"
-	dch -D "unstable" -v "$version" "Automatic jenkins build ${BUILD_URL:-}"
-	dch -D "unstable" -a "commit: ${GIT_COMMIT:-}"
-	dch -D "unstable" -a "refspec: ${GERRIT_REFSPEC:-}"
-fi
-
+sed -i '1 s/-devel//g' debian/changelog
 if [[ $use_systemd == 0 ]]; then
 	dpkg-buildpackage -uc -us -F -R'debian/rules-nosystemd'
 else
