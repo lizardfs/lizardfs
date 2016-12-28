@@ -30,6 +30,12 @@ set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h
     syslog.h unistd.h stdbool.h isa-l/erasure_code.h
 )
 
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+   set(CMAKE_REQUIRED_INCLUDES "/usr/local/include" "/usr/include")
+   include_directories("/usr/local/include")
+endif()
+
+check_includes("${INCLUDES}")
 
 TEST_BIG_ENDIAN(BIG_ENDIAN)
 if(BIG_ENDIAN)

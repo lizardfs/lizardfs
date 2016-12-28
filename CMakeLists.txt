@@ -127,7 +127,6 @@ endif()
 include(EnvTests.cmake)
 include(Libraries)
 include(GNUInstallDirs)
-check_includes("${INCLUDES}")
 
 # Disable -pedantic for old gcc because of unfounded
 # "no comma at end of enumerator list" warning during crcutil compilation
@@ -228,10 +227,6 @@ if(ENABLE_REQUEST_LOG)
 endif()
 
 set(CHARTS_CSV_CHARTID_BASE 90000)
-
-if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-  include_directories("/usr/local/include")
-endif()
 
 if(THROW_INSTEAD_OF_ABORT)
   add_definitions(-DTHROW_INSTEAD_OF_ABORT)
