@@ -77,7 +77,7 @@ public:
 	int postProcessRead(uint8_t *buffer, const PartsContainer &available_parts) const override {
 		SliceReadPlan::postProcessRead(buffer, available_parts);
 
-		// Count occurences
+		// Count occurrences
 		std::bitset<Goal::Slice::kMaxPartsCount> part_bitset;
 		for (const auto &part : available_parts) {
 			assert(part.getSliceType() == slice_type);

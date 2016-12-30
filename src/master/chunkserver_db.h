@@ -50,7 +50,7 @@ extern std::array<csdbentry *, csdbentry::kMaxIdCount> gIdToCSEntry;
  *
  * \return -1 if chunkserver was already registered.
  *          0 if chunkserver reconnected (is registered in database but with null handle)
- *          1 if chunkserver was succesfuly registered.
+ *          1 if chunkserver was successfully registered.
  */
 int csdb_new_connection(uint32_t ip, uint16_t port, matocsserventry *eptr);
 

@@ -37,6 +37,6 @@ for ((loop_nr=0 ; loop_nr<$((2 * metaservers_nr)); ++loop_nr)); do
 
 	lizardfs_wait_for_all_ready_chunkservers
 
-	MESSAGE="Data missmatch after switching masters $prev_master_id -> $new_master_id" \
+	MESSAGE="Data mismatch after switching masters $prev_master_id -> $new_master_id" \
 			assert_no_diff "$metadata" "$(metadata_print "${info[mount0]}")"
 done

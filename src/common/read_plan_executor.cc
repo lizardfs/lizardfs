@@ -198,7 +198,7 @@ void ReadPlanExecutor::startPrefetchForWave(ExecuteParams &params, int wave) {
  * \param wave_timeout Timeout class keeping time to end of current wave.
  * \param poll_fds Vector with pollfds structures resulting from call to poll system function.
  * \return true on success
- *         false EINTR occured (call to waitForData should be repeated)
+ *         false EINTR occurred (call to waitForData should be repeated)
  */
 bool ReadPlanExecutor::waitForData(ExecuteParams &params, Timeout &wave_timeout,
 		std::vector<pollfd> &poll_fds) {
@@ -308,7 +308,7 @@ void ReadPlanExecutor::executeReadOperations(ExecuteParams &params) {
 		}
 
 		if (!waitForData(params, wave_timeout, poll_fds)) {
-			// EINTR occured - we need to restart poll
+			// EINTR occurred - we need to restart poll
 			continue;
 		}
 

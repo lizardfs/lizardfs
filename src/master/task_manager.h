@@ -114,7 +114,7 @@ public:
 	 * \param initial_batch_size initial number of tasks to be processed
 	 *                           before putting the Job on the list
 	 * \param task Task to be submitted.
-	 * \param callback Callback funtion that will be called when all the
+	 * \param callback Callback function that will be called when all the
 	 *                 tasks related to this sumbmission are finished.
 	 *                 This function is called only if submitted work is not
 	 *                 finished after completing the 'initial_batch_size'
