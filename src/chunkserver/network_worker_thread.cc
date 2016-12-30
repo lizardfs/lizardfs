@@ -1770,7 +1770,7 @@ void NetworkWorkerThread::servePoll() {
 // // .. Will end up with a racy code instead :(
 	if (jobscnt > stats_maxjobscnt) {
 		// A race is possible here, but it won't lead to any serious consequences, in a worst
-		// (and unlikely) case stats_maxjobscnt will be slightly lower then it actually should be
+		// (and unlikely) case stats_maxjobscnt will be slightly lower than it actually should be
 		stats_maxjobscnt = jobscnt;
 	}
 

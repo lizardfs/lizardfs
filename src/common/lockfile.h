@@ -102,7 +102,7 @@ public:
 		kAlreadyLocked /*!< Lockfile was already locked. */
 	};
 
-	/*! \brief Construct exeception.
+	/*! \brief Construct exception.
 	 *
 	 * \param message - custom exception message.
 	 * \param reason - reason this exception was thrown.

@@ -19,10 +19,10 @@ The *#* character starts comments.
 
 The *mfsmount.cfg* file defines the default mountpoint and the default mfsmount
 specific mount options for the mfsmount command. Options can be either stated
-in one line as a comma seperated list of options, or by giving one option per
+in one line as a comma separated list of options, or by giving one option per
 line. Options not mfsmount specific will be ignored.
 
-The default mount point should be listed on a seperate line, giving the full
+The default mount point should be listed on a separate line, giving the full
 path. Lines starting with the *#* character are ignored.
 
 === EXAMPLES

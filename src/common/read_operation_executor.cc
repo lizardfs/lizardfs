@@ -195,20 +195,20 @@ void ReadOperationExecutor::processReadDataMessageReceived() {
 	if (readChunkId != chunkId_) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect chunk ID ";
-		ss << "(got: " << readChunkId << ", excpected: " << chunkId_ << ")";
+		ss << "(got: " << readChunkId << ", expected: " << chunkId_ << ")";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	if (readSize != MFSBLOCKSIZE) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect size ";
-		ss << "(got: " << readSize << ", excpected: " << MFSBLOCKSIZE << ")";
+		ss << "(got: " << readSize << ", expected: " << MFSBLOCKSIZE << ")";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	uint32_t expectedOffset = readOperation_.request_offset + dataBlocksCompleted_ * MFSBLOCKSIZE;
 	if (readOffset != expectedOffset) {
 		std::stringstream ss;
 		ss << "Malformed READ_DATA message from chunkserver, incorrect offset ";
-		ss << "(got: " << readOffset << ", excpected: " << expectedOffset << ")";
+		ss << "(got: " << readOffset << ", expected: " << expectedOffset << ")";
 		throw ChunkserverConnectionException(ss.str(), server_);
 	}
 	setState(kReceivingDataBlock);
