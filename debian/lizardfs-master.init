@@ -79,23 +79,23 @@ case "$1" in
 	start)
 		check_dirs
 		echo "Starting $DESC:"
-		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} $DAEMON_OPTS start
+		$DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS start
 		;;
 
 	stop)
 		echo "Stopping $DESC:"
-		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} stop
+		$DAEMON ${CFGFILE:+-c $CFGFILE} stop
 		;;
 
 	reload|force-reload)
 		echo "Reloading $DESC:"
-		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} reload
+		$DAEMON ${CFGFILE:+-c $CFGFILE} reload
 		;;
 
 	restart)
 		check_dirs
 		echo "Restarting $DESC:"
-		$DAEMON ${LIZARDFSMASTER_CONFIG_FILE:+-c $LIZARDFSMASTER_CONFIG_FILE} restart
+		$DAEMON ${CFGFILE:+-c $CFGFILE} restart
 		;;
 
 	*)

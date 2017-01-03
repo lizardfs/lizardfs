@@ -82,24 +82,24 @@ case "$1" in
 	start)
 		check_dirs
 		echo "Starting $DESC:"
-		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS start
+		$DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS start
 		;;
 
 	stop)
 		echo "Stopping $DESC:"
-		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} stop
+		$DAEMON ${CFGFILE:+-c $CFGFILE} stop
 		;;
 
 	reload|force-reload)
 		check_dirs
 		echo "Reloading $DESC:"
-		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} reload
+		$DAEMON ${CFGFILE:+-c $CFGFILE} reload
 		;;
 
 	restart)
 		check_dirs
 		echo "Restarting $DESC:"
-		$DAEMON ${LIZARDFSCHUNKSERVER_CONFIG_FILE:+-c $LIZARDFSCHUNKSERVER_CONFIG_FILE} $DAEMON_OPTS restart
+		$DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS restart
 		;;
 
 	*)
