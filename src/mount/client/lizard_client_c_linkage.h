@@ -32,7 +32,7 @@
 
 extern "C" {
 
-int lizardfs_fs_init(const LizardClient::FsInitParams &params);
+int lizardfs_fs_init(LizardClient::FsInitParams &params);
 void lizardfs_fs_term();
 int lizardfs_lookup(LizardClient::Context ctx, LizardClient::Inode parent,
 	                                 const char *name, LizardClient::EntryParam &param);
