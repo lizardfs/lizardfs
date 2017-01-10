@@ -158,6 +158,8 @@ liz_fileinfo_t *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
  */
 ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo, off_t offset,
 	         size_t size, char *buffer);
+ssize_t liz_readv(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo, off_t offset,
+	          size_t size, const struct iovec *iov, int iovcnt);
 
 /*! \brief Write bytes to open file
  * \param instance instance returned from liz_init

@@ -22,6 +22,8 @@
 
 #include "lizardfs_c_api.h"
 #include "common/lizardfs_error_codes.h"
+#include "common/small_vector.h"
+#include "mount/client/iovec_traits.h"
 
 #include "client.h"
 
@@ -165,6 +167,21 @@ ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, of
 		return -1;
 	}
 	return ret.copyToBuffer((uint8_t *)buffer, offset, size);
+}
+
+ssize_t liz_readv(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, off_t offset,
+	          size_t size, const struct iovec *iov, int iovcnt) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	auto ret = client.read(context, (Client::FileInfo *)fileinfo, offset, size, ec);
+	if (ec) {
+		gLastErrorCode = ec.value();
+		return -1;
+	}
+	small_vector<struct iovec, 8> reply;
+	ret.toIoVec(reply, offset, size);
+	return copyIoVec(iov, iovcnt, reply.data(), reply.size());
 }
 
 ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, off_t offset,
