@@ -33,6 +33,7 @@ namespace lizardfs {
  *
  * Dynamic library hacks are required, because LizardClient namespace is designed to be a singleton.
  */
+
 class Client {
 public:
 	typedef LizardClient::Inode Inode;
@@ -43,6 +44,14 @@ public:
 	typedef LizardClient::Context Context;
 	typedef std::vector<DirEntry> ReadDirReply;
 	typedef ReadCache::Result ReadResult;
+
+	struct Stats {
+		uint64_t total_space;
+		uint64_t avail_space;
+		uint64_t trash_space;
+		uint64_t reserved_space;
+		uint32_t inodes;
+	};
 
 	struct FileInfo : public LizardClient::FileInfo, public boost::intrusive::list_base_hook<> {
 		FileInfo() {}
@@ -61,11 +70,14 @@ public:
 
 	/*! \brief Find inode in parent directory by name */
 	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param);
-	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param, std::error_code &ec);
+	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param,
+	            std::error_code &ec);
 
 	/*! \brief Create a file with given parent and name */
-	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param);
-	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param, std::error_code &ec);
+	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	           EntryParam &param);
+	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	           EntryParam &param, std::error_code &ec);
 
 	/*! \brief Open a file by inode */
 	FileInfo *open(const Context &ctx, Inode inode, int flags);
@@ -84,20 +96,43 @@ public:
 	void rmdir(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
 
 	/*! \brief Read directory contents */
-	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset, size_t max_entries);
-	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset, size_t max_entries, std::error_code &ec);
+	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+	                     size_t max_entries);
+	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+	                     size_t max_entries, std::error_code &ec);
 
 	/*! \brief Create a directory */
-	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &entry_param);
-	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &entry_param, std::error_code &ec);
+	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	           EntryParam &entry_param);
+	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	           EntryParam &entry_param, std::error_code &ec);
+
+	/*! \brief Unlink a file by parent and name entry */
+	void unlink(const Context &ctx, Inode parent, const std::string &path);
+	void unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
+
+	/*! \brief Rename a file */
+	void rename(const Context &ctx, Inode parent, const std::string &path, Inode new_parent,
+	            const std::string &new_path);
+	void rename(const Context &ctx, Inode parent, const std::string &path, Inode new_parent,
+	            const std::string &new_path, std::error_code &ec);
+
+	/*! \brief Set inode attributes */
+	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	             FileInfo *fileinfo, AttrReply &attr_reply);
+	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	             FileInfo *fileinfo, AttrReply &attr_reply, std::error_code &ec);
 
 	/*! \brief Read bytes from open file, returns read cache result that holds cache lock */
 	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
-	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, std::error_code &ec);
+	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	                std::error_code &ec);
 
 	/*! \brief Write bytes to open file */
-	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer);
-	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer, std::error_code &ec);
+	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	                  const char *buffer);
+	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	                  const char *buffer, std::error_code &ec);
 
 	/*! \brief Release a previously open file */
 	void release(const Context &ctx, FileInfo *fileinfo);
@@ -123,7 +158,14 @@ public:
 
 	/*! \brief Set replication goal for a file */
 	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode);
-	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode, std::error_code &ec);
+	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode,
+	             std::error_code &ec);
+
+	void fsync(const Context &ctx, FileInfo *fileinfo);
+	void fsync(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
+
+	void statfs(Stats &stats);
+	void statfs(Stats &stats, std::error_code &ec);
 
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name
@@ -145,8 +187,10 @@ protected:
 	typedef decltype(&lizardfs_readdir) ReadDirFunction;
 	typedef decltype(&lizardfs_opendir) OpenDirFunction;
 	typedef decltype(&lizardfs_releasedir) ReleaseDirFunction;
+	typedef decltype(&lizardfs_unlink) UnlinkFunction;
 	typedef decltype(&lizardfs_open) OpenFunction;
-	typedef decltype(&lizardfs_getattr) GetattrFunction;
+	typedef decltype(&lizardfs_setattr) SetAttrFunction;
+	typedef decltype(&lizardfs_getattr) GetAttrFunction;
 	typedef decltype(&lizardfs_read) ReadFunction;
 	typedef decltype(&lizardfs_read_special_inode) ReadSpecialInodeFunction;
 	typedef decltype(&lizardfs_write) WriteFunction;
@@ -157,14 +201,24 @@ protected:
 	typedef decltype(&lizardfs_makesnapshot) MakesnapshotFunction;
 	typedef decltype(&lizardfs_getgoal) GetGoalFunction;
 	typedef decltype(&lizardfs_setgoal) SetGoalFunction;
+	typedef decltype(&lizardfs_fsync) FsyncFunction;
+	typedef decltype(&lizardfs_rename) RenameFunction;
+	typedef decltype(&lizardfs_statfs) StatfsFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
 	FsTermFunction lizardfs_fs_term_;
 	LookupFunction lizardfs_lookup_;
 	MknodFunction lizardfs_mknod_;
+	MkDirFunction lizardfs_mkdir_;
+	RmDirFunction lizardfs_rmdir_;
+	ReadDirFunction lizardfs_readdir_;
+	OpenDirFunction lizardfs_opendir_;
+	ReleaseDirFunction lizardfs_releasedir_;
+	UnlinkFunction lizardfs_unlink_;
 	OpenFunction lizardfs_open_;
-	GetattrFunction lizardfs_getattr_;
+	SetAttrFunction lizardfs_setattr_;
+	GetAttrFunction lizardfs_getattr_;
 	ReadFunction lizardfs_read_;
 	ReadSpecialInodeFunction lizardfs_read_special_inode_;
 	WriteFunction lizardfs_write_;
@@ -172,14 +226,12 @@ protected:
 	FlushFunction lizardfs_flush_;
 	IsSpecialInodeFunction lizardfs_isSpecialInode_;
 	UpdateGroupsFunction lizardfs_update_groups_;
-	ReadDirFunction lizardfs_readdir_;
-	OpenDirFunction lizardfs_opendir_;
-	ReleaseDirFunction lizardfs_releasedir_;
-	RmDirFunction lizardfs_rmdir_;
-	MkDirFunction lizardfs_mkdir_;
 	MakesnapshotFunction lizardfs_makesnapshot_;
 	GetGoalFunction lizardfs_getgoal_;
 	SetGoalFunction lizardfs_setgoal_;
+	FsyncFunction lizardfs_fsync_;
+	RenameFunction lizardfs_rename_;
+	StatfsFunction lizardfs_statfs_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

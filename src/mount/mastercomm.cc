@@ -2919,7 +2919,6 @@ uint8_t fs_makesnapshot(uint32_t src_inode, uint32_t dst_inode, const std::strin
 	}
 }
 
-
 uint8_t fs_getgoal(uint32_t inode, std::string &goal) {
 	threc *rec = fs_get_my_threc();
 

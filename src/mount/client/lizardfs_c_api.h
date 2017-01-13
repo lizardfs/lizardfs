@@ -34,38 +34,62 @@ typedef struct liz_fileinfo liz_fileinfo_t;
 struct liz_context;
 typedef struct liz_context liz_context_t;
 
+#define LIZ_SET_ATTR_MODE      (1 << 0)
+#define LIZ_SET_ATTR_UID       (1 << 1)
+#define LIZ_SET_ATTR_GID       (1 << 2)
+#define LIZ_SET_ATTR_SIZE      (1 << 3)
+#define LIZ_SET_ATTR_ATIME     (1 << 4)
+#define LIZ_SET_ATTR_MTIME     (1 << 5)
+#define LIZ_SET_ATTR_ATIME_NOW (1 << 7)
+#define LIZ_SET_ATTR_MTIME_NOW (1 << 8)
+
 enum liz_special_ino {
 	LIZARDFS_INODE_ERROR = 0,
 	LIZARDFS_INODE_ROOT = 1,
 };
 
 /* Basic attributes of a file */
-struct liz_entry {
+typedef struct liz_entry {
 	liz_inode_t ino;
 	unsigned long generation;
 	struct stat attr;
 	double attr_timeout;
 	double entry_timeout;
-};
+} liz_entry_t;
 
 /* Result of setattr/getattr operations */
-struct liz_attr_reply {
+typedef struct liz_attr_reply {
 	struct stat attr;
 	double attr_timeout;
-};
+} liz_attr_reply_t;
 
 /* Basic attributes of a directory */
-struct liz_direntry {
+typedef struct liz_direntry {
 	char *name;
 	struct stat attr;
 	off_t next_entry_offset;
-};
+} liz_direntry_t;
 
 /* Result of getxattr, setxattr and listattr operations */
-struct liz_xattr_reply {
+typedef struct liz_xattr_reply {
 	uint32_t value_length;
 	uint8_t *value_buffer;
-};
+} liz_xattr_reply_t;
+
+/* Result of statfs operation
+ * total_space - total space
+ * avail_space - available space
+ * trash_space - space occupied by trash files
+ * reserved_space - space occupied by reserved files
+ * inodes - number of inodes
+ */
+typedef struct liz_stat {
+	uint64_t total_space;
+	uint64_t avail_space;
+	uint64_t trash_space;
+	uint64_t reserved_space;
+	uint32_t inodes;
+} liz_stat_t;
 
 /*!
  * \brief Create a context for LizardFS operations
@@ -296,6 +320,55 @@ int liz_getgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, char *go
  */
 int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const char *goal_name,
 	        int is_recursive);
+
+/*! \brief Unlink a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param parent parent directory inode
+ * \param name file name
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_unlink(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name);
+
+/*! \brief Set file attributes
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a file
+ * \param stbuf attributes to be set
+ * \param to_set flag which attributes should be set
+ * \param fileinfo descriptor of an open file
+ * \param reply returned value
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf, int to_set,
+	        struct liz_fileinfo *fileinfo, struct liz_attr_reply *reply);
+
+/*! \brief Synchronize file data
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param fileinfo descriptor of an open file
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_fsync(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+
+/*! \brief Rename a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param parent current parent of a file to be moved
+ * \param name name of a file to be moved
+ * \param new_parent inode of a new directory
+ * \param new_name new name of a file to be moved
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_rename(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name,
+	       liz_inode_t new_parent, const char *new_name);
+
+/*! \brief Retrieve file system statistics
+ * \param instance instance returned from liz_init
+ * \param buf structure to be filled with file system statistics
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_statfs(liz_t *instance, liz_stat_t *buf);
 
 #ifdef __cplusplus
 } // extern "C"

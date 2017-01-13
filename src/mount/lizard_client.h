@@ -386,6 +386,8 @@ JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &
 std::string getgoal(Context ctx, Inode ino);
 void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode);
 
+void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, uint64_t *reservedspace, uint32_t *inodes);
+
 void fs_init(FsInitParams &params);
 void fs_term();
 

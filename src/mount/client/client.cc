@@ -83,7 +83,14 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_term);
 		LIZARDFS_LINK_FUNCTION(lizardfs_lookup);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mknod);
+		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_unlink);
 		LIZARDFS_LINK_FUNCTION(lizardfs_open);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_getattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_read);
 		LIZARDFS_LINK_FUNCTION(lizardfs_read_special_inode);
@@ -92,15 +99,12 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_flush);
 		LIZARDFS_LINK_FUNCTION(lizardfs_isSpecialInode);
 		LIZARDFS_LINK_FUNCTION(lizardfs_update_groups);
-		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
-		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
-		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
-		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
-		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_makesnapshot);
 		LIZARDFS_LINK_FUNCTION(lizardfs_getgoal);
 		LIZARDFS_LINK_FUNCTION(lizardfs_setgoal);
-
+		LIZARDFS_LINK_FUNCTION(lizardfs_fsync);
+		LIZARDFS_LINK_FUNCTION(lizardfs_rename);
+		LIZARDFS_LINK_FUNCTION(lizardfs_statfs);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -253,14 +257,39 @@ void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mo
 	          Client::EntryParam &entry_param) {
 	std::error_code ec;
 	mkdir(ctx, parent, path, mode, entry_param, ec);
-	if (ec) {
-		throw std::system_error(ec);
-	}
 }
 
 void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	          Client::EntryParam &entry_param, std::error_code &ec) {
 	int ret = lizardfs_mkdir_(ctx, parent, path.c_str(), mode, entry_param);
+	ec = make_error_code(ret);
+}
+
+void Client::unlink(const Context &ctx, Inode parent, const std::string &path) {
+	std::error_code ec;
+	unlink(ctx, parent, path, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
+	int ret = lizardfs_unlink_(ctx, parent, path.c_str());
+	ec = make_error_code(ret);
+}
+
+void Client::rename(const Context &ctx, Inode parent, const std::string &path, Inode newparent,
+	            const std::string &new_path) {
+	std::error_code ec;
+	rename(ctx, parent, path, newparent, new_path, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::rename(const Context &ctx, Inode parent, const std::string &path, Inode newparent,
+	            const std::string &new_path, std::error_code &ec) {
+	int ret = lizardfs_rename_(ctx, parent, path.c_str(), newparent, new_path.c_str());
 	ec = make_error_code(ret);
 }
 
@@ -300,6 +329,21 @@ void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply) {
 void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply,
 		std::error_code &ec) {
 	int ret = lizardfs_getattr_(ctx, inode, attr_reply);
+	ec = make_error_code(ret);
+}
+
+void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	            FileInfo *fileinfo, AttrReply &attr_reply) {
+	std::error_code ec;
+	setattr(ctx, ino, stbuf, to_set, fileinfo, attr_reply, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	            FileInfo *fileinfo, AttrReply &attr_reply, std::error_code &ec) {
+	int ret = lizardfs_setattr_(ctx, ino, stbuf, to_set, fileinfo, attr_reply);
 	ec = make_error_code(ret);
 }
 
@@ -379,6 +423,19 @@ void Client::flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) 
 	ec = make_error_code(ret);
 }
 
+void Client::fsync(const Context &ctx, FileInfo *fileinfo) {
+	std::error_code ec;
+	fsync(ctx, fileinfo);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::fsync(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
+	int ret = lizardfs_fsync_(ctx, fileinfo->inode, 0, fileinfo);
+	ec = make_error_code(ret);
+}
+
 LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
 	                                 const std::string &dst_name, bool can_overwrite) {
 	std::error_code ec;
@@ -424,5 +481,19 @@ void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_na
 void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_name,
 	             uint8_t smode, std::error_code &ec) {
 	int ret = lizardfs_setgoal_(ctx, inode, goal_name, smode);
+	ec = make_error_code(ret);
+}
+
+void Client::statfs(Stats &stats) {
+	std::error_code ec;
+	statfs(stats, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::statfs(Stats &stats, std::error_code &ec) {
+	int ret = lizardfs_statfs_(&stats.total_space, &stats.avail_space, &stats.trash_space,
+	                 &stats.reserved_space, &stats.inodes);
 	ec = make_error_code(ret);
 }

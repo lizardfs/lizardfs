@@ -63,6 +63,17 @@ int lizardfs_mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev
 	}
 }
 
+int lizardfs_unlink(Context ctx, Inode parent, const char *name) {
+	try {
+		LizardClient::unlink(ctx, parent, name);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_open(Context ctx, Inode ino, FileInfo *fi) {
 	try {
 		LizardClient::open(ctx, ino, fi);
@@ -109,6 +120,17 @@ int lizardfs_getgoal(LizardClient::Context ctx, LizardClient::Inode ino, std::st
 	}
 }
 
+int lizardfs_setattr(Context ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi, AttrReply &reply) {
+	try {
+		reply = LizardClient::setattr(ctx, ino, stbuf, to_set, fi);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
 	try {
 		LizardClient::setgoal(ctx, ino, goal_name, smode);
@@ -127,6 +149,9 @@ std::pair<int, ReadCache::Result> lizardfs_read(Context ctx, Inode ino, size_t s
 		        LIZARDFS_STATUS_OK, LizardClient::read(ctx, ino, size, off, fi));
 	} catch (const RequestException &e) {
 		return std::pair<int, ReadCache::Result>(e.lizardfs_error_code,
+		                                         ReadCache::Result());
+	} catch (...) {
+		return std::pair<int, ReadCache::Result>(LIZARDFS_ERROR_IO,
 		                                         ReadCache::Result());
 	}
 }
@@ -175,6 +200,27 @@ int lizardfs_flush(Context ctx, Inode ino, FileInfo *fi) {
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
+	try {
+		LizardClient::fsync(ctx, ino, datasync, fi);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace,
+	             uint64_t *reservedspace, uint32_t *inodes) {
+	try {
+		LizardClient::statfs(totalspace, availspace, trashspace, reservedspace, inodes);
+		return LIZARDFS_STATUS_OK;
 	} catch (...) {
 		return LIZARDFS_ERROR_IO;
 	}
@@ -241,6 +287,17 @@ int lizardfs_mkdir(Context ctx, Inode parent, const char *name, mode_t mode,
 int lizardfs_rmdir(Context ctx, Inode parent, const char *name) {
 	try {
 		LizardClient::rmdir(ctx, parent, name);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_rename(Context ctx, Inode parent, const char *name, Inode newparent, const char *newname) {
+	try {
+		LizardClient::rename(ctx, parent, name, newparent, newname);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

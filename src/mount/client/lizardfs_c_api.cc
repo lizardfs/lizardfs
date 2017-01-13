@@ -18,6 +18,7 @@
 
 #include "common/platform.h"
 
+#include <cassert>
 #include <system_error>
 
 #include "lizardfs_c_api.h"
@@ -36,6 +37,7 @@ static __thread liz_err_t gLastErrorCode(LIZARDFS_STATUS_OK);
 #endif
 
 static void to_entry(const Client::EntryParam &param, liz_entry *entry) {
+	assert(entry);
 	entry->ino = param.ino;
 	entry->generation = param.generation;
 	entry->attr = param.attr;
@@ -44,8 +46,18 @@ static void to_entry(const Client::EntryParam &param, liz_entry *entry) {
 }
 
 static void to_attr_reply(const Client::AttrReply &attr_reply, liz_attr_reply *reply) {
+	assert(reply);
 	reply->attr = attr_reply.attr;
 	reply->attr_timeout = attr_reply.attrTimeout;
+}
+
+static void to_stat(const Client::Stats &stats, liz_stat_t *buf) {
+	assert(buf);
+	buf->total_space = stats.total_space;
+	buf->avail_space = stats.avail_space;
+	buf->trash_space = stats.trash_space;
+	buf->reserved_space = stats.reserved_space;
+	buf->inodes = stats.inodes;
 }
 
 liz_err_t liz_last_err() {
@@ -365,3 +377,57 @@ int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const ch
 	return ec ? -1 : 0;
 }
 
+int liz_unlink(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.unlink(context, parent, path, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf, int to_set,
+		struct liz_fileinfo *fileinfo, struct liz_attr_reply *reply) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	Client::AttrReply r;
+	std::error_code ec;
+	client.setattr(context, inode, stbuf, to_set, (Client::FileInfo *)fileinfo, r, ec);
+	if (!ec) {
+		to_attr_reply(r, reply);
+	}
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_fsync(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.fsync(context, (Client::FileInfo *)fileinfo, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_rename(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,
+	       liz_inode_t new_parent, const char *new_path) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.rename(context, parent, path, new_parent, new_path, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_statfs(liz_t *instance, liz_stat_t *buf) {
+	Client &client = *(Client *)instance;
+	Client::Stats stats;
+	std::error_code ec;
+	client.statfs(stats, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	to_stat(stats, buf);
+	return 0;
+}

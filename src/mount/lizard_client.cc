@@ -2903,6 +2903,10 @@ void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode
 	}
 }
 
+void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, uint64_t *reservedspace, uint32_t *inodes) {
+	fs_statfs(totalspace, availspace, trashspace, reservedspace, inodes);
+}
+
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,
