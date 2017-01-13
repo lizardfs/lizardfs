@@ -92,6 +92,11 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_flush);
 		LIZARDFS_LINK_FUNCTION(lizardfs_isSpecialInode);
 		LIZARDFS_LINK_FUNCTION(lizardfs_update_groups);
+		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -166,6 +171,92 @@ void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mo
 void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
 		EntryParam &param, std::error_code &ec) {
 	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, 0, param);
+	ec = make_error_code(ret);
+}
+
+Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+		size_t max_entries) {
+	std::error_code ec;
+	auto dir_entries = readdir(ctx, fileinfo, offset, max_entries, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return dir_entries;
+}
+
+Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+		size_t max_entries, std::error_code &ec) {
+	auto ret = lizardfs_readdir_(ctx, fileinfo->inode, offset, max_entries);
+	ec = make_error_code(ret.first);
+	return ret.second;
+}
+
+Client::FileInfo *Client::opendir(const Context &ctx, Inode inode) {
+	std::error_code ec;
+	auto fileinfo = opendir(ctx, inode, ec);
+	if (ec) {
+		assert(!fileinfo);
+		throw std::system_error(ec);
+	}
+	return fileinfo;
+}
+
+Client::FileInfo *Client::opendir(const Context &ctx, Inode inode, std::error_code &ec) {
+	int ret = lizardfs_opendir_(ctx, inode);
+	ec = make_error_code(ret);
+	if (ec) {
+		return nullptr;
+	}
+	FileInfo *fileinfo = new FileInfo(inode);
+	std::lock_guard<std::mutex> guard(mutex_);
+	fileinfos_.push_front(*fileinfo);
+	return fileinfo;
+}
+
+void Client::releasedir(const Context &ctx, FileInfo* fileinfo) {
+	std::error_code ec;
+	releasedir(ctx, fileinfo, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::releasedir(const Context &ctx, FileInfo* fileinfo, std::error_code &ec) {
+	assert(fileinfo != nullptr);
+	int ret = lizardfs_releasedir_(ctx, fileinfo->inode);
+	ec = make_error_code(ret);
+	{
+		std::lock_guard<std::mutex> guard(mutex_);
+		fileinfos_.erase(fileinfos_.iterator_to(*fileinfo));
+	}
+	delete fileinfo;
+}
+
+void Client::rmdir(const Context &ctx, Inode parent, const std::string &path) {
+	std::error_code ec;
+	rmdir(ctx, parent, path, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::rmdir(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
+	int ret = lizardfs_rmdir_(ctx, parent, path.c_str());
+	ec = make_error_code(ret);
+}
+
+void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	          Client::EntryParam &entry_param) {
+	std::error_code ec;
+	mkdir(ctx, parent, path, mode, entry_param, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	          Client::EntryParam &entry_param, std::error_code &ec) {
+	int ret = lizardfs_mkdir_(ctx, parent, path.c_str(), mode, entry_param);
 	ec = make_error_code(ret);
 }
 

@@ -233,3 +233,95 @@ void liz_destroy(liz_t *instance) {
 	Client *client = (Client *)instance;
 	delete client;
 }
+
+struct liz_fileinfo *liz_opendir(liz_t *instance, liz_context_t *ctx, liz_inode_t inode) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	liz_fileinfo *fi = (liz_fileinfo *)client.opendir(context, inode, ec);
+	gLastErrorCode = ec.value();
+	return fi;
+}
+
+int liz_readdir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo,
+		off_t offset, size_t max_entries, struct liz_direntry *buf, size_t *num_entries) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	Client::ReadDirReply reply = client.readdir(context, (Client::FileInfo *)fileinfo,
+	                                            offset, max_entries, ec);
+	*num_entries = 0;
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	if (reply.empty()) {
+		return 0;
+	}
+
+	size_t total_name_size = 0;
+	for (const auto &dir_entry : reply) {
+		total_name_size += dir_entry.name.size() + 1;
+	}
+
+	char *p_namebuf;
+	try {
+		p_namebuf = new char[total_name_size];
+	} catch (...) {
+		gLastErrorCode = ENOMEM;
+		return -1;
+	}
+
+	for (const auto &dir_entry : reply) {
+		buf->name = p_namebuf;
+		buf->attr = dir_entry.attr;
+		buf->next_entry_offset = dir_entry.nextEntryOffset;
+		buf++;
+
+		auto s = dir_entry.name.size();
+		dir_entry.name.copy(p_namebuf, s);
+		p_namebuf[s] = '\0';
+		p_namebuf += s + 1;
+	}
+
+	*num_entries = reply.size();
+	return 0;
+}
+
+void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries) {
+	assert(num_entries > 0);
+	(void)num_entries;
+	delete[] buf->name;
+}
+
+int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.releasedir(context, (Client::FileInfo *)fileinfo, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_mkdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,
+		mode_t mode, struct liz_entry *entry) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	Client::EntryParam entry_param;
+	std::error_code ec;
+	client.mkdir(context, parent, path, mode, entry_param, ec);
+	if (!ec) {
+		to_entry(entry_param, entry);
+	}
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_rmdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.rmdir(context, parent, path, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}

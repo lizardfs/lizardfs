@@ -35,8 +35,10 @@ class Client {
 public:
 	typedef LizardClient::Inode Inode;
 	typedef LizardClient::AttrReply AttrReply;
+	typedef LizardClient::DirEntry DirEntry;
 	typedef LizardClient::EntryParam EntryParam;
 	typedef LizardClient::Context Context;
+	typedef std::vector<DirEntry> ReadDirReply;
 	typedef ReadCache::Result ReadResult;
 
 	struct FileInfo : public LizardClient::FileInfo, public boost::intrusive::list_base_hook<> {
@@ -65,6 +67,26 @@ public:
 	/*! \brief Open a file by inode */
 	FileInfo *open(const Context &ctx, Inode inode, int flags);
 	FileInfo *open(const Context &ctx, Inode inode, int flags, std::error_code &ec);
+
+	/*! \brief Open a directory by inode */
+	FileInfo *opendir(const Context &ctx, Inode ino);
+	FileInfo *opendir(const Context &ctx, Inode ino, std::error_code &ec);
+
+	/*! \brief Release a previously open directory */
+	void releasedir(const Context &ctx, FileInfo* fileinfo);
+	void releasedir(const Context &ctx, FileInfo* fileinfo, std::error_code &ec);
+
+	/*! \brief Remove a directory */
+	void rmdir(const Context &ctx, Inode parent, const std::string &path);
+	void rmdir(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
+
+	/*! \brief Read directory contents */
+	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset, size_t max_entries);
+	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset, size_t max_entries, std::error_code &ec);
+
+	/*! \brief Create a directory */
+	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &entry_param);
+	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &entry_param, std::error_code &ec);
 
 	/*! \brief Read bytes from open file, returns read cache result that holds cache lock */
 	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
@@ -101,6 +123,11 @@ protected:
 	typedef decltype(&lizardfs_fs_term) FsTermFunction;
 	typedef decltype(&lizardfs_lookup) LookupFunction;
 	typedef decltype(&lizardfs_mknod) MknodFunction;
+	typedef decltype(&lizardfs_mkdir) MkDirFunction;
+	typedef decltype(&lizardfs_rmdir) RmDirFunction;
+	typedef decltype(&lizardfs_readdir) ReadDirFunction;
+	typedef decltype(&lizardfs_opendir) OpenDirFunction;
+	typedef decltype(&lizardfs_releasedir) ReleaseDirFunction;
 	typedef decltype(&lizardfs_open) OpenFunction;
 	typedef decltype(&lizardfs_getattr) GetattrFunction;
 	typedef decltype(&lizardfs_read) ReadFunction;
@@ -125,6 +152,11 @@ protected:
 	FlushFunction lizardfs_flush_;
 	IsSpecialInodeFunction lizardfs_isSpecialInode_;
 	UpdateGroupsFunction lizardfs_update_groups_;
+	ReadDirFunction lizardfs_readdir_;
+	OpenDirFunction lizardfs_opendir_;
+	ReleaseDirFunction lizardfs_releasedir_;
+	RmDirFunction lizardfs_rmdir_;
+	MkDirFunction lizardfs_mkdir_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

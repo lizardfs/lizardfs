@@ -343,7 +343,7 @@ void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi);
 
 void opendir(const Context &ctx, Inode ino);
 
-std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t maxEntries);
+std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t max_entries);
 
 void releasedir(const Context &ctx, Inode ino);
 

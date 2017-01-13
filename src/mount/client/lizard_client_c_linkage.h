@@ -37,13 +37,25 @@ void lizardfs_fs_term();
 int lizardfs_lookup(LizardClient::Context ctx, LizardClient::Inode parent,
 	                                 const char *name, LizardClient::EntryParam &param);
 int lizardfs_mknod(LizardClient::Context ctx, LizardClient::Inode parent, const char *name, mode_t mode, dev_t rdev, LizardClient::EntryParam &param);
+int lizardfs_mkdir(LizardClient::Context ctx, LizardClient::Inode parent,
+	                                 const char *name, mode_t mode, LizardClient::EntryParam &entry_param);
+int lizardfs_rmdir(LizardClient::Context ctx, LizardClient::Inode parent, const char *name);
 int lizardfs_open(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
+int lizardfs_opendir(LizardClient::Context ctx, LizardClient::Inode ino);
 int lizardfs_release(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_getattr(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
+
+int lizardfs_releasedir(LizardClient::Context ctx, LizardClient::Inode ino);
+
 std::pair<int, ReadCache::Result> lizardfs_read(LizardClient::Context ctx, LizardClient::Inode ino,
 	                                         size_t size, off_t off, LizardClient::FileInfo* fi);
+
 std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(LizardClient::Context ctx,
 	                    LizardClient::Inode ino, size_t size, off_t off, LizardClient::FileInfo* fi);
+
+std::pair<int, std::vector<LizardClient::DirEntry>> lizardfs_readdir(LizardClient::Context ctx,
+	                    LizardClient::Inode ino, off_t off, size_t max_entries);
+
 std::pair<int, ssize_t> lizardfs_write(LizardClient::Context ctx, LizardClient::Inode ino, const char *buf, size_t size, off_t off, LizardClient::FileInfo* fi);
 int lizardfs_flush(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 bool lizardfs_isSpecialInode(LizardClient::Inode ino);

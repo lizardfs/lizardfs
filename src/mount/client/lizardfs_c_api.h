@@ -54,7 +54,7 @@ struct liz_attr_reply {
 
 /* Basic attributes of a directory */
 struct liz_direntry {
-	const char *name;
+	char *name;
 	struct stat attr;
 	off_t next_entry_offset;
 };
@@ -204,6 +204,62 @@ int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
  * \param instance instance returned from liz_init
  */
 void liz_destroy(liz_t *instance);
+
+/*! \brief Open a directory
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a directory
+ * \return fileinfo descriptor on success, nullptr if failed,
+ *         sets last error code (check with liz_last_err())
+ */
+struct liz_fileinfo *liz_opendir(liz_t *instance, liz_context_t *ctx, liz_inode_t inode);
+
+/*! \brief Read directory entries
+ * \param instance instance returned from liz_init
+ * \param fileinfo descriptor of an open directory
+ * \param offset directory entry offset
+ * \param buf buffer to be filled with readdir data
+ * \param max_entries max number of entries to be returned
+ * \param num_entries upon success set to number of entries returned in buf
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_readdir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo, off_t offset,
+	                         size_t max_entries, struct liz_direntry *buf, size_t *num_entries);
+
+/*! \brief Destroy dir entries placed in an array
+ * \param buf buf argument to previous successful call to liz_readdir
+ * \param num_entries positive *num_entries value after respective liz_readdir() call
+ */
+void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries);
+
+/*! \brief Release a directory
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param fileinfo descriptor of an open directory
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+
+/*! \brief Create a directory
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param parent parent directory inode
+ * \param name directory name
+ * \param mode directory attributes
+ * \param out_entry entry to be filled with new directory data
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_mkdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name,
+		mode_t mode, struct liz_entry *out_entry);
+
+/*! \brief Remove a directory
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param parent parent directory inode
+ * \param name directory name
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_rmdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name);
 
 #ifdef __cplusplus
 } // extern "C"

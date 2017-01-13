@@ -157,6 +157,63 @@ bool lizardfs_isSpecialInode(Inode ino) {
 	return LizardClient::isSpecialInode(ino);
 }
 
+std::pair<int, std::vector<DirEntry>> lizardfs_readdir(Context ctx, Inode ino, off_t off,
+		size_t max_entries) {
+	try {
+		auto ret = LizardClient::readdir(ctx, ino, off, max_entries);
+		return {LIZARDFS_STATUS_OK, ret};
+	} catch (const RequestException &e) {
+		return {e.lizardfs_error_code, std::vector<DirEntry>()};
+	} catch (...) {
+		return {LIZARDFS_ERROR_IO, std::vector<DirEntry>()};
+	}
+}
+
+int lizardfs_opendir(Context ctx, Inode ino) {
+	try {
+		LizardClient::opendir(ctx, ino);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_releasedir(Context ctx, Inode ino) {
+	try {
+		LizardClient::releasedir(ctx, ino);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_mkdir(Context ctx, Inode parent, const char *name, mode_t mode,
+		EntryParam &entry_param) {
+	try {
+		entry_param = LizardClient::mkdir(ctx, parent, name, mode);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_rmdir(Context ctx, Inode parent, const char *name) {
+	try {
+		LizardClient::rmdir(ctx, parent, name);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_update_groups(LizardClient::Context &ctx) {
 	try {
 		LizardClient::updateGroups(ctx);
