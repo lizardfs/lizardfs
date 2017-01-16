@@ -78,6 +78,10 @@ else()
 	set(PACKAGE_VERSION_SUFFIX "")
 endif()
 
+if(ENABLE_CLIENT_LIB)
+	set(ENABLE_PIC_TARGETS ON)
+endif()
+
 project(lizardfs)
 set(PACKAGE_VERSION_MAJOR 3)
 set(PACKAGE_VERSION_MINOR 12)

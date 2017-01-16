@@ -23,6 +23,7 @@ include(CheckStructHasMember)
 include(CheckSymbolExists)
 include(CheckTypeSize)
 include(TestBigEndian)
+include(SharedLibraries)
 
 set(INCLUDES arpa/inet.h fcntl.h inttypes.h limits.h netdb.h
     netinet/in.h stddef.h stdlib.h string.h sys/mman.h
