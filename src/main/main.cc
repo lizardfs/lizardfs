@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <ios>
 #include <pwd.h>
 #include <signal.h>
 #include <stdio.h>
@@ -1172,9 +1173,24 @@ void usage(const char *appname) {
 "-u : log undefined config variables\n"
 "-t locktimeout : how long wait for lockfile\n"
 "-c cfgfile : use given config file\n"
+"-p pidfile : write pid to given file\n"
 "-o extra_option : module specific extra option\n"
 	,appname);
 	exit(LIZARDFS_EXIT_STATUS_ERROR);
+}
+
+void makePidFile(const std::string &name) {
+	if (name.empty()) {
+		return;
+	}
+
+	std::ofstream ofs(name, std::ios_base::out | std::ios_base::trunc);
+	if (ofs.fail()) {
+		lzfs_pretty_syslog(LOG_WARNING, "failed to create pid file: %s",
+				name.c_str());
+		return;
+	}
+	ofs << std::to_string(getpid()) << std::endl;
 }
 
 int main(int argc,char **argv) {
@@ -1188,6 +1204,7 @@ int main(int argc,char **argv) {
 	struct rlimit rls;
 	std::string default_cfgfile = ETC_PATH "/" STR(APPNAME) ".cfg";
 	std::string cfgfile = default_cfgfile;
+	std::string pidfile;
 
 	prepareEnvironment();
 	strerr_init();
@@ -1199,7 +1216,7 @@ int main(int argc,char **argv) {
 	lockmemory = 0;
 	appname = argv[0];
 
-	while ((ch = getopt(argc, argv, "o:c:dht:uvx?")) != -1) {
+	while ((ch = getopt(argc, argv, "o:c:p:dht:uvx?")) != -1) {
 		switch(ch) {
 			case 'v':
 				printf("version: %s\n",LIZARDFS_PACKAGE_VERSION);
@@ -1215,6 +1232,9 @@ int main(int argc,char **argv) {
 				break;
 			case 'c':
 				cfgfile = optarg;
+				break;
+			case 'p':
+				pidfile = optarg;
 				break;
 			case 'u':
 				logundefined=1;
@@ -1259,6 +1279,7 @@ int main(int argc,char **argv) {
 		} else {
 			set_signal_handlers(0);
 		}
+		makePidFile(pidfile);
 	}
 
 	if (cfg_load(cfgfile.c_str(), logundefined)==0) {
