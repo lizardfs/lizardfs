@@ -171,8 +171,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		// Wait for limit to be assigned
 		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, maxWaitTime);
 		if (status != LIZARDFS_STATUS_OK) {
-			syslog(LOG_WARNING, "Replication bandwidth limiting error: %s", mfsstrerr(status));
-			return;
+			throw Exception("Replication limiting error", status);
 		}
 
 		// Build and execute the plan
