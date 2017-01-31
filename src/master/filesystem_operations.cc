@@ -1357,6 +1357,11 @@ uint8_t fs_rename(const FsContext &context, uint32_t parent_src, const HString &
 		return LIZARDFS_ERROR_EINVAL;
 	}
 	FSNode *de_child = fsnodes_lookup(static_cast<FSNodeDirectory*>(dwd), name_dst);
+
+	if (de_child == se_child) {
+		return LIZARDFS_STATUS_OK;
+	}
+
 	if (de_child) {
 		if (de_child->type == FSNode::kDirectory && !static_cast<FSNodeDirectory*>(de_child)->entries.empty()) {
 			return LIZARDFS_ERROR_ENOTEMPTY;
