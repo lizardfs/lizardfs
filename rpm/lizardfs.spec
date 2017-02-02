@@ -81,6 +81,13 @@ Requires:       bash-completion
 %description client
 LizardFS client: mfsmount and mfstools.
 
+%package lib-client
+Summary:        LizardFS client C/C++ library
+Group:          Development/Libraries
+
+%description lib-client
+LizardFS client library for C/C++ bindings.
+
 %package cgi
 Summary:        LizardFS CGI Monitor
 Group:          System Environment/Daemons
@@ -422,6 +429,16 @@ rm -rf $RPM_BUILD_ROOT
 %{liz_confdir}/mfsmount.cfg.dist
 %{liz_confdir}/iolimits.cfg.dist
 %{_sysconfdir}/bash_completion.d/lizardfs
+
+%files lib-client
+%if "%{distro}" != "el6"
+%{_libdir}/liblizardfsmount_shared.so
+%{_libdir}/liblizardfs-client.so
+%{_libdir}/liblizardfs-client-cpp.a
+%{_libdir}/liblizardfs-client.a
+%{_includedir}/lizardfs/lizardfs_c_api.h
+%{_includedir}/lizardfs/lizardfs_error_codes.h
+%endif
 
 %files cgi
 %defattr(644,root,root,755)

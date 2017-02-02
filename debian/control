@@ -66,6 +66,12 @@ Provides: mfs-client
 Description: LizardFS client
  LizardFS clients: mfsmount and mfstools.
 
+Package: lizardfs-lib-client
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: LizardFS client C/C++ library
+ LizardFS client library for C/C++ bindings.
+
 Package: lizardfs-adm
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}

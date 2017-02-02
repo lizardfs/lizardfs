@@ -16,9 +16,11 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <string>
 #include "common/platform.h"
-#include "client_error_code.h"
 #include "common/mfserr.h"
+
+#include "client_error_code.h"
 
 lizardfs::detail::lizardfs_error_category lizardfs::detail::lizardfs_error_category::instance_;
 
