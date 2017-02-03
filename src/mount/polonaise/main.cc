@@ -674,11 +674,11 @@ public:
 					size,
 					offset,
 					getFileInfo(descriptor));
-			small_vector<struct iovec, 8> reply;
+			small_vector<std::pair<void *, std::size_t>, 8> reply;
 			result.toIoVec(reply, offset, size);
 			for (const auto &iov : reply) {
-				const char *base = (const char *)iov.iov_base;
-				_return.append(base, base + iov.iov_len);
+				const char *base = (const char *)iov.first;
+				_return.append(base, base + iov.second);
 			}
 		}
 		OPERATION_EPILOG
