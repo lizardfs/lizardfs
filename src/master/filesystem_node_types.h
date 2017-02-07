@@ -60,7 +60,7 @@ enum class AclInheritance { kInheritAcl, kDontInheritAcl };
 // Arguments for verify_session
 enum class SessionType { kNotMeta, kOnlyMeta, kAny };
 enum class OperationMode { kReadWrite, kReadOnly };
-enum class ExpectedNodeType { kFile, kDirectory, kNotDirectory, kAny };
+enum class ExpectedNodeType { kFile, kDirectory, kNotDirectory, kFileOrDirectory, kAny };
 
 typedef std::unordered_map<uint32_t, uint32_t> TrashtimeMap;
 typedef std::array<uint32_t, GoalId::kMax + 1> GoalStatistics;

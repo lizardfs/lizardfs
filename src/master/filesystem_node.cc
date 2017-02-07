@@ -1610,14 +1610,17 @@ uint8_t verify_session(const FsContext &context, OperationMode operationMode,
  * Can return a reserved node or a node from trash
  */
 uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeType expectedNodeType,
-					uint8_t modemask, uint32_t inode, FSNode **ret) {
+					uint8_t modemask, uint32_t inode, FSNode **ret, FSNodeDirectory **ret_rn) {
 	FSNode *p;
+	FSNodeDirectory *rn;
 	if (!context.hasSessionData()) {
+		rn = nullptr;
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
 	} else if (context.rootinode() == SPECIAL_INODE_ROOT || (context.rootinode() == 0)) {
+		rn = gMetadata->root;
 		p = fsnodes_id_to_node(inode);
 		if (!p) {
 			return LIZARDFS_ERROR_ENOENT;
@@ -1626,7 +1629,7 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 			return LIZARDFS_ERROR_EPERM;
 		}
 	} else {
-		FSNodeDirectory *rn = fsnodes_id_to_node<FSNodeDirectory>(context.rootinode());
+		rn = fsnodes_id_to_node<FSNodeDirectory>(context.rootinode());
 		if (!rn || rn->type != FSNode::kDirectory) {
 			return LIZARDFS_ERROR_ENOENT;
 		}
@@ -1652,11 +1655,18 @@ uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeTyp
 	    (p->type != FSNode::kReserved) && (p->type != FSNode::kTrash)) {
 		return LIZARDFS_ERROR_EPERM;
 	}
+	if ((expectedNodeType == ExpectedNodeType::kFileOrDirectory) && (p->type != FSNode::kDirectory)
+		&& (p->type != FSNode::kFile) && (p->type != FSNode::kReserved) && (p->type != FSNode::kTrash)) {
+		return LIZARDFS_ERROR_EPERM;
+	}
 	if (context.canCheckPermissions() &&
 	    !fsnodes_access(p, context.uid(), context.gid(), modemask, context.sesflags())) {
 		return LIZARDFS_ERROR_EACCES;
 	}
 	*ret = p;
+	if (ret_rn) {
+		*ret_rn = rn;
+	}
 	return LIZARDFS_STATUS_OK;
 }
 

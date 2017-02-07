@@ -61,9 +61,8 @@ static void fs_remove_invisible_quota_entries(uint32_t root_inode, std::vector<Q
 	results.erase(it, results.end());
 }
 
-uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t root_inode, uint32_t uid,
-		std::vector<QuotaEntry> &results) {
-	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+uint8_t fs_quota_get_all(const FsContext &context, std::vector<QuotaEntry> &results) {
+	if (context.uid() != 0 && !(context.sesflags() & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return LIZARDFS_ERROR_EPERM;
 	}
 	results = gMetadata->quota_database.getEntriesWithStats();
@@ -89,25 +88,25 @@ uint8_t fs_quota_get_all(uint8_t sesflags, uint32_t root_inode, uint32_t uid,
 		}
 	}
 
-	fs_remove_invisible_quota_entries(root_inode, results);
+	fs_remove_invisible_quota_entries(context.rootinode(), results);
 
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_quota_get(uint8_t sesflags, uint32_t root_inode, uint32_t uid, uint32_t gid,
+uint8_t fs_quota_get(const FsContext &context,
 		const std::vector<QuotaOwner> &owners, std::vector<QuotaEntry> &results) {
 	std::vector<QuotaEntry> tmp;
 	FSNodeDirectory *node;
 	for (const QuotaOwner &owner : owners) {
-		if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+		if (context.uid() != 0 && !(context.sesflags() & SESFLAG_ALLCANCHANGEQUOTA)) {
 			switch (owner.ownerType) {
 			case QuotaOwnerType::kUser:
-				if (uid != owner.ownerId) {
+				if (context.uid() != owner.ownerId) {
 					return LIZARDFS_ERROR_EPERM;
 				}
 				break;
 			case QuotaOwnerType::kGroup:
-				if (gid != owner.ownerId && !(sesflags & SESFLAG_IGNOREGID)) {
+				if (context.gid() != owner.ownerId && !(context.sesflags() & SESFLAG_IGNOREGID)) {
 					return LIZARDFS_ERROR_EPERM;
 				}
 				break;
@@ -116,7 +115,7 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t root_inode, uint32_t uid, uint32
 				if (!node || node->type != FSNode::kDirectory) {
 					return LIZARDFS_ERROR_EINVAL;
 				}
-				if (node->uid != uid || (node->gid != gid && !(sesflags & SESFLAG_IGNOREGID))) {
+				if (node->uid != context.uid() || (node->gid != context.gid() && !(context.sesflags() & SESFLAG_IGNOREGID))) {
 					return LIZARDFS_ERROR_EPERM;
 				}
 				break;
@@ -143,7 +142,7 @@ uint8_t fs_quota_get(uint8_t sesflags, uint32_t root_inode, uint32_t uid, uint32
 		}
 	}
 
-	fs_remove_invisible_quota_entries(root_inode, tmp);
+	fs_remove_invisible_quota_entries(context.rootinode(), tmp);
 	results = std::move(tmp);
 
 	return LIZARDFS_STATUS_OK;
@@ -193,7 +192,7 @@ static void fsnodes_getpath(uint32_t root_inode, FSNode *node, std::string &ret)
 	}
 }
 
-uint8_t fs_quota_get_info(uint32_t root_inode, const std::vector<QuotaEntry> &entries,
+uint8_t fs_quota_get_info(const FsContext &context, const std::vector<QuotaEntry> &entries,
 		std::vector<std::string> &result) {
 	std::string info;
 
@@ -203,7 +202,7 @@ uint8_t fs_quota_get_info(uint32_t root_inode, const std::vector<QuotaEntry> &en
 		if (entry.entryKey.owner.ownerType == QuotaOwnerType::kInode) {
 			FSNode *node = fsnodes_id_to_node(entry.entryKey.owner.ownerId);
 			if (node) {
-				fsnodes_getpath(root_inode, node, info);
+				fsnodes_getpath(context.rootinode(), node, info);
 			}
 		}
 		result.push_back(info);
@@ -211,17 +210,17 @@ uint8_t fs_quota_get_info(uint32_t root_inode, const std::vector<QuotaEntry> &en
 	return LIZARDFS_STATUS_OK;
 }
 
-uint8_t fs_quota_set(uint8_t sesflags, uint32_t uid, const std::vector<QuotaEntry> &entries) {
+uint8_t fs_quota_set(const FsContext &context, const std::vector<QuotaEntry> &entries) {
 	static const char rigor_name[3] = {'S', 'H', 'U'};
 	static const char resource_name[2] = {'I', 'S'};
 	static const char owner_name[3] = {'U', 'G', 'I'};
 
 	uint32_t ts = main_time();
 	ChecksumUpdater cu(ts);
-	if (sesflags & SESFLAG_READONLY) {
+	if (context.sesflags() & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
 	}
-	if (uid != 0 && !(sesflags & SESFLAG_ALLCANCHANGEQUOTA)) {
+	if (context.uid() != 0 && !(context.sesflags() & SESFLAG_ALLCANCHANGEQUOTA)) {
 		return LIZARDFS_ERROR_EPERM;
 	}
 	for (const QuotaEntry &entry : entries) {

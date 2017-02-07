@@ -107,6 +107,7 @@ public:
 	 * Returns original (not remapped) gid.
 	 */
 	uint32_t agid() const {
+		assert(hasUidGidData_);
 		return agid_;
 	}
 
@@ -114,6 +115,7 @@ public:
 	 * Returns original (not remapped) uid.
 	 */
 	uint32_t auid() const {
+		assert(hasUidGidData_);
 		return auid_;
 	}
 
@@ -121,6 +123,7 @@ public:
 	 * Returns (remapped) gid.
 	 */
 	uint32_t gid() const {
+		assert(hasUidGidData_);
 		return gid_;
 	}
 
@@ -165,6 +168,7 @@ public:
 	 * Returns 0 in case of meta session.
 	 */
 	uint32_t rootinode() const {
+		assert(hasSessionData_);
 		return rootinode_;
 	}
 
@@ -172,6 +176,7 @@ public:
 	 * Returns session flags.
 	 */
 	uint8_t sesflags() const {
+		assert(hasSessionData_);
 		return sesflags_;
 	}
 
@@ -187,6 +192,7 @@ public:
 	 * Returns (remapped) uid.
 	 */
 	uint32_t uid() const {
+		assert(hasUidGidData_);
 		return uid_;
 	}
 

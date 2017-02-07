@@ -128,7 +128,7 @@ uint8_t verify_session(const FsContext &context, OperationMode operationMode,
 	SessionType sessionType);
 
 uint8_t fsnodes_get_node_for_operation(const FsContext &context, ExpectedNodeType expectedNodeType,
-	uint8_t modemask, uint32_t inode, FSNode **ret);
+	uint8_t modemask, uint32_t inode, FSNode **ret, FSNodeDirectory **ret_rn = nullptr);
 uint8_t fsnodes_undel(uint32_t ts, FSNodeFile *node);
 
 int fsnodes_namecheck(const std::string &name);
