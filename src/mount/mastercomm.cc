@@ -1950,6 +1950,27 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 	return ret;
 }
 
+uint8_t fs_update_credentials(uint32_t key, const GroupCache::Groups &gids) {
+	threc* rec = fs_get_my_threc();
+	std::vector<uint8_t> message;
+	cltoma::updateCredentials::serialize(message, rec->packetId, key, gids);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_UPDATE_CREDENTIALS, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		uint32_t msgid;
+		matocl::updateCredentials::deserialize(message, msgid, status);
+		return status;
+	} catch (Exception& ex) {
+		setDisconnect(true);
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 void fs_release(uint32_t inode) {
 	fs_dec_acnt(inode);
 }

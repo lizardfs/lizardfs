@@ -19,10 +19,10 @@
 #pragma once
 #include "common/platform.h"
 
+#include <cstdint>
 #include <sys/types.h>
 
 #ifdef _WIN32
-#include <cstdint>
 typedef uint32_t uid_t;
 typedef uint32_t gid_t;
 #endif

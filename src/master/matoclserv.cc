@@ -4316,7 +4316,7 @@ void matoclserv_fuse_locks_interrupt(matoclserventry *eptr, const uint8_t *data,
 
 void matoclserv_update_credentials(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t messageId, index;
-	std::vector<uint32_t> gids;
+	FsContext::GroupsContainer gids;
 
 	cltoma::updateCredentials::deserialize(data, length, messageId, index, gids);
 

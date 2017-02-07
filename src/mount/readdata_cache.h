@@ -32,7 +32,7 @@
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
-#include "common/slogger.h"
+
 class ReadCache {
 public:
 	typedef uint64_t Offset;

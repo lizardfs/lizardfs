@@ -27,6 +27,7 @@
 #include "common/acl_type.h"
 #include "common/attributes.h"
 #include "common/chunk_type_with_address.h"
+#include "mount/group_cache.h"
 #include "protocol/packet.h"
 #include "protocol/lock_info.h"
 
@@ -56,6 +57,7 @@ uint8_t fs_getdir(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff
 uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocache,const uint8_t **dbuff,uint32_t *dbuffsize);
 
 uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint8_t attr[35]);
+uint8_t fs_update_credentials(uint32_t key, const GroupCache::Groups &gids);
 void fs_release(uint32_t inode);
 
 uint8_t fs_readchunk(uint32_t inode,uint32_t indx,uint64_t *length,uint64_t *chunkid,uint32_t *version,const uint8_t **csdata,uint32_t *csdatasize);

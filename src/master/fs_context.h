@@ -24,6 +24,7 @@
 
 #include "common/small_vector.h"
 #include "common/special_inode_defs.h"
+#include "protocol/cltoma.h"
 #include "protocol/MFSCommunication.h"
 #include "master/personality.h"
 
@@ -34,7 +35,7 @@
  */
 class FsContext {
 public:
-	typedef small_vector<uint32_t, 16> GroupsContainer;
+	typedef cltoma::updateCredentials::GroupsContainer GroupsContainer;
 
 	/**
 	 * Returns object suitable for use by metarestore or the shadow master.

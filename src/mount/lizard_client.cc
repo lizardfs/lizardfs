@@ -85,6 +85,42 @@ namespace LizardClient {
 		|| strcmp(SPECIAL_FILE_NAME_OPHISTORY,(name))==0 || strcmp(SPECIAL_FILE_NAME_TWEAKS,(name))==0 \
 		|| strcmp(SPECIAL_FILE_NAME_FILE_BY_INODE,(name))==0))
 
+static GroupCache gGroupCache;
+
+#define RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, group_id, function_expression) \
+		do { \
+			const uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31; \
+			status = function_expression; \
+			if (status == LIZARDFS_ERROR_GROUPNOTREGISTERED) { \
+				uint32_t index = group_id ^ kSecondaryGroupsBit; \
+				GroupCache::Groups groups = gGroupCache.findByIndex(index); \
+				if (!groups.empty()) { \
+					update_credentials(index, groups); \
+					status = function_expression; \
+				} \
+			} \
+		} while (0);
+
+int updateGroups(const GroupCache::Groups &groups) {
+	static const uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31;
+
+	auto result = gGroupCache.find(groups);
+	uint32_t gid = 0;
+	uint32_t index;
+	if (result.found == false) {
+		try {
+			index = gGroupCache.put(groups);
+			LizardClient::update_credentials(index, groups);
+			gid = index | kSecondaryGroupsBit;
+		} catch (LizardClient::RequestException &e) {
+			lzfs_pretty_syslog(LOG_ERR, "Cannot update groups: %d", e.errNo);
+		}
+	} else {
+		gid = result.index | kSecondaryGroupsBit;
+	}
+	return gid;
+}
+
 Inode getSpecialInodeByName(const char *name) {
 	if (strcmp(name, SPECIAL_FILE_NAME_MASTERINFO) == 0) {
 		return SPECIAL_INODE_MASTERINFO;
@@ -541,7 +577,8 @@ void access(Context ctx, Inode ino, int mask) {
 		}
 		return;
 	}
-	status = fs_access(ino,ctx.uid,ctx.gid,mmode);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_access(ino,ctx.uid,ctx.gid,mmode));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		throw RequestException(status);
@@ -590,7 +627,8 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 		if (endptr == nullptr || *endptr != '\0') {
 			throw RequestException(EINVAL);
 		}
-		status = fs_getattr(inode, ctx.uid, ctx.gid, attr);
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_getattr(inode, ctx.uid, ctx.gid, attr));
 		status = errorconv_dbg(status);
 		icacheflag = 0;
 	} else if (usedircache && dcache_lookup(&ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
@@ -603,7 +641,8 @@ EntryParam lookup(Context ctx, Inode parent, const char *name) {
 //              oplog_printf(ctx, "lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		stats_inc(OP_LOOKUP);
-		status = fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr);
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr));
 		status = errorconv_dbg(status);
 		icacheflag = 0;
 	}
@@ -667,7 +706,8 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
 		status = 0;
 	} else {
 		stats_inc(OP_GETATTR);
-		status = fs_getattr(ino,ctx.uid,ctx.gid,attr);
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_getattr(ino,ctx.uid,ctx.gid,attr));
 		status = errorconv_dbg(status);
 	}
 	if (status!=0) {
@@ -739,7 +779,8 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 			| LIZARDFS_SET_ATTR_MTIME
 			| LIZARDFS_SET_ATTR_MTIME_NOW
 			| LIZARDFS_SET_ATTR_SIZE)) == 0) { // change other flags or change nothing
-		status = fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr);    // ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_setattr(ino,ctx.uid,ctx.gid,0,0,0,0,0,0,0,attr));    // ext3 compatibility - change ctime during this operation (usually chown(-1,-1))
 		status = errorconv_dbg(status);
 		if (status!=0) {
 			oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
@@ -789,7 +830,8 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 			// in this case we want flush all pending writes because they could overwrite mtime
 			write_data_flush_inode(ino);
 		}
-		status = fs_setattr(ino,ctx.uid,ctx.gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr);
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_setattr(ino,ctx.uid,ctx.gid,setmask,stbuf->st_mode&07777,stbuf->st_uid,stbuf->st_gid,stbuf->st_atime,stbuf->st_mtime,sugid_clear_mode,attr));
 		if (to_set & (LIZARDFS_SET_ATTR_MODE | LIZARDFS_SET_ATTR_UID | LIZARDFS_SET_ATTR_GID)) {
 			eraseAclCache(ino);
 		}
@@ -840,7 +882,8 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 		}
 		try {
 			bool opened = (fi != NULL);
-			status = write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr);
+			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+				write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr));
 			maxfleng = 0; // after the flush master server has valid length, don't use our length cache
 		} catch (Exception& ex) {
 			status = errorconv_dbg(ex.status());
@@ -968,8 +1011,8 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 			throw RequestException(EACCES);
 		}
 	}
-
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.umask,ctx.uid,ctx.gid,rdev,inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_mknod(parent,nleng,(const uint8_t*)name,type,mode&07777,ctx.umask,ctx.uid,ctx.gid,rdev,inode,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "mknod (%lu,%s,%s:0%04o,0x%08lX): %s",
@@ -1031,7 +1074,8 @@ void unlink(Context ctx, Inode parent, const char *name) {
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid));
 	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
@@ -1094,7 +1138,8 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.umask,ctx.uid,ctx.gid,mkdir_copy_sgid,inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_mkdir(parent,nleng,(const uint8_t*)name,mode,ctx.umask,ctx.uid,ctx.gid,mkdir_copy_sgid,inode,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o): %s",
@@ -1153,7 +1198,8 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid));
 	dcache_invalidate(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
@@ -1208,7 +1254,8 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_symlink(parent,nleng,(const uint8_t*)name,(const uint8_t*)path,ctx.uid,ctx.gid,&inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_symlink(parent,nleng,(const uint8_t*)name,(const uint8_t*)path,ctx.uid,ctx.gid,&inode,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "symlink (%s,%lu,%s): %s",
@@ -1333,7 +1380,8 @@ void rename(Context ctx, Inode parent, const char *name,
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+	fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr));
 	status = errorconv_dbg(status);
 	dcache_invalidate(parent);
 	dcache_invalidate(newparent);
@@ -1404,7 +1452,8 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 		throw RequestException(ENAMETOOLONG);
 	}
 
-	status = fs_link(ino,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_link(ino,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
@@ -1448,7 +1497,9 @@ void opendir(Context ctx, Inode ino, FileInfo *fi) {
 				strerr(ENOTDIR));
 		throw RequestException(ENOTDIR);
 	}
-	status = fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R);    // at least test rights
+
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_access(ino,ctx.uid,ctx.gid,MODE_MASK_R));    // at least test rights
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "opendir (%lu): %s",
@@ -1504,14 +1555,16 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 		uint32_t dsize;
 		uint8_t needscopy;
 		if (usedircache) {
-			status = fs_getdir_plus(ino,ctx.uid,ctx.gid,0,&dbuff,&dsize);
+			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+				fs_getdir_plus(ino,ctx.uid,ctx.gid,0,&dbuff,&dsize));
 			if (status==0) {
 				stats_inc(OP_GETDIR_FULL);
 			}
 			needscopy = 1;
 			dirinfo->dataformat = 1;
 		} else {
-			status = fs_getdir(ino,ctx.uid,ctx.gid,&dbuff,&dsize);
+			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+				fs_getdir(ino,ctx.uid,ctx.gid,&dbuff,&dsize));
 			if (status==0) {
 				stats_inc(OP_GETDIR_SMALL);
 			}
@@ -1747,7 +1800,8 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 		throw RequestException(EINVAL);
 	}
 
-	status = fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.umask,ctx.uid,ctx.gid,0,inode,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_mknod(parent,nleng,(const uint8_t*)name,TYPE_FILE,mode&07777,ctx.umask,ctx.uid,ctx.gid,0,inode,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o) (mknod): %s",
@@ -1758,7 +1812,9 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				strerr(status));
 		throw RequestException(status);
 	}
-	status = fs_opencheck(inode,ctx.uid,ctx.gid,oflags,NULL);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_opencheck(inode,ctx.uid,ctx.gid,oflags,NULL));
+
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "create (%lu,%s,-%s:0%04o) (open): %s",
@@ -1831,7 +1887,8 @@ void open(Context ctx, Inode ino, FileInfo *fi) {
 	} else if ((fi->flags & O_ACCMODE) == O_RDWR) {
 		oflags |= WANT_READ | WANT_WRITE;
 	}
-	status = fs_opencheck(ino,ctx.uid,ctx.gid,oflags,attr);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_opencheck(ino,ctx.uid,ctx.gid,oflags,attr));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "open (%lu): %s",
@@ -1860,6 +1917,13 @@ void open(Context ctx, Inode ino, FileInfo *fi) {
 			(unsigned long int)ino,
 			(unsigned long int)fi->direct_io,
 			(unsigned long int)fi->keep_cache);
+}
+
+void update_credentials(int index, const GroupCache::Groups &groups) {
+	uint8_t status = fs_update_credentials(index, groups);
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(errorconv_dbg(status));
+	}
 }
 
 void release(Context ctx, Inode ino, FileInfo *fi) {
@@ -2253,15 +2317,20 @@ class PlainXattrHandler : public XattrHandler {
 public:
 	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *name,
 			uint32_t nleng, const char *value, size_t size, int mode) {
-		return fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
-				(uint32_t)size, (const uint8_t*)value, mode);
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				(uint32_t)size, (const uint8_t*)value, mode));
+		return status;
 	}
 
 	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *name,
 			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) {
 		const uint8_t *buff;
-		uint8_t status = fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
-				mode, &buff, &valueLength);
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_getxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
+				mode, &buff, &valueLength));
 		if (mode == XATTR_GMODE_GET_DATA && status == LIZARDFS_STATUS_OK) {
 			value = std::vector<uint8_t>(buff, buff + valueLength);
 		}
@@ -2270,7 +2339,10 @@ public:
 
 	virtual uint8_t removexattr(const Context& ctx, Inode ino, const char *name,
 			uint32_t nleng) {
-		return fs_removexattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name);
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_removexattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name));
+		return status;
 	}
 };
 
@@ -2308,16 +2380,20 @@ public:
 		try {
 			PosixAclXattr posix = aclConverter::extractPosixObject((const uint8_t*)value, size);
 			if (posix.entries.empty()) {
-				// Is empty ACL set? It means to remove it!
-				return fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+				uint8_t status;
+				RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+					fs_deletacl(ino, ctx.uid, ctx.gid, type_));
+				return status;
 			}
 			acl = aclConverter::posixToAclObject(posix);
 		} catch (Exception&) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
-		auto ret = fs_setacl(ino, ctx.uid, ctx.gid, type_, acl);
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_setacl(ino, ctx.uid, ctx.gid, type_, acl));
 		eraseAclCache(ino);
-		return ret;
+		return status;
 	}
 
 	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *,
@@ -2349,9 +2425,11 @@ public:
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
-		auto ret = fs_deletacl(ino, ctx.uid, ctx.gid, type_);
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_deletacl(ino, ctx.uid, ctx.gid, type_));
 		eraseAclCache(ino);
-		return ret;
+		return status;
 	}
 
 private:
@@ -2629,7 +2707,8 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 	} else {
 		mode = XATTR_GMODE_GET_DATA;
 	}
-	status = fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_listxattr(ino,0,ctx.uid,ctx.gid,mode,&buff,&leng));
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",

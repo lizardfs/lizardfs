@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "common/exception.h"
+#include "mount/group_cache.h"
 #include "mount/lizard_client_context.h"
 #include "mount/readdata_cache.h"
 #include "mount/stat_defs.h"
@@ -110,9 +111,13 @@ struct RequestException : public std::exception {
 	int errNo;
 };
 
+int updateGroups(const GroupCache::Groups &groups);
+
 // TODO what about this one? Will decide when writing non-fuse client
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
+
+void update_credentials(int index, const GroupCache::Groups &groups);
 
 EntryParam lookup(Context ctx, Inode parent, const char *name);
 

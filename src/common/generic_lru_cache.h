@@ -20,6 +20,7 @@
 
 #include "common/platform.h"
 
+#include <algorithm>
 #include <functional>
 #include <list>
 #include <unordered_map>
@@ -62,6 +63,20 @@ public:
 		}
 	}
 
+	void put(Key &&key, Value &&value) {
+		if (cache_.size() >= capacity_) {
+			cache_.erase(queue_.back().first);
+			queue_.pop_back();
+		}
+		queue_.emplace_front(std::move(key), std::move(value));
+		try {
+			cache_[queue_.front().first] = queue_.begin();
+		} catch (...) {
+			queue_.pop_front();
+			throw;
+		}
+	}
+
 	void invalidate() {
 		cache_.clear();
 		queue_.clear();
@@ -84,7 +99,12 @@ public:
 		return queue_.end();
 	}
 
-	iterator end() {
+	iterator findByValue(const Value &value) {
+		return std::find_if(queue_.begin(), queue_.end(),
+			[&value](const std::pair<Key, Value> &e){return e.second == value;});
+	}
+
+	const_iterator end() const {
 		return queue_.end();
 	}
 

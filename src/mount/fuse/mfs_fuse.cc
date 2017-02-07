@@ -48,6 +48,24 @@ void checkTypesEqual(const A& a, const B& b) {
 			"Types don't match");
 }
 
+void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+	static const int kMaxGroups = GroupCache::kDefaultGroupsSize - 1;
+
+	GroupCache::Groups groups(kMaxGroups + 1);
+	// First group is always the primary group. It may be duplicated later but it is not a problem.
+	groups[0] = ctx.gid;
+	int getgroups_ret = fuse_req_getgroups(req, kMaxGroups, groups.data() + 1);
+	if (getgroups_ret > kMaxGroups) {
+		groups.resize(getgroups_ret + 1);
+		getgroups_ret = fuse_req_getgroups(req, groups.size() - 1, groups.data() + 1);
+	} else if (getgroups_ret >= 0) {
+		groups.resize(getgroups_ret + 1);
+	}
+	if (getgroups_ret > 0) {
+		ctx.gid = LizardClient::updateGroups(groups);
+	}
+}
+
 /**
  * A function converting fuse_ctx to LizardClient::Context
  */
@@ -63,7 +81,7 @@ LizardClient::Context get_context(fuse_req_t& req) {
 	checkTypesEqual(ret.gid,   fuse_ctx->gid);
 	checkTypesEqual(ret.pid,   fuse_ctx->pid);
 	checkTypesEqual(ret.umask, umask);
-
+	updateGroupsForContext(req, ret);
 	return ret;
 }
 
