@@ -21,7 +21,7 @@ set_source_files_properties(lizardfs-tests.cc PROPERTIES
   OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/test_suites.h)
 
 # Create constants.sh file
-configure_file(set_lizardfs_constants.sh.in set_lizardfs_constants.sh)
+configure_file(set_lizardfs_constants.sh.in set_lizardfs_constants.sh @ONLY)
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/set_lizardfs_constants.sh DESTINATION ${BIN_SUBDIR})
 
 # Build executable running all the test cases
