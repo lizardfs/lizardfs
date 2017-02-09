@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Skytechnology sp. z o.o.
+   Copyright 2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -187,6 +187,15 @@ public:
 	small_vector(size_type count, const value_type &value = value_type()) : base() {
 		reserve(N);
 		insert(end(), count, value);
+	}
+
+	template <typename InputIterator, typename =
+	          typename std::enable_if<std::is_convertible<
+	          typename std::iterator_traits<InputIterator>::iterator_category,
+	          std::input_iterator_tag>::value>::type>
+	small_vector(InputIterator first, InputIterator last) : base() {
+		reserve(std::max<size_type>(N, std::distance(first, last)));
+		insert(end(), first, last);
 	}
 
 	small_vector &operator=(const small_vector &other) {
