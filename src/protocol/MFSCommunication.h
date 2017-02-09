@@ -103,7 +103,7 @@
 #define LIZARDFS_ERROR_CHUNKBUSY               14    // Chunk is busy
 #define LIZARDFS_ERROR_REGISTER                15    // Incorrect register BLOB
 #define LIZARDFS_ERROR_NOTDONE                 16    // None of chunk servers performed requested operation
-#define LIZARDFS_ERROR_NOTOPENED               17    // File not opened
+#define LIZARDFS_ERROR_GROUPNOTREGISTERED      17    // Group info is not registered in master server
 #define LIZARDFS_ERROR_NOTSTARTED              18    // Write not started
 #define LIZARDFS_ERROR_WRONGVERSION            19    // Wrong chunk version
 #define LIZARDFS_ERROR_CHUNKEXIST              20    // Chunk already exists
@@ -159,7 +159,7 @@
 	"Chunk is busy", \
 	"Incorrect register BLOB", \
 	"None of chunk servers performed requested operation", \
-	"File not opened", \
+	"Group info is not registered in master server", \
 	"Write not started", \
 	"Wrong chunk version", \
 	"Chunk already exists", \
@@ -1358,6 +1358,15 @@ enum class SugidClearMode {
 
 //0x01E3
 #define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
+
+//0x01E4
+#define LIZ_CLTOMA_UPDATE_CREDENTIALS (1000U + 484U)
+/// mgsid:32 index:32 gids:(vector<gid>)
+
+//0x01E5
+#define LIZ_MATOCL_UPDATE_CREDENTIALS (1000U + 485U)
+/// msgid:32 status:8
+
 /// version==0 msgid:32 status:8
 /// version==1 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:STDSTRING chunktype:8])
 /// version==2 msgid:32 filelength:64 chunkid:64 chunkversion:32 locations:(N * [ip:32 port:16 label:STDSTRING chunktype:16])

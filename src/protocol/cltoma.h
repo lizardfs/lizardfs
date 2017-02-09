@@ -31,6 +31,11 @@
 #include "protocol/packet.h"
 #include "protocol/quota.h"
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, updateCredentials, LIZ_CLTOMA_UPDATE_CREDENTIALS, 0,
+		uint32_t, messageId,
+		uint32_t, index,
+		std::vector<uint32_t>, gids)
+
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseMknod, LIZ_CLTOMA_FUSE_MKNOD, 0,
 		uint32_t, messageId,
 		uint32_t, inode,

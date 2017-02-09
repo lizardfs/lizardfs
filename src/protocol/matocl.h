@@ -38,6 +38,10 @@
 #include "protocol/packet.h"
 #include "protocol/quota.h"
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(matocl, updateCredentials, LIZ_MATOCL_UPDATE_CREDENTIALS, 0,
+		uint32_t, messageId,
+		uint8_t, status)
+
 // LIZ_MATOCL_FUSE_MKNOD
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseMknod, kResponsePacketVersion, 1)
