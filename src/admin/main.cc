@@ -68,14 +68,15 @@ int main(int argc, const char** argv) {
 			new MagicRecalculateMetadataChecksumCommand(),
 	};
 
+	std::string command_name;
 	try {
 		if (argc < 2) {
 			throw WrongUsageException("No command name provided");
 		}
-		std::string commandName(argv[1]);
+		command_name = argv[1];
 		std::vector<std::string> arguments(argv + 2, argv + argc);
 		for (auto command : allCommands) {
-			if (command->name() == commandName) {
+			if (command->name() == command_name) {
 				try {
 					std::vector<std::string> supportedOptions;
 					for (const auto& optionWithDescription : command->supportedOptions()) {
@@ -90,26 +91,47 @@ int main(int argc, const char** argv) {
 				}
 			}
 		}
-		throw WrongUsageException("Unknown command " + commandName);
+		if (command_name == "help" || command_name == "-h") {
+			command_name.clear();
+		}
+		throw WrongUsageException("Unknown command " + command_name
+		                          + ". Use lizardfs-admin help for a list of available commands");
 	} catch (WrongUsageException& ex) {
 		std::cerr << ex.message() << std::endl;
 		std::cerr << "Usage:\n";
 		std::cerr << "    " << argv[0] << " COMMAND [OPTIONS...] [ARGUMENTS...]\n\n";
-		std::cerr << "Available COMMANDs:\n\n";
-		for (auto command : allCommands) {
-			if (command->name().substr(0, 6) == "magic-") {
-				// Treat magic-* commands as undocumented
-				continue;
+		if (command_name.empty()) {
+			std::cerr << "Available COMMANDs:\n\n";
+			for (auto command : allCommands) {
+				if (command->name().substr(0, 6) == "magic-") {
+					// Treat magic-* commands as undocumented
+					continue;
+				}
+				command->usage();
+				if (!command->supportedOptions().empty()) {
+					std::cerr << "    Possible command-line options:\n";
+					for (const auto& optionWithDescription : command->supportedOptions()) {
+						std::cerr << "\n    " << optionWithDescription.first << "\n";
+						std::cerr << "        " << optionWithDescription.second << "\n";
+					}
+				}
+				std::cerr << std::endl;
 			}
-			command->usage();
-			if (!command->supportedOptions().empty()) {
-				std::cerr << "    Possible command-line options:\n";
-				for (const auto& optionWithDescription : command->supportedOptions()) {
-					std::cerr << "\n    " << optionWithDescription.first << "\n";
-					std::cerr << "        " << optionWithDescription.second << "\n";
+		} else {
+			for (auto command : allCommands) {
+				if (command->name() == command_name) {
+					command->usage();
+					if (!command->supportedOptions().empty()) {
+						std::cerr << "    Possible command-line options:\n";
+						for (const auto& optionWithDescription : command->supportedOptions()) {
+							std::cerr << "\n    " << optionWithDescription.first << "\n";
+							std::cerr << "        " << optionWithDescription.second << "\n";
+						}
+					}
+					std::cerr << std::endl;
+					break;
 				}
 			}
-			std::cerr << std::endl;
 		}
 		strerr_term();
 		return 1;
