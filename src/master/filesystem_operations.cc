@@ -644,7 +644,7 @@ uint8_t fs_setattr(const FsContext &context, uint32_t inode, uint8_t setmask, ui
 		return LIZARDFS_ERROR_EPERM;
 	}
 	if ((context.sesflags() & SESFLAG_IGNOREGID) == 0) {
-		if (context.uid() != 0 && context.gid() != attrgid && (setmask & SET_GID_FLAG)) {
+		if (context.uid() != 0 && (setmask & SET_GID_FLAG) && !context.hasGroup(attrgid)) {
 			return LIZARDFS_ERROR_EPERM;
 		}
 	}

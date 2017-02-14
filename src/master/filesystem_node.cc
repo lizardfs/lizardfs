@@ -1576,7 +1576,7 @@ int fsnodes_access(const FsContext &context, FSNode *node, uint8_t modemask) {
 			nodemode = ((node->mode) >> 6) & 7;
 		} else if (context.sesflags() & SESFLAG_IGNOREGID) {
 			nodemode = (((node->mode) >> 3) | (node->mode)) & 7;
-		} else if (std::find(context.groups().begin(), context.groups().end(), node->gid) != context.groups().end()) {
+		} else if (context.hasGroup(node->gid)) {
 			nodemode = ((node->mode) >> 3) & 7;
 		} else {
 			nodemode = (node->mode & 7);

@@ -191,6 +191,10 @@ public:
 		return gids_;
 	}
 
+	bool hasGroup(uint32_t gid) const {
+		return std::find(gids_.begin(), gids_.end(), gid) != gids_.end();
+	}
+
 	/**
 	 * Returns true if rootinode and sesflags are set.
 	 */
