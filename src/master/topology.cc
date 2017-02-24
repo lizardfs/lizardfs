@@ -155,9 +155,9 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 
 // as for now:
 //
-// 0 - same machine
-// 1 - same rack, different machines
-// 2 - different racks
+// 0  - same machine
+// 1  - same rack, different machines
+// 2+ - different racks: distance between racks + 1
 
 uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
 	uint32_t rid1,rid2;
@@ -166,7 +166,7 @@ uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
 	}
 	rid1 = itree_find(racktree,ip1);
 	rid2 = itree_find(racktree,ip2);
-	return (rid1==rid2)?1:2;
+	return abs((int)rid1-(int)rid2)+1;
 }
 
 // format:
