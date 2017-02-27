@@ -79,6 +79,9 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 /*! \brief Get chunkserver's label. */
 const MediaLabel& matocsserv_get_label(matocsserventry* e);
 
+/*! \brief Get chunkserver's distance penalty. */
+uint32_t matocsserv_get_penalty(matocsserventry* e);
+
 /*! \brief Get chunkserver's disk usage. */
 double matocsserv_get_usage(matocsserventry* e);
 

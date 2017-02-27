@@ -84,6 +84,7 @@ struct matocsserventry {
 	uint16_t servport;              // port to connect to
 	uint32_t timeout;               // communication timeout
 	MediaLabel label;               // server label, empty if not set
+	uint32_t penalty;		// distance penalty, 0 if not set
 	uint64_t usedspace;             // used hdd space in bytes
 	uint64_t totalspace;            // total hdd space in bytes
 	uint32_t chunkscount;
@@ -501,6 +502,11 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 const MediaLabel& matocsserv_get_label(matocsserventry* e) {
 	assert(e);
 	return e->label;
+}
+
+uint32_t matocsserv_get_penalty(matocsserventry* e) {
+	assert(e);
+	return e->penalty;
 }
 
 double matocsserv_get_usage(matocsserventry* eptr) {
@@ -1329,10 +1335,23 @@ void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint
 	}
 }
 
+
 void matocsserv_liz_status(matocsserventry *eptr, const std::vector<uint8_t> &data) {
 	uint8_t load_factor;
 	cstoma::status::deserialize(data, load_factor);
 	eptr->load_factor = load_factor;
+}
+
+void matocsserv_liz_register_penalty(matocsserventry *eptr, const std::vector<uint8_t>& data)
+                throw (IncorrectDeserializationException) {
+	uint32_t penalty;
+        cstoma::registerPenalty::deserialize(data, penalty);
+	if(penalty != eptr->penalty) {
+		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
+				"changed its penalty from %u to %u",
+				eptr->servstrip, eptr->servport, eptr->penalty, penalty);
+		eptr->penalty = penalty;
+	}
 }
 
 void matocsserv_chunk_damaged(matocsserventry *eptr,const uint8_t *data,uint32_t length) {
@@ -1553,6 +1572,9 @@ void matocsserv_gotpacket(matocsserventry *eptr, PacketHeader header, const Mess
 			case LIZ_CSTOMA_STATUS:
 				matocsserv_liz_status(eptr, data);
 				break;
+			case LIZ_CSTOMA_REGISTER_PENALTY:
+				matocsserv_liz_register_penalty(eptr, data);
+				break;
 			default:
 				syslog(LOG_NOTICE,"master <-> chunkservers module: got unknown message "
 						"(type:%" PRIu32 ")", header.type);
@@ -1699,6 +1721,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 			eptr->servport = 0;
 			eptr->timeout = 60000;
 			eptr->label = MediaLabel::kWildcard;
+			eptr->penalty = 0;
 			eptr->usedspace = 0;
 			eptr->totalspace = 0;
 			eptr->chunkscount = 0;
