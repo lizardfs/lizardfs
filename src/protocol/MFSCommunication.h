@@ -1856,6 +1856,10 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_LIST_DEFECTIVE_FILES (1000U + 598U)
 /// last_entry_index:64 files:(vector<DefectiveFileInfo>)
 
+#define LIZ_CSTOMA_REGISTER_PENALTY (1000U + 900U)
+/// penalty:8
+
+
 // CHUNKSERVER STATS
 
 // 0x0258

@@ -111,6 +111,7 @@ static char *BindHost;
 static uint32_t Timeout_ms;
 static void* reconnect_hook;
 static std::string gLabel;
+static uint32_t Penalty;
 
 static uint64_t stats_bytesout=0;
 static uint64_t stats_bytesin=0;
@@ -167,6 +168,12 @@ void masterconn_sendregisterlabel(masterconn *eptr) {
 	}
 }
 
+void masterconn_sendregisterpenalty(masterconn *eptr) {
+	if (eptr->mode == CONNECTED) {
+		masterconn_create_attached_packet(eptr, cstoma::registerPenalty::build(Penalty));
+	}
+}
+
 void masterconn_sendregister(masterconn *eptr) {
 	uint32_t myip;
 	uint16_t myport;
@@ -200,6 +207,7 @@ void masterconn_sendregister(masterconn *eptr) {
 			usedspace, totalspace, chunkcount, tdusedspace, tdtotalspace, tdchunkcount);
 	masterconn_create_attached_packet(eptr, std::move(registerSpace));
 	masterconn_sendregisterlabel(eptr);
+	masterconn_sendregisterpenalty(eptr);
 }
 
 void masterconn_check_hdd_reports() {
@@ -923,10 +931,13 @@ void masterconn_reload(void) {
 	Timeout_ms = get_cfg_timeout();
 
 	ReconnectionDelay = cfg_getuint32("MASTER_RECONNECTION_DELAY",5);
+	Penalty = cfg_getuint32("PENALTY",0);
 
 	if (masterconn_load_label()) {
 		masterconn_sendregisterlabel(eptr);
 	}
+
+	masterconn_sendregisterpenalty(eptr);
 
 	eventloop_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
@@ -940,6 +951,7 @@ int masterconn_init(void) {
 	MasterPort = cfg_getstr("MASTER_PORT","9420");
 	BindHost = cfg_getstr("BIND_HOST","*");
 	Timeout_ms = get_cfg_timeout();
+	Penalty = cfg_getuint32("DISTANCE_PENALTY",0);
 //      BackLogsNumber = cfg_getuint32("BACK_LOGS",50);
 	gEnableLoadFactor = cfg_getuint32("ENABLE_LOAD_FACTOR", 0);
 
