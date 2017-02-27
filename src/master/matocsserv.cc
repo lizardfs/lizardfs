@@ -1343,9 +1343,9 @@ void matocsserv_liz_status(matocsserventry *eptr, const std::vector<uint8_t> &da
 }
 
 void matocsserv_liz_register_penalty(matocsserventry *eptr, const std::vector<uint8_t>& data)
-                throw (IncorrectDeserializationException) {
+		throw (IncorrectDeserializationException) {
 	uint32_t penalty;
-        cstoma::registerPenalty::deserialize(data, penalty);
+	cstoma::registerPenalty::deserialize(data, penalty);
 	if(penalty != eptr->penalty) {
 		syslog(LOG_NOTICE, "chunkserver (ip: %s, port %" PRIu16 ") "
 				"changed its penalty from %u to %u",
