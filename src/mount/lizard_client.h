@@ -203,7 +203,7 @@ struct FsInitParams {
  * removed when a file is closed.
  */
 struct FileInfo {
-	FileInfo() {}
+	FileInfo() : flags(), direct_io(), keep_cache(), fh(), lock_owner() {}
 
 	FileInfo(int flags, unsigned int direct_io, unsigned int keep_cache, uint64_t fh,
 		uint64_t lock_owner)
@@ -219,6 +219,14 @@ struct FileInfo {
 
 	FileInfo &operator=(const FileInfo &other) = default;
 	FileInfo &operator=(FileInfo &&other) = default;
+
+	bool isValid() const {
+		return fh;
+	}
+
+	void reset() {
+		*this = FileInfo();
+	}
 
 	int flags;
 	unsigned int direct_io : 1;
