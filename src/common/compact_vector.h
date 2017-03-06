@@ -163,8 +163,8 @@ public:
 
 private:
 	union {
-		pointer   ptr_;
-		uint8_t   data_[sizeof(pointer)];
+		volatile pointer ptr_;
+		uint8_t data_[sizeof(pointer)];
 	};
 	size_type size_;
 };
@@ -279,8 +279,8 @@ public:
 
 private:
 	union {
-		uint64_t ptr_;
-		uint8_t  data_[8];
+		volatile uint64_t ptr_;
+		uint8_t data_[8];
 	};
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
 	pointer debug_ptr_;

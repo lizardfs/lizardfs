@@ -180,3 +180,11 @@ TEST(CompactVectorTest, InternalStorage) {
 	vec1.assign(6, 1);
 	EXPECT_NE(vec1.data(), (uint8_t *)&vec1);
 }
+
+TEST(CompactVectorTest, GCC6) {
+	compact_vector<uint32_t> sessionid;
+	uint32_t val = 1978;
+
+	sessionid.push_back(val);
+	EXPECT_EQ(sessionid[0], val);
+}
