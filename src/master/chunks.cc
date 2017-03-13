@@ -51,6 +51,7 @@
 #include "master/checksum.h"
 #include "master/chunk_goal_counters.h"
 #include "master/filesystem.h"
+#include "master/get_servers_for_new_chunk.h"
 #include "master/goal_cache.h"
 #include "protocol/MFSCommunication.h"
 
@@ -84,6 +85,7 @@
 static uint64_t gEndangeredChunksServingLimit;
 static uint64_t gEndangeredChunksMaxCapacity;
 static uint64_t gDisconnectedCounter = 0;
+bool gAvoidSameIpChunkservers = false;
 
 struct ChunkPart {
 	enum {
@@ -1846,7 +1848,7 @@ private:
 
 	void deleteInvalidChunkParts(Chunk *c);
 	void deleteAllChunkParts(Chunk *c);
-	bool replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc);
+	bool replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc, const IpCounter &ip_counter);
 	bool removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc);
 	bool rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator& calc, bool only_todel);
 
@@ -2043,7 +2045,7 @@ void ChunkWorker::deleteAllChunkParts(Chunk *c) {
 }
 
 bool ChunkWorker::replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part,
-					ChunkCopiesCalculator &calc) {
+					ChunkCopiesCalculator &calc, const IpCounter &ip_counter) {
 	std::vector<matocsserventry *> servers;
 	int skipped_replications = 0, valid_parts_count = 0, expected_copies = 0;
 	bool tried_to_replicate = false;
@@ -2081,7 +2083,7 @@ bool ChunkWorker::replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int
 		// Get a list of possible destination servers
 		int total_matching, returned_matching, temporarily_unavailable;
 		matocsserv_getservers_lessrepl(label_and_count.first, min_chunkserver_version, MaxWriteRepl,
-		                               servers, total_matching, returned_matching,
+		                               ip_counter, servers, total_matching, returned_matching,
 		                               temporarily_unavailable);
 
 		// Find a destination server for replication -- the first one without a copy of 'c'
@@ -2309,6 +2311,14 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	}
 	calc.optimize();
 
+	// step 1a. count number of chunk parts on servers with the same ip
+	IpCounter ip_occurrence;
+	for (auto &part : c->parts) {
+		if (part.is_valid()) {
+			++ip_occurrence[matocsserv_get_servip(part.server())];
+		}
+	}
+
 	// step 2. check number of copies
 	if (c->isLost() && invalid_parts > 0 && calc.getAvailable().getExpectedCopies() == 0 &&
 	    c->fileCount() > 0) {
@@ -2353,7 +2363,7 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	// step 7. check if chunk needs any replication
 	for (const auto &slice : calc.getTarget()) {
 		for (int i = 0; i < slice.size(); ++i) {
-			if (replicateChunkPart(c, slice.getType(), i, calc)) {
+			if (replicateChunkPart(c, slice.getType(), i, calc, ip_occurrence)) {
 				return;
 			}
 		}
@@ -2691,6 +2701,7 @@ void chunk_reload(void) {
 	gOperationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT", 3600);
 	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
 	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
+	gAvoidSameIpChunkservers = cfg_getuint32("AVOID_SAME_IP_CHUNKSERVERS", 0);
 
 	uint32_t disableChunksDel = cfg_getuint32("DISABLE_CHUNKS_DEL", 0);
 	if (disableChunksDel) {
@@ -2783,6 +2794,7 @@ int chunk_strinit(void) {
 	gOperationsDelayDisconnect = cfg_getuint32("REPLICATIONS_DELAY_DISCONNECT", 3600);
 	gOperationsDelayInit = cfg_getuint32("OPERATIONS_DELAY_INIT", gOperationsDelayInit);
 	gOperationsDelayDisconnect = cfg_getuint32("OPERATIONS_DELAY_DISCONNECT", gOperationsDelayDisconnect);
+	gAvoidSameIpChunkservers = cfg_getuint32("AVOID_SAME_IP_CHUNKSERVERS", 0);
 	if (disableChunksDel) {
 		MaxDelHardLimit = MaxDelSoftLimit = 0;
 	} else {

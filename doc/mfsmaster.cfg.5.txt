@@ -210,6 +210,10 @@ in file (DATA_PATH/name_storage.db). By default all strings are kept in system m
 Size of memory cache (in MB) for file/directory names used by Berkeley DB storage.
 (default is 10)
 
+*AVOID_SAME_IP_CHUNKSERVERS*::
+When this option is set to 1, process of selecting chunkservers for chunks will try to avoid
+using those that share the same ip. (default is 0)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::

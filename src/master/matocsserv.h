@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -26,6 +26,7 @@
 #include "common/chunk_part_type.h"
 #include "common/goal.h"
 #include "common/media_label.h"
+#include "master/get_servers_for_new_chunk.h"
 #include "protocol/chunkserver_list_entry.h"
 
 /// A struct representing a chunkserver.
@@ -49,6 +50,7 @@ struct ServerWithUsage {
 	MediaLabel label;
 };
 
+typedef flat_map<uint32_t, int, small_vector<std::pair<uint32_t, int>, 16> > IpCounter;
 
 /*! \brief Get list of chunkservers for replication with the given label.
  *
@@ -67,7 +69,8 @@ struct ServerWithUsage {
  * \return Number of valid entries in \p servers.
  */
 void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunkserver_version,
-		uint16_t replication_write_limit, std::vector<matocsserventry*> &servers,
+		uint16_t replication_write_limit, const IpCounter &ip_counter,
+		std::vector<matocsserventry*> &servers,
 		int &total_matching, int &returned_matching, int &temporarily_unavailable);
 
 /*! \brief Get chunkserver's label. */
@@ -86,6 +89,7 @@ std::vector<std::pair<matocsserventry*, ChunkPartType>> matocsserv_getservers_fo
 		uint8_t goalId, uint32_t min_server_version = 0);
 void matocsserv_getspace(uint64_t* totalspace, uint64_t* availspace);
 const char* matocsserv_getstrip(matocsserventry* e);
+uint32_t matocsserv_get_servip(matocsserventry *e);
 int matocsserv_getlocation(matocsserventry* e, uint32_t* servip, uint16_t* servport,
 		MediaLabel* label);
 uint16_t matocsserv_replication_read_counter(matocsserventry* e);

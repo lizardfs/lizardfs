@@ -32,6 +32,8 @@
 
 struct matocsserventry;
 
+extern bool gAvoidSameIpChunkservers;
+
 int chunk_increase_version(uint64_t chunkid);
 int chunk_set_version(uint64_t chunkid,uint32_t version);
 int chunk_change_file(uint64_t chunkid,uint8_t prevgoal,uint8_t newgoal);

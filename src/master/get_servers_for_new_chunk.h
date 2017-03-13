@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -31,6 +31,14 @@ struct matocsserventry;
 /// We remember the server's data (pointer, label, weight) to be able to verify if this
 /// information didn't change.
 struct ChunkserverChunkCounter {
+	ChunkserverChunkCounter()
+	    : server(nullptr),
+	      label(),
+	      weight(),
+	      version(),
+	      chunks_created() {
+	}
+
 	ChunkserverChunkCounter(matocsserventry *server, MediaLabel label, int64_t weight,
 	                        uint32_t version)
 	    : server(server),
@@ -90,6 +98,10 @@ public:
 	                                                      const Goal::Slice::ConstPartProxy &labels,
 	                                                      uint32_t min_version,
 	                                                      std::vector<matocsserventry *> &used);
+
+protected:
+	void sortAvoidingSameIp();
+
 private:
 	std::vector<ChunkserverChunkCounter> servers_;
 };

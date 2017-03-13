@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "common/cfg.h"
+#include "common/counting_sort.h"
 #include "common/datapack.h"
 #include "common/event_loop.h"
 #include "common/goal.h"
@@ -436,7 +437,7 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 }
 
 void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunkserver_version,
-		uint16_t replication_write_limit, std::vector<matocsserventry *> &servers,
+		uint16_t replication_write_limit, const IpCounter &ip_counter, std::vector<matocsserventry *> &servers,
 		int &total_matching, int &returned_matching, int &temporarily_unavailable) {
 	total_matching = 0;
 	returned_matching = 0;
@@ -469,10 +470,21 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 	}
 	std::random_shuffle(servers.begin(), servers.end());
 	if (returned_matching > 0) {
-		// Move servers matching the requested label to the front of the servers array
-		std::partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
-			return cs->label == label;
-		});
+		if (gAvoidSameIpChunkservers) {
+			counting_sort(servers, [&ip_counter](matocsserventry *server) {
+				auto it = ip_counter.find(server->servip);
+				return it != ip_counter.end() ? it->second : 0;
+			});
+
+			std::stable_partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
+				return cs->label == label;
+			});
+		} else {
+			// Move servers matching the requested label to the front of the servers array
+			std::partition(servers.begin(), servers.end(), [&label](matocsserventry* cs) {
+				return cs->label == label;
+			});
+		}
 	}
 }
 
@@ -510,6 +522,11 @@ const char* matocsserv_getstrip(matocsserventry *eptr) {
 		return eptr->servstrip;
 	}
 	return empty;
+}
+
+uint32_t matocsserv_get_servip(matocsserventry *e) {
+	assert(e);
+	return e->servip;
 }
 
 int matocsserv_getlocation(matocsserventry *eptr,uint32_t *servip,uint16_t *servport,

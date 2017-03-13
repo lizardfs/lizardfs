@@ -247,3 +247,8 @@
 ## by Berkeley DB storage.
 ## (Default: 10)
 # BDB_NAME_STORAGE_CACHE_SIZE = 10
+
+## When this option is set to 1, process of selecting chunkservers for chunks
+## will try to avoid using those that share the same ip.
+## (Default: 0)
+# AVOID_SAME_IP_CHUNKSERVERS = 0
