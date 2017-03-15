@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -1849,7 +1849,8 @@ private:
 	void deleteInvalidChunkParts(Chunk *c);
 	void deleteAllChunkParts(Chunk *c);
 	bool replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc, const IpCounter &ip_counter);
-	bool removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc);
+	bool removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part,
+	                             ChunkCopiesCalculator& calc, const IpCounter &ip_counter);
 	bool rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator& calc, bool only_todel);
 
 	loop_info inforec_;
@@ -2160,7 +2161,7 @@ bool ChunkWorker::replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int
 }
 
 bool ChunkWorker::removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part,
-					ChunkCopiesCalculator &calc) {
+					ChunkCopiesCalculator &calc, const IpCounter &ip_counter) {
 	Goal::Slice::Labels remove_pool = calc.getRemovePool(slice_type, slice_part);
 	if (remove_pool.empty()) {
 		return false;
@@ -2168,7 +2169,9 @@ bool ChunkWorker::removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type
 
 	ChunkPart *candidate = nullptr;
 	bool candidate_todel = false;
+	int candidate_occurrence = 0;
 	double candidate_usage = std::numeric_limits<double>::lowest();
+
 	for (auto &part : c->parts) {
 		if (!part.is_valid() || part.type != ChunkPartType(slice_type, slice_part)) {
 			continue;
@@ -2184,10 +2187,14 @@ bool ChunkWorker::removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type
 
 		bool is_todel = part.is_todel();
 		double usage = matocsserv_get_usage(part.server());
-		if (std::make_pair(is_todel, usage) > std::make_pair(candidate_todel, candidate_usage)) {
+		int occurrence = ip_counter.empty() ? 1 : ip_counter.at(matocsserv_get_servip(part.server()));
+
+		if (std::make_tuple(is_todel, occurrence, usage) >
+		      std::make_tuple(candidate_todel, candidate_occurrence, candidate_usage)) {
 			candidate = &part;
 			candidate_usage = usage;
 			candidate_todel = is_todel;
+			candidate_occurrence = occurrence;
 		}
 	}
 
@@ -2313,9 +2320,11 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 
 	// step 1a. count number of chunk parts on servers with the same ip
 	IpCounter ip_occurrence;
-	for (auto &part : c->parts) {
-		if (part.is_valid()) {
-			++ip_occurrence[matocsserv_get_servip(part.server())];
+	if (gAvoidSameIpChunkservers) {
+		for (auto &part : c->parts) {
+			if (part.is_valid()) {
+				++ip_occurrence[matocsserv_get_servip(part.server())];
+			}
 		}
 	}
 
@@ -2383,7 +2392,7 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 				continue;
 			}
 
-			if (removeUnneededChunkPart(c, slice.getType(), i, calc)) {
+			if (removeUnneededChunkPart(c, slice.getType(), i, calc, ip_occurrence)) {
 				return;
 			}
 		}
