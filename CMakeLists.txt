@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-set(CMAKE_LEGACY_CYGWIN_WIN32 0) # Remove when CMake >= 2.8.4 is required
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
   message(FATAL_ERROR
@@ -124,9 +123,11 @@ if(MINGW)
 endif()
 
 # All the environment tests (libs, includes, etc.) live here:
-include(EnvTests.cmake)
+include(EnvTests)
 include(Libraries)
 include(GNUInstallDirs)
+include(CollectSources)
+include(CreateUnitTest)
 
 # Disable -pedantic for old gcc because of unfounded
 # "no comma at end of enumerator list" warning during crcutil compilation
@@ -251,26 +252,6 @@ include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/src/main/main.cc)
-
-# functions & macros
-macro(collect_sources VAR_PREFIX)
-  file(GLOB ${VAR_PREFIX}_TESTS *_unittest.cc)
-  file(GLOB ${VAR_PREFIX}_SOURCES *.cc *.h)
-  file(GLOB ${VAR_PREFIX}_MAIN main.cc)
-  if(${VAR_PREFIX}_MAIN OR ${VAR_PREFIX}_TESTS)
-    list(REMOVE_ITEM ${VAR_PREFIX}_SOURCES ${${VAR_PREFIX}_TESTS} ${${VAR_PREFIX}_MAIN})
-  endif()
-endmacro(collect_sources)
-
-function(add_tests TESTED_LIBRARY)
-  if(NOT BUILD_TESTS OR ARGC EQUAL 1)
-    return()
-  endif()
-  list(REMOVE_AT ARGV 0)
-  set(TEST_LIBRARY_NAME ${TESTED_LIBRARY}_tests)
-  include_directories(${GTEST_INCLUDE_DIRS})
-  add_library(${TEST_LIBRARY_NAME} ${ARGV})
-endfunction(add_tests)
 
 if(ZLIB_FOUND)
   include_directories(${ZLIB_INCLUDE_DIRS})

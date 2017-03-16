@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+IFS=';'
+TEST_LIST="@UNITTEST_TEST_NAMES@"
+
+SCRIPT_DIRECTORY=$(dirname "${BASH_SOURCE[0]}")
+
+for test in ${TEST_LIST}; do
+	"$SCRIPT_DIRECTORY/unittest_$test" $@ || exit 1
+done

@@ -1,0 +1,8 @@
+macro(collect_sources VAR_PREFIX)
+  file(GLOB ${VAR_PREFIX}_TESTS *_unittest.cc)
+  file(GLOB ${VAR_PREFIX}_SOURCES *.cc *.h)
+  file(GLOB ${VAR_PREFIX}_MAIN main.cc)
+  if(${VAR_PREFIX}_MAIN OR ${VAR_PREFIX}_TESTS)
+    list(REMOVE_ITEM ${VAR_PREFIX}_SOURCES ${${VAR_PREFIX}_TESTS} ${${VAR_PREFIX}_MAIN})
+  endif()
+endmacro(collect_sources)

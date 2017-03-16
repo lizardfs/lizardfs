@@ -40,4 +40,5 @@ if(ISAL_LIBRARY)
   target_link_libraries(mfscommon ${ISAL_LIBRARY})
 endif()
 
-add_tests(mfscommon ${COMMON_TESTS})
+create_unittest(mfscommon ${COMMON_TESTS})
+link_unittest(mfscommon mfscommon master)

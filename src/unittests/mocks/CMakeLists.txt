@@ -2,4 +2,5 @@ include_directories(${GTEST_INCLUDE_DIRS})
 
 collect_sources(UNITTESTMOCKS)
 add_library(unittest-mocks ${UNITTESTMOCKS_SOURCES})
-add_tests(unittest-mocks ${UNITTESTMOCKS_TESTS})
+create_unittest(unittest-mocks ${UNITTESTMOCKS_TESTS})
+link_unittest(unittest-mocks unittest-mocks mfscommon)

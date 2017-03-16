@@ -12,7 +12,7 @@
 # AC_FUNC_STRERROR_R
 
 include(CheckCXXCompilerFlag)
-include(CheckCXXExpression.cmake)
+include(CheckCXXExpression)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
 include(CheckFunctions)

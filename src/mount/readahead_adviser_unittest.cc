@@ -22,13 +22,6 @@
 
 #include "mount/readahead_adviser.h"
 
-const unsigned ReadaheadAdviser::kInitWindowSize;
-const unsigned ReadaheadAdviser::kDefaultWindowSizeLimit;
-const int ReadaheadAdviser::kRandomThreshold;
-const int ReadaheadAdviser::kHistoryEntryLifespan_ns;
-const int ReadaheadAdviser::kHistoryCapacity;
-const unsigned ReadaheadAdviser::kHistoryValidityThreshold;
-
 TEST(ReadaheadTests, ReadSequential) {
 	ReadaheadAdviser ra(1024);
 

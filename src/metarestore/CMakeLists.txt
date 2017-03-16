@@ -21,7 +21,8 @@ target_link_libraries(metarestore mfscommon)
 if(JUDY_LIBRARY)
   target_link_libraries(metarestore ${JUDY_LIBRARY})
 endif()
-add_tests(metarestore ${METARESTORE_TESTS})
+
+create_unittest(metarestore ${METARESTORE_TESTS})
 
 add_executable(mfsmetarestore ${METARESTORE_MAIN})
 target_link_libraries(mfsmetarestore metarestore mfscommon ${PAM_LIBRARIES})

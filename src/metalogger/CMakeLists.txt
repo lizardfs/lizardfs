@@ -6,7 +6,8 @@ collect_sources(METALOGGER)
 
 add_library(metalogger ${METALOGGER_SOURCES} ../master/changelog.cc ../master/masterconn.cc)
 target_link_libraries(metalogger mfscommon)
-add_tests(metalogger ${METALOGGER_TESTS})
+
+create_unittest(metalogger ${METALOGGER_TESTS})
 
 add_executable(mfsmetalogger ${MAIN_SRC})
 target_link_libraries(mfsmetalogger metalogger ${PAM_LIBRARIES})
