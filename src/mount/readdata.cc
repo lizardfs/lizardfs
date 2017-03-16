@@ -98,7 +98,7 @@ static std::atomic<uint32_t> maxRetries;
 static double gBandwidthOveruse;
 
 const unsigned ReadaheadAdviser::kInitWindowSize;
-const unsigned ReadaheadAdviser::kMaxWindowSize;
+const unsigned ReadaheadAdviser::kDefaultWindowSizeLimit;
 const int ReadaheadAdviser::kRandomThreshold;
 const int ReadaheadAdviser::kHistoryEntryLifespan_ns;
 const int ReadaheadAdviser::kHistoryCapacity;

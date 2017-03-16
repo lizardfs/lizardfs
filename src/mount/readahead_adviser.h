@@ -37,7 +37,7 @@ public:
 		uint32_t request_size;
 	};
 
-	ReadaheadAdviser(uint32_t timeout_ms, uint32_t window_size_limit = kMaxWindowSize) :
+	ReadaheadAdviser(uint32_t timeout_ms, uint32_t window_size_limit = kDefaultWindowSizeLimit) :
 		current_offset_(),
 		window_(kInitWindowSize),
 		random_candidates_(),
@@ -114,9 +114,8 @@ private:
 	void adjustMaxWindowSize(int64_t timestamp) {
 		double throughput_MBps = (double)requested_bytes_ / (timestamp - history_.front().timestamp);
 		// Max window size is set on the basis of estimated throughput
-		max_window_size_ = std::min<uint64_t>(kMaxWindowSize, throughput_MBps * timeout_ms_ * 1024);
+		max_window_size_ = std::min<uint64_t>(window_size_limit_, 2 * throughput_MBps * timeout_ms_ * 1024);
 		max_window_size_ = std::max(max_window_size_, kInitWindowSize);
-		max_window_size_ = std::min(max_window_size_, window_size_limit_);
 	}
 
 	/*!
@@ -151,7 +150,7 @@ private:
 	}
 
 	static const unsigned kInitWindowSize = 1 << 16;
-	static const unsigned kMaxWindowSize = 1 << 22;
+	static const unsigned kDefaultWindowSizeLimit = 1 << 22;
 	static const int kRandomThreshold = 3;
 	static const int kHistoryEntryLifespan_ns = 1 << 20;
 	static const int kHistoryCapacity = 64;
