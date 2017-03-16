@@ -22,8 +22,8 @@
 
 #include <cstdint>
 
+#include "common/event_loop.h"
 #include "common/hashfn.h"
-#include "common/main.h"
 #include "common/platform.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
@@ -133,7 +133,7 @@ uint64_t fs_checksum(ChecksumMode mode) {
 #ifndef METARESTORE
 uint8_t fs_start_checksum_recalculation() {
 	if (gChecksumBackgroundUpdater.start()) {
-		main_make_next_poll_nonblocking();
+		eventloop_make_next_poll_nonblocking();
 		return LIZARDFS_STATUS_OK;
 	} else {
 		return LIZARDFS_ERROR_TEMP_NOTPOSSIBLE;

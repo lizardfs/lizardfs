@@ -19,7 +19,7 @@
 #include "common/platform.h"
 
 #include "common/cfg.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "master/hstring_memstorage.h"
 #ifdef LIZARDFS_HAVE_DB
   #include "master/hstring_bdbstorage.h"
@@ -69,8 +69,8 @@ int hstorage_init() {
 		hstorage::Storage::reset(new hstorage::MemStorage());
 	}
 
-	main_reloadregister(hstorage_reload);
-	main_destructregister(hstorage_term);
+	eventloop_reloadregister(hstorage_reload);
+	eventloop_destructregister(hstorage_term);
 
 	return 0;
 }

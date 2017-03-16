@@ -24,7 +24,7 @@
 #include <vector>
 
 #include "common/cwrap.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "common/setup.h"
 #include "common/lizardfs_version.h"
 #include "common/metadata.h"
@@ -1236,7 +1236,7 @@ void fs_new(void) {
 	gMetadata->nextsessionid = 1;
 	gMetadata->root = static_cast<FSNodeDirectory*>(FSNode::create(FSNode::kDirectory));
 	gMetadata->root->id = SPECIAL_INODE_ROOT;
-	gMetadata->root->ctime = gMetadata->root->mtime = gMetadata->root->atime = main_time();
+	gMetadata->root->ctime = gMetadata->root->mtime = gMetadata->root->atime = eventloop_time();
 	gMetadata->root->goal = DEFAULT_GOAL;
 	gMetadata->root->trashtime = DEFAULT_TRASHTIME;
 	gMetadata->root->mode = 0777;
@@ -1517,7 +1517,7 @@ bool fs_commit_metadata_dump() {
 	}
 
 	// The previous step didn't return, so let's try to save us in other way
-	std::string alternativeName = kMetadataFilename + std::to_string(main_time());
+	std::string alternativeName = kMetadataFilename + std::to_string(eventloop_time());
 	try {
 		fs::rename(kMetadataTmpFilename, alternativeName);
 		lzfs_pretty_syslog(LOG_ERR, "emergency metadata file created as %s", alternativeName.c_str());

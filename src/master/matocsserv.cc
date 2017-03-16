@@ -37,11 +37,11 @@
 
 #include "common/cfg.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/mfserr.h"
 #include "common/output_packet.h"
@@ -1806,8 +1806,8 @@ int matocsserv_init(void) {
 
 	matocsserv_replication_init();
 	matocsservhead = NULL;
-	main_reloadregister(matocsserv_reload);
-	main_destructregister(matocsserv_term);
-	main_pollregister(matocsserv_desc,matocsserv_serve);
+	eventloop_reloadregister(matocsserv_reload);
+	eventloop_destructregister(matocsserv_term);
+	eventloop_pollregister(matocsserv_desc,matocsserv_serve);
 	return 0;
 }

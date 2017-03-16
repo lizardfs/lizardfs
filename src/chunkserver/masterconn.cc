@@ -40,6 +40,7 @@
 #include "chunkserver/network_main_thread.h"
 #include "common/cfg.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/goal.h"
 #include "common/loop_watchdog.h"
 #include "common/main.h"
@@ -896,7 +897,7 @@ void masterconn_reload(void) {
 		masterconn_sendregisterlabel(eptr);
 	}
 
-	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
+	eventloop_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 }
 
 int masterconn_init(void) {
@@ -925,11 +926,11 @@ int masterconn_init(void) {
 		return -1;
 	}
 
-	main_eachloopregister(masterconn_check_hdd_reports);
-	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rnd_ranged<uint32_t>(ReconnectionDelay),masterconn_reconnect);
-	main_destructregister(masterconn_term);
-	main_pollregister(masterconn_desc,masterconn_serve);
-	main_reloadregister(masterconn_reload);
+	eventloop_eachloopregister(masterconn_check_hdd_reports);
+	reconnect_hook = eventloop_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,rnd_ranged<uint32_t>(ReconnectionDelay),masterconn_reconnect);
+	eventloop_destructregister(masterconn_term);
+	eventloop_pollregister(masterconn_desc,masterconn_serve);
+	eventloop_reloadregister(masterconn_reload);
 	return 0;
 }
 

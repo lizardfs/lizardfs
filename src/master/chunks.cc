@@ -38,12 +38,12 @@
 #include "common/coroutine.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
+#include "common/event_loop.h"
 #include "common/flat_set.h"
 #include "common/goal.h"
 #include "common/hashfn.h"
 #include "common/lizardfs_version.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/slice_traits.h"
 #include "common/small_vector.h"
@@ -427,7 +427,7 @@ public:
 	}
 
 	bool isLocked() const {
-		return lockedto >= main_time();
+		return lockedto >= eventloop_time();
 	}
 
 	void markCopyAsHavingWrongVersion(ChunkPart &part) {
@@ -559,7 +559,7 @@ public:
 	void serverDisconnected() {
 		refresh();
 		++disconnectedServers_;
-		timestamp_ = main_time() + gOperationsDelayDisconnect;
+		timestamp_ = eventloop_time() + gOperationsDelayDisconnect;
 	}
 
 	void serverConnected() {
@@ -579,7 +579,7 @@ private:
 	uint32_t timestamp_;
 
 	void refresh() {
-		if (main_time() > timestamp_) {
+		if (eventloop_time() > timestamp_) {
 			disconnectedServers_ = 0;
 		}
 	}
@@ -964,7 +964,7 @@ int chunk_can_unlock(uint64_t chunkid, uint32_t lockid) {
 		// lockid == 0 -> force unlock
 		return LIZARDFS_STATUS_OK;
 	}
-	// We will let client unlock the chunk even if c->lockedto < main_time()
+	// We will let client unlock the chunk even if c->lockedto < eventloop_time()
 	// if he provides lockId that was used to lock the chunk -- this means that nobody
 	// else used this chunk since it was locked (operations like truncate or replicate
 	// would remove such a stale lock before modifying the chunk)
@@ -1050,7 +1050,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 			uint16_t uscount,tscount;
 			double minusage,maxusage;
 			matocsserv_usagedifference(&minusage,&maxusage,&uscount,&tscount);
-			if ((uscount > 0) && (main_time() > (starttime+600))) { // if there are chunkservers and it's at least one minute after start then it means that there is no space left
+			if ((uscount > 0) && (eventloop_time() > (starttime+600))) { // if there are chunkservers and it's at least one minute after start then it means that there is no space left
 				return LIZARDFS_ERROR_NOSPACE;
 			} else {
 				return LIZARDFS_ERROR_NOCHUNKSERVERS;
@@ -1156,7 +1156,7 @@ uint8_t chunk_multi_modify(uint64_t ochunkid, uint32_t *lockid, uint8_t goal,
 		}
 	}
 
-	c->lockedto = main_time() + LOCKTIMEOUT;
+	c->lockedto = eventloop_time() + LOCKTIMEOUT;
 	if (*lockid == 0) {
 		if (usedummylockid) {
 			*lockid = 1;
@@ -1251,7 +1251,7 @@ uint8_t chunk_multi_truncate(uint64_t ochunkid, uint32_t lockid, uint32_t length
 		}
 	}
 
-	c->lockedto=(uint32_t)main_time()+LOCKTIMEOUT;
+	c->lockedto=(uint32_t)eventloop_time()+LOCKTIMEOUT;
 	c->lockid = lockid;
 	chunk_update_checksum(c);
 	return LIZARDFS_STATUS_OK;
@@ -1516,10 +1516,10 @@ void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t ver
 	if (c==NULL) {
 		// chunkserver has nonexistent chunk, so create it for future deletion
 		if (chunkid>=gChunksMetadata->nextchunkid) {
-			fs_set_nextchunkid(FsContext::getForMaster(main_time()), chunkid + 1);
+			fs_set_nextchunkid(FsContext::getForMaster(eventloop_time()), chunkid + 1);
 		}
 		c = chunk_new(chunkid, new_version);
-		c->lockedto = (uint32_t)main_time()+UNUSED_DELETE_TIMEOUT;
+		c->lockedto = (uint32_t)eventloop_time()+UNUSED_DELETE_TIMEOUT;
 		c->lockid = 0;
 		chunk_update_checksum(c);
 	}
@@ -1617,7 +1617,7 @@ void chunk_server_disconnected(matocsserventry */*ptr*/, const MediaLabel &label
 	// If chunkserver disconnects, we can assure it was processed by zombie server loop
 	// only if the loop was executed at least twice.
 	gDisconnectedCounter = 2;
-	main_make_next_poll_nonblocking();
+	eventloop_make_next_poll_nonblocking();
 	fs_cs_disconnected();
 	gChunksMetadata->lastchunkid = 0;
 	gChunksMetadata->lastchunkptr = NULL;
@@ -1654,7 +1654,7 @@ void chunk_clean_zombie_servers_a_bit() {
 		for (; gCurrentChunkInZombieLoop; gCurrentChunkInZombieLoop = gCurrentChunkInZombieLoop->next) {
 			chunk_handle_disconnected_copies(gCurrentChunkInZombieLoop);
 			if (watchdog.expired()) {
-				main_make_next_poll_nonblocking();
+				eventloop_make_next_poll_nonblocking();
 				return;
 			}
 		}
@@ -1668,7 +1668,7 @@ void chunk_clean_zombie_servers_a_bit() {
 		current_position = 0;
 		gCurrentChunkInZombieLoop = gChunksMetadata->chunkhash[0];
 	}
-	main_make_next_poll_nonblocking();
+	eventloop_make_next_poll_nonblocking();
 }
 
 void chunk_got_delete_status(matocsserventry *ptr, uint64_t chunkId, ChunkPartType chunkType, uint8_t /*status*/) {
@@ -1904,7 +1904,7 @@ void ChunkWorker::doEveryLoopTasks() {
 	chunksinfo = inforec_;
 	memset(&inforec_,0,sizeof(inforec_));
 	chunksinfo_loopstart = chunksinfo_loopend;
-	chunksinfo_loopend = main_time();
+	chunksinfo_loopend = eventloop_time();
 }
 
 void ChunkWorker::doEverySecondTasks() {
@@ -2063,7 +2063,7 @@ bool ChunkWorker::replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int
 	for (const auto &label_and_count : replicate_labels) {
 		tried_to_replicate = true;
 
-		if (jobsnorepbefore >= main_time()) {
+		if (jobsnorepbefore >= eventloop_time()) {
 			break;
 		}
 
@@ -2444,7 +2444,7 @@ void ChunkWorker::mainLoop() {
 		stack_.chunks_done_count = 0;
 		stack_.buckets_done_count = 0;
 
-		if (starttime + gOperationsDelayInit > main_time()) {
+		if (starttime + gOperationsDelayInit > eventloop_time()) {
 			return;
 		}
 
@@ -2458,7 +2458,7 @@ void ChunkWorker::mainLoop() {
 
 		doEverySecondTasks();
 
-		if (jobsnorepbefore < main_time()) {
+		if (jobsnorepbefore < eventloop_time()) {
 			stack_.endangered_to_serve = gEndangeredChunksServingLimit;
 			while (stack_.endangered_to_serve > 0 && !Chunk::endangeredChunks.empty()) {
 				c = Chunk::endangeredChunks.front();
@@ -2541,7 +2541,7 @@ void chunk_jobs_process_bit(void) {
 	if (!gChunkWorker->is_complete()) {
 		gChunkWorker->mainLoop();
 		if (!gChunkWorker->is_complete()) {
-			main_make_next_poll_nonblocking();
+			eventloop_make_next_poll_nonblocking();
 		}
 	}
 }
@@ -2674,11 +2674,11 @@ void chunk_newfs(void) {
 
 #ifndef METARESTORE
 void chunk_become_master() {
-	starttime = main_time();
+	starttime = eventloop_time();
 	jobsnorepbefore = starttime + gOperationsDelayInit;
 	gChunkWorker = std::unique_ptr<ChunkWorker>(new ChunkWorker());
-	gChunkLoopEventHandle = main_timeregister_ms(ChunksLoopPeriod, chunk_jobs_main);
-	main_eachloopregister(chunk_jobs_process_bit);
+	gChunkLoopEventHandle = eventloop_timeregister_ms(ChunksLoopPeriod, chunk_jobs_main);
+	eventloop_eachloopregister(chunk_jobs_process_bit);
 	return;
 }
 
@@ -2739,7 +2739,7 @@ void chunk_reload(void) {
 
 	ChunksLoopPeriod = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_PERIOD", 1000, MINCHUNKSLOOPPERIOD, MAXCHUNKSLOOPPERIOD);
 	if (gChunkLoopEventHandle) {
-		main_timechange_ms(gChunkLoopEventHandle, ChunksLoopPeriod);
+		eventloop_timechange_ms(gChunkLoopEventHandle, ChunksLoopPeriod);
 	}
 
 	repl = cfg_get_minmaxvalue<uint32_t>("CHUNKS_LOOP_MAX_CPU", 60, MINCHUNKSLOOPCPU, MAXCHUNKSLOOPCPU);
@@ -2839,9 +2839,9 @@ int chunk_strinit(void) {
 	gEndangeredChunksMaxCapacity = cfg_get("ENDANGERED_CHUNKS_MAX_CAPACITY", static_cast<uint64_t>(1024*1024UL));
 	AcceptableDifference = cfg_ranged_get("ACCEPTABLE_DIFFERENCE", 0.1, 0.001, 10.0);
 	RebalancingBetweenLabels = cfg_getuint32("CHUNKS_REBALANCING_BETWEEN_LABELS", 0) == 1;
-	main_reloadregister(chunk_reload);
+	eventloop_reloadregister(chunk_reload);
 	metadataserver::registerFunctionCalledOnPromotion(chunk_become_master);
-	main_eachloopregister(chunk_clean_zombie_servers_a_bit);
+	eventloop_eachloopregister(chunk_clean_zombie_servers_a_bit);
 	if (metadataserver::isMaster()) {
 		chunk_become_master();
 	}

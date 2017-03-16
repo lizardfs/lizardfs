@@ -46,8 +46,8 @@
 #include "protocol/cstocl.h"
 #include "protocol/cstocs.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/lizardfs_version.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "protocol/MFSCommunication.h"
 #include "common/moosefs_vector.h"
@@ -251,7 +251,7 @@ int worker_initconnect(csserventry *eptr) {
 		eptr->state = WRITEINIT;
 	} else {
 		eptr->state = CONNECTING;
-		eptr->connstart = main_utime();
+		eptr->connstart = eventloop_utime();
 	}
 	return 0;
 }
@@ -1678,8 +1678,8 @@ void NetworkWorkerThread::preparePollFds() {
 void NetworkWorkerThread::servePoll() {
 	LOG_AVG_TILL_END_OF_SCOPE0("servePoll");
 	TRACETHIS();
-	uint32_t now = main_time();
-	uint64_t usecnow = main_utime();
+	uint32_t now = eventloop_time();
+	uint64_t usecnow = eventloop_utime();
 	uint32_t jobscnt;
 	uint8_t lstate;
 
@@ -1822,7 +1822,7 @@ void NetworkWorkerThread::addConnection(int newSocketFD) {
 
 	std::unique_lock<std::mutex> lock(csservheadLock);
 	csservEntries.emplace_front(newSocketFD, bgJobPool_);
-	csservEntries.front().activity = main_time();
+	csservEntries.front().activity = eventloop_time();
 
 	eassert(write(notify_pipe[1], "9", 1) == 1);
 }

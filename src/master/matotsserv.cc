@@ -31,8 +31,8 @@
 #include "common/cfg.h"
 #include "common/cwrap.h"
 #include "common/exceptions.h"
+#include "common/event_loop.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/media_label.h"
 #include "common/network_address.h"
 #include "common/output_packet.h"
@@ -453,7 +453,7 @@ static void matotsserv_reload() {
 
 /// Called when personality is changed from shadow to master.
 static void matotsserv_become_master() {
-	main_timeregister(TIMEMODE_RUN_LATE, 1, 0, matotsserv_periodic_put_files);
+	eventloop_timeregister(TIMEMODE_RUN_LATE, 1, 0, matotsserv_periodic_put_files);
 }
 
 int matotsserv_init() {
@@ -483,9 +483,9 @@ int matotsserv_init() {
 			gListenHost.c_str(),
 			gListenPort.c_str());
 
-	main_reloadregister(matotsserv_reload);
-	main_destructregister(matotsserv_term);
-	main_pollregister(matotsserv_desc, matotsserv_serve);
+	eventloop_reloadregister(matotsserv_reload);
+	eventloop_destructregister(matotsserv_term);
+	eventloop_pollregister(matotsserv_desc, matotsserv_serve);
 	metadataserver::registerFunctionCalledOnPromotion(matotsserv_become_master);
 	if (metadataserver::isMaster()) {
 		matotsserv_become_master();

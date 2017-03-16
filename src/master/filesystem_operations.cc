@@ -24,7 +24,7 @@
 #include <cstdint>
 
 #include "common/attributes.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "master/changelog.h"
 #include "master/filesystem.h"
 #include "master/filesystem_checksum.h"
@@ -489,7 +489,7 @@ uint8_t fs_getattr(const FsContext &context, uint32_t inode, Attributes &attr) {
 uint8_t fs_try_setlength(const FsContext &context, uint32_t inode, uint8_t opened,
 			uint64_t length, bool denyTruncatingParity, uint32_t lockId, Attributes &attr,
 			uint64_t *chunkid) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p;
 	memset(attr, 0, 35);
@@ -587,7 +587,7 @@ uint8_t fs_set_nextchunkid(const FsContext &context, uint64_t nextChunkId) {
 
 #ifndef METARESTORE
 uint8_t fs_end_setlength(uint64_t chunkid) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	fs_changelog(ts, "UNLOCK(%" PRIu64 ")", chunkid);
 	return chunk_unlock(chunkid);
@@ -602,7 +602,7 @@ uint8_t fs_apply_unlock(uint64_t chunkid) {
 #ifndef METARESTORE
 uint8_t fs_do_setlength(const FsContext &context, uint32_t inode, uint64_t length,
 			Attributes &attr) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p = NULL;
 
@@ -632,7 +632,7 @@ uint8_t fs_do_setlength(const FsContext &context, uint32_t inode, uint64_t lengt
 uint8_t fs_setattr(const FsContext &context, uint32_t inode, uint8_t setmask, uint16_t attrmode,
 		uint32_t attruid, uint32_t attrgid, uint32_t attratime, uint32_t attrmtime,
 		SugidClearMode sugidclearmode, Attributes &attr) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p = NULL;
 
@@ -818,7 +818,7 @@ static inline void fs_update_atime(FSNode *p, uint32_t ts) {
 }
 
 uint8_t fs_readlink(const FsContext &context, uint32_t inode, std::string &path) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p = NULL;
 
@@ -910,7 +910,7 @@ uint8_t fs_symlink(const FsContext &context, uint32_t parent, const HString &nam
 uint8_t fs_mknod(const FsContext &context, uint32_t parent, const HString &name,
 		uint8_t type, uint16_t mode, uint16_t umask, uint32_t rdev, uint32_t *inode,
 		Attributes &attr) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *wd, *p;
 	*inode = 0;
@@ -960,7 +960,7 @@ uint8_t fs_mknod(const FsContext &context, uint32_t parent, const HString &name,
 
 uint8_t fs_mkdir(const FsContext &context, uint32_t parent, const HString &name, uint16_t mode,
 				 uint16_t umask, uint8_t copysgid, uint32_t *inode, Attributes &attr) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *wd, *p;
 	*inode = 0;
@@ -1034,7 +1034,7 @@ uint8_t fs_apply_create(uint32_t ts, uint32_t parent, const HString &name,
 
 #ifndef METARESTORE
 uint8_t fs_unlink(const FsContext &context, uint32_t parent, const HString &name) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *wd;
 
@@ -1091,7 +1091,7 @@ uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent,
 }
 
 uint8_t fs_rmdir(const FsContext &context, uint32_t parent, const HString &name) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *wd;
 
@@ -1647,7 +1647,7 @@ uint8_t fs_readdir_size(const FsContext &context, uint32_t inode, uint8_t flags,
 }
 
 void fs_readdir_data(const FsContext &context, uint8_t flags, void *dnode, uint8_t *dbuff) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p = (FSNode *)dnode;
 	fs_update_atime(p, ts);
@@ -1779,7 +1779,7 @@ uint8_t fs_release(const FsContext &context, uint32_t inode, uint32_t sessionid)
 
 #ifndef METARESTORE
 uint32_t fs_newsessionid(void) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	fs_changelog(ts, "SESSION():%" PRIu32, gMetadata->nextsessionid);
 	return gMetadata->nextsessionid++;
@@ -1813,7 +1813,7 @@ uint8_t fs_auto_repair_if_needed(FSNodeFile *p, uint32_t chunkIndex) {
 }
 
 uint8_t fs_readchunk(uint32_t inode, uint32_t indx, uint64_t *chunkid, uint64_t *length) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNodeFile *p;
 
@@ -1946,7 +1946,7 @@ uint8_t fs_writechunk(const FsContext &context, uint32_t inode, uint32_t indx, b
 
 #ifndef METARESTORE
 uint8_t fs_writeend(uint32_t inode, uint64_t length, uint64_t chunkid, uint32_t lockid) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	uint8_t status = chunk_can_unlock(chunkid, lockid);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -1973,7 +1973,7 @@ uint8_t fs_writeend(uint32_t inode, uint64_t length, uint64_t chunkid, uint32_t 
 }
 
 void fs_incversion(uint64_t chunkid) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	fs_changelog(ts, "INCVERSION(%" PRIu64 ")", chunkid);
 }
@@ -1987,7 +1987,7 @@ uint8_t fs_apply_incversion(uint64_t chunkid) {
 #ifndef METARESTORE
 uint8_t fs_repair(const FsContext &context, uint32_t inode,
 		uint8_t correct_only, uint32_t *notchanged, uint32_t *erased, uint32_t *repaired) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	uint32_t nversion, indx;
 	statsrecord psr, nsr;
@@ -2461,7 +2461,7 @@ void fs_listxattr_data(void *xanode, uint8_t *xabuff) {
 uint8_t fs_setxattr(const FsContext &context, uint32_t inode, uint8_t opened,
 		uint8_t anleng, const uint8_t *attrname,
 		uint32_t avleng, const uint8_t *attrvalue, uint8_t mode) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p;
 	uint8_t status;

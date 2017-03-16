@@ -75,8 +75,8 @@
 #include "common/debug_log.h"
 #include "common/disk_info.h"
 #include "common/exceptions.h"
+#include "common/event_loop.h"
 #include "common/list.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/moosefs_vector.h"
 #include "common/random.h"
@@ -1245,7 +1245,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 		gOpenChunks.acquire(c->fd);
 		if (c->fd < 0) {
 			// Try to free some long unused descriptors
-			gOpenChunks.freeUnused(main_time(), hashlock);
+			gOpenChunks.freeUnused(eventloop_time(), hashlock);
 			for (int i = 0; i < kOpenRetryCount; ++i) {
 				if (newflag) {
 					c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
@@ -1283,7 +1283,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 				status = hdd_int_chunk_readcrc(mc, chunk_version);
 				if (status != LIZARDFS_STATUS_OK) {
 					int errmem = errno;
-					gOpenChunks.release(c->fd, main_time());
+					gOpenChunks.release(c->fd, eventloop_time());
 					lzfs_silent_errlog(LOG_WARNING,
 							"hdd_io_begin: file:%s - read error", c->filename().c_str());
 					errno = errmem;
@@ -1346,7 +1346,7 @@ static int hdd_io_end(Chunk *c) {
 	}
 	c->refcount--;
 	if (c->refcount==0) {
-		gOpenChunks.release(c->fd, main_time());
+		gOpenChunks.release(c->fd, eventloop_time());
 	}
 	errno = 0;
 	return LIZARDFS_STATUS_OK;
@@ -3320,7 +3320,7 @@ void hdd_free_resources_thread() {
 	TRACETHIS();
 
 	while (!term) {
-		gOpenChunks.freeUnused(main_time(), hashlock, kMaxFreeUnused);
+		gOpenChunks.freeUnused(eventloop_time(), hashlock, kMaxFreeUnused);
 		sleep(kDelayedStep);
 	}
 }
@@ -3396,7 +3396,7 @@ void hdd_term(void) {
 				syslog(LOG_WARNING,"hdd_term: locked chunk !!!");
 			}
 		}
-		gOpenChunks.freeUnused(main_time(), hashlock);
+		gOpenChunks.freeUnused(eventloop_time(), hashlock);
 	}
 	for (f=folderhead ; f ; f=fn) {
 		fn = f->next;
@@ -3931,9 +3931,9 @@ int hdd_init(void) {
 
 	MooseFSChunkFormat = true;
 	hdd_int_set_chunk_format();
-	main_reloadregister(hdd_reload);
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
-	main_destructregister(hdd_term);
+	eventloop_reloadregister(hdd_reload);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,60,0,hdd_diskinfo_movestats);
+	eventloop_destructregister(hdd_term);
 
 	term = 1;
 

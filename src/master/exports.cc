@@ -34,6 +34,7 @@
 #include "common/cwrap.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
+#include "common/event_loop.h"
 #include "common/goal.h"
 #include "common/main.h"
 #include "common/massert.h"
@@ -1029,7 +1030,7 @@ int exports_init(void) {
 		// File was empty
 		throw InitializeException(std::string("no exports defined in ") + ExportsFileName);
 	}
-	main_reloadregister(exports_reload);
-	main_destructregister(exports_term);
+	eventloop_reloadregister(exports_reload);
+	eventloop_destructregister(exports_term);
 	return 0;
 }

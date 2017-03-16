@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include "common/charts.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
 #include "master/filesystem_operations.h"
@@ -237,7 +237,7 @@ void chartsdata_refresh(void) {
 	}
 	matoclserv_stats(data+CHARTS_PACKETSRCVD);
 
-	charts_add(data,main_time()-60);
+	charts_add(data,eventloop_time()-60);
 }
 
 void chartsdata_term(void) {
@@ -275,8 +275,8 @@ int chartsdata_init (void) {
 #  endif
 #endif
 
-	main_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
-	main_destructregister(chartsdata_term);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
+	eventloop_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }

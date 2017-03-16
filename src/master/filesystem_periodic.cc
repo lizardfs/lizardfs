@@ -24,7 +24,7 @@
 #include <type_traits>
 
 #include "common/loop_watchdog.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
@@ -52,11 +52,11 @@ static int gTasksBatchSize = 1000;
 
 void fs_background_task_manager_work() {
 	if (gMetadata->task_manager.workAvailable()) {
-		uint32_t ts = main_time();
+		uint32_t ts = eventloop_time();
 		ChecksumUpdater cu(ts);
 		gMetadata->task_manager.processJobs(ts, gTasksBatchSize);
 		if (gMetadata->task_manager.workAvailable()) {
-			main_make_next_poll_nonblocking();
+			eventloop_make_next_poll_nonblocking();
 		}
 	}
 }
@@ -131,7 +131,7 @@ void fs_background_checksum_recalculation_a_bit() {
 		matoclserv_broadcast_metadata_checksum_recalculated(LIZARDFS_STATUS_OK);
 		return;
 	}
-	main_make_next_poll_nonblocking();
+	eventloop_make_next_poll_nonblocking();
 }
 
 void fs_periodic_test_files() {
@@ -155,7 +155,7 @@ void fs_periodic_test_files() {
 	static uint32_t leng = 0;
 	FSNode *f;
 
-	if ((uint32_t)(main_time()) <= gTestStartTime) {
+	if ((uint32_t)(eventloop_time()) <= gTestStartTime) {
 		return;
 	}
 	if (i >= NODEHASHSIZE) {
@@ -242,7 +242,7 @@ void fs_periodic_test_files() {
 		leng = 0;
 
 		fsinfo_loopstart = fsinfo_loopend;
-		fsinfo_loopend = main_time();
+		fsinfo_loopend = eventloop_time();
 	}
 	for (k = 0; k < (NODEHASHSIZE / 14400) && i < NODEHASHSIZE; k++, i++) {
 		for (f = gMetadata->nodehash[i]; f; f = f->next) {
@@ -501,7 +501,7 @@ static InodeInfo fs_do_emptytrash_deprecated(uint32_t ts) {
 
 #ifndef METARESTORE
 void fs_periodic_emptytrash(void) {
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	fs_do_emptytrash(ts);
 }
 #endif

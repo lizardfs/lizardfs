@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
+#include "common/event_loop.h"
 #include "common/main.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
@@ -91,7 +92,7 @@ void changelog_init(std::string changelogFilename,
 		throw InitializeException(cfg_filename() + ": BACK_LOGS value too low, "
 				"minimum allowed is " + std::to_string(gMinBackLogsNumber));
 	}
-	main_reloadregister(changelog_reload);
+	eventloop_reloadregister(changelog_reload);
 }
 
 uint32_t changelog_get_back_logs_config_value() {

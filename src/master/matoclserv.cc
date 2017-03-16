@@ -42,6 +42,7 @@
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/generic_lru_cache.h"
 #include "common/goal.h"
 #include "common/human_readable_format.h"
@@ -50,7 +51,6 @@
 #include "common/lizardfs_statistics.h"
 #include "common/lizardfs_version.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/md5.h"
 #include "common/metadata.h"
@@ -871,7 +871,7 @@ int matoclserv_load_sessions() {
 				asesdata->mapallgid = get32bit(&ptr);
 			}
 			asesdata->newsession = 1;
-			asesdata->disconnected = main_time();
+			asesdata->disconnected = eventloop_time();
 			for (i=0 ; i<SESSION_STATS ; i++) {
 				asesdata->currentopstats[i] = (i<statsinfile)?get32bit(&ptr):0;
 			}
@@ -924,7 +924,7 @@ int matoclserv_insert_openfile(session* cr,uint32_t inode) {
 		}
 		ofpptr = &(ofptr->next);
 	}
-	status = fs_acquire(FsContext::getForMaster(main_time()), inode, cr->sessionid);
+	status = fs_acquire(FsContext::getForMaster(eventloop_time()), inode, cr->sessionid);
 	if (status==LIZARDFS_STATUS_OK) {
 		ofptr = (filelist*)malloc(sizeof(filelist));
 		passert(ofptr);
@@ -945,7 +945,7 @@ void matoclserv_add_open_file(uint32_t sessionid,uint32_t inode) {
 		passert(asesdata);
 		asesdata->sessionid = sessionid;
 /* session created by filesystem - only for old clients (pre 1.5.13) */
-		asesdata->disconnected = main_time();
+		asesdata->disconnected = eventloop_time();
 		asesdata->next = sessionshead;
 		sessionshead = asesdata;
 	}
@@ -991,7 +991,7 @@ void matoclserv_remove_open_file(uint32_t sessionid, uint32_t inode) {
 
 void matoclserv_reset_session_timeouts() {
 	session *asesdata;
-	uint32_t now = main_time();
+	uint32_t now = eventloop_time();
 	for (asesdata = sessionshead ; asesdata ; asesdata=asesdata->next) {
 		asesdata->disconnected = now;
 	}
@@ -1067,7 +1067,7 @@ static inline uint8_t matoclserv_check_group_cache(matoclserventry *eptr, uint32
  */
 static inline FsContext matoclserv_get_context(matoclserventry *eptr) {
 	assert(eptr && eptr->sesdata);
-	return FsContext::getForMaster(main_time(), eptr->sesdata->rootinode, eptr->sesdata->sesflags);
+	return FsContext::getForMaster(eventloop_time(), eptr->sesdata->rootinode, eptr->sesdata->sesflags);
 }
 
 /**
@@ -1087,7 +1087,7 @@ static inline FsContext matoclserv_get_context(matoclserventry *eptr, uint32_t u
 		assert(!it->second.empty());
 
 		if (!matoclserv_ugid_remap_required(eptr, uid)) {
-			return FsContext::getForMasterWithSession(main_time(), eptr->sesdata->rootinode,
+			return FsContext::getForMasterWithSession(eventloop_time(), eptr->sesdata->rootinode,
 			                                          eptr->sesdata->sesflags, uid, it->second,
 			                                          uid, it->second[0]);
 		}
@@ -1105,14 +1105,14 @@ static inline FsContext matoclserv_get_context(matoclserventry *eptr, uint32_t u
 		uint32_t auid = uid;
 		matoclserv_ugid_remap(eptr, &uid, nullptr);
 
-		return FsContext::getForMasterWithSession(main_time(),
+		return FsContext::getForMasterWithSession(eventloop_time(),
 			eptr->sesdata->rootinode, eptr->sesdata->sesflags, uid, std::move(gids), auid, it->second[0]);
 	}
 
 	uint32_t auid = uid;
 	uint32_t agid = gid;
 	matoclserv_ugid_remap(eptr, &uid, &gid);
-	return FsContext::getForMasterWithSession(main_time(),
+	return FsContext::getForMasterWithSession(eventloop_time(),
 			eptr->sesdata->rootinode, eptr->sesdata->sesflags, uid, gid, auid, agid);
 }
 
@@ -1210,7 +1210,7 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	}
 
 	std::vector<uint8_t> reply;
-	FsContext context = FsContext::getForMasterWithSession(main_time(), eptr->sesdata->rootinode,
+	FsContext context = FsContext::getForMasterWithSession(eventloop_time(), eptr->sesdata->rootinode,
 	                                             eptr->sesdata->sesflags, uid, gid, auid, agid);
 
 	switch (type) {
@@ -2152,7 +2152,7 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 		inode=0;
 	}
 
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	changelog_disable_flush();
 	while ((ofptr=*ofpptr) && inode>0) {
 		if (ofptr->inode<inode) {
@@ -4117,7 +4117,7 @@ static void matoclserv_lock_wake_up(std::vector<FileLocks::Owner> &owners, lzfs_
 }
 
 void matoclserv_fuse_flock(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t messageId;
 	uint32_t inode;
 	uint64_t owner;
@@ -4162,7 +4162,7 @@ void matoclserv_fuse_flock(matoclserventry *eptr, const uint8_t *data, uint32_t 
 }
 
 void matoclserv_fuse_getlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t messageId;
 	uint32_t inode;
 	uint64_t owner;
@@ -4193,7 +4193,7 @@ void matoclserv_fuse_getlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 }
 
 void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t messageId;
 	uint32_t inode;
 	uint64_t owner;
@@ -4243,7 +4243,7 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 }
 
 void matoclserv_manage_locks_list(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t inode;
 	lzfs_locks::Type type;
 	bool pending;
@@ -4286,7 +4286,7 @@ void matoclserv_manage_locks_list(matoclserventry *eptr, const uint8_t *data, ui
 }
 
 void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t inode;
 	uint64_t owner;
 	uint32_t sessionid;
@@ -4352,7 +4352,7 @@ void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, 
 }
 void matoclserv_fuse_locks_interrupt(matoclserventry *eptr, const uint8_t *data, uint32_t length,
 				     uint8_t type) {
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t messageId;
 	lzfs_locks::InterruptData interruptData;
 
@@ -4568,7 +4568,7 @@ void matoclserv_admin_stop_without_metadata_dump(
 				matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(EPERM));
 			} else {
 				fs_disable_metadata_dump_on_exit();
-				uint8_t status = main_want_to_terminate();
+				uint8_t status = eventloop_want_to_terminate();
 				if (status == LIZARDFS_STATUS_OK) {
 					eptr->adminTask = AdminTask::kTerminate;
 				} else {
@@ -4578,7 +4578,7 @@ void matoclserv_admin_stop_without_metadata_dump(
 			}
 		} else { // not Master
 			fs_disable_metadata_dump_on_exit();
-			uint8_t status = main_want_to_terminate();
+			uint8_t status = eventloop_want_to_terminate();
 			matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(status));
 		}
 	} else {
@@ -4593,7 +4593,7 @@ void matoclserv_admin_reload(matoclserventry* eptr, const uint8_t* data, uint32_
 	cltoma::adminReload::deserialize(data, length);
 	if (eptr->registered == ClientState::kAdmin) {
 		eptr->adminTask = AdminTask::kReload; // mark, that this admin waits for response
-		main_want_to_reload();
+		eventloop_want_to_reload();
 		syslog(LOG_NOTICE, "reload of the config file requested using lizardfs-admin by %s",
 				ipToString(eptr->peerip).c_str());
 	} else {
@@ -4684,7 +4684,7 @@ void matocl_locks_release(const FsContext &context, uint32_t inode, uint32_t ses
 void matocl_session_timedout(session *sesdata) {
 	filelist *fl,*afl;
 	fl=sesdata->openedfiles;
-	FsContext context = FsContext::getForMaster(main_time());
+	FsContext context = FsContext::getForMaster(eventloop_time());
 	while (fl) {
 		afl = fl;
 		fl=fl->next;
@@ -4702,7 +4702,7 @@ void matocl_session_check(void) {
 	session **sesdata,*asesdata;
 	uint32_t now;
 
-	now = main_time();
+	now = eventloop_time();
 	sesdata = &(sessionshead);
 	while ((asesdata=*sesdata)) {
 //              syslog(LOG_NOTICE,"session: %u ; nsocks: %u ; state: %u ; disconnected: %u",asesdata->sessionid,asesdata->nsocks,asesdata->newsession,asesdata->disconnected);
@@ -4744,7 +4744,7 @@ void matocl_beforedisconnect(matoclserventry *eptr) {
 			eptr->sesdata->nsocks--;
 		}
 		if (eptr->sesdata->nsocks==0) {
-			eptr->sesdata->disconnected = main_time();
+			eptr->sesdata->disconnected = eventloop_time();
 		}
 	}
 /* CACHENOTIFY
@@ -5400,7 +5400,7 @@ void matoclserv_desc(std::vector<pollfd> &pdesc) {
 
 
 void matoclserv_serve(const std::vector<pollfd> &pdesc) {
-	uint32_t now=main_time();
+	uint32_t now=eventloop_time();
 	matoclserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
@@ -5591,10 +5591,10 @@ void  matoclserv_become_master() {
 	matoclserv_reset_session_timeouts();
 	matoclserv_start_cond_check();
 	if (starting) {
-		main_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
+		eventloop_timeregister(TIMEMODE_RUN_LATE,1,0,matoclserv_start_cond_check);
 	}
-	main_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
-	main_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,10,0,matocl_session_check);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,3600,0,matocl_session_statsmove);
 	return;
 }
 
@@ -5709,12 +5709,12 @@ int matoclserv_networkinit(void) {
 	if (metadataserver::isMaster()) {
 		matoclserv_become_master();
 	}
-	main_reloadregister(matoclserv_reload);
+	eventloop_reloadregister(matoclserv_reload);
 	metadataserver::registerFunctionCalledOnPromotion(matoclserv_become_master);
-	main_destructregister(matoclserv_term);
-	main_pollregister(matoclserv_desc,matoclserv_serve);
-	main_wantexitregister(matoclserv_wantexit);
-	main_canexitregister(matoclserv_canexit);
+	eventloop_destructregister(matoclserv_term);
+	eventloop_pollregister(matoclserv_desc,matoclserv_serve);
+	eventloop_wantexitregister(matoclserv_wantexit);
+	eventloop_canexitregister(matoclserv_canexit);
 	return 0;
 }
 

@@ -37,9 +37,9 @@
 #include "common/cfg.h"
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/lizardfs_version.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/metadata.h"
 #include "common/slogger.h"
@@ -189,7 +189,7 @@ void matomlserv_store_logstring(uint64_t version,uint8_t *logstr,uint32_t logstr
 	if (old_changes_current==NULL || old_changes_head==NULL || old_changes_current->entries>=OLD_CHANGES_BLOCK_SIZE) {
 		oc = (old_changes_block*) malloc(sizeof(old_changes_block));
 		passert(oc);
-		ts = main_time();
+		ts = eventloop_time();
 		oc->entries = 0;
 		oc->minversion = version;
 		oc->mintimestamp = ts;
@@ -574,9 +574,9 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 		return;
 	}
 
-	int32_t secondsSinceLastRequest = main_time() - gLastMetadataSaveRequestTimestamp;
+	int32_t secondsSinceLastRequest = eventloop_time() - gLastMetadataSaveRequestTimestamp;
 	if (secondsSinceLastRequest >= int32_t(gMinMetadataSaveRequestPeriod_s)) {
-		gLastMetadataSaveRequestTimestamp = main_time();
+		gLastMetadataSaveRequestTimestamp = eventloop_time();
 		DEBUG_LOG("master.mltoma_changelog_apply_error") << "do";
 		syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
@@ -842,7 +842,7 @@ void matomlserv_desc(std::vector<pollfd> &pdesc) {
 }
 
 void matomlserv_serve(const std::vector<pollfd> &pdesc) {
-	uint32_t now=main_time();
+	uint32_t now=eventloop_time();
 	matomlserventry *eptr,**kptr;
 	packetstruct *pptr,*paptr;
 	int ns;
@@ -949,7 +949,7 @@ int matomlserv_canexit(void) {
 }
 
 void matomlserv_become_master() {
-	main_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
+	eventloop_timeregister(TIMEMODE_SKIP_LATE,3600,0,matomlserv_status);
 	return;
 }
 
@@ -1042,12 +1042,12 @@ int matomlserv_init(void) {
 		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
-	main_wantexitregister(matomlserv_wantexit);
-	main_canexitregister(matomlserv_canexit);
-	main_reloadregister(matomlserv_reload);
+	eventloop_wantexitregister(matomlserv_wantexit);
+	eventloop_canexitregister(matomlserv_canexit);
+	eventloop_reloadregister(matomlserv_reload);
 	metadataserver::registerFunctionCalledOnPromotion(matomlserv_become_master);
-	main_destructregister(matomlserv_term);
-	main_pollregister(matomlserv_desc,matomlserv_serve);
+	eventloop_destructregister(matomlserv_term);
+	eventloop_pollregister(matomlserv_desc,matomlserv_serve);
 	if (metadataserver::isMaster()) {
 		matomlserv_become_master();
 	}

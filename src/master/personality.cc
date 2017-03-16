@@ -23,6 +23,7 @@
 
 #include "common/cfg.h"
 #include "common/exceptions.h"
+#include "common/event_loop.h"
 #include "common/main.h"
 #include "common/massert.h"
 #include "common/slogger.h"
@@ -150,7 +151,7 @@ int personality_validate() {
 
 int personality_init() {
 #ifndef METARESTORE
-	main_reloadregister(personality_reload);
+	eventloop_reloadregister(personality_reload);
 #endif /* #ifndef METARESTORE */
 	bool master = main_has_extra_argument(kMasterCmdOption, CaseSensitivity::kIgnore);
 	bool shadow = main_has_extra_argument(kShadowCmdOption, CaseSensitivity::kIgnore);

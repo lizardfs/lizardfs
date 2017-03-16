@@ -38,9 +38,9 @@
 #include "common/crc.h"
 #include "common/cwrap.h"
 #include "common/datapack.h"
+#include "common/event_loop.h"
 #include "common/lizardfs_version.h"
 #include "common/loop_watchdog.h"
-#include "common/main.h"
 #include "common/massert.h"
 #include "common/metadata.h"
 #include "common/rotate_files.h"
@@ -515,7 +515,7 @@ void masterconn_download_next(masterconn *eptr) {
 		if (masterconn_download_end(eptr)<0) {
 			return;
 		}
-		dltime = main_utime()-eptr->dlstartuts;
+		dltime = eventloop_utime()-eptr->dlstartuts;
 		if (dltime<=0) {
 			dltime=1;
 		}
@@ -610,7 +610,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 	eptr->filesize = get64bit(&data);
 	eptr->dloffset = 0;
 	eptr->downloadretrycnt = 0;
-	eptr->dlstartuts = main_utime();
+	eptr->dlstartuts = eventloop_utime();
 	if (eptr->downloading == DOWNLOAD_METADATA_MFS) {
 		eptr->metafd = open(metadataTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else if (eptr->downloading == DOWNLOAD_SESSIONS_MFS) {
@@ -817,7 +817,7 @@ void masterconn_connected(masterconn *eptr) {
 	} else if (eptr->state == MasterConnectionState::kDumpRequestPending) {
 		masterconn_request_metadata_dump(eptr);
 	}
-	eptr->lastread = eptr->lastwrite = main_time();
+	eptr->lastread = eptr->lastwrite = eventloop_time();
 }
 
 int masterconn_initconnect(masterconn *eptr) {
@@ -1043,7 +1043,7 @@ void masterconn_serve(const std::vector<pollfd> &pdesc) {
 	if (!masterconnsingleton) {
 		return;
 	}
-	uint32_t now=main_time();
+	uint32_t now=eventloop_time();
 	packetstruct *pptr,*paptr;
 	masterconn *eptr = masterconnsingleton;
 
@@ -1119,8 +1119,8 @@ void masterconn_become_master() {
 		return;
 	}
 	masterconn *eptr = masterconnsingleton;
-	main_timeunregister(eptr->sessionsdownloadinit_handle);
-	main_timeunregister(eptr->metachanges_flush_handle);
+	eventloop_timeunregister(eptr->sessionsdownloadinit_handle);
+	eventloop_timeunregister(eptr->metachanges_flush_handle);
 	masterconn_term();
 	return;
 }
@@ -1168,9 +1168,9 @@ void masterconn_reload(void) {
 	}
 #endif /* #ifdef METALOGGER */
 
-	main_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
+	eventloop_timechange(reconnect_hook,TIMEMODE_RUN_LATE,ReconnectionDelay,0);
 #ifdef METALOGGER
-	main_timechange(download_hook,TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630);
+	eventloop_timechange(download_hook,TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630);
 #endif /* #ifndef METALOGGER */
 
 #ifndef METALOGGER
@@ -1228,20 +1228,20 @@ int masterconn_init(void) {
 	if (masterconn_initconnect(eptr)<0) {
 		return -1;
 	}
-	reconnect_hook = main_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
+	reconnect_hook = eventloop_timeregister(TIMEMODE_RUN_LATE,ReconnectionDelay,0,masterconn_reconnect);
 #ifdef METALOGGER
-	download_hook = main_timeregister(TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630,masterconn_metadownloadinit);
+	download_hook = eventloop_timeregister(TIMEMODE_RUN_LATE,metadataDownloadFreq*3600,630,masterconn_metadownloadinit);
 #endif /* #ifdef METALOGGER */
-	main_destructregister(masterconn_term);
-	main_pollregister(masterconn_desc,masterconn_serve);
-	main_reloadregister(masterconn_reload);
-	main_wantexitregister(masterconn_wantexit);
-	main_canexitregister(masterconn_canexit);
+	eventloop_destructregister(masterconn_term);
+	eventloop_pollregister(masterconn_desc,masterconn_serve);
+	eventloop_reloadregister(masterconn_reload);
+	eventloop_wantexitregister(masterconn_wantexit);
+	eventloop_canexitregister(masterconn_canexit);
 #ifndef METALOGGER
 	metadataserver::registerFunctionCalledOnPromotion(masterconn_become_master);
 #endif
-	eptr->sessionsdownloadinit_handle = main_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
-	eptr->metachanges_flush_handle = main_timeregister(TIMEMODE_RUN_LATE,1,0,changelog_flush);
+	eptr->sessionsdownloadinit_handle = eventloop_timeregister(TIMEMODE_RUN_LATE,60,0,masterconn_sessionsdownloadinit);
+	eptr->metachanges_flush_handle = eventloop_timeregister(TIMEMODE_RUN_LATE,1,0,changelog_flush);
 	return 0;
 }
 

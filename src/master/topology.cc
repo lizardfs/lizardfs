@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
-#include "common/main.h"
+#include "common/event_loop.h"
 #include "common/massert.h"
 #include "common/slogger.h"
 #include "master/itree.h"
@@ -447,7 +447,7 @@ int topology_init(void) {
 	TopologyFileName = NULL;
 	racktree = NULL;
 	topology_reload();
-	main_reloadregister(topology_reload);
-	main_destructregister(topology_term);
+	eventloop_reloadregister(topology_reload);
+	eventloop_destructregister(topology_term);
 	return 0;
 }

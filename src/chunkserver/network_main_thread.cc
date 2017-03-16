@@ -44,6 +44,7 @@
 #include "chunkserver/network_worker_thread.h"
 #include "common/cfg.h"
 #include "common/charts.h"
+#include "common/event_loop.h"
 #include "protocol/cltocs.h"
 #include "protocol/cstocl.h"
 #include "protocol/cstocs.h"
@@ -237,9 +238,9 @@ int mainNetworkThreadInit(void) {
 	}
 	lzfs_pretty_syslog(LOG_NOTICE, "main server module: listen on %s:%s", ListenHost, ListenPort);
 
-	main_reloadregister(mainNetworkThreadReload);
-	main_destructregister(mainNetworkThreadTerm);
-	main_pollregister(mainNetworkThreadDesc, mainNetworkThreadServe);
+	eventloop_reloadregister(mainNetworkThreadReload);
+	eventloop_destructregister(mainNetworkThreadTerm);
+	eventloop_pollregister(mainNetworkThreadDesc, mainNetworkThreadServe);
 
 	try {
 		replicationBandwidthLimitReload();

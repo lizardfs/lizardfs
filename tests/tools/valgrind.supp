@@ -72,5 +72,5 @@
    fun:__db_close_pp
    fun:_ZN8hstorage10BDBStorageD1Ev
    fun:_ZN8hstorage10BDBStorageD0Ev
-   fun:_Z8destructv
+   fun:_Z18eventloop_destructv
 }

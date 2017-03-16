@@ -20,8 +20,8 @@
 
 #include <cassert>
 
+#include "common/event_loop.h"
 #include "common/small_vector.h"
-#include "common/main.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
 #include "master/quota_database.h"
@@ -215,7 +215,7 @@ uint8_t fs_quota_set(const FsContext &context, const std::vector<QuotaEntry> &en
 	static const char resource_name[2] = {'I', 'S'};
 	static const char owner_name[3] = {'U', 'G', 'I'};
 
-	uint32_t ts = main_time();
+	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	if (context.sesflags() & SESFLAG_READONLY) {
 		return LIZARDFS_ERROR_EROFS;
