@@ -27,6 +27,8 @@
 
 #include "common/case_sensitivity.h"
 
+extern std::vector<std::string> gExtraArguments;
+
 /*! \brief Returns additional command line arguments.
  *
  * Additional command line arguments can be passed using '-o extra_option' syntax.
