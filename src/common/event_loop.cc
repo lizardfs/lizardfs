@@ -33,37 +33,6 @@ ExitingStatus gExitingStatus = ExitingStatus::kRunning;
 bool gReloadRequested = false;
 static bool nextPollNonblocking = false;
 
-typedef struct deentry {
-	void (*fun)(void);
-	struct deentry *next;
-} deentry;
-
-static deentry *dehead=NULL;
-
-
-typedef struct weentry {
-	void (*fun)(void);
-	struct weentry *next;
-} weentry;
-
-static weentry *wehead=NULL;
-
-
-typedef struct ceentry {
-	int (*fun)(void);
-	struct ceentry *next;
-} ceentry;
-
-static ceentry *cehead=NULL;
-
-
-typedef struct rlentry {
-	void (*fun)(void);
-	struct rlentry *next;
-} rlentry;
-
-static rlentry *rlhead=NULL;
-
 typedef struct pollentry {
 	void (*desc)(std::vector<pollfd>&);
 	void (*serve)(const std::vector<pollfd>&);
@@ -72,13 +41,6 @@ typedef struct pollentry {
 namespace {
 std::list<pollentry> gPollEntries;
 }
-
-typedef struct eloopentry {
-	void (*fun)(void);
-	struct eloopentry *next;
-} eloopentry;
-
-static eloopentry *eloophead=NULL;
 
 struct timeentry {
 	typedef void (*fun_t)(void);
@@ -101,56 +63,45 @@ TimeEntries gTimeEntries;
 static std::atomic<uint32_t> now;
 static std::atomic<uint64_t> usecnow;
 
+typedef void(*FunctionEntry)(void);
+typedef int(*CanExitEntry)(void);
+typedef std::list<FunctionEntry> EntryList;
+typedef std::list<CanExitEntry> CanExitEntryList;
+static EntryList gDestructEntries;
+static CanExitEntryList gCanExitEntries;
+static EntryList gWantExitEntries;
+static EntryList gReloadEntries;
+static EntryList gEachLoopEntries;
 
 void eventloop_make_next_poll_nonblocking() {
 	nextPollNonblocking = true;
 }
 
-void eventloop_destructregister (void (*fun)(void)) {
-	deentry *aux=(deentry*)malloc(sizeof(deentry));
-	passert(aux);
-	aux->fun = fun;
-	aux->next = dehead;
-	dehead = aux;
+void eventloop_destructregister (FunctionEntry fun) {
+	gDestructEntries.push_front(fun);
 }
 
-void eventloop_canexitregister (int (*fun)(void)) {
-	ceentry *aux=(ceentry*)malloc(sizeof(ceentry));
-	passert(aux);
-	aux->fun = fun;
-	aux->next = cehead;
-	cehead = aux;
+void eventloop_canexitregister (CanExitEntry fun) {
+	gCanExitEntries.push_front(fun);
 }
 
-void eventloop_wantexitregister (void (*fun)(void)) {
-	weentry *aux=(weentry*)malloc(sizeof(weentry));
-	passert(aux);
-	aux->fun = fun;
-	aux->next = wehead;
-	wehead = aux;
+void eventloop_wantexitregister (FunctionEntry fun) {
+	gWantExitEntries.push_front(fun);
 }
 
-void eventloop_reloadregister (void (*fun)(void)) {
-	rlentry *aux=(rlentry*)malloc(sizeof(rlentry));
-	passert(aux);
-	aux->fun = fun;
-	aux->next = rlhead;
-	rlhead = aux;
+void eventloop_reloadregister (FunctionEntry fun) {
+	gReloadEntries.push_front(fun);
 }
 
-void eventloop_pollregister (void (*desc)(std::vector<pollfd>&),void (*serve)(const std::vector<pollfd>&)) {
+void eventloop_pollregister(void (*desc)(std::vector<pollfd>&),void (*serve)(const std::vector<pollfd>&)) {
 	gPollEntries.push_back({desc,serve});
 }
 
-void eventloop_eachloopregister (void (*fun)(void)) {
-	eloopentry *aux=(eloopentry*)malloc(sizeof(eloopentry));
-	passert(aux);
-	aux->fun = fun;
-	aux->next = eloophead;
-	eloophead = aux;
+void eventloop_eachloopregister (FunctionEntry fun) {
+	gEachLoopEntries.push_front(fun);
 }
 
-void *eventloop_timeregister(int mode, uint64_t seconds, uint64_t offset, void (*fun)(void)) {
+void *eventloop_timeregister(int mode, uint64_t seconds, uint64_t offset, FunctionEntry fun) {
 	if (seconds == 0 || offset >= seconds) {
 		return NULL;
 	}
@@ -161,7 +112,7 @@ void *eventloop_timeregister(int mode, uint64_t seconds, uint64_t offset, void (
 	return &gTimeEntries.front();
 }
 
-void *eventloop_timeregister_ms(uint64_t period, void (*fun)(void)) {
+void *eventloop_timeregister_ms(uint64_t period, FunctionEntry fun) {
 	if (period == 0) {
 		return NULL;
 	}
@@ -205,10 +156,9 @@ int eventloop_timechange_ms(void* handle, uint64_t period) {
 }
 
 void eventloop_destruct() {
-	deentry *deit;
-	for (deit = dehead ; deit!=NULL ; deit=deit->next) {
+	for (const FunctionEntry &fun : gDestructEntries) {
 		try {
-			deit->fun();
+			fun();
 		} catch (Exception& ex) {
 			syslog(LOG_WARNING, "term error: %s", ex.what());
 		}
@@ -216,51 +166,23 @@ void eventloop_destruct() {
 }
 
 void eventloop_release_resources(void) {
-	deentry *de,*den;
-	ceentry *ce,*cen;
-	weentry *we,*wen;
-	rlentry *re,*ren;
-	eloopentry *ee,*een;
-
-	for (de = dehead ; de ; de = den) {
-		den = de->next;
-		free(de);
-	}
-
-	for (ce = cehead ; ce ; ce = cen) {
-		cen = ce->next;
-		free(ce);
-	}
-
-	for (we = wehead ; we ; we = wen) {
-		wen = we->next;
-		free(we);
-	}
-
-	for (re = rlhead ; re ; re = ren) {
-		ren = re->next;
-		free(re);
-	}
-
+	gDestructEntries.clear();
+	gCanExitEntries.clear();
+	gWantExitEntries.clear();
+	gReloadEntries.clear();
+	gEachLoopEntries.clear();
 	gPollEntries.clear();
-
-	for (ee = eloophead ; ee ; ee = een) {
-		een = ee->next;
-		free(ee);
-	}
-
 	gTimeEntries.clear();
 }
 
 /* internal */
-int canexit() {
-	ceentry *aux;
-	for (aux = cehead ; aux!=NULL ; aux=aux->next) {
-		if (aux->fun()==0) {
-			return 0;
+bool canexit() {
+	for (const CanExitEntry &fun : gCanExitEntries) {
+		if (fun() == 0) {
+			return false;
 		}
 	}
-	return 1;
+	return true;
 }
 
 uint32_t eventloop_time() {
@@ -289,10 +211,6 @@ void eventloop_want_to_reload() {
 void eventloop_run() {
 	uint32_t prevtime  = 0;
 	uint64_t prevmtime = 0;
-	eloopentry *eloopit;
-	ceentry *ceit;
-	weentry *weit;
-	rlentry *rlit;
 	std::vector<pollfd> pdesc;
 	int i;
 
@@ -319,8 +237,8 @@ void eventloop_run() {
 				pollit.serve(pdesc);
 			}
 		}
-		for (eloopit = eloophead ; eloopit != NULL ; eloopit = eloopit->next) {
-			eloopit->fun();
+		for (const FunctionEntry &fun : gEachLoopEntries) {
+			fun();
 		}
 
 		uint64_t msecnow = usecnow / 1000;
@@ -389,9 +307,9 @@ void eventloop_run() {
 		prevmtime = usecnow / 1000;
 		if (gExitingStatus == ExitingStatus::kRunning && gReloadRequested) {
 			cfg_reload();
-			for (rlit = rlhead ; rlit!=NULL ; rlit=rlit->next) {
+			for (const FunctionEntry &fun : gReloadEntries) {
 				try {
-					rlit->fun();
+					fun();
 				} catch (Exception& ex) {
 					syslog(LOG_WARNING, "reload error: %s", ex.what());
 				}
@@ -400,19 +318,13 @@ void eventloop_run() {
 			DEBUG_LOG("main.reload");
 		}
 		if (gExitingStatus == ExitingStatus::kWantExit) {
-			for (weit = wehead ; weit!=NULL ; weit=weit->next) {
-				weit->fun();
+			for (const FunctionEntry &fun : gWantExitEntries) {
+				fun();
 			}
 			gExitingStatus = ExitingStatus::kCanExit;
 		}
 		if (gExitingStatus == ExitingStatus::kCanExit) {
-			i = 1;
-			for (ceit = cehead ; ceit!=NULL && i ; ceit=ceit->next) {
-				if (ceit->fun()==0) {
-					i=0;
-				}
-			}
-			if (i) {
+			if (canexit()) {
 				gExitingStatus = ExitingStatus::kDoExit;
 			}
 		}
