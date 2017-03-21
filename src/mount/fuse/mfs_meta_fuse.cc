@@ -60,9 +60,9 @@ typedef struct _pathbuf {
 
 // 0x0124 = 0444
 #ifdef MASTERINFO_WITH_VERSION
-static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,14};
+static Attributes masterinfoattr={{'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,14}};
 #else
-static uint8_t masterinfoattr[35]={'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10};
+static Attributes masterinfoattr={{'f', 0x01,0x24, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0,0,0,0,10}};
 #endif
 
 #define PKGVERSION \
@@ -148,13 +148,13 @@ static void mfs_meta_stat(uint32_t inode, struct stat *stbuf) {
 	stbuf->st_ctime = now;
 }
 
-static void mfs_attr_to_stat(uint32_t inode,uint8_t attr[35], struct stat *stbuf) {
+static void mfs_attr_to_stat(uint32_t inode, const Attributes &attr, struct stat *stbuf) {
 	uint16_t attrmode;
 	uint8_t attrtype;
 	uint32_t attruid,attrgid,attratime,attrmtime,attrctime,attrnlink;
 	uint64_t attrlength;
 	const uint8_t *ptr;
-	ptr = attr;
+	ptr = attr.data();
 	attrtype = get8bit(&ptr);
 	attrmode = get16bit(&ptr);
 	attruid = get32bit(&ptr);
@@ -242,7 +242,7 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			inode = mfs_meta_name_to_inode(name);
 			if (inode>0) {
 				int status;
-				uint8_t attr[35];
+				Attributes attr;
 				status = fs_getdetachedattr(inode,attr);
 				status = mfs_errorconv(status);
 				if (status!=0) {
@@ -274,7 +274,7 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 			inode = mfs_meta_name_to_inode(name);
 			if (inode>0) {
 				int status;
-				uint8_t attr[35];
+				Attributes attr;
 				status = fs_getdetachedattr(inode,attr);
 				status = mfs_errorconv(status);
 				if (status!=0) {
@@ -315,7 +315,7 @@ void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		fuse_reply_attr(req, &o_stbuf, attr_cache_timeout);
 	} else {
 		int status;
-		uint8_t attr[35];
+		Attributes attr;
 		status = fs_getdetachedattr(ino, attr);
 		status = mfs_errorconv(status);
 		if (status!=0) {

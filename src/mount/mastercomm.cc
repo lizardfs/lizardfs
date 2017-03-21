@@ -1368,7 +1368,7 @@ uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask) {
 	return ret;
 }
 
-uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_lookup(uint32_t parent, uint8_t nleng, const uint8_t *name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1396,7 +1396,7 @@ uint8_t fs_lookup(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
@@ -1438,7 +1438,7 @@ uint8_t fs_whole_path_lookup(uint32_t parent, const std::string &name, uint32_t 
 	}
 }
 
-uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
+uint8_t fs_getattr(uint32_t inode, uint32_t uid, uint32_t gid, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1456,17 +1456,17 @@ uint8_t fs_getattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t attr[35]) {
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else if (i!=35) {
+	} else if (i != attr.size()) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
 
-uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint16_t attrmode,uint32_t attruid,uint32_t attrgid,uint32_t attratime,uint32_t attrmtime,uint8_t sugidclearmode,uint8_t attr[35]) {
+uint8_t fs_setattr(uint32_t inode, uint32_t uid, uint32_t gid, uint8_t setmask, uint16_t attrmode, uint32_t attruid, uint32_t attrgid, uint32_t attratime, uint32_t attrmtime, uint8_t sugidclearmode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1497,11 +1497,11 @@ uint8_t fs_setattr(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t setmask,uint
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else if (i!=35) {
+	} else if (i != attr.size()) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
@@ -1637,7 +1637,7 @@ uint8_t fs_readlink(uint32_t inode,const uint8_t **path) {
 	return ret;
 }
 
-uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8_t *path,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_symlink(uint32_t parent, uint8_t nleng, const uint8_t *name, const uint8_t *path, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1663,13 +1663,13 @@ uint8_t fs_symlink(uint32_t parent,uint8_t nleng,const uint8_t *name,const uint8
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else if (i!=39) {
+	} else if (i != (attr.size() + 4)) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
@@ -1813,7 +1813,7 @@ uint8_t fs_rmdir(uint32_t parent,uint8_t nleng,const uint8_t *name,uint32_t uid,
 	return ret;
 }
 
-uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,uint32_t parent_dst,uint8_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_rename(uint32_t parent_src, uint8_t nleng_src, const uint8_t *name_src, uint32_t parent_dst, uint8_t nleng_dst, const uint8_t *name_dst, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1840,20 +1840,20 @@ uint8_t fs_rename(uint32_t parent_src,uint8_t nleng_src,const uint8_t *name_src,
 	} else if (i==1) {
 		ret = rptr[0];
 		*inode = 0;
-		memset(attr,0,35);
-	} else if (i!=39) {
+		attr.fill(0);
+	} else if (i != (attr.size() + 4)) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
 }
 
-uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const uint8_t *name_dst,uint32_t uid,uint32_t gid,uint32_t *inode,uint8_t attr[35]) {
+uint8_t fs_link(uint32_t inode_src, uint32_t parent_dst, uint8_t nleng_dst, const uint8_t *name_dst, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1876,13 +1876,13 @@ uint8_t fs_link(uint32_t inode_src,uint32_t parent_dst,uint8_t nleng_dst,const u
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else if (i!=39) {
+	} else if (i != (attr.size() + 4)) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
 		t32 = get32bit(&rptr);
 		*inode = t32;
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;
@@ -1948,7 +1948,7 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 
 // FUSE - I/O
 
-uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint8_t attr[35]) {
+uint8_t fs_opencheck(uint32_t inode, uint32_t uid, uint32_t gid, uint8_t flags, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -1967,14 +1967,10 @@ uint8_t fs_opencheck(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t flags,uint
 	if (rptr==NULL) {
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
-		if (attr) {
-			memset(attr,0,35);
-		}
+		attr.fill(0);
 		ret = rptr[0];
-	} else if (i==35) {
-		if (attr) {
-			memcpy(attr,rptr,35);
-		}
+	} else if (i == attr.size()) {
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	} else {
 		setDisconnect(true);
@@ -2290,7 +2286,7 @@ uint8_t fs_gettrash(const uint8_t **dbuff,uint32_t *dbuffsize) {
 	return ret;
 }
 
-uint8_t fs_getdetachedattr(uint32_t inode,uint8_t attr[35]) {
+uint8_t fs_getdetachedattr(uint32_t inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;
 	uint32_t i;
@@ -2306,11 +2302,11 @@ uint8_t fs_getdetachedattr(uint32_t inode,uint8_t attr[35]) {
 		ret = LIZARDFS_ERROR_IO;
 	} else if (i==1) {
 		ret = rptr[0];
-	} else if (i!=35) {
+	} else if (i != attr.size()) {
 		setDisconnect(true);
 		ret = LIZARDFS_ERROR_IO;
 	} else {
-		memcpy(attr,rptr,35);
+		memcpy(attr.data(), rptr, attr.size());
 		ret = LIZARDFS_STATUS_OK;
 	}
 	return ret;

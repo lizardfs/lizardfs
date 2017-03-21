@@ -20,6 +20,7 @@
 
 #include "common/platform.h"
 
+#include <array>
 #include <cstdint>
 
-typedef uint8_t Attributes[35];
+typedef std::array<uint8_t, 35> Attributes;

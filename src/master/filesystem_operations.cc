@@ -129,7 +129,7 @@ void fs_readtrash_data(uint32_t rootinode, uint8_t sesflags, uint8_t *dbuff) {
 uint8_t fs_getdetachedattr(uint32_t rootinode, uint8_t sesflags, uint32_t inode, Attributes &attr,
 				uint8_t dtype) {
 	FSNode *p;
-	memset(attr, 0, 35);
+	attr.fill(0);
 	if (rootinode != 0) {
 		return LIZARDFS_ERROR_EPERM;
 	}
@@ -379,7 +379,7 @@ uint8_t fs_lookup(const FsContext &context, uint32_t parent, const HString &name
 	FSNodeDirectory *rn;
 
 	*inode = 0;
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -468,7 +468,7 @@ uint8_t fs_whole_path_lookup(const FsContext &context, uint32_t parent, const st
 uint8_t fs_getattr(const FsContext &context, uint32_t inode, Attributes &attr) {
 	FSNode *p;
 
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -492,7 +492,7 @@ uint8_t fs_try_setlength(const FsContext &context, uint32_t inode, uint8_t opene
 	uint32_t ts = eventloop_time();
 	ChecksumUpdater cu(ts);
 	FSNode *p;
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -606,7 +606,7 @@ uint8_t fs_do_setlength(const FsContext &context, uint32_t inode, uint64_t lengt
 	ChecksumUpdater cu(ts);
 	FSNode *p = NULL;
 
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kAny);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -636,7 +636,7 @@ uint8_t fs_setattr(const FsContext &context, uint32_t inode, uint8_t setmask, ui
 	ChecksumUpdater cu(ts);
 	FSNode *p = NULL;
 
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	auto status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -914,7 +914,7 @@ uint8_t fs_mknod(const FsContext &context, uint32_t parent, const HString &name,
 	ChecksumUpdater cu(ts);
 	FSNode *wd, *p;
 	*inode = 0;
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {
@@ -964,7 +964,7 @@ uint8_t fs_mkdir(const FsContext &context, uint32_t parent, const HString &name,
 	ChecksumUpdater cu(ts);
 	FSNode *wd, *p;
 	*inode = 0;
-	memset(attr, 0, 35);
+	attr.fill(0);
 
 	uint8_t status = verify_session(context, OperationMode::kReadWrite, SessionType::kNotMeta);
 	if (status != LIZARDFS_STATUS_OK) {

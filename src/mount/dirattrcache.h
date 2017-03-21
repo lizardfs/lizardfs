@@ -22,6 +22,7 @@
 
 #include <inttypes.h>
 
+#include "common/attributes.h"
 #include "mount/lizard_client_context.h"
 
 /// Creates a new entry from the result of readdir.
@@ -40,7 +41,7 @@ void dcache_release(void *r);
 /// Lookup in the cache.
 /// Returns a non-zero value if a valid entry for the given (ctx, parent, name) tuple is found
 /// and fills (inode, attr).
-uint8_t dcache_lookup(const LizardClient::Context *ctx,uint32_t parent,
-		uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]);
+uint8_t dcache_lookup(const LizardClient::Context *ctx, uint32_t parent,
+		uint8_t nleng, const uint8_t *name, uint32_t *inode, Attributes &attr);
 
-uint8_t dcache_getattr(const LizardClient::Context *ctx,uint32_t inode,uint8_t attr[35]);
+uint8_t dcache_getattr(const LizardClient::Context *ctx, uint32_t inode, Attributes &attr);

@@ -322,17 +322,17 @@ void type_to_stat(uint32_t inode,uint8_t type, struct stat *stbuf) {
 	}
 }
 
-uint8_t attr_get_mattr(const uint8_t attr[35]) {
+uint8_t attr_get_mattr(const Attributes &attr) {
 	return (attr[1]>>4);    // higher 4 bits of mode
 }
 
-void attr_to_stat(uint32_t inode, const uint8_t attr[35], struct stat *stbuf) {
+void attr_to_stat(uint32_t inode, const Attributes &attr, struct stat *stbuf) {
 	uint16_t attrmode;
 	uint8_t attrtype;
 	uint32_t attruid,attrgid,attratime,attrmtime,attrctime,attrnlink,attrrdev;
 	uint64_t attrlength;
 	const uint8_t *ptr;
-	ptr = attr;
+	ptr = attr.data();
 	attrtype = get8bit(&ptr);
 	attrmode = get16bit(&ptr);
 	attruid = get32bit(&ptr);
@@ -589,7 +589,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_l
 	uint64_t maxfleng;
 	uint32_t inode;
 	uint32_t nleng;
-	uint8_t attr[35];
+	Attributes attr;
 	char attrstr[256];
 	uint8_t mattr;
 	uint8_t icacheflag;
@@ -686,7 +686,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
 	uint64_t maxfleng;
 	double attr_timeout;
 	struct stat o_stbuf;
-	uint8_t attr[35];
+	Attributes attr;
 	char attrstr[256];
 	int status;
 	(void)fi;
@@ -738,7 +738,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 	          int to_set, FileInfo *fi) {
 	struct stat o_stbuf;
 	uint64_t maxfleng;
-	uint8_t attr[35];
+	Attributes attr;
 	char modestr[11];
 	char attrstr[256];
 	double attr_timeout;
@@ -947,7 +947,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t rdev) {
 	EntryParam e;
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 	char modestr[11];
 	char attrstr[256];
 	uint8_t mattr;
@@ -1099,7 +1099,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 	struct EntryParam e;
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 	char modestr[11];
 	char attrstr[256];
 	uint8_t mattr;
@@ -1224,7 +1224,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 			 const char *name) {
 	struct EntryParam e;
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 	char attrstr[256];
 	uint8_t mattr;
 	uint32_t nleng;
@@ -1326,7 +1326,7 @@ void rename(Context ctx, Inode parent, const char *name,
 	uint32_t nleng,newnleng;
 	int status;
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 
 	stats_inc(OP_RENAME);
 	if (debug_mode) {
@@ -1412,7 +1412,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 	int status;
 	EntryParam e;
 	uint32_t inode;
-	uint8_t attr[35];
+	Attributes attr;
 	char attrstr[256];
 	uint8_t mattr;
 
@@ -1635,8 +1635,10 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntri
 			if (ptr+5<=eptr) {
 				inode = get32bit(&ptr);
 				if (dirinfo->dataformat) {
-					attr_to_stat(inode,ptr,&stbuf);
-					ptr+=35;
+					Attributes attr;
+					memcpy(attr.data(), ptr, attr.size());
+					attr_to_stat(inode, attr, &stbuf);
+					ptr+=attr.size();
 				} else {
 					type = get8bit(&ptr);
 					type_to_stat(inode,type,&stbuf);
@@ -1743,7 +1745,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 	struct EntryParam e;
 	uint32_t inode;
 	uint8_t oflags;
-	uint8_t attr[35];
+	Attributes attr;
 	char modestr[11];
 	char attrstr[256];
 	uint8_t mattr;
@@ -1816,8 +1818,9 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				strerr(status));
 		throw RequestException(status);
 	}
+	Attributes tmp_attr;
 	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-		fs_opencheck(inode,ctx.uid,ctx.gid,oflags,NULL));
+		fs_opencheck(inode,ctx.uid,ctx.gid,oflags,tmp_attr));
 
 	status = errorconv_dbg(status);
 	if (status!=0) {
@@ -1865,7 +1868,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 
 void open(Context ctx, Inode ino, FileInfo *fi) {
 	uint8_t oflags;
-	uint8_t attr[35];
+	Attributes attr;
 	uint8_t mattr;
 	int status;
 

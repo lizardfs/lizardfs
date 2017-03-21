@@ -362,7 +362,7 @@ void fsnodes_fill_attr(FSNode *node, FSNode *parent, uint32_t uid, uint32_t gid,
 	uint16_t mode;
 	uint32_t nlink;
 	(void)sesflags;
-	ptr = attr;
+	ptr = attr.data();
 	if (node->type == FSNode::kTrash || node->type == FSNode::kReserved) {
 		put8bit(&ptr, FSNode::kFile);
 	} else {
@@ -769,8 +769,8 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 	Attributes attr;
 	if (withattr) {
 		fsnodes_fill_attr(p, p, uid, gid, auid, agid, sesflags, attr);
-		::memcpy(dbuff, attr, sizeof(attr));
-		dbuff += sizeof(attr);
+		::memcpy(dbuff, attr.data(), attr.size());
+		dbuff += attr.size();
 	} else {
 		put8bit(&dbuff, FSNode::kDirectory);
 	}
@@ -783,8 +783,8 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 		put32bit(&dbuff, SPECIAL_INODE_ROOT);
 		if (withattr) {
 			fsnodes_fill_attr(p, p, uid, gid, auid, agid, sesflags, attr);
-			::memcpy(dbuff, attr, sizeof(attr));
-			dbuff += sizeof(attr);
+			::memcpy(dbuff, attr.data(), attr.size());
+			dbuff += attr.size();
 		} else {
 			put8bit(&dbuff, FSNode::kDirectory);
 		}
@@ -799,25 +799,25 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 				FSNode *parent = fsnodes_id_to_node_verify<FSNode>(p->parent[0]);
 				fsnodes_fill_attr(parent, p, uid, gid, auid, agid,
 				                  sesflags, attr);
-				::memcpy(dbuff, attr, sizeof(attr));
+				::memcpy(dbuff, attr.data(), attr.size());
 			} else {
 				if (rootinode == SPECIAL_INODE_ROOT) {
 					fsnodes_fill_attr(gMetadata->root, p, uid, gid, auid, agid,
 					                  sesflags, attr);
-					::memcpy(dbuff, attr, sizeof(attr));
+					::memcpy(dbuff, attr.data(), attr.size());
 				} else {
 					FSNode *rn = fsnodes_id_to_node(rootinode);
 					if (rn) {  // it should be always true because it's checked
 						   // before, but better check than sorry
 						fsnodes_fill_attr(rn, p, uid, gid, auid, agid,
 						                  sesflags, attr);
-						::memcpy(dbuff, attr, sizeof(attr));
+						::memcpy(dbuff, attr.data(), attr.size());
 					} else {
-						memset(dbuff, 0, sizeof(attr));
+						memset(dbuff, 0, attr.size());
 					}
 				}
 			}
-			dbuff += sizeof(attr);
+			dbuff += attr.size();
 		} else {
 			put8bit(&dbuff, FSNode::kDirectory);
 		}
@@ -833,8 +833,8 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 		put32bit(&dbuff, entry.second->id);
 		if (withattr) {
 			fsnodes_fill_attr(entry.second, p, uid, gid, auid, agid, sesflags, attr);
-			::memcpy(dbuff, attr, sizeof(attr));
-			dbuff += sizeof(attr);
+			::memcpy(dbuff, attr.data(), attr.size());
+			dbuff += attr.size();
 		} else {
 			put8bit(&dbuff, entry.second->type);
 		}

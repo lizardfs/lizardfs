@@ -188,7 +188,7 @@ void dcache_release(void *r) {
 	free(d);
 }
 
-static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
+static inline uint8_t dcache_namehashsearch(dircache *d, uint8_t nleng, const uint8_t *name, uint32_t *inode, Attributes &attr) {
 	uint32_t hash,disp,hashmask;
 	const uint8_t *ptr;
 
@@ -202,7 +202,7 @@ static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint
 		if (*ptr==nleng && memcmp(ptr+1,name,nleng)==0) {
 			ptr+=1+nleng;
 			*inode = get32bit(&ptr);
-			memcpy(attr,ptr,35);
+			memcpy(attr.data(), ptr, attr.size());
 			return 1;
 		}
 		hash+=disp;
@@ -210,7 +210,7 @@ static inline uint8_t dcache_namehashsearch(dircache *d,uint8_t nleng,const uint
 	return 0;
 }
 
-static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t attr[35]) {
+static inline uint8_t dcache_inodehashsearch(dircache *d, uint32_t inode, Attributes &attr) {
 	uint32_t hash,disp,hashmask;
 	const uint8_t *ptr;
 
@@ -222,7 +222,7 @@ static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t 
 	disp = ((inode*0x53B23891)&hashmask)|1;
 	while ((ptr=d->inodehashtab[hash&hashmask])) {
 		if (inode==get32bit(&ptr)) {
-			memcpy(attr,ptr,35);
+			memcpy(attr.data(), ptr, attr.size());
 			return 1;
 		}
 		hash+=disp;
@@ -230,8 +230,8 @@ static inline uint8_t dcache_inodehashsearch(dircache *d,uint32_t inode,uint8_t 
 	return 0;
 }
 
-uint8_t dcache_lookup(const LizardClient::Context *ctx,uint32_t parent,
-		uint8_t nleng,const uint8_t *name,uint32_t *inode,uint8_t attr[35]) {
+uint8_t dcache_lookup(const LizardClient::Context *ctx, uint32_t parent,
+		uint8_t nleng, const uint8_t *name, uint32_t *inode, Attributes &attr) {
 	dircache *d;
 	std::unique_lock<std::mutex> lock(gMutex);
 	for (d=gHead ; d ; d=d->next) {
@@ -248,7 +248,7 @@ uint8_t dcache_lookup(const LizardClient::Context *ctx,uint32_t parent,
 	return 0;
 }
 
-uint8_t dcache_getattr(const LizardClient::Context *ctx,uint32_t inode,uint8_t attr[35]) {
+uint8_t dcache_getattr(const LizardClient::Context *ctx, uint32_t inode, Attributes &attr) {
 	dircache *d;
 	std::unique_lock<std::mutex> lock(gMutex);
 	for (d=gHead ; d ; d=d->next) {

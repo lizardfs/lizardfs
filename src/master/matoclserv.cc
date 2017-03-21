@@ -2077,7 +2077,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		put8bit(&ptr,status);
 	} else {
 		put32bit(&ptr,newinode);
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 	eptr->sesdata->currentopstats[3]++;
 }
@@ -2107,7 +2107,7 @@ void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[1]++;
@@ -2155,7 +2155,7 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[2]++;
@@ -2369,7 +2369,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 		put8bit(&ptr, status);
 	} else {
 		put32bit(&ptr, newinode);
-		memcpy(ptr, attr, 35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[6]++;
@@ -2623,7 +2623,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	put32bit(&ptr,msgid);
 	if (eptr->version>=0x010615 && status==LIZARDFS_STATUS_OK) {
 		put32bit(&ptr,inode);
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	} else {
 		put8bit(&ptr,status);
 	}
@@ -2671,7 +2671,7 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 		put8bit(&ptr,status);
 	} else {
 		put32bit(&ptr,newinode);
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 	if (eptr->sesdata) {
 		eptr->sesdata->currentopstats[11]++;
@@ -2761,7 +2761,7 @@ void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	}
 	put32bit(&ptr,msgid);
 	if (eptr->version>=0x010609 && status==LIZARDFS_STATUS_OK) {
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	} else {
 		put8bit(&ptr,status);
 	}
@@ -3681,7 +3681,7 @@ void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,u
 	if (status!=LIZARDFS_STATUS_OK) {
 		put8bit(&ptr,status);
 	} else {
-		memcpy(ptr,attr,35);
+		memcpy(ptr, attr.data(), attr.size());
 	}
 }
 

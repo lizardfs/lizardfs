@@ -29,7 +29,7 @@
 #include "mount/tweaks.h"
 
 namespace InodeMasterInfo {
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
@@ -41,27 +41,27 @@ namespace InodeStats {
 		pthread_mutex_t lock;
 	} sinfo;
 
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
 namespace InodeOplog {
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
 namespace InodeOphistory {
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
 namespace InodeTweaks {
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
 namespace InodeFileByInode {
-	extern const uint8_t attr[35];
+	extern const Attributes attr;
 	extern const LizardClient::Inode inode_;
 }
 
