@@ -1657,6 +1657,30 @@ void fs_readdir_data(const FsContext &context, uint8_t flags, void *dnode, uint8
 	++gFsStatsArray[FsStats::Readdir];
 }
 
+uint8_t fs_readdir(const FsContext &context, uint32_t inode, uint64_t first_entry, uint64_t number_of_entries,
+		std::vector<DirectoryEntry> &dir_entries) {
+	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kNotMeta);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+
+	FSNode *dir;
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kDirectory, MODE_MASK_R,
+	                                        inode, &dir);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+
+	fsnodes_getdir(context.rootinode(),
+		       context.uid(), context.gid(), context.auid(), context.agid(), context.sesflags(),
+		       static_cast<FSNodeDirectory*>(dir),
+		       first_entry, number_of_entries, dir_entries);
+
+	++gFsStatsArray[FsStats::Readdir];
+
+	return LIZARDFS_STATUS_OK;
+}
+
 uint8_t fs_checkfile(const FsContext &context, uint32_t inode,
 		uint32_t chunkcount[CHUNK_MATRIX_SIZE]) {
 	FSNode *p;

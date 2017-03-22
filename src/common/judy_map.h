@@ -376,6 +376,30 @@ public:
 		return find_index(convertKey(key));
 	}
 
+	/*! \brief Find the Nth element that is present in judy_map
+	 *
+	 * \param nth position of element to find.
+	 * \return An iterator to the element, if an element with specified position is found,
+	 *         or judy_map::end otherwise.
+	 */
+	iterator find_nth(const Word_t &nth) {
+		Word_t index;
+		mapped_type *pvalue = (mapped_type *)JudyLByCount(data_, nth + 1, &index, nullptr);
+		return pvalue ? iterator(&data_, index, pvalue) : iterator();
+	}
+
+	/*! \brief Find the Nth element that is present in judy_map
+	 *
+	 * \param nth position of element to find.
+	 * \return An iterator to the element, if an element with specified position is found,
+	 *         or judy_map::end otherwise.
+	 */
+	const_iterator find_nth(const Word_t &nth) const {
+		Word_t index;
+		mapped_type *pvalue = (mapped_type *)JudyLByCount(data_, nth + 1, &index, nullptr);
+		return pvalue ? const_iterator(&data_, index, pvalue) : const_iterator();
+	}
+
 	/*! \brief Find element with specified Judy array index.
 	 *
 	 * \param index Index of element to find.

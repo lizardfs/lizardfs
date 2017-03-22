@@ -182,4 +182,21 @@ TEST(JudyMapTest, GeneralBehaviour) {
 	EXPECT_EQ(map.empty(), true);
 }
 
+TEST(JudyMapTest, FindNth) {
+	std::vector<int> value(100);
+
+	for(int i = 0; i < 100; ++i) {
+		value[i] = (rand() % 1000) - 500;
+	}
+
+	judy_map<int, int> m;
+	for(int i = 0; i < 100; ++i) {
+		m[i] = value[i];
+	}
+
+	for(int i = 0; i < 100; ++i) {
+		EXPECT_EQ((*m.find_nth(i)).second, value[i]);
+	}
+}
+
 #endif //LIZARDFS_HAVE_JUDY

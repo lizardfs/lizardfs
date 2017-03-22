@@ -542,7 +542,7 @@ public:
 	 * Implement Polonaise.readdir method
 	 * \note for more information, see the protocol definition in Polonaise sources
 	 */
-	void readdir(std::vector<DirectoryEntry> & _return, const Context& context,
+	void readdir(std::vector<polonaise::DirectoryEntry> & _return, const Context& context,
 			const Inode inode, const int64_t firstEntryOffset,
 			const int64_t maxNumberOfEntries, const Descriptor descriptor) {
 		OPERATION_PROLOG

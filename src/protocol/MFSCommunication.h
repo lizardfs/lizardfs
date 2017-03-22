@@ -1807,6 +1807,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_RECURSIVE_REMOVE (1000U + 586U)
 /// msgid:32 status:8
 
+// 0x633
+#define LIZ_CLTOMA_FUSE_GETDIR (1000U + 587U)
+/// msgid:32 status:8
+
+// 0x634
+#define LIZ_MATOCL_FUSE_GETDIR (1000U + 588U)
+/// msgid:32 status:8
+
 // CHUNKSERVER STATS
 
 // 0x0258

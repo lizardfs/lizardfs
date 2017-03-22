@@ -841,6 +841,70 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 	}
 }
 
+void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
+		uint8_t sesflags, FSNodeDirectory *p, uint64_t first_entry,
+		uint64_t number_of_entries, std::vector<DirectoryEntry> &dir_entries) {
+	FSNodeDirectory *parent;
+	uint32_t inode;
+	Attributes attr;
+
+	if (first_entry == 0 && number_of_entries >= 1) {
+		inode = p->id != rootinode ? p->id : SPECIAL_INODE_ROOT;
+		parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+		        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+		fsnodes_fill_attr(p, parent, uid, gid, auid, agid, sesflags, attr);
+		dir_entries.emplace_back(std::move(inode), std::string("."), std::move(attr));
+
+		first_entry++;
+		number_of_entries--;
+	}
+
+	if (first_entry == 1 && number_of_entries >= 1) {
+		if (p->id == rootinode) {
+			inode = SPECIAL_INODE_ROOT;
+			parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+			fsnodes_fill_attr(p, parent, uid, gid, auid, agid, sesflags, attr);
+		} else {
+			if (!p->parent.empty() && p->parent[0] != rootinode) {
+				inode = p->parent[0];
+			} else {
+				inode = SPECIAL_INODE_ROOT;
+			}
+
+			FSNodeDirectory *grandparent;
+			parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+			grandparent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        parent->parent.empty() ? SPECIAL_INODE_ROOT : parent->parent[0]);
+			fsnodes_fill_attr(parent, grandparent, uid, gid, auid, agid, sesflags,
+			                  attr);
+		}
+		dir_entries.emplace_back(std::move(inode), std::string(".."), std::move(attr));
+
+		first_entry++;
+		number_of_entries--;
+	}
+
+	if (number_of_entries == 0) {
+		return;
+	}
+	assert(first_entry >= 2);
+
+	std::string name;
+	auto it = p->find_nth(first_entry - 2);
+	while (it != p->end() && number_of_entries > 0) {
+		name = (std::string)(*it).first;
+		inode = (*it).second->id;
+		fsnodes_fill_attr((*it).second, p, uid, gid, auid, agid, sesflags, attr);
+
+		dir_entries.emplace_back(std::move(inode), std::move(name), std::move(attr));
+
+		++it;
+		--number_of_entries;
+	}
+}
+
 void fsnodes_checkfile(FSNodeFile *p, uint32_t chunk_count[CHUNK_MATRIX_SIZE]) {
 	uint8_t count;
 

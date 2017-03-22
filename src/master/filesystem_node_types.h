@@ -280,6 +280,14 @@ struct FSNodeDirectory : public FSNode {
 		return it;
 	}
 
+	iterator find_nth(EntriesContainer::size_type nth) {
+		return entries.find_nth(nth);
+	}
+
+	const_iterator find_nth(EntriesContainer::size_type nth) const {
+		return entries.find_nth(nth);
+	}
+
 	/*! \brief Returns name for specified node.
 	 *
 	 * \param node Pointer to node.

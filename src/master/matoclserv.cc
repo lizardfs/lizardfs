@@ -2678,6 +2678,32 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	}
 }
 
+void matoclserv_fuse_getdir(matoclserventry *eptr,const PacketHeader &header, const uint8_t *data) {
+	uint32_t message_id, inode, uid, gid;
+	uint64_t first_entry, number_of_entries;
+
+	cltoma::fuseGetDir::deserialize(data, header.length, message_id, inode, uid, gid, first_entry, number_of_entries);
+	number_of_entries = std::min(number_of_entries, matocl::fuseGetDir::kMaxNumberOfDirectoryEntries);
+
+	std::vector<DirectoryEntry> dir_entries;
+
+	uint8_t status = matoclserv_check_group_cache(eptr, gid);
+	if (status == LIZARDFS_STATUS_OK) {
+		FsContext context = matoclserv_get_context(eptr, uid, gid);
+
+		status = fs_readdir(context, inode, first_entry, number_of_entries, dir_entries);
+	}
+
+	eptr->sesdata->currentopstats[12]++;
+
+	if (status != LIZARDFS_STATUS_OK) {
+		matoclserv_createpacket(eptr, matocl::fuseGetDir::build(message_id, status));
+		return;
+	}
+
+	matoclserv_createpacket(eptr, matocl::fuseGetDir::build(message_id, first_entry, dir_entries));
+}
+
 void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode,uid,gid;
 	uint8_t flags;
@@ -4699,6 +4725,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_GETDIR:
 					matoclserv_fuse_getdir(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_GETDIR:
+					matoclserv_fuse_getdir(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_OPEN:
 					matoclserv_fuse_open(eptr,data,length);

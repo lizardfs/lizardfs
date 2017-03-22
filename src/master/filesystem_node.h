@@ -22,6 +22,7 @@
 #include "common/platform.h"
 #include "master/filesystem_node_types.h"
 #include "master/filesystem_metadata.h"
+#include "protocol/directory_entry.h"
 
 inline uint32_t fsnodes_hash(uint32_t parentid, const hstorage::Handle &name) {
 	return (parentid * 0x5F2318BD) + name.hash();
@@ -158,6 +159,10 @@ uint32_t fsnodes_getdirsize(const FSNodeDirectory *p, uint8_t withattr);
 void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, FSNodeDirectory *p, uint8_t *dbuff,
 	uint8_t withattr);
+void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
+		uint32_t agid, uint8_t sesflags, FSNodeDirectory *p,
+		uint64_t first_entry, uint64_t number_of_entries,
+		std::vector<DirectoryEntry> &dir_entries);
 void fsnodes_checkfile(FSNodeFile *p, uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
 
 bool fsnodes_has_tape_goal(FSNode *node);

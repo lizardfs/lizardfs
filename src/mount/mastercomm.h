@@ -30,6 +30,7 @@
 #include "mount/group_cache.h"
 #include "protocol/packet.h"
 #include "protocol/lock_info.h"
+#include "protocol/directory_entry.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
@@ -56,6 +57,7 @@ uint8_t fs_rename(uint32_t parent_src, uint8_t nleng_src, const uint8_t *name_sr
 uint8_t fs_link(uint32_t inode_src, uint32_t parent_dst, uint8_t nleng_dst, const uint8_t *name_dst, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr);
 uint8_t fs_getdir(uint32_t inode,uint32_t uid,uint32_t gid,const uint8_t **dbuff,uint32_t *dbuffsize);
 uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocache,const uint8_t **dbuff,uint32_t *dbuffsize);
+uint8_t fs_getdir(uint32_t inode, uint32_t uid, uint32_t gid, std::vector<DirectoryEntry> &dir_entries);
 
 uint8_t fs_opencheck(uint32_t inode, uint32_t uid, uint32_t gid, uint8_t flags, Attributes &attr);
 uint8_t fs_update_credentials(uint32_t key, const GroupCache::Groups &gids);

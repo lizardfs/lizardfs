@@ -34,6 +34,7 @@
 #include "common/serialized_goal.h"
 #include "common/tape_copy_location_info.h"
 #include "protocol/chunkserver_list_entry.h"
+#include "protocol/directory_entry.h"
 #include "protocol/lock_info.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
@@ -380,6 +381,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, manageLocksUnlock, LIZ_MATOCL_MANAGE_LOCKS_UNLOCK, 0,
 		uint8_t, status)
 
+// LIZ_MATOCL_WHOLE_PATH_LOOKUP
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, wholePathLookup, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, wholePathLookup, kResponsePacketVersion, 1)
 
@@ -398,6 +400,28 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, recursiveRemove, LIZ_MATOCL_RECURSIVE_REMOVE, 0,
 		uint32_t, msgid,
 		uint8_t, status)
+
+// LIZ_MATOCL_FUSE_GETDIR
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDir, kStatus, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDir, kResponse, 1)
+
+namespace matocl {
+namespace fuseGetDir {
+	const uint64_t kMaxNumberOfDirectoryEntries = 1 << 13;
+}
+}
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetDir, LIZ_MATOCL_FUSE_GETDIR, kStatus,
+		uint32_t, messageId,
+		uint8_t, status)
+
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetDir, LIZ_MATOCL_FUSE_GETDIR, kResponse,
+		uint32_t, message_id,
+		uint64_t, first_entry_index,
+		std::vector<DirectoryEntry>, dir_entry)
 
 namespace matocl {
 

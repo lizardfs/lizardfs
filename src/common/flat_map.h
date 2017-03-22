@@ -342,6 +342,20 @@ public:
 		return find(key, container_.value_comp());
 	}
 
+	iterator find_nth(size_type nth) {
+		if (nth < container_.size()) {
+			return container_.begin() + nth;
+		}
+		return container_.end();
+	}
+
+	const_iterator find_nth(size_type nth) const {
+		if (nth < container_.size()) {
+			return container_.begin() + nth;
+		}
+		return container_.end();
+	}
+
 	iterator lower_bound(const key_type &key) {
 		return container_.lower_bound(key, container_.value_comp());
 	}

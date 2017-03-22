@@ -407,3 +407,20 @@ TEST(FlatMap, LowerBound) {
 	EXPECT_EQ(lb->second, 2);
 
 }
+
+TEST(FlatMap, FindNth) {
+	std::vector<int> value(100);
+
+	for(int i = 0; i < 100; ++i) {
+		value[i] = (rand() % 1000) - 500;
+	}
+
+	flat_map<int, int> m;
+	for(int i = 0; i < 100; ++i) {
+		m[i] = value[i];
+	}
+
+	for(int i = 0; i < 100; ++i) {
+		EXPECT_EQ((*m.find_nth(i)).second, value[i]);
+	}
+}

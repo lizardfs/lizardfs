@@ -341,6 +341,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, uid,
 		uint32_t, gid)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseGetDir, LIZ_CLTOMA_FUSE_GETDIR, 0,
+		uint32_t, message_id,
+		uint32_t, inode,
+		uint32_t, uid,
+		uint32_t, gid,
+		uint64_t, first_entry,
+		uint64_t, number_of_entries)
+
 namespace cltoma {
 
 namespace fuseReadChunk {
