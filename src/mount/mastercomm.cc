@@ -1946,6 +1946,45 @@ uint8_t fs_getdir_plus(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t addtocac
 	return ret;
 }
 
+uint8_t fs_getdir(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t first_entry,
+		uint64_t max_entries, std::vector<DirectoryEntry> &dir_entries) {
+	threc *rec = fs_get_my_threc();
+	auto message =
+	        cltoma::fuseGetDir::build(rec->packetId, inode, uid, gid, first_entry, max_entries);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GETDIR, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		uint32_t message_id;
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::fuseGetDir::kStatus) {
+			uint8_t status;
+			matocl::fuseGetDir::deserialize(message, message_id, status);
+			if (status == LIZARDFS_STATUS_OK) {
+				fs_got_inconsistent("LIZ_MATOCL_FUSE_GETDIR", message.size(),
+				                    "version 0 and LIZARDFS_STATUS_OK");
+				return LIZARDFS_ERROR_IO;
+			}
+			return status;
+		} else if (packet_version == matocl::fuseGetDir::kResponse) {
+			matocl::fuseGetDir::deserialize(message, message_id, first_entry,
+			                                dir_entries);
+			return LIZARDFS_STATUS_OK;
+		} else {
+			fs_got_inconsistent("LIZ_MATOCL_FUSE_GETDIR", message.size(),
+			                    "unknown version " + std::to_string(packet_version));
+			return LIZARDFS_ERROR_IO;
+		}
+	} catch (Exception &ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_GETDIR", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 // FUSE - I/O
 
 uint8_t fs_opencheck(uint32_t inode, uint32_t uid, uint32_t gid, uint8_t flags, Attributes &attr) {
@@ -2883,4 +2922,3 @@ uint8_t fs_flock_recv() {
 		return LIZARDFS_ERROR_IO;
 	}
 }
-
