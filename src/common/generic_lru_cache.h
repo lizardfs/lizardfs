@@ -140,8 +140,13 @@ public:
 	}
 
 	iterator findByValue(const Value &value) {
-		return std::find_if(queue_.begin(), queue_.end(),
+		auto ret = std::find_if(queue_.begin(), queue_.end(),
 			[&value](const std::pair<Key, Value> &e){return e.second == value;});
+
+		if (ret != queue_.end() && ret != queue_.begin()) {
+			queue_.splice(queue_.begin(), queue_, ret);
+		}
+		return ret;
 	}
 
 	iterator begin() {
