@@ -41,4 +41,4 @@ struct CountersComparator {
 	}
 };
 
-typedef GenericLruCache<ChunkGoalCounters, Goal, CountersHasher, CountersComparator> GoalCache;
+typedef GenericLruCache<ChunkGoalCounters, Goal, 0x10000, CountersHasher, CountersComparator> GoalCache;

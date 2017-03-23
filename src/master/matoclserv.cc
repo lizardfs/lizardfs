@@ -121,8 +121,7 @@ typedef struct filelist {
 } filelist;
 
 struct session {
-	typedef GenericLruCache<uint32_t, FsContext::GroupsContainer, std::hash<uint32_t>,
-	                        std::equal_to<uint32_t>, 1024> GroupCache;
+	typedef GenericLruCache<uint32_t, FsContext::GroupsContainer, 1024> GroupCache;
 
 	uint32_t sessionid;
 	char *info;
@@ -4197,7 +4196,7 @@ void matoclserv_update_credentials(matoclserventry *eptr, const uint8_t *data, u
 		it->second.insert(it->second.end(), gids.begin(), gids.end());
 	} else {
 		FsContext::GroupsContainer tmp(gids.begin(), gids.end());
-		eptr->sesdata->group_cache.put(std::move(index), std::move(tmp));
+		eptr->sesdata->group_cache.insert(std::move(index), std::move(tmp));
 	}
 
 	matoclserv_createpacket(eptr, matocl::updateCredentials::build(messageId, LIZARDFS_STATUS_OK));

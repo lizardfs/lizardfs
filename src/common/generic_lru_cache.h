@@ -1,5 +1,5 @@
 /*
-   Copyright 2015 Skytechnology sp. z o.o..
+   Copyright 2017 Skytechnology sp. z o.o..
 
    This file is part of LizardFS.
 
@@ -24,6 +24,7 @@
 #include <functional>
 #include <list>
 #include <unordered_map>
+#include <utility>
 
 /*! \brief Cache container designed to keep large key structures only once
  *
@@ -33,8 +34,8 @@
  *  - data is indexed by unordered map, which keeps a reference to key
  *    and an iterator to list entry
  */
-template <typename Key, typename Value, typename Hasher = std::hash<Key>,
-		typename Comparator = std::equal_to<Key>, std::size_t DefaultCapacity = 0x10000>
+template <typename Key, typename Value, std::size_t DefaultCapacity = 0x10000,
+		typename Hasher = std::hash<Key>, typename Comparator = std::equal_to<Key>>
 class GenericLruCache {
 public:
 	typedef std::list<std::pair<Key, Value>> Queue;
@@ -49,35 +50,74 @@ public:
 	explicit GenericLruCache(size_t capacity) : capacity_(capacity) {
 	}
 
-	void put(const Key &key, const Value &value) {
+	std::pair<iterator, bool> insert(const Key &key, const Value &value) {
 		if (cache_.size() >= capacity_) {
 			cache_.erase(queue_.back().first);
 			queue_.pop_back();
 		}
+		auto it = cache_.find(key);
+		if (it != cache_.end()) {
+			return std::make_pair(it->second, false);
+		}
+
 		queue_.emplace_front(key, value);
 		try {
-			cache_[queue_.front().first] = queue_.begin();
+			cache_.insert(typename CacheMap::value_type(queue_.front().first, queue_.begin()));
 		} catch (...) {
 			queue_.pop_front();
 			throw;
 		}
+
+		return std::make_pair(queue_.begin(), true);
 	}
 
-	void put(Key &&key, Value &&value) {
+	std::pair<iterator, bool> insert(Key &&key, Value &&value) {
 		if (cache_.size() >= capacity_) {
 			cache_.erase(queue_.back().first);
 			queue_.pop_back();
 		}
+		auto it = cache_.find(key);
+		if (it != cache_.end()) {
+			return std::make_pair(it->second, false);
+		}
+
 		queue_.emplace_front(std::move(key), std::move(value));
 		try {
-			cache_[queue_.front().first] = queue_.begin();
+			cache_.insert(typename CacheMap::value_type(queue_.front().first, queue_.begin()));
 		} catch (...) {
 			queue_.pop_front();
 			throw;
 		}
+
+		return std::make_pair(queue_.begin(), true);
 	}
 
-	void invalidate() {
+	template<class... Args>
+	std::pair<iterator, bool> emplace(Args&&... args) {
+		if (cache_.size() >= capacity_) {
+			cache_.erase(queue_.back().first);
+			queue_.pop_back();
+		}
+
+		queue_.emplace_front(std::forward<Args>(args)...);
+
+		auto it = cache_.find(queue_.front().first);
+		if (it != cache_.end()) {
+			queue_.pop_front();
+			return std::make_pair(it->second, false);
+		}
+
+		try {
+			cache_.insert(typename CacheMap::value_type(queue_.front().first, queue_.begin()));
+		} catch (...) {
+			queue_.pop_front();
+			throw;
+		}
+
+		return std::make_pair(queue_.begin(), true);
+	}
+
+	void clear() {
 		cache_.clear();
 		queue_.clear();
 	}
@@ -104,8 +144,28 @@ public:
 			[&value](const std::pair<Key, Value> &e){return e.second == value;});
 	}
 
+	iterator begin() {
+		return queue_.begin();
+	}
+
+	iterator end() {
+		return queue_.end();
+	}
+
+	const_iterator begin() const {
+		return queue_.begin();
+	}
+
 	const_iterator end() const {
 		return queue_.end();
+	}
+
+	const_iterator cbegin() const noexcept {
+		return queue_.cbegin();
+	}
+
+	const_iterator cend() const noexcept {
+		return queue_.cend();
 	}
 
 private:

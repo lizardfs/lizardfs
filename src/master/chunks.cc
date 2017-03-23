@@ -350,7 +350,7 @@ public:
 			}
 		}
 
-		goalCache.put(goalCounters_, result);
+		goalCache.insert(goalCounters_, result);
 		return result;
 	}
 
@@ -996,7 +996,7 @@ int chunk_unlock(uint64_t chunkid) {
 #ifndef METARESTORE
 
 int chunk_invalidate_goal_cache(){
-	Chunk::goalCache.invalidate();
+	Chunk::goalCache.clear();
 	return LIZARDFS_STATUS_OK;
 }
 

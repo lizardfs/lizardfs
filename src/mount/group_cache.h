@@ -57,7 +57,7 @@ public:
 		bool found;
 	};
 
-	typedef GenericLruCache<Groups, uint32_t, GroupHash, std::equal_to<Groups>, 1024> Cache;
+	typedef GenericLruCache<Groups, uint32_t, 1024, GroupHash> Cache;
 	typedef typename Cache::iterator iterator;
 	typedef typename Cache::const_iterator const_iterator;
 
@@ -75,7 +75,7 @@ public:
 		std::lock_guard<std::mutex> guard(mutex_);
 		index_++;
 		index_ %= kMaxGroupId;
-		cache_.put(groups, index_);
+		cache_.insert(groups, index_);
 		return index_;
 	}
 

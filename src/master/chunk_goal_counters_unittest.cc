@@ -164,22 +164,25 @@ TEST(ChunkGoalCounters, Cache) {
 	ChunkGoalCounters counters;
 	GoalCache cache(2);
 	Goal goal;
+	std::pair<GoalCache::iterator,bool> it;
 
 	counters.addFile(1);
 
-	cache.put(counters, goal);
-	cache.put(counters, goal);
+	it = cache.insert(counters, goal);
+	EXPECT_EQ(it, std::make_pair(cache.begin(), true));
+	it = cache.insert(counters, goal);
+	EXPECT_EQ(it, std::make_pair(cache.begin(), false));
 	EXPECT_EQ(1U, cache.size());
 
 	ChunkGoalCounters orig = counters;
 	counters.addFile(2);
-	cache.put(counters, goal);
+	cache.emplace(counters, goal);
 	EXPECT_EQ(2U, cache.size());
 
 	// Cache capacity is 2, so adding a third entry should end up in size 2
 	ChunkGoalCounters orig2 = counters;
 	counters.addFile(3);
-	cache.put(counters, goal);
+	cache.insert(counters, goal);
 	EXPECT_EQ(2U, cache.size());
 
 	// First object should be invalidated from cache
@@ -187,7 +190,7 @@ TEST(ChunkGoalCounters, Cache) {
 	EXPECT_NE(cache.find(orig2), cache.end());
 	EXPECT_NE(cache.find(counters), cache.end());
 
-	cache.invalidate();
+	cache.clear();
 
 	EXPECT_EQ(0U, cache.size());
 }
