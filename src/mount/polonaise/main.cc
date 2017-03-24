@@ -1103,7 +1103,7 @@ int main (int argc, char **argv) {
 			bandwidthOveruse);
 	write_data_init(gSetup.write_buffer_size, gSetup.io_retries, writeworkers,
 			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
-	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout,
+	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout, gSetup.direntry_cache_size,
 			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
 			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, gSetup.enable_acl, userwlock, 0, 0);
 

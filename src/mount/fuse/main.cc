@@ -341,6 +341,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.debug,
 				gMountOptions.keepcache,
 				gMountOptions.direntrycacheto,
+				gMountOptions.direntrycachesize,
 				gMountOptions.entrycacheto,
 				gMountOptions.attrcacheto,
 				gMountOptions.mkdircopysgid,
@@ -684,6 +685,11 @@ int main(int argc, char *argv[]) try {
 		fprintf(stderr,"acl cache size too big (%u) - decreased to 1000000\n",
 				gMountOptions.aclcachesize);
 		gMountOptions.aclcachesize = 1000 * 1000;
+	}
+	if (gMountOptions.direntrycachesize > 10000000) {
+		fprintf(stderr,"directory entry cache size too big (%u) - decreased to 10000000\n",
+				gMountOptions.direntrycachesize);
+		gMountOptions.direntrycachesize = 10000000;
 	}
 
 	make_fsname(&args);

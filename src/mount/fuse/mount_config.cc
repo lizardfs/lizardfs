@@ -81,6 +81,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("mfschunkserverwriteto=%d", chunkserverwriteto, 0),
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
 	MFS_OPT("bandwidthoveruse=%lf", bandwidthoveruse, 1),
+	MFS_OPT("mfsdirentrycachesize=%u", direntrycachesize, 0),
 
 #if FUSE_VERSION >= 26
 	MFS_OPT("enablefilelocks=%u", filelocks, 0),
@@ -150,7 +151,8 @@ void usage(const char *progname) {
 "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
 "    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
 "    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
-"    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 1.0)\n"
+"    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 0.25)\n"
+"    -o mfsdirentrycachesize=N   define directory entry cache size in number of entries (default: 100000)\n"
 "    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
 "    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
 "    -o mfschunkserverrtt=MSEC   set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver (default: " STR(LIZARDFS_MOUNT_DEFAULT_RTT) ")\n"

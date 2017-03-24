@@ -3,7 +3,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 collect_sources(MOUNT)
 
 add_library(mount ${MOUNT_SOURCES})
-target_link_libraries(mount mfscommon ${ADDITIONAL_LIBS})
+target_link_libraries(mount mfscommon ${ADDITIONAL_LIBS} ${Boost_THREAD_LIBRARY})
 if(MINGW)
   target_link_libraries(mount ${MINGW_MSVCRT})
 endif()

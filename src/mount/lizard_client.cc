@@ -47,7 +47,7 @@
 #include "mount/acl_cache.h"
 #include "mount/chunk_locator.h"
 #include "mount/client_common.h"
-#include "mount/dirattrcache.h"
+#include "mount/direntry_cache.h"
 #include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/io_limit_group.h"
@@ -61,6 +61,7 @@
 #include "mount/tweaks.h"
 #include "mount/writedata.h"
 #include "protocol/MFSCommunication.h"
+#include "protocol/matocl.h"
 
 #include "mount/stat_defs.h" // !!! This must be last include. Do not move !!!
 
@@ -142,17 +143,6 @@ bool isSpecialInode(Inode ino) {
 	return IS_SPECIAL_INODE(ino);
 }
 
-typedef struct _dirbuf {
-	int wasread;
-	int dataformat;
-	uid_t uid;
-	gid_t gid;
-	const uint8_t *p;
-	size_t size;
-	void *dcache;
-	pthread_mutex_t lock;
-} dirbuf;
-
 enum {IO_NONE,IO_READ,IO_WRITE,IO_READONLY,IO_WRITEONLY};
 
 typedef struct _finfo {
@@ -163,6 +153,9 @@ typedef struct _finfo {
 	pthread_mutex_t lock;
 	pthread_mutex_t flushlock;
 } finfo;
+
+static DirEntryCache gDirEntryCache;
+static unsigned gDirEntryCacheMaxSize = 100000;
 
 static int debug_mode = 0;
 static int usedircache = 1;
@@ -630,7 +623,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_l
 			fs_getattr(inode, ctx.uid, ctx.gid, attr));
 		status = errorconv_dbg(status);
 		icacheflag = 0;
-	} else if (usedircache && dcache_lookup(&ctx,parent,nleng,(const uint8_t*)name,&inode,attr)) {
+	} else if (usedircache && gDirEntryCache.lookup(ctx,parent,std::string(name,nleng),inode,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"lookup: sending data from dircache\n");
 		}
@@ -702,7 +695,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
 	}
 
 	maxfleng = write_data_getmaxfleng(ino);
-	if (usedircache && dcache_getattr(&ctx,ino,attr)) {
+	if (usedircache && gDirEntryCache.lookup(ctx,ino,attr)) {
 		if (debug_mode) {
 			fprintf(stderr,"getattr: sending data from dircache\n");
 		}
@@ -922,6 +915,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				strerr(status));
 		throw RequestException(status);
 	}
+	gDirEntryCache.lockAndInvalidateInode(ino);
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(ino,attr,&o_stbuf);
 	if (attr[0]==TYPE_FILE && maxfleng>(uint64_t)(o_stbuf.st_size)) {
@@ -1080,7 +1074,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 
 	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 		fs_unlink(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid));
-	dcache_invalidate(parent);
+	gDirEntryCache.lockAndInvalidateParent(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "unlink (%lu,%s): %s",
@@ -1204,7 +1198,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 
 	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 		fs_rmdir(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid));
-	dcache_invalidate(parent);
+	gDirEntryCache.lockAndInvalidateParent(parent);
 	status = errorconv_dbg(status);
 	if (status!=0) {
 		oplog_printf(ctx, "rmdir (%lu,%s): %s",
@@ -1387,8 +1381,8 @@ void rename(Context ctx, Inode parent, const char *name,
 	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 	fs_rename(parent,nleng,(const uint8_t*)name,newparent,newnleng,(const uint8_t*)newname,ctx.uid,ctx.gid,&inode,attr));
 	status = errorconv_dbg(status);
-	dcache_invalidate(parent);
-	dcache_invalidate(newparent);
+	gDirEntryCache.lockAndInvalidateParent(parent);
+	gDirEntryCache.lockAndInvalidateParent(newparent);
 	if (status!=0) {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): %s",
 				(unsigned long int)parent,
@@ -1486,8 +1480,9 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 }
 
 void opendir(Context ctx, Inode ino, FileInfo *fi) {
-	dirbuf *dirinfo;
 	int status;
+
+	fi->fh = 0;
 
 	stats_inc(OP_OPENDIR);
 	if (debug_mode) {
@@ -1510,159 +1505,110 @@ void opendir(Context ctx, Inode ino, FileInfo *fi) {
 				(unsigned long int)ino,
 				strerr(status));
 		throw RequestException(status);
-	} else {
-		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
-		pthread_mutex_init(&(dirinfo->lock),NULL);
-		PthreadMutexWrapper lock((dirinfo->lock));   // make valgrind happy
-		dirinfo->p = NULL;
-		dirinfo->size = 0;
-		dirinfo->dcache = NULL;
-		dirinfo->wasread = 0;
-		fi->fh = reinterpret_cast<uintptr_t>(dirinfo);
-		oplog_printf(ctx, "opendir (%lu): OK",
-				(unsigned long int)ino);
 	}
 }
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo *fi) {
-	int status;
-	dirbuf *dirinfo = reinterpret_cast<dirbuf *>(fi->fh);
-	char name[MFS_NAME_MAX+1];
-	const uint8_t *ptr,*eptr;
-	uint8_t nleng;
-	uint32_t inode;
-	uint8_t type;
-	struct stat stbuf;
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entries, FileInfo */*fi*/) {
+	static constexpr int kBatchSize = 1000;
 
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
 		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",
 				(unsigned long int)ino,
-				(uint64_t)maxEntries,
+				(uint64_t)max_entries,
 				(uint64_t)off);
 		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",
 				(unsigned long int)ino,
-				(uint64_t)maxEntries,
+				(uint64_t)max_entries,
 				(uint64_t)off);
 	}
 	if (off<0) {
 		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
-				(uint64_t)maxEntries,
+				(uint64_t)max_entries,
 				(uint64_t)off,
 				strerr(EINVAL));
 		throw RequestException(EINVAL);
 	}
-	PthreadMutexWrapper lock((dirinfo->lock));
-	if (dirinfo->wasread==0 || (dirinfo->wasread==1 && off==0)) {
-		const uint8_t *dbuff;
-		uint32_t dsize;
-		uint8_t needscopy;
-		if (usedircache) {
-			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-				fs_getdir_plus(ino,ctx.uid,ctx.gid,0,&dbuff,&dsize));
-			if (status==0) {
-				stats_inc(OP_GETDIR_FULL);
-			}
-			needscopy = 1;
-			dirinfo->dataformat = 1;
-		} else {
-			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-				fs_getdir(ino,ctx.uid,ctx.gid,&dbuff,&dsize));
-			if (status==0) {
-				stats_inc(OP_GETDIR_SMALL);
-			}
-			needscopy = 1;
-			dirinfo->dataformat = 0;
+
+	std::vector<DirEntry> result;
+	shared_lock<shared_mutex> access_guard(gDirEntryCache.rwlock());
+	gDirEntryCache.updateTime();
+
+	uint64_t entry_index = off;
+	auto it = gDirEntryCache.find(ctx, ino, entry_index);
+
+	result.reserve(max_entries);
+	for(;it != gDirEntryCache.index_end() && max_entries > 0;++it) {
+		if (!gDirEntryCache.isValid(it) || it->index != entry_index) {
+			break;
 		}
-		status = errorconv_dbg(status);
-		if (status!=0) {
-			oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
-					(unsigned long int)ino,
-					(uint64_t)maxEntries,
-					(uint64_t)off,
-					strerr(status));
-			throw RequestException(status);
+
+		if (it->inode == 0) {
+			// we have valid 'no more entries' marker
+			assert(it->name.empty());
+			max_entries = 0;
+			break;
 		}
-		if (dirinfo->dcache) {
-			dcache_release(dirinfo->dcache);
-			dirinfo->dcache = NULL;
-		}
-		if (dirinfo->p) {
-			free((uint8_t*)(dirinfo->p));
-			dirinfo->p = NULL;
-		}
-		if (needscopy) {
-			dirinfo->p = (const uint8_t*) malloc(dsize);
-			if (dirinfo->p == NULL) {
-				oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
-						(unsigned long int)ino,
-						(uint64_t)maxEntries,
-						(uint64_t)off,
-						strerr(EINVAL));
-				throw RequestException(EINVAL);
-			}
-			memcpy((uint8_t*)(dirinfo->p),dbuff,dsize);
-		} else {
-			dirinfo->p = dbuff;
-		}
-		dirinfo->size = dsize;
-		if (usedircache && dirinfo->dataformat==1) {
-			dirinfo->dcache = dcache_new(&ctx,ino,dirinfo->p,dirinfo->size);
-		}
+
+		++entry_index;
+		--max_entries;
+
+		struct stat stats;
+		attr_to_stat(it->inode,it->attr,&stats);
+		result.emplace_back(it->name, stats, entry_index);
 	}
-	dirinfo->wasread=1;
 
-	std::vector<DirEntry> ret;
-	if (off>=(off_t)(dirinfo->size)) {
-		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (no data)",
-				(unsigned long int)ino,
-				(uint64_t)maxEntries,
-				(uint64_t)off);
-	} else {
-		ptr = dirinfo->p+off;
-		eptr = dirinfo->p+dirinfo->size;
-		off_t nextoff = off; // offset of the next entry
-
-		while (ptr<eptr && ret.size() < maxEntries) {
-			sassert(ptr == dirinfo->p + nextoff);
-			nleng = ptr[0];
-			ptr++;
-			memcpy(name,ptr,nleng);
-			name[nleng]=0;
-			ptr+=nleng;
-			nextoff+=nleng+((dirinfo->dataformat)?40:6);
-			if (ptr+5<=eptr) {
-				inode = get32bit(&ptr);
-				if (dirinfo->dataformat) {
-					Attributes attr;
-					memcpy(attr.data(), ptr, attr.size());
-					attr_to_stat(inode, attr, &stbuf);
-					ptr+=attr.size();
-				} else {
-					type = get8bit(&ptr);
-					type_to_stat(inode,type,&stbuf);
-				}
-				try {
-					ret.push_back(DirEntry{name, stbuf, nextoff});
-				} catch (std::bad_alloc& e) {
-					throw RequestException(ENOMEM);
-				}
-			}
-		}
-
-		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
-				(unsigned long int)ino,
-				(uint64_t)maxEntries,
-				(uint64_t)off,
-				(unsigned long int)ret.size());
+	if (max_entries == 0) {
+		return result;
 	}
-	return ret;
+
+	access_guard.unlock();
+
+	std::vector<DirectoryEntry> dir_entries;
+	uint8_t status;
+	uint64_t request_size = std::min<std::size_t>(std::max<std::size_t>(kBatchSize, max_entries),
+	                                              matocl::fuseGetDir::kMaxNumberOfDirectoryEntries);
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_getdir(ino, ctx.uid, ctx.gid, entry_index, request_size, dir_entries));
+	auto data_acquire_time = gDirEntryCache.updateTime();
+
+	if(status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+
+	std::unique_lock<shared_mutex> write_guard(gDirEntryCache.rwlock());
+	gDirEntryCache.updateTime();
+
+	gDirEntryCache.insertSubsequent(ctx, ino, entry_index, dir_entries, data_acquire_time);
+	if (dir_entries.size() < request_size) {
+		// insert 'no more entries' marker
+		gDirEntryCache.insert(ctx, ino, 0, entry_index + dir_entries.size(), "", Attributes{{}}, data_acquire_time);
+		gDirEntryCache.invalidate(ctx,ino,entry_index + dir_entries.size() + 1);
+	}
+
+	if (gDirEntryCache.size() > gDirEntryCacheMaxSize) {
+		gDirEntryCache.removeOldest(gDirEntryCache.size() - gDirEntryCacheMaxSize);
+	}
+
+	write_guard.unlock();
+
+	for(auto it = dir_entries.begin(); it != dir_entries.end() && max_entries > 0; ++it) {
+		--max_entries;
+		++entry_index;
+
+		struct stat stats;
+		attr_to_stat(it->inode,it->attributes,&stats);
+		result.emplace_back(it->name, stats, entry_index);
+	}
+
+	return result;
 }
 
-void releasedir(Context ctx, Inode ino, FileInfo *fi) {
+void releasedir(Context ctx, Inode ino, FileInfo */*fi*/) {
+	static constexpr int kBatchSize = 1000;
+
 	(void)ino;
-	dirbuf *dirinfo = reinterpret_cast<dirbuf *>(fi->fh);
 
 	stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
@@ -1670,19 +1616,12 @@ void releasedir(Context ctx, Inode ino, FileInfo *fi) {
 				(unsigned long int)ino);
 		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
-	PthreadMutexWrapper lock((dirinfo->lock));
-	lock.unlock(); // This unlock is needed, since we want to destroy the mutex
-	pthread_mutex_destroy(&(dirinfo->lock));
-	if (dirinfo->dcache) {
-		dcache_release(dirinfo->dcache);
-	}
-	if (dirinfo->p) {
-		free((uint8_t*)(dirinfo->p));
-	}
-	free(dirinfo);
-	fi->fh = 0;
 	oplog_printf(ctx, "releasedir (%lu): OK",
 			(unsigned long int)ino);
+
+	std::unique_lock<shared_mutex> write_guard(gDirEntryCache.rwlock());
+	gDirEntryCache.updateTime();
+	gDirEntryCache.removeExpired(kBatchSize);
 }
 
 
@@ -1730,15 +1669,6 @@ void remove_file_info(FileInfo *f) {
 	pthread_mutex_destroy(&(fileinfo->flushlock));
 	free(fileinfo);
 }
-
-void remove_dir_info(FileInfo *fi) {
-	dirbuf* dirinfo = (dirbuf*) fi->fh;
-	fi->fh = 0;
-	pthread_mutex_destroy(&(dirinfo->lock));
-	free(dirinfo);
-}
-
-
 
 EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 		FileInfo* fi) {
@@ -1848,6 +1778,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				(unsigned long int)inode,
 				(unsigned long int)fi->keep_cache);
 	}
+	gDirEntryCache.lockAndInvalidateParent(ctx, parent);
 	e.ino = inode;
 	e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
 	e.entry_timeout = (mattr&MATTR_NOECACHE)?0.0:entry_cache_timeout;
@@ -2400,6 +2331,7 @@ public:
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 			fs_setacl(ino, ctx.uid, ctx.gid, type_, acl));
 		eraseAclCache(ino);
+		gDirEntryCache.lockAndInvalidateInode(ino);
 		return status;
 	}
 
@@ -2945,7 +2877,7 @@ void flock_recv() {
 	}
 }
 
-void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
+void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,
 		double acl_cache_timeout_, unsigned acl_cache_size_) {
@@ -2959,6 +2891,9 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 	sugid_clear_mode = static_cast<decltype (sugid_clear_mode)>(sugid_clear_mode_);
 	acl_enabled = acl_enabled_;
 	use_rwlock = use_rwlock_;
+	uint64_t timeout = (uint64_t)(direntry_cache_timeout * 1000000);
+	gDirEntryCache.setTimeout(timeout);
+	gDirEntryCacheMaxSize = direntry_cache_size_;
 	if (debug_mode) {
 		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");

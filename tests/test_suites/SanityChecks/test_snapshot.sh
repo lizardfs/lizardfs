@@ -1,6 +1,6 @@
 CHUNKSERVERS=4 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsdirentrycacheto=0" \
 	setup_local_empty_lizardfs info
 
 # Create small files of goals 2 and xor3

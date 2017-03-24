@@ -3,7 +3,7 @@ CHUNKSERVERS=3 \
 	CHUNKSERVERS=4 \
 	CHUNKSERVER_LABELS="0:l0|1:l1|2:l2" \
 	MASTER_CUSTOM_GOALS="10 l0l1: l0 l1|11 l1l2: l1 l2" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsdirentrycacheto=0" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|OPERATIONS_DELAY_INIT = 0:"\
 	setup_local_empty_lizardfs info
 

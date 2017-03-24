@@ -36,6 +36,7 @@ struct Setup {
 	std::string subfolder;
 	bool debug;
 	double direntry_cache_timeout;
+	unsigned direntry_cache_size;
 	double entry_cache_timeout;
 	double attr_cache_timeout;
 	bool no_mkdir_copy_sgid;

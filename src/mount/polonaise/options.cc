@@ -118,7 +118,10 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 				"enable debug mode")
 			("direntry-cache-timeout",
 				po::value<double>(&setup.direntry_cache_timeout)->default_value(0.),
-				"timeout for direnty cache")
+				"timeout for direntry cache")
+			("direntry-cache-size",
+				po::value<unsigned>(&setup.direntry_cache_size)->default_value(100000),
+				"size of direntry cache in number of elements")
 			("entry-cache-timeout",
 				po::value<double>(&setup.entry_cache_timeout)->default_value(0.),
 				"timeout for enty cache")

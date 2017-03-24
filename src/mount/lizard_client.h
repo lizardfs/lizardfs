@@ -92,6 +92,8 @@ struct DirEntry {
 	std::string name;
 	struct stat attr;
 	off_t nextEntryOffset;
+
+	DirEntry(const std::string n, const struct stat &s, off_t o) : name(n), attr(s), nextEntryOffset(o) {}
 };
 
 /**
@@ -202,9 +204,9 @@ void flock_interrupt(const lzfs_locks::InterruptData &data);
 void setlk_interrupt(const lzfs_locks::InterruptData &data);
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
-		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rw_lock_,
-		double acl_cache_timeout_, unsigned acl_cache_size_);
+		unsigned direntry_cache_size_, double entry_cache_timeout_, double attr_cache_timeout_,
+		int mkdir_copy_sgid_, SugidClearMode sugid_clear_mode_, bool acl_enabled_,
+		bool use_rw_lock_, double acl_cache_timeout_, unsigned acl_cache_size_);
 
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);

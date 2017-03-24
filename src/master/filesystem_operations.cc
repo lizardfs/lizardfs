@@ -1682,6 +1682,11 @@ uint8_t fs_readdir(const FsContext &context, uint32_t inode, uint64_t first_entr
 		return status;
 	}
 
+	uint32_t ts = eventloop_time();
+	ChecksumUpdater cu(ts);
+
+	fs_update_atime(dir, ts);
+
 	fsnodes_getdir(context.rootinode(),
 		       context.uid(), context.gid(), context.auid(), context.agid(), context.sesflags(),
 		       static_cast<FSNodeDirectory*>(dir),
