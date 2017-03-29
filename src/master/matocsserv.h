@@ -39,6 +39,9 @@ typedef std::vector<matocsserventry*> Chunkservers;
 
 /// A struct used in matocsserv_getservers_sorted
 struct ServerWithUsage {
+	ServerWithUsage() : server(nullptr), diskUsage(), label() {
+	}
+
 	ServerWithUsage(matocsserventry* server, double diskUsage, const MediaLabel& label)
 			: server(server),
 			  diskUsage(diskUsage),

@@ -35,6 +35,7 @@
 #include "common/chunks_availability_state.h"
 #include "common/chunk_copies_calculator.h"
 #include "common/compact_vector.h"
+#include "common/counting_sort.h"
 #include "common/coroutine.h"
 #include "common/datapack.h"
 #include "common/exceptions.h"
@@ -1851,7 +1852,8 @@ private:
 	bool replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part, ChunkCopiesCalculator& calc, const IpCounter &ip_counter);
 	bool removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type, int slice_part,
 	                             ChunkCopiesCalculator& calc, const IpCounter &ip_counter);
-	bool rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator& calc, bool only_todel);
+	bool rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator& calc, bool only_todel, const IpCounter &ip_counter);
+	bool rebalanceChunkPartsWithSameIp(Chunk *c, ChunkCopiesCalculator &calc, const IpCounter &ip_counter);
 
 	loop_info inforec_;
 	uint32_t deleteNotDone_;
@@ -2218,7 +2220,7 @@ bool ChunkWorker::removeUnneededChunkPart(Chunk *c, Goal::Slice::Type slice_type
 	return false;
 }
 
-bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, bool only_todel) {
+bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, bool only_todel, const IpCounter &ip_counter) {
 	if(!only_todel) {
 		double min_usage = sortedServers_.front().diskUsage;
 		double max_usage = sortedServers_.back().diskUsage;
@@ -2238,6 +2240,10 @@ bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, boo
 		if(only_todel && !part.is_todel()) {
 			continue;
 		}
+
+		auto current_ip = matocsserv_get_servip(part.server());
+		auto it = ip_counter.find(current_ip);
+		auto current_ip_count = it != ip_counter.end() ? it->second : 0;
 
 		MediaLabel current_copy_label = matocsserv_get_label(part.server());
 		double current_copy_disk_usage = matocsserv_get_usage(part.server());
@@ -2260,7 +2266,17 @@ bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, boo
 		const ServersWithUsage &sorted_servers =
 		        multi_label_rebalance ? sortedServers_
 		                              : labeledSortedServers_[current_copy_label];
+
 		for (const auto &empty_server : sorted_servers) {
+			if (!only_todel && gAvoidSameIpChunkservers) {
+				auto empty_server_ip = matocsserv_get_servip(empty_server.server);
+				auto it = ip_counter.find(empty_server_ip);
+				auto empty_server_ip_count = it != ip_counter.end() ? it->second : 0;
+				if (empty_server_ip != current_ip && empty_server_ip_count >= current_ip_count) {
+					continue;
+				}
+			}
+
 			if (!only_todel && empty_server.diskUsage >
 			    current_copy_disk_usage - AcceptableDifference) {
 				break;  // No more suitable destination servers (next servers have
@@ -2284,6 +2300,72 @@ bool ChunkWorker::rebalanceChunkParts(Chunk *c, ChunkCopiesCalculator &calc, boo
 
 	return false;
 }
+
+bool ChunkWorker::rebalanceChunkPartsWithSameIp(Chunk *c, ChunkCopiesCalculator &calc, const IpCounter &ip_counter) {
+	if (!gAvoidSameIpChunkservers) {
+		return false;
+	}
+
+	for (const auto &part : c->parts) {
+		if (!part.is_valid()) {
+			continue;
+		}
+
+		auto current_ip = matocsserv_get_servip(part.server());
+		auto it = ip_counter.find(current_ip);
+		auto current_ip_count = it != ip_counter.end() ? it->second : 0;
+
+		MediaLabel current_copy_label = matocsserv_get_label(part.server());
+
+		bool multi_label_rebalance =
+		        RebalancingBetweenLabels &&
+		        (current_copy_label == MediaLabel::kWildcard ||
+		         calc.canMovePartToDifferentLabel(part.type.getSliceType(),
+		                                          part.type.getSlicePart(),
+		                                          current_copy_label));
+
+		uint32_t min_chunkserver_version = getMinChunkserverVersion(c, part.type);
+
+		const ServersWithUsage &sorted_servers =
+		        multi_label_rebalance ? sortedServers_
+		                              : labeledSortedServers_[current_copy_label];
+
+		ServersWithUsage sorted_by_ip_count;
+		sorted_by_ip_count.resize(sorted_servers.size());
+		counting_sort_copy(sorted_servers.begin(), sorted_servers.end(), sorted_by_ip_count.begin(),
+			           [&ip_counter](const ServerWithUsage& elem) {
+			                  auto ip = matocsserv_get_servip(elem.server);
+			                  auto it = ip_counter.find(ip);
+			                  return it != ip_counter.end() ? it->second : 0;
+			           });
+
+		for (const auto &empty_server : sorted_by_ip_count) {
+			auto empty_server_ip = matocsserv_get_servip(empty_server.server);
+			auto it = ip_counter.find(empty_server_ip);
+			auto empty_server_ip_count = it != ip_counter.end() ? it->second : 0;
+			if (empty_server_ip_count >= (current_ip_count - 1)) {
+				break;
+			}
+
+			if (matocsserv_get_version(empty_server.server) < min_chunkserver_version) {
+				continue;
+			}
+			if (chunkPresentOnServer(c, part.type.getSliceType(), empty_server.server)) {
+				continue;  // A copy is already here
+			}
+			if (matocsserv_replication_write_counter(empty_server.server) >= MaxWriteRepl) {
+				continue;  // We can't create a new copy here
+			}
+			if (tryReplication(c, part.type, empty_server.server)) {
+				inforec_.copy_rebalance++;
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 
 void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	// step 0. Update chunk's statistics
@@ -2399,7 +2481,7 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	}
 
 	// step 9. If chunk has parts marked as "to delete" then move them to other servers
-	if(rebalanceChunkParts(c, calc, true)) {
+	if(rebalanceChunkParts(c, calc, true, ip_occurrence)) {
 		return;
 	}
 
@@ -2407,9 +2489,17 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 		return;
 	}
 
-	// step 10. if there is too big difference between chunkservers then make copy of chunk from
+	// step 10. Move chunk parts residing on chunkservers with the same ip.
+	if (rebalanceChunkPartsWithSameIp(c, calc, ip_occurrence)) {
+		return;
+	}
+
+	// step 11. if there is too big difference between chunkservers then make copy of chunk from
 	// a server with a high disk usage on a server with low disk usage
-	rebalanceChunkParts(c, calc, false);
+	if (rebalanceChunkParts(c, calc, false, ip_occurrence)) {
+		return;
+	}
+
 }
 
 bool ChunkWorker::deleteUnusedChunks() {
