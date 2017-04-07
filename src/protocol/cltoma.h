@@ -376,6 +376,12 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint8_t, ignore_missing_src,
 		uint32_t, initial_batch)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, listDefectiveFiles, LIZ_CLTOMA_LIST_DEFECTIVE_FILES, 0,
+		uint8_t, flags,
+		uint64_t, first_entry,
+		uint64_t, number_of_entries)
+
 namespace cltoma {
 
 namespace fuseReadChunk {

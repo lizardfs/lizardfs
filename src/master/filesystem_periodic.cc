@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2015 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -23,8 +23,13 @@
 #include <cstdint>
 #include <type_traits>
 
-#include "common/loop_watchdog.h"
 #include "common/event_loop.h"
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+#  include "common/judy_map.h"
+#else
+#  include "common/flat_map.h"
+#endif
+#include "common/loop_watchdog.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
@@ -50,6 +55,21 @@ static uint32_t fsinfo_loopend = 0;
 
 static int gTasksBatchSize = 1000;
 
+enum NodeErrorFlag {
+	kChunkUnavailable = 1,
+	kChunkUnderGoal   = 2,
+	kAllChunkErrors   = 3
+};
+
+#ifdef LIZARDFS_HAVE_64BIT_JUDY
+	typedef judy_map<uint32_t, uint8_t> DefectiveNodesMap;
+#else
+	typedef flat_map<uint32_t, uint8_t> DefectiveNodesMap;
+#endif
+
+static const size_t kMaxNodeEntries = 1000000;
+static DefectiveNodesMap gDefectiveNodes;
+
 void fs_background_task_manager_work() {
 	if (gMetadata->task_manager.workAvailable()) {
 		uint32_t ts = eventloop_time();
@@ -59,6 +79,33 @@ void fs_background_task_manager_work() {
 			eventloop_make_next_poll_nonblocking();
 		}
 	}
+}
+
+std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
+	                                                   uint64_t &entry_index) {
+	FSNodeFile *node;
+	FSNodeDirectory *parent;
+	std::string file_path;
+	std::vector<DefectiveFileInfo> defective_nodes_info;
+	ActiveLoopWatchdog watchdog;
+	defective_nodes_info.reserve(max_entries);
+	auto it = gDefectiveNodes.find_nth(entry_index);
+	watchdog.start();
+	for (uint64_t i = 0; i < max_entries && it != gDefectiveNodes.end(); ++it) {
+		if (((*it).second & requested_flags) != 0) {
+			node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+			parent = fsnodes_get_first_parent(node);
+			fsnodes_getpath(parent, node, file_path);
+			defective_nodes_info.emplace_back(file_path, (*it).second);
+			++i;
+		}
+		++entry_index;
+		if (watchdog.expired()) {
+			return defective_nodes_info;
+		}
+	}
+	entry_index = 0;
+	return defective_nodes_info;
 }
 
 void fs_test_getdata(uint32_t *loopstart, uint32_t *loopend, uint32_t *files, uint32_t *ugfiles,
@@ -138,7 +185,7 @@ void fs_periodic_test_files() {
 	static uint32_t i = 0;
 	uint32_t k;
 	uint64_t chunkid;
-	uint8_t vc, valid, ugflag;
+	uint8_t vc, valid, ugflag, node_error_flag;
 	static uint32_t files = 0;
 	static uint32_t ugfiles = 0;
 	static uint32_t mfiles = 0;
@@ -153,8 +200,8 @@ void fs_periodic_test_files() {
 	static uint32_t unavailreservedfiles = 0;
 	static char *msgbuff = NULL, *tmp;
 	static uint32_t leng = 0;
-	FSNode *f;
 
+	FSNode *f;
 	if ((uint32_t)(eventloop_time()) <= gTestStartTime) {
 		return;
 	}
@@ -247,6 +294,7 @@ void fs_periodic_test_files() {
 	for (k = 0; k < (NODEHASHSIZE / 14400) && i < NODEHASHSIZE; k++, i++) {
 		for (f = gMetadata->nodehash[i]; f; f = f->next) {
 			if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
+				node_error_flag = 0;
 				valid = 1;
 				ugflag = 0;
 				for (uint32_t j = 0; j < static_cast<FSNodeFile *>(f)->chunks.size(); ++j) {
@@ -276,6 +324,7 @@ void fs_periodic_test_files() {
 						if ((notfoundchunks % 1000) == 0) {
 							syslog(LOG_ERR, "unknown chunks: %" PRIu32 " ...", notfoundchunks);
 						}
+						node_error_flag |= static_cast<int>(kChunkUnavailable);
 						valid = 0;
 						mchunks++;
 					} else if (vc == 0) {
@@ -301,17 +350,34 @@ void fs_periodic_test_files() {
 							       "%" PRIu32 " ...",
 							       unavailchunks);
 						}
+						node_error_flag |= static_cast<int>(kChunkUnavailable);
 						valid = 0;
 						mchunks++;
 					} else {
 						int recover, remove;
 						chunk_get_partstomodify(chunkid, recover, remove);
 						if (recover > 0) {
+							node_error_flag |= static_cast<int>(kChunkUnderGoal);
 							ugflag = 1;
 							ugchunks++;
 						}
 					}
 					chunks++;
+				}
+				if (node_error_flag == 0) {
+					auto it = gDefectiveNodes.find(f->id);
+					if (it != gDefectiveNodes.end()) {
+						gDefectiveNodes.erase(it);
+					}
+				} else {
+					if (gDefectiveNodes.size() < kMaxNodeEntries) {
+						gDefectiveNodes[f->id] = node_error_flag;
+					} else {
+						auto it = gDefectiveNodes.find(f->id);
+						if (it != gDefectiveNodes.end()) {
+							(*it).second = node_error_flag;
+						}
+					}
 				}
 				if (valid == 0) {
 					mfiles++;

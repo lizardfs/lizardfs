@@ -25,6 +25,7 @@
 #include "admin/info_command.h"
 #include "admin/io_limits_status_command.h"
 #include "admin/list_chunkservers_command.h"
+#include "admin/list_defective_files_command.h"
 #include "admin/list_disks_command.h"
 #include "admin/list_goals_command.h"
 #include "admin/list_metadataservers_command.h"
@@ -51,6 +52,7 @@ int main(int argc, const char** argv) {
 			new InfoCommand(),
 			new IoLimitsStatusCommand(),
 			new ListChunkserversCommand(),
+			new ListDefectiveFilesCommand(),
 			new ListDisksCommand(),
 			new ListGoalsCommand(),
 			new ListMountsCommand(),

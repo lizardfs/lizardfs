@@ -1848,6 +1848,14 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_FUSE_SNAPSHOT (1000U + 596U)
 /// msgid:32 status:8
 
+// 0x63D
+#define LIZ_CLTOMA_LIST_DEFECTIVE_FILES (1000U + 597U)
+/// flags:8 first_entry:64 number_of_entries:64
+
+// 0x63E
+#define LIZ_MATOCL_LIST_DEFECTIVE_FILES (1000U + 598U)
+/// last_entry_index:64 files:(vector<DefectiveFileInfo>)
+
 // CHUNKSERVER STATS
 
 // 0x0258

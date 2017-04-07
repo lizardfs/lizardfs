@@ -1,6 +1,6 @@
 /*
    Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
-   2013-2015 Skytechnology sp. z o.o..
+   2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -21,12 +21,17 @@
 
 #include "common/platform.h"
 
+#include "common/defective_file_info.h"
+
 /*! \brief Function processing TaskManager's enqueued tasks.
  *
  * The function processes limited number of tasks in each call,
  * so it should be executed as often as possible.
  */
 void fs_background_task_manager_work();
+
+std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
+	                                                   uint64_t &entry_index);
 
 /*
  * A function that is called every main loop iteration,

@@ -68,6 +68,7 @@
 #include "master/exports.h"
 #include "master/filesystem.h"
 #include "master/filesystem_operations.h"
+#include "master/filesystem_periodic.h"
 #include "master/filesystem_snapshot.h"
 #include "master/masterconn.h"
 #include "master/matocsserv.h"
@@ -4031,6 +4032,14 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 	}
 }
 
+void matoclserv_list_defective_files(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint8_t flags;
+	uint64_t entry_index, number_of_entries;
+	cltoma::listDefectiveFiles::deserialize(data, length, flags, entry_index, number_of_entries);
+	std::vector<DefectiveFileInfo> files_info = fs_get_defective_nodes_info(flags, number_of_entries, entry_index);
+	matoclserv_createpacket(eptr, matocl::listDefectiveFiles::build(entry_index, files_info));
+}
+
 void matoclserv_manage_locks_list(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	FsContext context = FsContext::getForMaster(eventloop_time());
 	uint32_t inode;
@@ -4677,6 +4686,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_LIST_TAPESERVERS:
 					matoclserv_list_tapeservers(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_LIST_DEFECTIVE_FILES:
+					matoclserv_list_defective_files(eptr, data, length);
 					break;
 				case LIZ_CLTOMA_MANAGE_LOCKS_LIST:
 					matoclserv_manage_locks_list(eptr,data,length);

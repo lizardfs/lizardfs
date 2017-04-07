@@ -25,6 +25,7 @@
 #include "common/chunk_type_with_address.h"
 #include "common/chunk_with_address_and_label.h"
 #include "common/chunks_availability_state.h"
+#include "common/defective_file_info.h"
 #include "common/io_limits_database.h"
 #include "common/job_info.h"
 #include "common/legacy_acl.h"
@@ -442,6 +443,11 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, snapshot, LIZ_MATOCL_FUSE_SNAPSHOT, 0,
 		uint32_t, msgid,
 		uint8_t, status)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, listDefectiveFiles, LIZ_MATOCL_LIST_DEFECTIVE_FILES, 0,
+		uint64_t, last_entry_index,
+		std::vector<DefectiveFileInfo>, files_info)
 
 namespace matocl {
 
