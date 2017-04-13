@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2017 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -323,6 +323,7 @@ static void fs_read_config_file() {
 
 	chunk_invalidate_goal_cache();
 	fs_read_goal_config_file(); // may throw
+	fs_read_snapshot_config_file();
 }
 
 void fs_reload(void) {

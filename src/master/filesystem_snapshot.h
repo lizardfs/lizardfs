@@ -19,8 +19,11 @@
 #pragma once
 
 #include "common/platform.h"
+
 #include "master/filesystem.h"
 #include "master/fs_context.h"
+
+void fs_read_snapshot_config_file();
 
 /*! \brief Deprecated snapshot function.
  *
@@ -45,7 +48,7 @@ uint8_t fs_deprecated_snapshot(const FsContext &context, uint32_t inode_src, uin
  * \param job_id desired id for this snapshot request.
  */
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-		const HString &name_dst, uint8_t can_overwrite,
+		const HString &name_dst, uint8_t can_overwrite, uint8_t ignore_missing_src, uint32_t initial_batch_size,
 		const std::function<void(int)> &callback, uint32_t job_id);
 
 /*! \brief Clone one inode.

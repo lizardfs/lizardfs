@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
+   Copyright 2005-2017 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -1842,7 +1842,7 @@ enum class SugidClearMode {
 
 // 0x63B
 #define LIZ_CLTOMA_FUSE_SNAPSHOT (1000U + 595U)
-/// msgid:32 jobid:32 inode:32 inode_dst:32 name_dst:NAME uid:32 gid:32 canoverwrite:8
+/// msgid:32 jobid:32 inode:32 inode_dst:32 name_dst:NAME uid:32 gid:32 canoverwrite:8 ignore_missing_src:8 initial_batch:32
 
 // 0x63C
 #define LIZ_MATOCL_FUSE_SNAPSHOT (1000U + 596U)

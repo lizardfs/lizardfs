@@ -267,3 +267,8 @@
 ## chunk becomes endangered
 ## (Default: 0)
 # REDUNDANCY_LEVEL = 0
+
+## This option can be used to specify initial number of snapshotted nodes that will be atomically
+## cloned before enqueuing the task for execution in fixed-sized batches.
+## (Default: 1000)
+# SNAPSHOT_INITIAL_BATCH_SIZE = 1000

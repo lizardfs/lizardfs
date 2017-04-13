@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   Copyright 2005-2017 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
    2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
@@ -47,7 +47,7 @@ static void snapshot_usage() {
 }
 
 static int make_snapshot(const char *dstdir, const char *dstbase, const char *srcname,
-	                 uint32_t srcinode, uint8_t canoverwrite, int long_wait) {
+	                 uint32_t srcinode, uint8_t canoverwrite, int long_wait, uint8_t ignore_missing_src, int initial_batch_size) {
 	uint32_t nleng, dstinode, uid, gid;
 	uint8_t status;
 	uint32_t msgid = 0, job_id;
@@ -92,7 +92,8 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 			kill(getpid(), SIGUSR1);
 			signal_thread.join();
 		});
-		request = cltoma::snapshot::build(msgid, job_id, srcinode, dstinode, MooseFsString<uint8_t>(dstbase), uid, gid, canoverwrite);
+		request = cltoma::snapshot::build(msgid, job_id, srcinode, dstinode, MooseFsString<uint8_t>(dstbase),
+		                                  uid, gid, canoverwrite, ignore_missing_src, initial_batch_size);
 		response = ServerConnection::sendAndReceive(fd, request, LIZ_MATOCL_FUSE_SNAPSHOT,
 				ServerConnection::ReceiveMode::kReceiveFirstNonNopMessage,
 				long_wait ? kInfiniteTimeout : kDefaultTimeout);
@@ -117,7 +118,7 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 }
 
 static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelements,
-					uint8_t canowerwrite, int long_wait) {
+					uint8_t canowerwrite, int long_wait, uint8_t ignore_missing_src, int initial_batch_size) {
 	char to[PATH_MAX + 1], base[PATH_MAX + 1], dir[PATH_MAX + 1];
 	char src[PATH_MAX + 1];
 	struct stat sst, dst;
@@ -161,7 +162,7 @@ static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelem
 			printf("directory %s does not exist\n", dstname);
 			return -1;
 		}
-		return make_snapshot(to, base, srcnames[0], sst.st_ino, canowerwrite, long_wait);
+		return make_snapshot(to, base, srcnames[0], sst.st_ino, canowerwrite, long_wait, ignore_missing_src, initial_batch_size);
 	} else {  // dst exists
 		if (realpath(dstname, to) == NULL) {
 			printf("%s: realpath error on %s: %s\n", dstname, to, strerr(errno));
@@ -186,7 +187,7 @@ static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelem
 				printf("%s: basename error\n", to);
 				return -1;
 			}
-			return make_snapshot(dir, base, srcnames[0], sst.st_ino, canowerwrite, long_wait);
+			return make_snapshot(dir, base, srcnames[0], sst.st_ino, canowerwrite, long_wait, ignore_missing_src, initial_batch_size);
 		} else {  // dst is a directory
 			status = 0;
 			for (i = 0; i < srcelements; i++) {
@@ -221,8 +222,8 @@ static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelem
 							continue;
 						}
 					}
-					if (make_snapshot(to, base, srcnames[i], sst.st_ino, canowerwrite, long_wait) <
-					    0) {
+					if (make_snapshot(to, base, srcnames[i], sst.st_ino, canowerwrite, long_wait,
+					                  ignore_missing_src, initial_batch_size) < 0) {
 						status = -1;
 					}
 				} else {  // src is a directory
@@ -242,7 +243,7 @@ static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelem
 							continue;
 						}
 						if (make_snapshot(to, base, srcnames[i], sst.st_ino, canowerwrite,
-						                  long_wait) < 0) {
+						                  long_wait, ignore_missing_src, initial_batch_size) < 0) {
 							status = -1;
 						}
 					} else {  // src is a directory and name has not trailing slash
@@ -254,7 +255,7 @@ static int snapshot(const char *dstname, char *const *srcnames, uint32_t srcelem
 							continue;
 						}
 						if (make_snapshot(dir, base, srcnames[i], sst.st_ino, canowerwrite,
-						                  long_wait) < 0) {
+						                  long_wait, ignore_missing_src, initial_batch_size) < 0) {
 							status = -1;
 						}
 					}
@@ -269,8 +270,10 @@ int snapshot_run(int argc, char **argv) {
 	int ch;
 	int oflag = 0;
 	int lflag = 0;
+	uint8_t ignore_missing_src = 0;
+	int initial_batch_size = 0;
 
-	while ((ch = getopt(argc, argv, "fol")) != -1) {
+	while ((ch = getopt(argc, argv, "folis:")) != -1) {
 		switch (ch) {
 		case 'f':
 		case 'o':
@@ -278,6 +281,12 @@ int snapshot_run(int argc, char **argv) {
 			break;
 		case 'l':
 			lflag = 1;
+			break;
+		case 'i':
+			ignore_missing_src = 1;
+			break;
+		case 's':
+			initial_batch_size = std::stoi(optarg);
 			break;
 		}
 	}
@@ -287,5 +296,5 @@ int snapshot_run(int argc, char **argv) {
 		snapshot_usage();
 		return 1;
 	}
-	return snapshot(argv[argc - 1], argv, argc - 1, oflag, lflag);
+	return snapshot(argv[argc - 1], argv, argc - 1, oflag, lflag, ignore_missing_src, initial_batch_size);
 }

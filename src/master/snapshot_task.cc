@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2016-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -42,9 +42,6 @@ int SnapshotTask::cloneNodeTest(FSNode *src_node, FSNode *dst_node, FSNodeDirect
 		if (dst_node->type != src_node->type) {
 			return LIZARDFS_ERROR_EPERM;
 		}
-		if (src_node->type == FSNode::kTrash || src_node->type == FSNode::kReserved) {
-			return LIZARDFS_ERROR_EPERM;
-		}
 		if (src_node->type != FSNode::kDirectory && !can_overwrite_) {
 			return LIZARDFS_ERROR_EEXIST;
 		}
@@ -54,9 +51,7 @@ int SnapshotTask::cloneNodeTest(FSNode *src_node, FSNode *dst_node, FSNodeDirect
 
 FSNode *SnapshotTask::cloneToExistingNode(uint32_t ts, FSNode *src_node,
 		FSNodeDirectory *dst_parent, FSNode *dst_node) {
-	if (dst_node->type != src_node->type) {
-		return NULL;
-	}
+	assert(src_node->type == dst_node->type);
 
 	switch (src_node->type) {
 	case FSNode::kDirectory:
@@ -88,13 +83,6 @@ FSNode *SnapshotTask::cloneToExistingNode(uint32_t ts, FSNode *src_node,
 }
 
 FSNode *SnapshotTask::cloneToNewNode(uint32_t ts, FSNode *src_node, FSNodeDirectory *dst_parent) {
-	if (!(src_node->type == FSNode::kFile || src_node->type == FSNode::kDirectory ||
-	      src_node->type == FSNode::kSymlink || src_node->type == FSNode::kBlockDev ||
-	      src_node->type == FSNode::kCharDev || src_node->type == FSNode::kSocket ||
-	      src_node->type == FSNode::kFifo)) {
-		return NULL;
-	}
-
 	FSNode *dst_node = fsnodes_create_node(
 	        ts, dst_parent, current_subtask_->second, src_node->type, src_node->mode, 0,
 	        src_node->uid, src_node->gid, 0, AclInheritance::kDontInheritAcl, dst_inode_);
@@ -185,6 +173,7 @@ void SnapshotTask::cloneDirectoryData(const FSNodeDirectory *src_node, FSNodeDir
 	if (!data.empty()) {
 		auto task = new SnapshotTask(std::move(data), orig_inode_,
 		                                           dst_node->id, 0, can_overwrite_,
+		                                           ignore_missing_src_,
 		                                           emit_changelog_, enqueue_work_);
 		local_tasks_.push_back(*task);
 	}
@@ -218,7 +207,10 @@ int SnapshotTask::cloneNode(uint32_t ts) {
 	FSNode *src_node = fsnodes_id_to_node(current_subtask_->first);
 	FSNodeDirectory *dst_parent = fsnodes_id_to_node<FSNodeDirectory>(dst_parent_inode_);
 
-	if (!src_node || !dst_parent || dst_parent->type != FSNode::kDirectory) {
+	if (!src_node || src_node->type == FSNode::kTrash || src_node->type == FSNode::kReserved) {
+		return LIZARDFS_ERROR_ENOENT;
+	}
+	if (!dst_parent || dst_parent->type != FSNode::kDirectory) {
 		return LIZARDFS_ERROR_EINVAL;
 	}
 
@@ -235,27 +227,28 @@ int SnapshotTask::cloneNode(uint32_t ts) {
 		dst_node = cloneToNewNode(ts, src_node, dst_parent);
 	}
 
-	if (dst_node) {
-		fsnodes_update_checksum(dst_node);
-		fsnodes_update_checksum(dst_parent);
-		emitChangelog(ts, dst_node->id);
-		if (dst_inode_ != 0 && dst_inode_ != dst_node->id) {
-			return LIZARDFS_ERROR_MISMATCH;
-		}
-		return LIZARDFS_STATUS_OK;
+	assert(dst_node);
+	fsnodes_update_checksum(dst_node);
+	fsnodes_update_checksum(dst_parent);
+	emitChangelog(ts, dst_node->id);
+	if (dst_inode_ != 0 && dst_inode_ != dst_node->id) {
+		return LIZARDFS_ERROR_MISMATCH;
 	}
-
-	return LIZARDFS_ERROR_EPERM;
+	return LIZARDFS_STATUS_OK;
 }
 
 int SnapshotTask::execute(uint32_t ts, intrusive_list<Task> &work_queue) {
 	assert(current_subtask_ != subtask_.end());
 
 	int status = cloneNode(ts);
+	++current_subtask_;
+
+	if (ignore_missing_src_ && status == LIZARDFS_ERROR_ENOENT) {
+		return LIZARDFS_STATUS_OK;
+	}
 	if (status == LIZARDFS_STATUS_OK) {
 		work_queue.splice(work_queue.end(), local_tasks_);
 	}
-	++current_subtask_;
 
 	return status;
 }

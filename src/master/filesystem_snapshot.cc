@@ -18,6 +18,7 @@
 
 #include "common/platform.h"
 
+#include "common/cfg.h"
 #include "common/main.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
@@ -25,11 +26,15 @@
 #include "master/snapshot_task.h"
 #include "master/task_manager.h"
 
-static const int kInitialSnapshotTaskBatch = 1000;
+static int gInitialSnapshotTaskBatch;
+
+void fs_read_snapshot_config_file() {
+	gInitialSnapshotTaskBatch = cfg_getuint32("SNAPSHOT_INITIAL_BATCH_SIZE", 1000);
+}
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
-	            const HString &name_dst, uint8_t can_overwrite,
-	            const std::function<void(int)> &callback, uint32_t job_id) {
+	            const HString &name_dst, uint8_t can_overwrite, uint8_t ignore_missing_src,
+		    uint32_t initial_batch_size, const std::function<void(int)> &callback, uint32_t job_id) {
 	ChecksumUpdater cu(context.ts());
 	FSNode *src_node = nullptr;
 	FSNode *dst_parent_node = nullptr;
@@ -58,7 +63,7 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 
 	auto task = new SnapshotTask({{src_node->id, name_dst}}, src_node->id,
 	                                   static_cast<FSNodeDirectory *>(dst_parent_node)->id,
-	                                   0, can_overwrite, true, true);
+	                                   0, can_overwrite, ignore_missing_src, true, true);
 	std::string src_path;
 	FSNodeDirectory *parent = fsnodes_get_first_parent(src_node);
 	fsnodes_getpath(parent, src_node, src_path);
@@ -70,8 +75,10 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 		dst_path += "/";
 	}
 	dst_path += name_dst;
-
-	return gMetadata->task_manager.submitTask(job_id, context.ts(), kInitialSnapshotTaskBatch,
+	if (initial_batch_size == 0) {
+		initial_batch_size = gInitialSnapshotTaskBatch;
+	}
+	return gMetadata->task_manager.submitTask(job_id, context.ts(), initial_batch_size,
 						  task, SnapshotTask::generateDescription(src_path, dst_path),
 						  callback);
 }
@@ -80,7 +87,7 @@ uint8_t fs_clone_node(const FsContext &context, uint32_t inode_src, uint32_t par
 			uint32_t inode_dst, const HString &name_dst, uint8_t can_overwrite) {
 
 	SnapshotTask task({{inode_src, name_dst}}, 0, parent_dst, inode_dst, can_overwrite,
-			  false, false);
+			  0, false, false);
 
 	return task.cloneNode(context.ts());
 }

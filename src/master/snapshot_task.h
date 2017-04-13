@@ -44,11 +44,11 @@ public:
 	typedef std::vector<std::pair<uint32_t, HString>> SubtaskContainer;
 
 	SnapshotTask(SubtaskContainer &&subtask, uint32_t orig_inode, uint32_t dst_parent_inode,
-		     uint32_t dst_inode, uint8_t can_overwrite,
+		     uint32_t dst_inode, uint8_t can_overwrite, uint8_t ignore_missing_src,
 		     bool emit_changelog, bool enqueue_work) :
 		     subtask_(std::move(subtask)), orig_inode_(orig_inode),
 		     dst_parent_inode_(dst_parent_inode),dst_inode_(dst_inode),
-		     can_overwrite_(can_overwrite),
+		     can_overwrite_(can_overwrite), ignore_missing_src_(ignore_missing_src),
 		     emit_changelog_(emit_changelog), enqueue_work_(enqueue_work), local_tasks_() {
 		assert(subtask_.size() == 1 || (subtask_.size() > 1 && dst_inode == 0));
 		current_subtask_ = subtask_.begin();
@@ -114,6 +114,8 @@ private:
 	uint32_t dst_inode_;        /*!< Inode number of clone. If 0 means that
 	                                 inode number should be requested. */
 	uint8_t can_overwrite_;     /*!< Can cloning operation overwrite existing node. */
+	uint8_t ignore_missing_src_;/*!< Continue execution of snapshot task despite encountering
+	                                 missing files in source folder*/
 	bool emit_changelog_;       /*!< If true change log message should be generated. */
 	bool enqueue_work_;         /*!< If true then new clone request should be created
 	                                 for source inode's children. */

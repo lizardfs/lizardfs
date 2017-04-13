@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
+   Copyright 2005-2017 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -3574,6 +3574,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr, PacketHeader header, const 
 	uint32_t msgid;
 	uint8_t status;
 	uint32_t job_id;
+	uint8_t ignore_missing_src = 0;
+	uint32_t initial_batch_size = 0;
 	MooseFsString<uint8_t> name_dst;
 
 	if (header.type == CLTOMA_FUSE_SNAPSHOT) {
@@ -3582,7 +3584,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr, PacketHeader header, const 
 		job_id = fs_reserve_job_id();
 	} else if (header.type == LIZ_CLTOMA_FUSE_SNAPSHOT) {
 		cltoma::snapshot::deserialize(data, header.length, msgid, job_id, inode,
-					      inode_dst, name_dst, uid, gid, canoverwrite);
+		                              inode_dst, name_dst, uid, gid, canoverwrite,
+		                              ignore_missing_src, initial_batch_size);
 	} else {
 		throw IncorrectDeserializationException(
 				"Unknown packet type for matoclserv_fuse_snapshot: " +
@@ -3592,7 +3595,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr, PacketHeader header, const 
 	if (status == LIZARDFS_STATUS_OK) {
 		FsContext context = matoclserv_get_context(eptr, uid, gid);
 		status = fs_snapshot(context, inode, inode_dst, HString(std::move(name_dst)),
-		                     canoverwrite, std::bind(matoclserv_fuse_snapshot_wake_up, header.type,
+		                     canoverwrite, ignore_missing_src, initial_batch_size,
+		                     std::bind(matoclserv_fuse_snapshot_wake_up, header.type,
 		                     eptr->sesdata->sessionid, msgid, std::placeholders::_1), job_id);
 	}
 	if (status != LIZARDFS_ERROR_WAITING) {

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
+   Copyright 2013-2017 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -372,7 +372,9 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		std::string, name_dst,
 		uint32_t, uid,
 		uint32_t, gid,
-		uint8_t, canoverwrite)
+		uint8_t, canoverwrite,
+		uint8_t, ignore_missing_src,
+		uint32_t, initial_batch)
 
 namespace cltoma {
 
