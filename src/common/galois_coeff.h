@@ -38,7 +38,7 @@ constexpr uint8_t gf_mul2(uint8_t x) {
  * \return log(x)
  */
 constexpr uint8_t gf_log(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
-	return x == pow2n ? n : gf_log(x, gf_mul2(pow2n), n + 1);
+	return x == pow2n ? n : gf_log(x, gf_mul2(pow2n), n + 1U);
 }
 
 /*! \brief Compute base 2 exponent in GF(2^8).
@@ -48,7 +48,7 @@ constexpr uint8_t gf_log(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
  * \return exp(x)
  */
 constexpr uint8_t gf_exp(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
-	return x == n ? pow2n : gf_exp(x, gf_mul2(pow2n), n + 1);
+	return x == n ? pow2n : gf_exp(x, gf_mul2(pow2n), n + 1U);
 }
 
 /*! \brief Returns lookup table for base 2 logarithm in GF(2^8). */
