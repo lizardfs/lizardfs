@@ -1,5 +1,5 @@
 /*
-   Copyright 2016 Skytechnology sp. z o.o.
+   Copyright 2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -37,7 +37,7 @@ constexpr uint8_t gf_mul2(uint8_t x) {
  * \param n Internal variable used for recursion.
  * \return log(x)
  */
-constexpr uint8_t gf_log(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
+constexpr uint8_t gf_log(uint8_t x, uint8_t pow2n = 2, unsigned n = 1) {
 	return x == pow2n ? n : gf_log(x, gf_mul2(pow2n), n + 1);
 }
 
@@ -47,7 +47,7 @@ constexpr uint8_t gf_log(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
  * \param n Internal variable used for recursion.
  * \return exp(x)
  */
-constexpr uint8_t gf_exp(uint8_t x, uint8_t pow2n = 2, uint8_t n = 1) {
+constexpr uint8_t gf_exp(uint8_t x, uint8_t pow2n = 2, unsigned n = 1) {
 	return x == n ? pow2n : gf_exp(x, gf_mul2(pow2n), n + 1);
 }
 
