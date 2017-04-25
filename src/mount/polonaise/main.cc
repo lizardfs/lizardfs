@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -81,7 +81,7 @@ static Failure makeFailure(std::string message) {
  * \throw Failure when errno number is unknown
  * \return corresponding StatusCode for Polonaise client
  */
-StatusCode::type toStatusCode(int errNo) throw(Failure) {
+StatusCode::type toStatusCode(int errNo) {
 	static std::map<int, StatusCode::type> statuses = {
 			{ E2BIG, StatusCode::kE2BIG },
 			{ EACCES, StatusCode::kEACCES },
@@ -201,7 +201,7 @@ static int toLizardFsFlags(int32_t polonaiseFlags) {
  * \throw Failure when context couldn't be converted
  * \return converted context
  */
-static LizardClient::Context toLizardFsContext(const Context& ctx) throw(Failure) {
+static LizardClient::Context toLizardFsContext(const Context& ctx) {
 	try {
 		LizardClient::Context outCtx(toUint32(ctx.uid), toUint32(ctx.gid), toInt32(ctx.pid),
 				toUint32(ctx.umask));
@@ -217,7 +217,7 @@ static LizardClient::Context toLizardFsContext(const Context& ctx) throw(Failure
  * \throw Failure when file type is unknown
  * \return file mode with a file type filled
  */
-static mode_t toModeFileType(const FileType::type type) throw(Failure) {
+static mode_t toModeFileType(const FileType::type type) {
 	mode_t result;
 	switch (type) {
 		case FileType::kDirectory:
@@ -254,7 +254,7 @@ static mode_t toModeFileType(const FileType::type type) throw(Failure) {
  * \throw Failure when file type is incorrect
  * \return Unix file mode
  */
-static mode_t toLizardFsMode(const FileType::type& type, const Mode& mode) throw(Failure) {
+static mode_t toLizardFsMode(const FileType::type& type, const Mode& mode) {
 	mode_t result = toModeFileType(type);
 	result |= mode.setUid ? S_ISUID : 0;
 	result |= mode.setGid ? S_ISGID : 0;
@@ -297,7 +297,7 @@ static int toLizardfsAttributesSet(int32_t set) {
  * \throw Failure when file type is unknown
  * \return result stats
  */
-static struct stat toStructStat(const FileStat& fstat) throw(Failure) {
+static struct stat toStructStat(const FileStat& fstat) {
 	struct stat result;
 	result.st_mode = toLizardFsMode(fstat.type, fstat.mode);
 	result.st_dev = fstat.dev;
@@ -325,7 +325,7 @@ static struct stat toStructStat(const FileStat& fstat) throw(Failure) {
  * \throw Failure when file type is unknown
  * \return Polonaise files stats
  */
-static FileStat toFileStat(const struct stat& in) throw(Failure) {
+static FileStat toFileStat(const struct stat& in) {
 	FileStat reply;
 	switch (in.st_mode & S_IFMT) {
 		case S_IFDIR:
@@ -391,7 +391,7 @@ static FileStat toFileStat(const struct stat& in) throw(Failure) {
  * \throw Failure when file type couldn't be converted
  * \return Polonaise's entry
  */
-static EntryReply toEntryReply(const LizardClient::EntryParam& in) throw(Failure) {
+static EntryReply toEntryReply(const LizardClient::EntryParam& in) {
 	if (in.attr_timeout < 0.0 || in.entry_timeout < 0.0) {
 		throw makeFailure("Invalid timeout");
 	}

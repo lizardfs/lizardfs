@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -84,8 +84,10 @@ public:
 			  server_(server) {
 	}
 
-	~ChunkserverConnectionException() throw() {}
-	const NetworkAddress& server() const throw() { return server_; }
+	~ChunkserverConnectionException() noexcept {
+	}
+
+	const NetworkAddress& server() const { return server_; }
 
 private:
 	NetworkAddress server_;

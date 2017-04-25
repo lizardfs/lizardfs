@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,7 +22,7 @@
 #include "common/sockets.h"
 
 void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,
-		uint32_t timeout_ms) throw (Exception) {
+		uint32_t timeout_ms) {
 	sassert(data.empty());
 
 	const int32_t headerSize = serializedSize(header);

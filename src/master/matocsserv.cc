@@ -1265,8 +1265,7 @@ void matocsserv_space(matocsserventry *eptr,const uint8_t *data,uint32_t length)
 	}
 }
 
-void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8_t>& data)
-		throw (IncorrectDeserializationException) {
+void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8_t>& data) {
 	uint32_t version;
 	uint32_t servip;
 	uint16_t servport;
@@ -1275,8 +1274,7 @@ void matocsserv_liz_register_host(matocsserventry *eptr, const std::vector<uint8
 	return matocsserv_register_host(eptr, version, servip, servport, timeout);
 }
 
-void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uint8_t>& data)
-		throw (IncorrectDeserializationException) {
+void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uint8_t>& data) {
 	PacketVersion v;
 	deserializePacketVersionNoHeader(data, v);
 	if (v == cstoma::registerChunks::kECChunks) {
@@ -1300,15 +1298,13 @@ void matocsserv_liz_register_chunks(matocsserventry *eptr, const std::vector<uin
 	}
 }
 
-void matocsserv_liz_register_space(matocsserventry *eptr, const std::vector<uint8_t>& data)
-		throw (IncorrectDeserializationException) {
+void matocsserv_liz_register_space(matocsserventry *eptr, const std::vector<uint8_t>& data) {
 	cstoma::registerSpace::deserialize(data, eptr->usedspace, eptr->totalspace, eptr->chunkscount,
 			eptr->todelusedspace, eptr->todeltotalspace, eptr->todelchunkscount);
 	return register_space(eptr);
 }
 
-void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint8_t>& data)
-		throw (IncorrectDeserializationException) {
+void matocsserv_liz_register_label(matocsserventry *eptr, const std::vector<uint8_t>& data) {
 	std::string label;
 	cstoma::registerLabel::deserialize(data, label);
 	if (!MediaLabelManager::isLabelValid(label)) {

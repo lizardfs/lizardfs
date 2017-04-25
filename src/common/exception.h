@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -39,17 +39,18 @@ public:
 		}
 	}
 
-	~Exception() throw() {}
+	~Exception() noexcept {
+	}
 
-	const char* what() const throw() {
+	const char* what() const noexcept override {
 		return message_.c_str();
 	}
 
-	const std::string& message() const throw() {
+	const std::string& message() const {
 		return message_;
 	}
 
-	uint8_t status() const throw() {
+	uint8_t status() const {
 		return status_;
 	}
 
@@ -63,7 +64,7 @@ private:
 	public: \
 		name(const std::string& message) : base(message) {} \
 		name(const std::string& message, uint8_t status) : base(message, status) {} \
-		~name() throw() {} \
+		~name() noexcept {} \
 	}
 
 #define LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(name, base, message) \
@@ -71,5 +72,5 @@ private:
 	public: \
 		name() : base(std::string(message)) {} \
 		name(uint8_t status) : base(std::string(message), status) {} \
-		~name() throw() {} \
+		~name() noexcept {} \
 	}

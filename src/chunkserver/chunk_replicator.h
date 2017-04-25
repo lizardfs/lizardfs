@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2016 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -44,7 +44,7 @@ private:
 	std::mutex mutex_;
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
-			ChunkTypeWithAddress type_with_address) throw (Exception);
+			ChunkTypeWithAddress type_with_address);
 
 	uint32_t getChunkBlocks(uint64_t chunkId, uint32_t chunkVersion,
 			const std::vector<ChunkTypeWithAddress>& sources);

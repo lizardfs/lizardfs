@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -286,7 +286,7 @@ inline void deserializeMooseFsPacketPrefixNoHeader(const std::vector<uint8_t>& s
 
 // check whether a LizardFS packet has expected version
 inline void verifyPacketVersionNoHeader(const uint8_t* source, uint32_t bytesInBuffer,
-		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {
+		PacketVersion expectedVersion) {
 	PacketVersion actualVersion;
 	deserializePacketVersionNoHeader(source, bytesInBuffer, actualVersion);
 	if (actualVersion != expectedVersion) {
@@ -297,9 +297,9 @@ inline void verifyPacketVersionNoHeader(const uint8_t* source, uint32_t bytesInB
 }
 
 inline void verifyPacketVersionNoHeader(const std::vector<uint8_t>& source,
-		PacketVersion expectedVersion) throw (IncorrectDeserializationException) {
+		PacketVersion expectedVersion) {
 	verifyPacketVersionNoHeader(source.data(), source.size(), expectedVersion);
 }
 
 void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,
-		uint32_t timeout_ms) throw (Exception);
+		uint32_t timeout_ms);

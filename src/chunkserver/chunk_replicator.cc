@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2016 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -48,7 +48,7 @@ uint32_t ChunkReplicator::getStats() {
 }
 
 uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunk_id, uint32_t chunk_version,
-		ChunkTypeWithAddress type_with_address) throw (Exception) {
+		ChunkTypeWithAddress type_with_address) {
 	NetworkAddress server = type_with_address.address;
 	ChunkPartType chunk_type = type_with_address.chunk_type;
 	int fd = connector_.startUsingConnection(server, Timeout{std::chrono::seconds(1)});

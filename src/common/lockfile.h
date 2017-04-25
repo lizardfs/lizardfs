@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -111,7 +111,7 @@ public:
 		: FilesystemException(message), reason_(reason) {
 	}
 
-	~LockfileException() throw() {
+	~LockfileException() noexcept {
 	}
 
 	/*! \brief Report reason why this exception was thrown.

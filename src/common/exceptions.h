@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -42,9 +42,11 @@ public:
 			  server_(server), chunkType_(chunkType) {
 	}
 
-	~ChunkCrcException() throw() {}
-	const NetworkAddress& server() const throw() { return server_; }
-	const ChunkPartType& chunkType() const throw() { return chunkType_; }
+	~ChunkCrcException() noexcept {
+	}
+
+	const NetworkAddress& server() const { return server_; }
+	const ChunkPartType& chunkType() const { return chunkType_; }
 
 private:
 	NetworkAddress server_;
@@ -61,5 +63,6 @@ public:
 			: Exception("line " + std::to_string(line) + " : " + message) {
 	}
 
-	~ParseException() throw() {}
+	~ParseException() noexcept {
+	}
 };
