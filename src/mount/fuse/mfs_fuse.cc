@@ -49,6 +49,9 @@ void checkTypesEqual(const A& a, const B& b) {
 }
 
 void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+#if defined(__APPLE__)
+	(void)req, (void)ctx;
+#else
 	static const int kMaxGroups = GroupCache::kDefaultGroupsSize - 1;
 
 	GroupCache::Groups groups(kMaxGroups + 1);
@@ -64,6 +67,7 @@ void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
 	if (getgroups_ret > 0) {
 		ctx.gid = LizardClient::updateGroups(groups);
 	}
+#endif
 }
 
 /**
