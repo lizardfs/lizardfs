@@ -29,6 +29,10 @@
 #include "common/exception.h"
 #include "common/massert.h"
 
+#if defined(_WIN32)
+  #include "common/sockets.h"
+#endif
+
 ExitingStatus gExitingStatus = ExitingStatus::kRunning;
 bool gReloadRequested = false;
 static bool nextPollNonblocking = false;
@@ -160,7 +164,7 @@ void eventloop_destruct() {
 		try {
 			fun();
 		} catch (Exception& ex) {
-			syslog(LOG_WARNING, "term error: %s", ex.what());
+			lzfs_pretty_syslog(LOG_WARNING, "term error: %s", ex.what());
 		}
 	}
 }
@@ -196,10 +200,10 @@ uint64_t eventloop_utime() {
 uint8_t eventloop_want_to_terminate() {
 	if (gExitingStatus == ExitingStatus::kRunning) {
 		gExitingStatus = ExitingStatus::kWantExit;
-		syslog(LOG_INFO, "Exiting on internal request.");
+		lzfs_pretty_syslog(LOG_INFO, "Exiting on internal request.");
 		return LIZARDFS_STATUS_OK;
 	} else {
-		syslog(LOG_ERR, "Unable to exit on internal request.");
+		lzfs_pretty_syslog(LOG_ERR, "Unable to exit on internal request.");
 		return LIZARDFS_ERROR_NOTPOSSIBLE;
 	}
 }
@@ -219,17 +223,21 @@ void eventloop_run() {
 		for (auto &pollit: gPollEntries) {
 			pollit.desc(pdesc);
 		}
+#if defined(_WIN32)
+		i = tcppoll(pdesc, nextPollNonblocking ? 0 : 50);
+#else
 		i = poll(pdesc.data(),pdesc.size(), nextPollNonblocking ? 0 : 50);
+#endif
 		nextPollNonblocking = false;
 		eventloop_updatetime();
 		if (i<0) {
 			if (errno==EAGAIN) {
-				syslog(LOG_WARNING,"poll returned EAGAIN");
+				lzfs_pretty_syslog(LOG_WARNING,"poll returned EAGAIN");
 				usleep(100000);
 				continue;
 			}
 			if (errno!=EINTR) {
-				syslog(LOG_WARNING,"poll error: %s",strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING,"poll error: %s",strerr(errno));
 				break;
 			}
 		} else {
@@ -311,7 +319,7 @@ void eventloop_run() {
 				try {
 					fun();
 				} catch (Exception& ex) {
-					syslog(LOG_WARNING, "reload error: %s", ex.what());
+					lzfs_pretty_syslog(LOG_WARNING, "reload error: %s", ex.what());
 				}
 			}
 			gReloadRequested = false;

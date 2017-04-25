@@ -22,8 +22,5 @@ add_executable(lizardfs-polonaise-server ${MOUNT_POLONAISE_MAIN} ${MOUNT_POLONAI
 target_link_libraries(lizardfs-polonaise-server mfscommon mount ${POLONAISE_LIBRARIES}
 ${THRIFT_LIBRARIES} ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${THRIFT_LIBRARIES}
 ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_SYSTEM_LIBRARY})
-if(MINGW)
-  target_link_libraries(lizardfs-polonaise-server ${MINGW_MSVCRT})
-endif()
 
 install(TARGETS lizardfs-polonaise-server RUNTIME DESTINATION ${BIN_SUBDIR})

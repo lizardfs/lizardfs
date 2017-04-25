@@ -21,9 +21,15 @@
 #include "common/platform.h"
 
 #include <inttypes.h>
-#include <poll.h>
 #include <string>
 #include <vector>
+
+#if defined(_WIN32)
+  #include "winsock2.h"
+#else
+  #include <poll.h>
+#endif
+
 
 #define TIMEMODE_SKIP_LATE 0
 #define TIMEMODE_RUN_LATE 1
