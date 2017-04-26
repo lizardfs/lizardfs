@@ -272,3 +272,7 @@
 ## cloned before enqueuing the task for execution in fixed-sized batches.
 ## (Default: 1000)
 # SNAPSHOT_INITIAL_BATCH_SIZE = 1000
+
+## This option specifies the maximum initial batch size set for snapshot request.
+## (Default: 10000)
+# SNAPSHOT_INITIAL_BATCH_SIZE_LIMIT = 10000

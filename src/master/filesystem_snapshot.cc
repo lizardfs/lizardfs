@@ -26,10 +26,12 @@
 #include "master/snapshot_task.h"
 #include "master/task_manager.h"
 
-static int gInitialSnapshotTaskBatch;
+static uint32_t gInitialSnapshotTaskBatch;
+static uint32_t gSnapshotTaskBatchLimit;
 
 void fs_read_snapshot_config_file() {
 	gInitialSnapshotTaskBatch = cfg_getuint32("SNAPSHOT_INITIAL_BATCH_SIZE", 1000);
+	gSnapshotTaskBatchLimit = cfg_getuint32("SNAPSHOT_INITIAL_BATCH_SIZE_LIMIT", 10000);
 }
 
 uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t parent_dst,
@@ -78,6 +80,7 @@ uint8_t fs_snapshot(const FsContext &context, uint32_t inode_src, uint32_t paren
 	if (initial_batch_size == 0) {
 		initial_batch_size = gInitialSnapshotTaskBatch;
 	}
+	initial_batch_size = std::min(initial_batch_size, gSnapshotTaskBatchLimit);
 	return gMetadata->task_manager.submitTask(job_id, context.ts(), initial_batch_size,
 						  task, SnapshotTask::generateDescription(src_path, dst_path),
 						  callback);

@@ -228,6 +228,13 @@ using those that share the same ip. (default is 0)
 minimum number of required redundant chunk parts that can be lost before chunk becomes endangered
 (default is 0)
 
+*SNAPSHOT_INITIAL_BATCH_SIZE*::
+This option can be used to specify initial number of snapshotted nodes that will be atomically cloned
+before enqueuing the task for execution in fixed-sized batches. (default is 1000)
+
+*SNAPSHOT_INITIAL_BATCH_SIZE_LIMIT*::
+This option specifies the maximum initial batch size set for snapshot request. (default is 10000)
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::
@@ -247,10 +254,6 @@ timeout (in seconds) for metadata server connections (default is 60)
 When set, percentage of load will be added to chunkserver disk usage to determine most fitting
 chunkserver. Heavy loaded chunkservers will be picked for operations less frequently.
 (default is 0, correct values are in range from 0 to 0.5)
-
-*SNAPSHOT_INITIAL_BATCH_SIZE*::
-This option can be used to specify initial number of snapshotted nodes that will be atomically cloned
-before enqueuing the task for execution in fixed-sized batches. (default is 1000)
 
 == NOTES
 
