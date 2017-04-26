@@ -1,43 +1,49 @@
 Dear Users,
 
-LizardFS 3.10.2 is out!
+here comes LizardFS 3.11.0!
 Featuring:
 
-master: redesign in-memory representation of file system objects - at least 30% reduction in RAM usage
-master: name storage: a possibility to keep all file names in BerkeleyDB, thus saving even more RAM
-master: redesign of trash - increased performance, reduced RAM usage and CPU pressure
-master: huge boost of responsiveness - lengthy operations split into asynchronous bits
-master: OPERATIONS_DELAY* config entries, which allow postponing metadata operations on restart/disconnect
-master, mount: make big snapshot, setgoal and settrashtime operations asynchronous to improve responsiveness
-master: fix improper handling of endangered chunks
-chunkserver: memory optimizations - at least 60% reduction in RAM usage
-chunkserver: introduce smart descriptor management
-tools: brand new `lizardfs` command, a unified replacement for mfs* tools with prompt and bash completion
-all: various fixes and community requests
+master: improve ACL implementation
+master: add option to avoid same-ip chunkserver replication
+master: add minimal goal configuration option
+master: reimplement directory entry cache for faster lookups
+master: add whole-path lookups
+master: chunkserver add chunkserver load awareness
+mount: add readahead to improve sequential read perfromance
+mount: add secondary groups support
+tools: add correct-only flag to filerepair
+tools: add -s and -i options to snapshot command
+tools: add recursive remove operations (for removing large directories and snapshots)
+tools: add tool for stopping execution of tasks (snapshot, recursive remove, etc.)
+all: change to semantic versioning system
+all: many fixes
 
 Detailed information:
 
-Master’s memory and CPU
-With 3.10.2, master is much more memory-efficient and responsive. RAM usage reduction was accomplished through redesigning the way it keeps metadata in memory, adding a possibility to keep some metadata in on-disk database (see USE_BDB_FOR_NAME_STORAGE in mfsmaster.cfg file for reference). Responsiveness was dramatically increased by recognizing all potentially lengthy operations and splitting their execution in smaller time bits. It applied to both in-master maintenance procedures and client’s requests like snapshotting/changing goal of very big directories.
+Readahead
+Clients can now benefit from integrated readahead mechanism.
+In order to enable readahead, please mount with the following options:
+ -o cacheexpirationtime={MSEC}
+ -o readaheadmaxwindowsize={KB}
+Example:
+ mfsmount -o cacheexpirationtime=1000 -o readaheadmaxwindowsize=8192
 
-`lizardfs` tool:
-3.10.2 comes with new client tool: `lizardfs` utility. See `man lizardfs`,  `lizardfs -h` for details. Aside from known functionalities like setting/getting goals, making snapshots, etc. it comes with bash-like prompt and bash completion.
-Examples:
+Recursive remove
+A tool for removing large directories/snapshots is finally implemented.
+Example:
+ lizardfs rremove big_directory/
+ lizardfs rremove -h
 
-lizardfs setgoal -r ec32 a/
+Tools for managing tasks
+Two administration tools are available for managing long tasks:
+ lizardfs-admin list-tasks
+ lizardfs-admin stop-task
+Run above commands for detailed usage information.
 
-lizardfs makesnapshot dira/ dirb/
+Secondary groups support
+LizardFS is now able to fully recognize secondary groups of users
+and take them into account while evaluating permissions.
 
-lizardfs fileinfo a/*
-
-lizardfs <<EOF
-fileinfo a/*
-setgoal -r 3 a
-getgoal a/2
-EOF
-
-Future plans:
-In next release, paths and build system is to be unified with the one from official Debian repository (e.g. configuration directory will officially become /etc/lizardfs). Also, more asynchronous client commands are coming (including awaited recursive-remove operation). A so called “minimal goal setting”, which will probably be named MIN_REDUNDANCY_LEVEL is being implemented as well. Finally, more news on native HA (μRaft) will appear.
 
 Best,
 Piotr Sarna

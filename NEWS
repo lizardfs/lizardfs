@@ -1,5 +1,21 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.11.0) (2017-05-09)
+ - (master) improve ACL implementation
+ - (master) add option to avoid same-ip chunkserver replication
+ - (master) add minimal goal configuration option
+ - (master) reimplement directory entry cache for faster lookups
+ - (master) add whole-path lookups
+ - (master, chunkserver) add chunkserver load awareness
+ - (mount) add readahead to improve sequential read perfromance
+ - (mount) add secondary groups support
+ - (tools) add correct-only flag to filerepair
+ - (tools) add -s and -i options to snapshot command
+ - (tools) add recursive remove operations (for removing large directories and snapshots)
+ - (tools) add tool for stopping execution of tasks (snapshot, recursive remove, etc.)
+ - (all) change to semantic versioning system
+ - (all) many fixes
+
  * Lizardfs (3.10.4) (2016-10-07)
  - (master) task manager performance improvements
  - (master) trash fixes

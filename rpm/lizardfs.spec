@@ -458,8 +458,21 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Fri Dec 23 2016 Piotr Sarna <contact@lizardfs.org> - 3.11.0-devel
-- (all) Switch to semantic versioning
+* Tue May 9 2017 Piotr Sarna <contact@lizardfs.org> - 3.11.0
+- (master) improve ACL implementation
+- (master) add option to avoid same-ip chunkserver replication
+- (master) add minimal goal configuration option
+- (master) reimplement directory entry cache for faster lookups
+- (master) add whole-path lookups
+- (master, chunkserver) add chunkserver load awareness
+- (mount) add readahead to improve sequential read perfromance
+- (mount) add secondary groups support
+- (tools) add correct-only flag to filerepair
+- (tools) add -s and -i options to snapshot command
+- (tools) add recursive remove operations (for removing large directories and snapshots)
+- (tools) add tool for stopping execution of tasks (snapshot, recursive remove, etc.)
+- (all) change to semantic versioning system
+- (all) many fixes
 
 * Fri Oct 7 2016 Piotr Sarna <contact@lizardfs.org> - 3.10.4
 - (master) task manager performance improvements

@@ -1,8 +1,21 @@
-lizardfs (3.11.0-devel) unstable; urgency=low
+lizardfs (3.11.0) stable; urgency=medium
 
-  * (all) Switch to semantic versioning
+  * (master) improve ACL implementation
+  * (master) add option to avoid same-ip chunkserver replication
+  * (master) add minimal goal configuration option
+  * (master) reimplement directory entry cache for faster lookups
+  * (master) add whole-path lookups
+  * (master, chunkserver) add chunkserver load awareness
+  * (mount) add readahead to improve sequential read perfromance
+  * (mount) add secondary groups support
+  * (tools) add correct-only flag to filerepair
+  * (tools) add -s and -i options to snapshot command
+  * (tools) add recursive remove operations (for removing large directories and snapshots)
+  * (tools) add tool for stopping execution of tasks (snapshot, recursive remove, etc.)
+  * (all) change to semantic versioning system
+  * (all) many fixes
 
- -- Piotr Sarna <contact@lizardfs.org>  Fri, 23 Dec 2016 11:00:00 +0200
+ -- Piotr Sarna <contact@lizardfs.org>  Tue, 9 May 2017 11:00:00 +0200
 
 lizardfs (3.10.4) stable; urgency=medium
 
