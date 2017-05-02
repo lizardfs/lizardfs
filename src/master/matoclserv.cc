@@ -2731,7 +2731,7 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 
 	status = matoclserv_check_group_cache(eptr, gid);
 	if (status != LIZARDFS_STATUS_OK) {
-		ptr = matoclserv_createpacket(eptr,MATOCL_FUSE_GETDIR,(status!=LIZARDFS_STATUS_OK)?5:4+dleng);
+		ptr = matoclserv_createpacket(eptr, MATOCL_FUSE_GETDIR, 5);
 		put32bit(&ptr,msgid);
 		put8bit(&ptr,status);
 		eptr->sesdata->currentopstats[12]++;

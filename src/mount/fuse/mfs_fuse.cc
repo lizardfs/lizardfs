@@ -103,13 +103,17 @@ public:
 					? new LizardClient::FileInfo(fi->flags, fi->direct_io, fi->keep_cache, fi->fh,
 					fi->lock_owner)
 					: nullptr) {
+		if (fs_fi_) {
+			assert(fuse_fi_);
+		} else {
+			assert(!fuse_fi_);
+		}
 	}
 	operator LizardClient::FileInfo*() {
 		return fs_fi_.get();
 	}
 	~fuse_file_info_wrapper() {
 		if (fs_fi_) {
-			sassert(fuse_fi_);
 			fuse_fi_->direct_io  = fs_fi_->direct_io;
 			fuse_fi_->fh         = fs_fi_->fh;
 			fuse_fi_->flags      = fs_fi_->flags;
@@ -118,8 +122,6 @@ public:
 			checkTypesEqual(fuse_fi_->fh        , fs_fi_->fh);
 			checkTypesEqual(fuse_fi_->flags     , fs_fi_->flags);
 			checkTypesEqual(fuse_fi_->keep_cache, fs_fi_->keep_cache);
-		} else {
-			sassert(!fuse_fi_);
 		}
 	}
 

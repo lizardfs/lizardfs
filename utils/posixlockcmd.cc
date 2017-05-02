@@ -31,13 +31,15 @@
 int fd;
 int cmdno;
 int cmd;
-struct flock lock = {F_UNLCK, SEEK_SET, 0, 0, 0};
+struct flock lock;
 const char *path;
 
 std::map<char,int> commands;
 std::map<char, std::string> command_strings;
 
 void initialize_globals() {
+	lock.l_type = F_UNLCK;
+	lock.l_whence = SEEK_SET;
 	commands['r'] = F_RDLCK;
 	commands['w'] = F_WRLCK;
 	command_strings['r'] = "read ";

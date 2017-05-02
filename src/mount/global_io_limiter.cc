@@ -31,12 +31,15 @@
 using namespace ioLimiting;
 
 MasterLimiter::MasterLimiter() : iolimitsConfigHandler_(*this), configVersion_(0) {
-	sassert(fs_register_packet_type_handler(LIZ_MATOCL_IOLIMITS_CONFIG, &iolimitsConfigHandler_));
+	auto res = fs_register_packet_type_handler(LIZ_MATOCL_IOLIMITS_CONFIG, &iolimitsConfigHandler_);
+	(void)res;
+	assert(res);
 }
 
 MasterLimiter::~MasterLimiter() {
-	sassert(fs_unregister_packet_type_handler(
-			LIZ_MATOCL_IOLIMITS_CONFIG, &iolimitsConfigHandler_));
+	auto res = fs_unregister_packet_type_handler(LIZ_MATOCL_IOLIMITS_CONFIG, &iolimitsConfigHandler_);
+	(void)res;
+	assert(res);
 }
 
 uint64_t MasterLimiter::request(const IoLimitGroupId& groupId, uint64_t size) {
