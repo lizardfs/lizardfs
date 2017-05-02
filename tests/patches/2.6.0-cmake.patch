@@ -1,0 +1,12 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 20868c0..f2d6e5b 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -109,6 +109,7 @@ message(STATUS "ENABLE_REQUEST_LOG: ${ENABLE_REQUEST_LOG}")
+ message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
+
+ # All the environment tests (libs, includes, etc.) live here:
++include(CheckIncludeFiles)
+ include(EnvTests.cmake)
+ include(Libraries)
+ include(GNUInstallDirs)
