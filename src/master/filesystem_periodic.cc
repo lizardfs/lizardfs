@@ -45,16 +45,19 @@
 
 #ifndef METARESTORE
 
-static char     *fsinfo_msgbuff = nullptr;
 static uint32_t fsinfo_files = 0;
 static uint32_t fsinfo_ugfiles = 0;
 static uint32_t fsinfo_mfiles = 0;
 static uint32_t fsinfo_chunks = 0;
 static uint32_t fsinfo_ugchunks = 0;
 static uint32_t fsinfo_mchunks = 0;
-static uint32_t fsinfo_msgbuffleng = 0;
 static uint32_t fsinfo_loopstart = 0;
 static uint32_t fsinfo_loopend = 0;
+static uint32_t fsinfo_notfoundchunks = 0;
+static uint32_t fsinfo_unavailchunks = 0;
+static uint32_t fsinfo_unavailfiles = 0;
+static uint32_t fsinfo_unavailtrashfiles = 0;
+static uint32_t fsinfo_unavailreservedfiles = 0;
 
 static int gTasksBatchSize = 1000;
 
@@ -117,19 +120,140 @@ std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_fla
 	return defective_nodes_info;
 }
 
-void fs_test_getdata(uint32_t *loopstart, uint32_t *loopend, uint32_t *files, uint32_t *ugfiles,
-			uint32_t *mfiles, uint32_t *chunks, uint32_t *ugchunks, uint32_t *mchunks,
-			char **msgbuff, uint32_t *msgbuffleng) {
-	*loopstart = fsinfo_loopstart;
-	*loopend = fsinfo_loopend;
-	*files = fsinfo_files;
-	*ugfiles = fsinfo_ugfiles;
-	*mfiles = fsinfo_mfiles;
-	*chunks = fsinfo_chunks;
-	*ugchunks = fsinfo_ugchunks;
-	*mchunks = fsinfo_mchunks;
-	*msgbuff = fsinfo_msgbuff;
-	*msgbuffleng = fsinfo_msgbuffleng;
+static std::string get_node_info(FSNode *node) {
+	std::string name;
+	if (node->type == FSNode::kTrash) {
+		name = "file in trash " + std::to_string(node->id) + ": " +
+		       (std::string)gMetadata->trash.at(TrashPathKey(node));
+	} else if (node->type == FSNode::kReserved) {
+		name = "reserved file " + std::to_string(node->id) + ": " +
+		       (std::string)gMetadata->reserved.at(node->id);
+	} else if (node->type == FSNode::kFile) {
+		name = "file " + std::to_string(node->id) + ": ";
+		bool first = true;
+		for (const auto parent_inode : node->parent) {
+			std::string path;
+			FSNodeDirectory *parent =
+			        fsnodes_id_to_node_verify<FSNodeDirectory>(parent_inode);
+			fsnodes_getpath(parent, node, path);
+			if (!first) {
+				name += "|" + path;
+			} else {
+				name += path;
+			}
+			first = false;
+		}
+	} else if (node->type == FSNode::kDirectory) {
+		name = "directory " + std::to_string(node->id) + ": ";
+		std::string path;
+		FSNodeDirectory *parent = nullptr;
+		if (!node->parent.empty()) {
+			parent = fsnodes_id_to_node_verify<FSNodeDirectory>(node->parent.front());
+		}
+		fsnodes_getpath(parent, node, path);
+		name += path;
+	}
+
+	return fsnodes_escape_name(name);
+}
+
+void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, uint32_t &ugfiles,
+		uint32_t &mfiles, uint32_t &chunks, uint32_t &ugchunks, uint32_t &mchunks,
+		std::string &result) {
+	std::stringstream report;
+	int errors = 0;
+
+	for (const auto &entry : gDefectiveNodes) {
+		if (errors >= ERRORS_LOG_MAX) {
+			break;
+		}
+
+		FSNode *node = fsnodes_id_to_node<FSNode>(entry.first);
+		if (node->type == FSNode::kFile || node->type == FSNode::kTrash ||
+		    node->type == FSNode::kReserved) {
+			FSNodeFile *file_node = static_cast<FSNodeFile *>(node);
+			for (std::size_t j = 0; j < file_node->chunks.size(); ++j) {
+				auto chunkid = file_node->chunks[j];
+				if (chunkid == 0) {
+					continue;
+				}
+
+				uint8_t vc;
+				if (chunk_get_fullcopies(chunkid, &vc) != LIZARDFS_STATUS_OK) {
+					report << "structure error - chunk " << chunkid
+					       << " not found (inode: " << file_node->id
+					       << " ; index: " << j << ")\n";
+					errors++;
+				} else if (vc == 0) {
+					report << "currently unavailable chunk " << chunkid
+					       << " (inode: " << file_node->id << " ; index: " << j
+					       << ")\n";
+					errors++;
+				}
+			}
+		}
+
+		if (errors >= ERRORS_LOG_MAX) {
+			break;
+		}
+
+		if (entry.second & kChunkUnavailable) {
+			assert(node->type == FSNode::kFile || node->type == FSNode::kTrash ||
+			       node->type == FSNode::kReserved);
+			std::string name = get_node_info(node);
+			if (node->type == FSNode::kTrash) {
+				report << "-";
+			} else if (node->type == FSNode::kReserved) {
+				report << "+";
+			} else {
+				report << "*";
+			}
+			report << " currently unavailable " << name << "\n";
+		}
+
+		if (errors >= ERRORS_LOG_MAX) {
+			break;
+		}
+
+		if (entry.second & kStructureError) {
+			std::string name = get_node_info(node);
+			report << "Structure error in " << name << "\n";
+		}
+
+		if (errors >= ERRORS_LOG_MAX) {
+			break;
+		}
+	}
+
+	if (errors >= ERRORS_LOG_MAX) {
+		report << "only first " << errors
+		       << " errors (unavailable chunks/files) were logged\n";
+	}
+	if (fsinfo_notfoundchunks > 0) {
+		report << "unknown chunks: " << fsinfo_notfoundchunks << "\n";
+	}
+	if (fsinfo_unavailchunks > 0) {
+		report << "unavailable chunks: " << fsinfo_unavailchunks << "\n";
+	}
+	if (fsinfo_unavailtrashfiles > 0) {
+		report << "unavailable trash files: " << fsinfo_unavailtrashfiles << "\n";
+	}
+	if (fsinfo_unavailreservedfiles > 0) {
+		report << "unavailable reserved files: " << fsinfo_unavailreservedfiles << "\n";
+	}
+	if (fsinfo_unavailfiles > 0) {
+		report << "unavailable files: " << fsinfo_unavailfiles << "\n";
+	}
+	result = report.str();
+
+	files = fsinfo_files;
+	ugfiles = fsinfo_ugfiles;
+	mfiles = fsinfo_mfiles;
+	chunks = fsinfo_chunks;
+	ugchunks = fsinfo_ugchunks;
+	mchunks = fsinfo_mchunks;
+	loopstart = fsinfo_loopstart;
+	loopend = fsinfo_loopend;
 }
 
 void fs_background_checksum_recalculation_a_bit() {
@@ -192,304 +316,101 @@ void fs_background_checksum_recalculation_a_bit() {
 
 void fs_process_file_test() {
 	uint32_t k;
-	uint64_t chunkid;
-	uint8_t vc, valid, ugflag, node_error_flag;
+	uint8_t vc, node_error_flag;
+	ActiveLoopWatchdog watchdog;
+
 	static uint32_t files = 0;
 	static uint32_t ugfiles = 0;
 	static uint32_t mfiles = 0;
 	static uint32_t chunks = 0;
 	static uint32_t ugchunks = 0;
 	static uint32_t mchunks = 0;
-	static uint32_t errors = 0;
 	static uint32_t notfoundchunks = 0;
 	static uint32_t unavailchunks = 0;
 	static uint32_t unavailfiles = 0;
 	static uint32_t unavailtrashfiles = 0;
 	static uint32_t unavailreservedfiles = 0;
-	static char *msgbuff = NULL, *tmp;
-	static uint32_t leng = 0;
-	ActiveLoopWatchdog watchdog;
 
 	FSNode *f;
 	if (eventloop_time() <= gTestStartTime) {
 		return;
 	}
+
 	if (gFileTestLoopIndex == 0) {
-		if (errors == ERRORS_LOG_MAX) {
-			syslog(LOG_ERR, "only first %u errors (unavailable chunks/files) were logged",
-			       ERRORS_LOG_MAX);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "only first %u errors (unavailable chunks/files) "
-				                 "were logged\n",
-				                 ERRORS_LOG_MAX);
-			}
-		}
-		if (notfoundchunks > 0) {
-			syslog(LOG_ERR, "unknown chunks: %" PRIu32, notfoundchunks);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unknown chunks: %" PRIu32 "\n", notfoundchunks);
-			}
-			notfoundchunks = 0;
-		}
-		if (unavailchunks > 0) {
-			syslog(LOG_ERR, "unavailable chunks: %" PRIu32, unavailchunks);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable chunks: %" PRIu32 "\n", unavailchunks);
-			}
-			unavailchunks = 0;
-		}
-		if (unavailtrashfiles > 0) {
-			syslog(LOG_ERR, "unavailable trash files: %" PRIu32, unavailtrashfiles);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable trash files: %" PRIu32 "\n", unavailtrashfiles);
-			}
-			unavailtrashfiles = 0;
-		}
-		if (unavailreservedfiles > 0) {
-			syslog(LOG_ERR, "unavailable reserved files: %" PRIu32, unavailreservedfiles);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable reserved files: %" PRIu32 "\n", unavailreservedfiles);
-			}
-			unavailreservedfiles = 0;
-		}
-		if (unavailfiles > 0) {
-			syslog(LOG_ERR, "unavailable files: %" PRIu32, unavailfiles);
-			if (leng < MSGBUFFSIZE) {
-				leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-				                 "unavailable files: %" PRIu32 "\n", unavailfiles);
-			}
-			unavailfiles = 0;
-		}
 		fsinfo_files = files;
 		fsinfo_ugfiles = ugfiles;
 		fsinfo_mfiles = mfiles;
 		fsinfo_chunks = chunks;
 		fsinfo_ugchunks = ugchunks;
 		fsinfo_mchunks = mchunks;
+		fsinfo_loopstart = fsinfo_loopend;
+		fsinfo_loopend = eventloop_time();
+		fsinfo_notfoundchunks = notfoundchunks;
+		fsinfo_unavailchunks = unavailchunks;
+		fsinfo_unavailfiles = unavailfiles;
+		fsinfo_unavailtrashfiles = unavailtrashfiles;
+		fsinfo_unavailreservedfiles = unavailreservedfiles;
+
 		files = 0;
 		ugfiles = 0;
 		mfiles = 0;
 		chunks = 0;
 		ugchunks = 0;
 		mchunks = 0;
-		errors = 0;
-
-		if (fsinfo_msgbuff == NULL) {
-			fsinfo_msgbuff = (char *)malloc(MSGBUFFSIZE);
-			passert(fsinfo_msgbuff);
-		}
-		tmp = fsinfo_msgbuff;
-		fsinfo_msgbuff = msgbuff;
-		msgbuff = tmp;
-		if (leng > MSGBUFFSIZE) {
-			fsinfo_msgbuffleng = MSGBUFFSIZE;
-		} else {
-			fsinfo_msgbuffleng = leng;
-		}
-		leng = 0;
-
-		fsinfo_loopstart = fsinfo_loopend;
-		fsinfo_loopend = eventloop_time();
+		notfoundchunks = 0;
+		unavailchunks = 0;
+		unavailfiles = 0;
+		unavailtrashfiles = 0;
+		unavailreservedfiles = 0;
 	}
 
 	watchdog.start();
-	for (k = 0; k < gFileTestLoopBucketLimit && gFileTestLoopIndex < NODEHASHSIZE; k++, gFileTestLoopIndex++) {
+	for (k = 0; k < gFileTestLoopBucketLimit && gFileTestLoopIndex < NODEHASHSIZE;
+	     k++, gFileTestLoopIndex++) {
 		for (f = gMetadata->nodehash[gFileTestLoopIndex]; f; f = f->next) {
 			node_error_flag = 0;
 
-			if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
-				valid = 1;
-				ugflag = 0;
-				for (uint32_t j = 0; j < static_cast<FSNodeFile *>(f)->chunks.size(); ++j) {
-					chunkid = static_cast<FSNodeFile *>(f)->chunks[j];
+			if (f->type == FSNode::kFile || f->type == FSNode::kTrash ||
+			    f->type == FSNode::kReserved) {
+				for (const auto &chunkid : static_cast<FSNodeFile *>(f)->chunks) {
 					if (chunkid == 0) {
 						continue;
 					}
 
-					if (chunk_get_fullcopies(chunkid, &vc) != LIZARDFS_STATUS_OK) {
-						if (errors < ERRORS_LOG_MAX) {
-							syslog(LOG_ERR,
-							       "structure error - chunk "
-							       "%016" PRIX64 " not found (inode: %" PRIu32 " ; index: %" PRIu32
-							       ")",
-							       chunkid, f->id, j);
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-								                 "structure error - "
-								                 "chunk %016" PRIX64
-								                 " not found "
-								                 "(inode: %" PRIu32 " ; index: %" PRIu32 ")\n",
-								                 chunkid, f->id, j);
-							}
-							errors++;
-						}
+					if (chunk_get_fullcopies(chunkid, &vc) !=
+					    LIZARDFS_STATUS_OK) {
+						node_error_flag |=
+						        static_cast<int>(kChunkUnavailable);
 						notfoundchunks++;
-						if ((notfoundchunks % 1000) == 0) {
-							syslog(LOG_ERR, "unknown chunks: %" PRIu32 " ...", notfoundchunks);
-						}
-						node_error_flag |= static_cast<int>(kChunkUnavailable);
-						valid = 0;
 						mchunks++;
 					} else if (vc == 0) {
-						if (errors < ERRORS_LOG_MAX) {
-							syslog(LOG_ERR,
-							       "currently unavailable "
-							       "chunk %016" PRIX64 " (inode: %" PRIu32 " ; index: %" PRIu32 ")",
-							       chunkid, f->id, j);
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-								                 "currently "
-								                 "unavailable chunk "
-								                 "%016" PRIX64 " (inode: %" PRIu32
-								                 " ; index: %" PRIu32 ")\n",
-								                 chunkid, f->id, j);
-							}
-							errors++;
-						}
+						node_error_flag |=
+						        static_cast<int>(kChunkUnavailable);
 						unavailchunks++;
-						if ((unavailchunks % 1000) == 0) {
-							syslog(LOG_ERR,
-							       "unavailable chunks: "
-							       "%" PRIu32 " ...",
-							       unavailchunks);
-						}
-						node_error_flag |= static_cast<int>(kChunkUnavailable);
-						valid = 0;
 						mchunks++;
 					} else {
 						int recover, remove;
 						chunk_get_partstomodify(chunkid, recover, remove);
 						if (recover > 0) {
-							node_error_flag |= static_cast<int>(kChunkUnderGoal);
-							ugflag = 1;
+							node_error_flag |=
+							        static_cast<int>(kChunkUnderGoal);
 							ugchunks++;
 						}
 					}
 					chunks++;
 				}
-				if (valid == 0) {
-					mfiles++;
-					if (f->type == FSNode::kTrash) {
-						if (errors < ERRORS_LOG_MAX) {
-							std::string name = (std::string)gMetadata->trash.at(TrashPathKey(f));
-
-							syslog(LOG_ERR,
-							       "- currently unavailable file in "
-							       "trash %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name(name).c_str());
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-								                 "- currently unavailable "
-								                 "file in trash %" PRIu32 ": %s\n",
-								                 f->id, fsnodes_escape_name(name).c_str());
-							}
-							errors++;
-							unavailtrashfiles++;
-							if ((unavailtrashfiles % 1000) == 0) {
-								syslog(LOG_ERR,
-								       "unavailable trash files: "
-								       "%" PRIu32 " ...",
-								       unavailtrashfiles);
-							}
-						}
-					} else if (f->type == FSNode::kReserved) {
-						if (errors < ERRORS_LOG_MAX) {
-							std::string name = (std::string)gMetadata->reserved.at(f->id);
-
-							syslog(LOG_ERR,
-							       "+ currently unavailable reserved "
-							       "file %" PRIu32 ": %s",
-							       f->id, fsnodes_escape_name(name).c_str());
-							if (leng < MSGBUFFSIZE) {
-								leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-								                 "+ currently unavailable "
-								                 "reserved file %" PRIu32 ": %s\n",
-								                 f->id, fsnodes_escape_name(name).c_str());
-							}
-							errors++;
-							unavailreservedfiles++;
-							if ((unavailreservedfiles % 1000) == 0) {
-								syslog(LOG_ERR,
-								       "unavailable reserved "
-								       "files: %" PRIu32 " ...",
-								       unavailreservedfiles);
-							}
-						}
-					} else {
-						std::string path;
-						for (const auto parent_inode : f->parent) {
-							if (errors < ERRORS_LOG_MAX) {
-								FSNodeDirectory *parent = fsnodes_id_to_node_verify<FSNodeDirectory>(parent_inode);
-								fsnodes_getpath(parent, f, path);
-								syslog(LOG_ERR,
-								       "* currently unavailable "
-								       "file %" PRIu32 ": %s",
-								       f->id, fsnodes_escape_name(path).c_str());
-								if (leng < MSGBUFFSIZE) {
-									leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-									                 "* currently "
-									                 "unavailable file "
-									                 "%" PRIu32 ": %s\n",
-									                 f->id, fsnodes_escape_name(path).c_str());
-								}
-								errors++;
-							}
-							unavailfiles++;
-							if ((unavailfiles % 1000) == 0) {
-								syslog(LOG_ERR, "unavailable files: %" PRIu32 " ...", unavailfiles);
-							}
-						}
-					}
-				} else if (ugflag) {
-					ugfiles++;
-				}
-				files++;
 			}
-			for (const auto &parent_inode : f->parent) {
-				FSNodeDirectory *parent = fsnodes_id_to_node<FSNodeDirectory>(parent_inode);
-				if (!parent || parent->type != FSNode::kDirectory) {
-					if (errors < ERRORS_LOG_MAX) {
-						syslog(LOG_ERR, "structure error - invalid node's parent (inode: %" PRIu32
-						                " ; parent's inode: %" PRIu32 ")",
-						       f->id, parent_inode);
-						if (leng < MSGBUFFSIZE) {
-							leng +=
-							    snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-							             "structure error - invalid node's parent (inode: %" PRIu32
-							             " ; parent's inode: %" PRIu32 ")",
-							             f->id, parent_inode);
-						}
-						errors++;
-					}
-					node_error_flag |= static_cast<int>(kStructureError);
-				}
-			}
+
 			if (f->type == FSNode::kDirectory) {
-				for (const auto &entry : static_cast<FSNodeDirectory *>(f)->entries) {
+				for (const auto &entry :
+				     static_cast<FSNodeDirectory *>(f)->entries) {
 					FSNode *node = entry.second;
 
 					if (!node ||
-					    std::find(node->parent.begin(), node->parent.end(), f->id) ==
-					        node->parent.end()) {
-						node_error_flag |= static_cast<int>(kStructureError);
-
-						syslog(LOG_ERR,
-						       "structure error - "
-						       "child doesn't point to parent (node: "
-						       "%" PRIu32 " ; parent: %" PRIu32 ")",
-						       node->id, f->id);
-						if (leng < MSGBUFFSIZE) {
-							leng += snprintf(msgbuff + leng, MSGBUFFSIZE - leng,
-							                 "structure error - "
-							                 "child doesn't point to parent (node: "
-							                 "%" PRIu32 " ; parent: %" PRIu32 ")",
-							                 node->id, f->id);
-						}
+					    std::find(node->parent.begin(), node->parent.end(),
+					              f->id) == node->parent.end()) {
+						node_error_flag |=
+						        static_cast<int>(kStructureError);
 					}
 				}
 			}
@@ -499,14 +420,43 @@ void fs_process_file_test() {
 				if (it != gDefectiveNodes.end()) {
 					gDefectiveNodes.erase(it);
 				}
-			} else {
-				if (gDefectiveNodes.size() < kMaxNodeEntries) {
-					gDefectiveNodes[f->id] = node_error_flag;
+				continue;
+			}
+
+			if (node_error_flag & kChunkUnavailable) {
+				if (f->type == FSNode::kTrash) {
+					unavailtrashfiles++;
+				} else if (f->type == FSNode::kReserved) {
+					unavailreservedfiles++;
 				} else {
-					auto it = gDefectiveNodes.find(f->id);
-					if (it != gDefectiveNodes.end()) {
-						(*it).second = node_error_flag;
-					}
+					unavailfiles += f->parent.size();
+				}
+
+				auto it = gDefectiveNodes.find(f->id);
+				if (it == gDefectiveNodes.end()) {
+					std::string name = get_node_info(f);
+					lzfs_pretty_syslog(LOG_ERR, "Chunks unavailable in %s",
+					                   name.c_str());
+				}
+			}
+			if (node_error_flag & kChunkUnderGoal) {
+				ugfiles++;
+			}
+			if (node_error_flag & kStructureError) {
+				auto it = gDefectiveNodes.find(f->id);
+				if (it == gDefectiveNodes.end()) {
+					std::string name = get_node_info(f);
+					lzfs_pretty_syslog(LOG_ERR, "Structure error in %s",
+					                   name.c_str());
+				}
+			}
+
+			if (gDefectiveNodes.size() < kMaxNodeEntries) {
+				gDefectiveNodes[f->id] = node_error_flag;
+			} else {
+				auto it = gDefectiveNodes.find(f->id);
+				if (it != gDefectiveNodes.end()) {
+					(*it).second = node_error_flag;
 				}
 			}
 		}

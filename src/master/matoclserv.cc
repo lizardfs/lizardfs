@@ -1394,8 +1394,7 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 }
 
 void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,msgbuffleng;
-	char *msgbuff;
+	uint32_t loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks;
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
@@ -1403,8 +1402,9 @@ void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t l
 		eptr->mode = KILL;
 		return;
 	}
-	fs_test_getdata(&loopstart,&loopend,&files,&ugfiles,&mfiles,&chunks,&ugchunks,&mchunks,&msgbuff,&msgbuffleng);
-	ptr = matoclserv_createpacket(eptr,MATOCL_FSTEST_INFO,msgbuffleng+36);
+	std::string report;
+	fs_test_getdata(loopstart,loopend,files,ugfiles,mfiles,chunks,ugchunks,mchunks,report);
+	ptr = matoclserv_createpacket(eptr,MATOCL_FSTEST_INFO,report.size()+36);
 	put32bit(&ptr,loopstart);
 	put32bit(&ptr,loopend);
 	put32bit(&ptr,files);
@@ -1413,9 +1413,9 @@ void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	put32bit(&ptr,chunks);
 	put32bit(&ptr,ugchunks);
 	put32bit(&ptr,mchunks);
-	put32bit(&ptr,msgbuffleng);
-	if (msgbuffleng>0) {
-		memcpy(ptr,msgbuff,msgbuffleng);
+	put32bit(&ptr,(uint32_t)report.size());
+	if (!report.empty()) {
+		memcpy(ptr,report.c_str(),report.size());
 	}
 }
 
