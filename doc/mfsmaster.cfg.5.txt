@@ -235,6 +235,11 @@ before enqueuing the task for execution in fixed-sized batches. (default is 1000
 *SNAPSHOT_INITIAL_BATCH_SIZE_LIMIT*::
 This option specifies the maximum initial batch size set for snapshot request. (default is 10000)
 
+*FILE_TEST_LOOP_MIN_TIME*
+Test files loop will try to check all files in specified time in seconds (default is 300).
+It's possible for the loop to take more time if the master server is busy or the machine
+doesn't have enough processing power to make all the needed calculations.
+
 Options below are mandatory for all Shadow instances:
 
 *MASTER_HOST*::
@@ -269,7 +274,7 @@ hard limit.
 
 == COPYRIGHT
 
-Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.
+Copyright 2008-2009 Gemius SA, 2013-2017 Skytechnology sp. z o.o.
 
 LizardFS is free software: you can redistribute it and/or modify it under the terms of the GNU
 General Public License as published by the Free Software Foundation, version 3.

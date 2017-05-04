@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "common/cfg.h"
 #include "common/event_loop.h"
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
 #  include "common/judy_map.h"
@@ -39,6 +40,8 @@
 
 #define MSGBUFFSIZE 1000000
 #define ERRORS_LOG_MAX 500
+#define FILETESTSMINLOOPTIME 1
+#define FILETESTSMAXLOOPTIME 7200
 
 #ifndef METARESTORE
 
@@ -54,6 +57,10 @@ static uint32_t fsinfo_loopstart = 0;
 static uint32_t fsinfo_loopend = 0;
 
 static int gTasksBatchSize = 1000;
+
+static int gFileTestLoopTime = 300;
+static int gFileTestLoopIndex = 0;
+static unsigned gFileTestLoopBucketLimit = 0;
 
 enum NodeErrorFlag {
 	kChunkUnavailable = 1,
@@ -181,8 +188,7 @@ void fs_background_checksum_recalculation_a_bit() {
 	eventloop_make_next_poll_nonblocking();
 }
 
-void fs_periodic_test_files() {
-	static uint32_t i = 0;
+void fs_process_file_test() {
 	uint32_t k;
 	uint64_t chunkid;
 	uint8_t vc, valid, ugflag, node_error_flag;
@@ -200,17 +206,13 @@ void fs_periodic_test_files() {
 	static uint32_t unavailreservedfiles = 0;
 	static char *msgbuff = NULL, *tmp;
 	static uint32_t leng = 0;
+	ActiveLoopWatchdog watchdog;
 
 	FSNode *f;
-	if ((uint32_t)(eventloop_time()) <= gTestStartTime) {
+	if (eventloop_time() <= gTestStartTime) {
 		return;
 	}
-	if (i >= NODEHASHSIZE) {
-		syslog(LOG_NOTICE, "structure check loop");
-		i = 0;
-		errors = 0;
-	}
-	if (i == 0) {
+	if (gFileTestLoopIndex == 0) {
 		if (errors == ERRORS_LOG_MAX) {
 			syslog(LOG_ERR, "only first %u errors (unavailable chunks/files) were logged",
 			       ERRORS_LOG_MAX);
@@ -273,6 +275,7 @@ void fs_periodic_test_files() {
 		chunks = 0;
 		ugchunks = 0;
 		mchunks = 0;
+		errors = 0;
 
 		if (fsinfo_msgbuff == NULL) {
 			fsinfo_msgbuff = (char *)malloc(MSGBUFFSIZE);
@@ -291,8 +294,10 @@ void fs_periodic_test_files() {
 		fsinfo_loopstart = fsinfo_loopend;
 		fsinfo_loopend = eventloop_time();
 	}
-	for (k = 0; k < (NODEHASHSIZE / 14400) && i < NODEHASHSIZE; k++, i++) {
-		for (f = gMetadata->nodehash[i]; f; f = f->next) {
+
+	watchdog.start();
+	for (k = 0; k < gFileTestLoopBucketLimit && gFileTestLoopIndex < NODEHASHSIZE; k++, gFileTestLoopIndex++) {
+		for (f = gMetadata->nodehash[gFileTestLoopIndex]; f; f = f->next) {
 			if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
 				node_error_flag = 0;
 				valid = 1;
@@ -498,6 +503,32 @@ void fs_periodic_test_files() {
 				}
 			}
 		}
+
+		if (watchdog.expired()) {
+			gFileTestLoopBucketLimit -= k;
+			return;
+		}
+	}
+
+	gFileTestLoopBucketLimit -= k;
+	if (gFileTestLoopIndex >= NODEHASHSIZE) {
+		gFileTestLoopIndex = 0;
+	}
+}
+
+void fs_periodic_file_test() {
+	if (gFileTestLoopBucketLimit == 0) {
+		gFileTestLoopBucketLimit = NODEHASHSIZE / gFileTestLoopTime;
+		fs_process_file_test();
+	}
+}
+
+void fs_background_file_test(void) {
+	if (gFileTestLoopBucketLimit > 0) {
+		fs_process_file_test();
+		if (gFileTestLoopBucketLimit > 0) {
+			eventloop_make_next_poll_nonblocking();
+		}
 	}
 }
 #endif
@@ -584,3 +615,17 @@ uint8_t fs_apply_emptytrash_deprecated(uint32_t ts, uint32_t freeinodes, uint32_
 uint8_t fs_apply_emptyreserved_deprecated(uint32_t /*ts*/,uint32_t /*freeinodes*/) {
 	return LIZARDFS_STATUS_OK;
 }
+
+#ifndef METARESTORE
+void fs_read_periodic_config_file() {
+	gFileTestLoopTime = cfg_get_minmaxvalue<uint32_t>("FILE_TEST_LOOP_MIN_TIME", 300, FILETESTSMINLOOPTIME, FILETESTSMAXLOOPTIME);
+}
+
+void fs_periodic_master_init() {
+	eventloop_timeregister(TIMEMODE_RUN_LATE, 1, 0, fs_periodic_file_test);
+	eventloop_eachloopregister(fs_background_checksum_recalculation_a_bit);
+	eventloop_eachloopregister(fs_background_task_manager_work);
+	eventloop_eachloopregister(fs_background_file_test);
+	eventloop_timeregister_ms(100, fs_periodic_emptytrash);
+}
+#endif
