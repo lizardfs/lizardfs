@@ -65,7 +65,8 @@ static unsigned gFileTestLoopBucketLimit = 0;
 enum NodeErrorFlag {
 	kChunkUnavailable = 1,
 	kChunkUnderGoal   = 2,
-	kAllChunkErrors   = 3
+	kStructureError   = 4,
+	kAllNodeErrors    = 7
 };
 
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
@@ -90,7 +91,7 @@ void fs_background_task_manager_work() {
 
 std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
 	                                                   uint64_t &entry_index) {
-	FSNodeFile *node;
+	FSNode *node;
 	FSNodeDirectory *parent;
 	std::string file_path;
 	std::vector<DefectiveFileInfo> defective_nodes_info;
@@ -100,9 +101,10 @@ std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_fla
 	watchdog.start();
 	for (uint64_t i = 0; i < max_entries && it != gDefectiveNodes.end(); ++it) {
 		if (((*it).second & requested_flags) != 0) {
-			node = fsnodes_id_to_node_verify<FSNodeFile>((*it).first);
+			node = fsnodes_id_to_node<FSNode>((*it).first);
 			parent = fsnodes_get_first_parent(node);
 			fsnodes_getpath(parent, node, file_path);
+			file_path = "/" + file_path;
 			defective_nodes_info.emplace_back(file_path, (*it).second);
 			++i;
 		}
@@ -298,8 +300,9 @@ void fs_process_file_test() {
 	watchdog.start();
 	for (k = 0; k < gFileTestLoopBucketLimit && gFileTestLoopIndex < NODEHASHSIZE; k++, gFileTestLoopIndex++) {
 		for (f = gMetadata->nodehash[gFileTestLoopIndex]; f; f = f->next) {
+			node_error_flag = 0;
+
 			if (f->type == FSNode::kFile || f->type == FSNode::kTrash || f->type == FSNode::kReserved) {
-				node_error_flag = 0;
 				valid = 1;
 				ugflag = 0;
 				for (uint32_t j = 0; j < static_cast<FSNodeFile *>(f)->chunks.size(); ++j) {
@@ -368,21 +371,6 @@ void fs_process_file_test() {
 						}
 					}
 					chunks++;
-				}
-				if (node_error_flag == 0) {
-					auto it = gDefectiveNodes.find(f->id);
-					if (it != gDefectiveNodes.end()) {
-						gDefectiveNodes.erase(it);
-					}
-				} else {
-					if (gDefectiveNodes.size() < kMaxNodeEntries) {
-						gDefectiveNodes[f->id] = node_error_flag;
-					} else {
-						auto it = gDefectiveNodes.find(f->id);
-						if (it != gDefectiveNodes.end()) {
-							(*it).second = node_error_flag;
-						}
-					}
 				}
 				if (valid == 0) {
 					mfiles++;
@@ -478,6 +466,7 @@ void fs_process_file_test() {
 						}
 						errors++;
 					}
+					node_error_flag |= static_cast<int>(kStructureError);
 				}
 			}
 			if (f->type == FSNode::kDirectory) {
@@ -487,6 +476,8 @@ void fs_process_file_test() {
 					if (!node ||
 					    std::find(node->parent.begin(), node->parent.end(), f->id) ==
 					        node->parent.end()) {
+						node_error_flag |= static_cast<int>(kStructureError);
+
 						syslog(LOG_ERR,
 						       "structure error - "
 						       "child doesn't point to parent (node: "
@@ -499,6 +490,22 @@ void fs_process_file_test() {
 							                 "%" PRIu32 " ; parent: %" PRIu32 ")",
 							                 node->id, f->id);
 						}
+					}
+				}
+			}
+
+			if (node_error_flag == 0) {
+				auto it = gDefectiveNodes.find(f->id);
+				if (it != gDefectiveNodes.end()) {
+					gDefectiveNodes.erase(it);
+				}
+			} else {
+				if (gDefectiveNodes.size() < kMaxNodeEntries) {
+					gDefectiveNodes[f->id] = node_error_flag;
+				} else {
+					auto it = gDefectiveNodes.find(f->id);
+					if (it != gDefectiveNodes.end()) {
+						(*it).second = node_error_flag;
 					}
 				}
 			}

@@ -30,7 +30,8 @@ static const uint64_t kDefaultEntriesLimit = 1000;
 enum NodeErrorFlag {
 	kChunkUnavailable = 1,
 	kChunkUnderGoal   = 2,
-	kAllChunkErrors   = 3
+	kStructureError   = 4,
+	kAllNodeErrors    = 7
 };
 
 std::string ListDefectiveFilesCommand::name() const {
@@ -47,6 +48,7 @@ LizardFsProbeCommand::SupportedOptions ListDefectiveFilesCommand::supportedOptio
 		{kPorcelainMode, kPorcelainModeDescription},
 		{"--unavailable", "Print unavailable files"},
 		{"--undergoal", "Print files with undergoal chunks"},
+		{"--structure-error", "Print files/directories with structure error"},
 		{"--limit=", "Limit maximum number of printed files"},
 	};
 }
@@ -61,6 +63,12 @@ static std::string flagToString(uint8_t flag) {
 			m += " |";
 		}
 		m += " undergoal";
+	}
+	if (flag & kStructureError) {
+		if (!m.empty()) {
+			m += " |";
+		}
+		m += " structure-error";
 	}
 	return m;
 }
@@ -78,8 +86,11 @@ void ListDefectiveFilesCommand::run(const Options &options) const {
 	if (options.isSet("--undergoal")) {
 		flags_set |= kChunkUnderGoal;
 	}
+	if (options.isSet("--structure-error")) {
+		flags_set |= kStructureError;
+	}
 	if (flags_set == 0) {
-		flags_set = kAllChunkErrors; // if no option was set, use all flags as default
+		flags_set = kAllNodeErrors; // if no option was set, use all flags as default
 	}
 	uint64_t entries_limit = options.getValue<uint64_t>("--limit", kDefaultEntriesLimit);
 	uint64_t entries_left = entries_limit;

@@ -16,6 +16,7 @@ lizardfs_chunkserver_daemon 0 stop
 
 assert_eventually_prints 1 "lizardfs_admin_master list-defective-files --undergoal --porcelain | wc -l"
 assert_equals 0 $(lizardfs_admin_master list-defective-files --unavailable --porcelain | wc -l)
+assert_equals 0 $(lizardfs_admin_master list-defective-files --structure-error --porcelain | wc -l)
 
 for CS in {1..2}; do
 	lizardfs_chunkserver_daemon $CS stop
@@ -23,9 +24,11 @@ done
 
 assert_eventually_prints 1 "lizardfs_admin_master list-defective-files --unavailable --porcelain | wc -l"
 assert_equals 0 $(lizardfs_admin_master list-defective-files --undergoal --porcelain | wc -l)
+assert_equals 0 $(lizardfs_admin_master list-defective-files --structure-error --porcelain | wc -l)
 
 for CS in {0..2}; do
 	lizardfs_chunkserver_daemon $CS start
 done
 
 assert_eventually_prints 0 "lizardfs_admin_master list-defective-files --unavailable --porcelain | wc -l"
+assert_equals 0 $(lizardfs_admin_master list-defective-files --structure-error --porcelain | wc -l)
