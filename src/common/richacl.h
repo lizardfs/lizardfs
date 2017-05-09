@@ -328,7 +328,7 @@ public:
 	 */
 	template <class GroupsContainer>
 	bool checkPermission(uint32_t mask, uint32_t owner_uid, uint32_t owner_gid, uint32_t uid,
-	                     const GroupsContainer &group_container);
+	                     const GroupsContainer &group_container) const;
 
 	/*! \brief Apply masks to the acl
 	 *
@@ -466,7 +466,7 @@ protected:
 
 template <class GroupsContainer>
 bool RichACL::checkPermission(uint32_t requested, uint32_t owner_uid, uint32_t owner_gid,
-		uint32_t uid, const GroupsContainer &group_container) {
+		uint32_t uid, const GroupsContainer &group_container) const {
 	auto it = std::find(group_container.begin(), group_container.end(), owner_gid);
 	bool in_owning_group = it != group_container.end();
 	bool in_owner_or_group_class = in_owning_group;

@@ -26,6 +26,7 @@
 
 #include "common/tape_copies.h"
 #include "common/special_inode_defs.h"
+#include "master/acl_storage.h"
 #include "master/chunks.h"
 #include "master/id_pool_detainer.h"
 #include "master/filesystem_checksum_background_updater.h"
@@ -46,6 +47,7 @@ public:
 	xattr_inode_entry *xattr_inode_hash[XATTR_INODE_HASH_SIZE];
 	xattr_data_entry *xattr_data_hash[XATTR_DATA_HASH_SIZE];
 	IdPoolDetainer<uint32_t, uint32_t> inode_pool;
+	AclStorage acl_storage;
 	TrashPathContainer trash;
 	ReservedPathContainer reserved;
 	FSNodeDirectory *root;

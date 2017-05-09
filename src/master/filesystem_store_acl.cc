@@ -70,8 +70,9 @@ static void fs_store_acl(uint32_t id, const RichACL &acl, FILE *fd) {
 void fs_store_acls(FILE *fd) {
 	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
 		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
-			if (p->acl) {
-				fs_store_acl(p->id, *p->acl, fd);
+			const RichACL *node_acl = gMetadata->acl_storage.get(p->id);
+			if (node_acl) {
+				fs_store_acl(p->id, *node_acl, fd);
 			}
 		}
 	}
@@ -123,18 +124,18 @@ static int fs_load_legacy_acl(FILE *fd, int ignoreflag) {
 
 		deserialize(buffer, inode, extended_acl, default_acl);
 
+		RichACL new_acl;
 		if (extended_acl) {
 			AccessControlList posix_acl = (AccessControlList)*extended_acl;
-			p->acl.reset(new RichACL());
-			p->acl->appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
-			p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
+			new_acl.appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
+			p->mode = (p->mode & ~0777) | (new_acl.getMode() & 0777);
 		}
 		if (default_acl && p->type == FSNode::kDirectory) {
 			AccessControlList posix_acl = (AccessControlList)*default_acl;
-			if (!p->acl) {
-				p->acl.reset(new RichACL());
-			}
-			p->acl->appendDefaultPosixACL(posix_acl);
+			new_acl.appendDefaultPosixACL(posix_acl);
+		}
+		if (new_acl.size() > 0) {
+			gMetadata->acl_storage.set(p->id, std::move(new_acl));
 		}
 		return 0;
 	} catch (Exception &ex) {
@@ -199,19 +200,25 @@ static int fs_load_posix_acl(FILE *fd, int ignoreflag, bool default_acl) {
 		deserialize(buffer, inode, posix_acl);
 
 		if (default_acl) {
+			RichACL new_acl;
+			const RichACL *node_acl = gMetadata->acl_storage.get(p->id);
 			if (p->type != FSNode::kDirectory) {
 				throw Exception("Trying to set default acl for non-directory inode: " + std::to_string(inode));
 			}
-			if (!p->acl) {
-				p->acl.reset(new RichACL());
+			if (node_acl) {
+				new_acl = *node_acl;
 			}
-			p->acl->appendDefaultPosixACL(posix_acl);
+			new_acl.appendDefaultPosixACL(posix_acl);
+			gMetadata->acl_storage.set(p->id, std::move(new_acl));
 		} else {
-			if (!p->acl) {
-				p->acl.reset(new RichACL());
+			RichACL new_acl;
+			const RichACL *node_acl = gMetadata->acl_storage.get(p->id);
+			if (node_acl) {
+				new_acl = *node_acl;
 			}
-			p->acl->appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
-			p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
+			new_acl.appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
+			p->mode = (p->mode & ~0777) | (new_acl.getMode() & 0777);
+			gMetadata->acl_storage.set(p->id, std::move(new_acl));
 		}
 		return 0;
 	} catch (Exception &ex) {
@@ -281,7 +288,7 @@ static int fs_load_acl(FILE *fd, int ignoreflag) {
 		// Deserialize ACL
 		RichACL acl;
 		deserialize(buffer, inode, acl);
-		p->acl.reset(new RichACL(std::move(acl)));
+		gMetadata->acl_storage.set(p->id, std::move(acl));
 		return 0;
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());

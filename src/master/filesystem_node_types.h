@@ -76,7 +76,7 @@ struct statsrecord {
 
 /*! \brief Node containing common meta data for each file system object (file or directory).
  *
- * Node size = 68B
+ * Node size = 64B
  *
  * Estimating (taking into account directory and file node size) 150B per file.
  *
@@ -112,7 +112,6 @@ struct FSNode {
 	uint32_t gid; /*!< Group id. */
 	uint32_t trashtime; /*!< Trash time. */
 
-	std::unique_ptr<RichACL> acl; /*!< Access control list. */
 	compact_vector<uint32_t, uint32_t> parent; /*!< Parent nodes ids. To reduce memory usage ids
 	                                                are stored instead of pointers to FSNode. */
 
@@ -141,8 +140,8 @@ struct FSNode {
 
 /*! \brief Node used for storing file object.
  *
- * Node size = 68B + 28B + 8 * chunks_count + 4 * session_count
- * Avg size (assuming 1 chunk and session id) = 96 + 8 + 4 ~ 110B
+ * Node size = 64B + 40B + 8 * chunks_count + 4 * session_count
+ * Avg size (assuming 1 chunk and session id) = 104 + 8 + 4 ~ 120B
  */
 struct FSNodeFile : public FSNode {
 	uint64_t length;
@@ -166,7 +165,7 @@ struct FSNodeFile : public FSNode {
 
 /*! \brief Node used for storing symbolic link.
  *
- * Node size = 68 + 10 = 78B
+ * Node size = 64 + 16 = 80B
  */
 struct FSNodeSymlink : public FSNode {
 	hstorage::Handle path;
@@ -178,7 +177,7 @@ struct FSNodeSymlink : public FSNode {
 
 /*! \brief Node used for storing device object.
  *
- * Node size = 68 + 4 = 72B
+ * Node size = 64 + 8 = 72B
  */
 struct FSNodeDevice : public FSNode {
 	uint32_t rdev;
@@ -189,8 +188,8 @@ struct FSNodeDevice : public FSNode {
 
 /*! \brief Node used for storing directory.
  *
- * Node size = 70 + 60 + 16 * entries_count
- * Avg size (10 files) ~ 330B (33B per file)
+ * Node size = 64 + 56 + 16 * entries_count
+ * Avg size (10 files) ~ 280B (28B per file)
  */
 struct FSNodeDirectory : public FSNode {
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
