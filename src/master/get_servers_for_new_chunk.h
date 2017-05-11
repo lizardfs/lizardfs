@@ -36,7 +36,8 @@ struct ChunkserverChunkCounter {
 	      label(),
 	      weight(),
 	      version(),
-	      chunks_created() {
+	      chunks_created(),
+	      load_factor() {
 	}
 
 	ChunkserverChunkCounter(matocsserventry *server, MediaLabel label, int64_t weight,
