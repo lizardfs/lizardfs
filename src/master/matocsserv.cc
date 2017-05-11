@@ -1710,6 +1710,7 @@ void matocsserv_serve(const std::vector<pollfd> &pdesc) {
 			eptr->wrepcounter = 0;
 			eptr->delcounter = 0;
 			eptr->csdb = nullptr;
+			eptr->load_factor = 0;
 			chunk_server_unlabelled_connected();
 		} else {
 			tcpclose(ns);
