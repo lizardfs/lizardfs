@@ -332,9 +332,6 @@ void fs_process_file_test() {
 	static uint32_t unavailreservedfiles = 0;
 
 	FSNode *f;
-	if (eventloop_time() <= gTestStartTime) {
-		return;
-	}
 
 	if (gFileTestLoopIndex == 0) {
 		fsinfo_files = files;
@@ -474,6 +471,11 @@ void fs_process_file_test() {
 }
 
 void fs_periodic_file_test() {
+	if (eventloop_time() <= gTestStartTime) {
+		gFileTestLoopBucketLimit = 0;
+		return;
+	}
+
 	if (gFileTestLoopBucketLimit == 0) {
 		gFileTestLoopBucketLimit = NODEHASHSIZE / gFileTestLoopTime;
 		fs_process_file_test();
