@@ -172,6 +172,15 @@ public:
 	    : timer_(), current_time_(0), timeout_(timeout) {
 	}
 
+	~DirEntryCache() {
+		auto it = fifo_list_.begin();
+		while (it != fifo_list_.end()) {
+			auto next_it = std::next(it);
+			erase(std::addressof(*it));
+			it = next_it;
+		}
+	}
+
 	/*! \brief Set cache entry expiration timeout (us).
 	 *
 	 * \param timeout    entry expiration timeout (us).
