@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2018 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <fuse/fuse_lowlevel.h>
+#include <fuse_lowlevel.h>
 
 #include "common/datapack.h"
 #include "protocol/MFSCommunication.h"
@@ -180,7 +180,7 @@ static void mfs_attr_to_stat(uint32_t inode, const Attributes &attr, struct stat
 	stbuf->st_nlink = attrnlink;
 }
 
-#if FUSE_USE_VERSION >= 26
+#if FUSE_VERSION >= 26
 void mfs_meta_statfs(fuse_req_t req, fuse_ino_t ino) {
 #else
 void mfs_meta_statfs(fuse_req_t req) {
@@ -190,7 +190,7 @@ void mfs_meta_statfs(fuse_req_t req) {
 	struct statvfs stfsbuf;
 	memset(&stfsbuf,0,sizeof(stfsbuf));
 
-#if FUSE_USE_VERSION >= 26
+#if FUSE_VERSION >= 26
 	(void)ino;
 #endif
 	fs_statfs(&totalspace,&availspace,&trashspace,&reservedspace,&inodes);
@@ -351,7 +351,12 @@ void mfs_meta_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	fuse_reply_err(req, status);
 }
 
+#if FUSE_VERSION >= 30
+void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname, unsigned int flags) {
+	(void)flags;
+#else
 void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname) {
+#endif
 	int status;
 	uint32_t inode;
 	(void)newname;

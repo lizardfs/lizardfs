@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2018 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,7 +22,7 @@
 
 #include <stddef.h>
 #include <string.h>
-#include <fuse/fuse.h>
+#include <fuse.h>
 #include <sys/resource.h>
 #include <sys/time.h>
 #include <unistd.h>

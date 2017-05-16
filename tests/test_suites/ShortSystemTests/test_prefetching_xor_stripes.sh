@@ -4,7 +4,6 @@ CHUNKSERVERS=3 \
 	MOUNTS=2 \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-	FUSE_EXTRA_CONFIG="max_read=65536" \
 	MOUNT_1_EXTRA_CONFIG="mfsprefetchxorstripes" \
 	CHUNKSERVER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = $TEMP_DIR/log|LOG_FLUSH_ON=DEBUG" \
 	setup_local_empty_lizardfs info

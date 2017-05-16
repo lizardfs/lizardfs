@@ -26,18 +26,19 @@ if(APPLE)
     set(FUSE_CFLAGS ${PC_FUSE_CFLAGS})
     set(FUSE_CFLAGS_OTHER  ${PC_FUSE_CFLAGS_OTHER})
     set(FUSE_VERSION_STRING ${PC_FUSE_VERSION})
-    find_path(FUSE_INCLUDE_DIR "fuse/fuse.h" PATHS ${PC_FUSE_INCLUDE_DIRS} ${PC_FUSE_INCLUDE_DIRS}/..)
+    find_path(FUSE_INCLUDE_DIR "fuse.h" PATHS ${PC_FUSE_INCLUDE_DIRS} ${PC_FUSE_INCLUDE_DIRS}/.. PATH_SUFFIXES "fuse")
   endif()
 else()
-  find_library(FUSE_LIBRARY fuse)
-  find_path(FUSE_INCLUDE_DIR "fuse/fuse.h")
+  find_library(FUSE_LIBRARY NAMES fuse3 fuse)
+  find_path(FUSE_INCLUDE_DIR "fuse.h" PATH_SUFFIXES "fuse3" "fuse")
 
-  file(STRINGS "${FUSE_INCLUDE_DIR}/fuse/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
+  file(STRINGS "${FUSE_INCLUDE_DIR}/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
   string(REGEX REPLACE ".*#define[\t ]+FUSE_MAJOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_major "${fuse_version_str}")
   string(REGEX REPLACE ".*#define[\t ]+FUSE_MINOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_minor "${fuse_version_str}")
 
   set(FUSE_VERSION_STRING "${fuse_version_major}.${fuse_version_minor}")
 endif()
+
 
 find_package_handle_standard_args(FUSE REQUIRED_VARS FUSE_LIBRARY FUSE_INCLUDE_DIR
                                      VERSION_VAR FUSE_VERSION_STRING)

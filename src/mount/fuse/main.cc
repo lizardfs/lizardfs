@@ -20,7 +20,8 @@
 #include "common/platform.h"
 
 #include <errno.h>
-#include <fuse/fuse.h>
+#include <fuse.h>
+#include <fuse_lowlevel.h>
 #include <fstream>
 
 #include "common/crc.h"
@@ -107,12 +108,18 @@ static void init_fuse_lowlevel_ops() {
 }
 
 static void mfs_fsinit(void *userdata, struct fuse_conn_info *conn) {
-#if (FUSE_VERSION >= 28)
-	conn->want |= FUSE_CAP_DONT_MASK;
-#else
-	(void)conn;
-#endif
 	(void)userdata;
+	(void)conn;
+
+#if FUSE_VERSION >= 28
+	conn->want |= FUSE_CAP_DONT_MASK;
+#endif
+
+#if FUSE_VERSION >= 30
+	fuse_conn_info_opts *conn_opts = (fuse_conn_info_opts *)userdata;
+	fuse_apply_conn_info_opts(conn_opts, conn);
+	conn->want &= ~FUSE_CAP_ATOMIC_O_TRUNC;
+#endif
 
 	daemonize_return_status(0);
 }
@@ -138,8 +145,18 @@ bool setup_password(std::vector<uint8_t> &md5pass) {
 	return true;
 }
 
-int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
-	if (fg == 0) {
+#if FUSE_VERSION >= 30
+int mainloop(struct fuse_args *args, struct fuse_cmdline_opts *fuse_opts,
+			struct fuse_conn_info_opts *conn_opts) try {
+	const char *mountpoint = fuse_opts->mountpoint;
+	bool multithread = !fuse_opts->singlethread;
+	bool foreground = fuse_opts->foreground;
+#else
+int mainloop(struct fuse_args *args, const char *mountpoint, bool multithread,
+			bool foreground) try {
+#endif
+
+	if (!foreground) {
 		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY, LOG_DAEMON);
 	} else {
 #if defined(LOG_PERROR)
@@ -149,7 +166,7 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 #endif
 	}
 	lzfs::add_log_syslog();
-	if (!fg) {
+	if (!foreground) {
 		lzfs::add_log_stderr(lzfs::log_level::debug);
 	}
 
@@ -182,7 +199,8 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 		return 1;
 	}
 	LizardClient::FsInitParams params(gMountOptions.bindhost ? gMountOptions.bindhost : "",
-	                                  gMountOptions.masterhost, gMountOptions.masterport, mp);
+	                                  gMountOptions.masterhost, gMountOptions.masterport,
+	                                  mountpoint);
 	params.verbose = true;
 	params.meta = gMountOptions.meta;
 	params.subfolder = gMountOptions.subfolder;
@@ -233,7 +251,8 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 		fs_init_threads(params.io_retries);
 	}
 
-	struct fuse_chan *ch = fuse_mount(mp, args);
+#if FUSE_VERSION < 30
+	struct fuse_chan *ch = fuse_mount(mountpoint, args);
 	if (ch == NULL) {
 		fprintf(stderr, "error in fuse_mount\n");
 		if (gMountOptions.meta == 0) {
@@ -245,7 +264,19 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 		}
 		return 1;
 	}
+#endif
 
+#if FUSE_VERSION >= 30
+	struct fuse_session *se;
+	if (gMountOptions.meta) {
+		mfs_meta_init(gMountOptions.debug, gMountOptions.entrycacheto, gMountOptions.attrcacheto);
+		se = fuse_session_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void *)conn_opts);
+	} else {
+		se = fuse_session_new(args, &mfs_oper, sizeof(mfs_oper), (void *)conn_opts);
+	}
+	if (se == NULL) {
+		fprintf(stderr, "error in fuse_session_new\n");
+#else
 	struct fuse_session *se;
 	if (gMountOptions.meta) {
 		mfs_meta_init(gMountOptions.debug, gMountOptions.entrycacheto, gMountOptions.attrcacheto);
@@ -254,8 +285,9 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), NULL);
 	}
 	if (se == NULL) {
-		fuse_unmount(mp, ch);
+		fuse_unmount(mountpoint, ch);
 		fprintf(stderr, "error in fuse_lowlevel_new\n");
+#endif
 		usleep(100000);  // time for print other error messages by FUSE
 		if (gMountOptions.meta == 0) {
 			LizardClient::fs_term();
@@ -270,7 +302,9 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 	if (fuse_set_signal_handlers(se) < 0) {
 		fprintf(stderr, "error in fuse_set_signal_handlers\n");
 		fuse_session_destroy(se);
-		fuse_unmount(mp, ch);
+#if FUSE_VERSION < 30
+		fuse_unmount(mountpoint, ch);
+#endif
 		if (gMountOptions.meta == 0) {
 			LizardClient::fs_term();
 		} else {
@@ -281,18 +315,44 @@ int mainloop(struct fuse_args *args, const char *mp, int mt, int fg) try {
 		return 1;
 	}
 
+#if FUSE_VERSION >= 30
+	if (fuse_session_mount(se, mountpoint) < 0) {
+		fprintf(stderr, "error in fuse_session_mount\n");
+		fuse_remove_signal_handlers(se);
+		fuse_session_destroy(se);
+		if (gMountOptions.meta == 0) {
+			LizardClient::fs_term();
+		} else {
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
+		}
+		return 1;
+	}
+#else
 	fuse_session_add_chan(se, ch);
+#endif
 
 	int err;
-	if (mt) {
+	if (multithread) {
+#if FUSE_VERSION >= 30
+		err = fuse_session_loop_mt(se, fuse_opts->clone_fd);
+#else
 		err = fuse_session_loop_mt(se);
+#endif
 	} else {
 		err = fuse_session_loop(se);
 	}
 	fuse_remove_signal_handlers(se);
+#if FUSE_VERSION >= 30
+	fuse_session_unmount(se);
+#else
 	fuse_session_remove_chan(ch);
+#endif
 	fuse_session_destroy(se);
-	fuse_unmount(mp, ch);
+#if FUSE_VERSION < 30
+	fuse_unmount(mountpoint, ch);
+#endif
 	if (gMountOptions.meta == 0) {
 		LizardClient::fs_term();
 	} else {
@@ -409,9 +469,6 @@ void make_fsname(struct fuse_args *args) {
 }
 
 int main(int argc, char *argv[]) try {
-	int res;
-	int mt, fg;
-	char *mountpoint;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
 
@@ -432,6 +489,14 @@ int main(int argc, char *argv[]) try {
 	if (fuse_opt_parse(&args, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2) < 0) {
 		exit(1);
 	}
+
+#if FUSE_VERSION >= 30
+	struct fuse_conn_info_opts *conn_opts;
+	conn_opts = fuse_parse_conn_info_opts(&args);
+	if (conn_opts == NULL) {
+		exit(1);
+	}
+#endif
 
 	init_fuse_lowlevel_ops();
 
@@ -536,31 +601,70 @@ int main(int argc, char *argv[]) try {
 
 	make_fsname(&args);
 
-	if (fuse_parse_cmdline(&args, &mountpoint, &mt, &fg) < 0) {
+#if FUSE_VERSION >= 30
+	struct fuse_cmdline_opts fuse_opts;
+	if (fuse_parse_cmdline(&args, &fuse_opts) < 0) {
 		fprintf(stderr, "see: %s -h for help\n", argv[0]);
 		return 1;
 	}
+
+	if (fuse_opts.show_help) {
+		usage(argv[0]);
+		return 0;
+	}
+
+	if (fuse_opts.show_version) {
+		printf("LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
+		printf("FUSE library version: %s\n", fuse_pkgversion());
+		fuse_lowlevel_version();
+		return 0;
+	}
+#else
+	int multithread, foreground;
+	char *mountpoint;
+
+	if (fuse_parse_cmdline(&args, &mountpoint, &multithread, &foreground) < 0) {
+		fprintf(stderr, "see: %s -h for help\n", argv[0]);
+		return 1;
+	}
+#endif
 
 	if (gMountOptions.passwordask && gMountOptions.password == NULL &&
 	    gMountOptions.md5pass == NULL) {
 		gMountOptions.password = getpass("LizardFS Password:");
 	}
 
+#if FUSE_VERSION >= 30
+	if (!fuse_opts.mountpoint) {
+		if (gDefaultMountpoint) {
+			fuse_opts.mountpoint = gDefaultMountpoint;
+#else
 	if (!mountpoint) {
 		if (gDefaultMountpoint) {
 			mountpoint = gDefaultMountpoint;
+#endif
 		} else {
 			fprintf(stderr, "no mount point\nsee: %s -h for help\n", argv[0]);
 			return 1;
 		}
 	}
 
-	if (!fg) {
+	int res;
+#if FUSE_VERSION >= 30
+	if (!fuse_opts.foreground) {
 		res = daemonize_and_wait(!gMountOptions.debug,
-		                         std::bind(&mainloop, &args, mountpoint, mt, fg));
+		                         std::bind(&mainloop, &args, &fuse_opts, conn_opts));
 	} else {
-		res = mainloop(&args, mountpoint, mt, fg);
+		res = mainloop(&args, &fuse_opts, conn_opts);
 	}
+#else
+	if (!foreground) {
+		res = daemonize_and_wait(!gMountOptions.debug,
+		                         std::bind(&mainloop, &args, mountpoint, multithread, foreground));
+	} else {
+		res = mainloop(&args, mountpoint, multithread, foreground);
+	}
+#endif
 
 	fuse_opt_free_args(&args);
 	fuse_opt_free_args(&defaultargs);
@@ -570,13 +674,21 @@ int main(int argc, char *argv[]) try {
 		free(gMountOptions.bindhost);
 	}
 	free(gMountOptions.subfolder);
-	if (gDefaultMountpoint && gDefaultMountpoint != mountpoint) {
-		free(gDefaultMountpoint);
-	}
 	if (gMountOptions.iolimits) {
 		free(gMountOptions.iolimits);
 	}
+#if FUSE_VERSION >= 30
+	if (gDefaultMountpoint && gDefaultMountpoint != fuse_opts.mountpoint) {
+		free(gDefaultMountpoint);
+	}
+	free(fuse_opts.mountpoint);
+	free(conn_opts);
+#else
+	if (gDefaultMountpoint && gDefaultMountpoint != mountpoint) {
+		free(gDefaultMountpoint);
+	}
 	free(mountpoint);
+#endif
 	stats_term();
 	return res;
 } catch (std::bad_alloc ex) {

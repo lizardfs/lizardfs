@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2018 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -20,7 +20,8 @@
 
 #include "common/platform.h"
 
-#include <fuse/fuse_lowlevel.h>
+#include <fuse.h>
+#include <fuse_lowlevel.h>
 
 #include "protocol/MFSCommunication.h"
 
@@ -39,7 +40,11 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name);
 void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char *name);
 void mfs_readlink(fuse_req_t req, fuse_ino_t ino);
+#if FUSE_VERSION >= 30
+void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname, unsigned int flags);
+#else
 void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent, const char *newname);
+#endif
 void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *newname);
 void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi);
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fuse_file_info *fi);

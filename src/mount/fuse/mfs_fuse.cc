@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2018 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS
 
@@ -332,8 +332,14 @@ void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 	}
 }
 
+#if FUSE_VERSION >= 30
+void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent,
+		const char *newname, unsigned int flags) {
+	(void)flags; // FIXME(haze) Add handling of RENAME_EXCHANGE FLAG
+#else
 void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t newparent,
 		const char *newname) {
+#endif
 	try {
 		LizardClient::rename(get_context(req), parent, name, newparent, newname);
 		fuse_reply_err(req, 0);

@@ -115,6 +115,15 @@ setup_local_empty_lizardfs() {
 	done
 }
 
+lizardfs_fusermount() {
+	fuse_version=$(mfsmount --version | grep "FUSE library" | grep -Eo "[0-9]+\..+")
+	if [[ "$fuse_version" =~ ^3\..+$ ]]; then
+		fusermount3 "$@"
+	else
+		fusermount "$@"
+	fi
+}
+
 # lizardfs_chunkserver_daemon <id> start|stop|restart|kill|tests|isalive|...
 lizardfs_chunkserver_daemon() {
 	local id=$1
@@ -146,7 +155,7 @@ lizardfs_metalogger_daemon() {
 lizardfs_mount_unmount() {
 	local mount_id=$1
 	local mount_dir=${lizardfs_info_[mount${mount_id}]}
-	fusermount -u ${mount_dir}
+	lizardfs_fusermount -u ${mount_dir}
 }
 
 # lizardfs_mount_start <id>
@@ -491,7 +500,7 @@ add_mount_() {
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	local call="${command_prefix} mfsmount -o big_writes -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
 	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
 }

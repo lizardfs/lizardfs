@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2018 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,7 +22,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <fuse/fuse.h>
+#include <fuse.h>
+#include <fuse_lowlevel.h>
 
 #define MFS_OPT(t, p, v) { t, offsetof(struct mfsopts_, p), v }
 
@@ -98,24 +99,32 @@ struct fuse_opt gMfsOptsStage2[] = {
 	FUSE_OPT_KEY("--password",     KEY_PASSWORDASK),
 	FUSE_OPT_KEY("-n",             KEY_NOSTDMOUNTOPTIONS),
 	FUSE_OPT_KEY("--nostdopts",    KEY_NOSTDMOUNTOPTIONS),
+#if FUSE_VERSION < 30
 	FUSE_OPT_KEY("-V",             KEY_VERSION),
 	FUSE_OPT_KEY("--version",      KEY_VERSION),
 	FUSE_OPT_KEY("-h",             KEY_HELP),
 	FUSE_OPT_KEY("--help",         KEY_HELP),
+#endif
 	FUSE_OPT_END
 };
 
 void usage(const char *progname) {
-	fprintf(stderr,
+	printf(
 "usage: %s mountpoint [options]\n"
 "\n", progname);
-	fprintf(stderr,
-"general options:\n"
+
+	printf("general options:\n");
+#if FUSE_VERSION >= 30
+	fuse_cmdline_help();
+#else
+printf(
 "    -o opt,[opt...]         mount options\n"
 "    -h   --help             print help\n"
 "    -V   --version          print version\n"
 "\n");
-	fprintf(stderr,
+#endif
+
+	printf(
 "MFS options:\n"
 "    -c CFGFILE                  equivalent to '-o mfscfgfile=CFGFILE'\n"
 "    -m   --meta                 equivalent to '-o mfsmeta'\n"
@@ -201,13 +210,13 @@ void usage(const char *progname) {
 		LizardClient::FsInitParams::kDefaultSymlinkCacheTimeout,
 		LizardClient::FsInitParams::kDefaultBandwidthOveruse
 	);
-	fprintf(stderr,
+	printf(
 "CMODE can be set to:\n"
 "    NO,NONE or NEVER            never allow files data to be kept in cache (safest but can reduce efficiency)\n"
 "    YES or ALWAYS               always allow files data to be kept in cache (dangerous)\n"
 "    AUTO                        file cache is managed by mfsmaster automatically (should be very safe and efficient)\n"
 "\n");
-	fprintf(stderr,
+	printf(
 "SMODE can be set to:\n"
 "    NEVER                       LizardFS will not change suid and sgid bit on chown\n"
 "    ALWAYS                      clear suid and sgid on every chown - safest operation\n"
@@ -221,6 +230,37 @@ void usage(const char *progname) {
 "    operation - chown(-1,-1) which is usually converted by a kernel into something\n"
 "    like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'\n"
 "\n");
+
+#if FUSE_VERSION >= 30
+	printf("\nFUSE options:\n");
+	fuse_lowlevel_help();
+	printf(
+	"    -o max_write=N\n"
+	"    -o max_readahead=N\n"
+	"    -o max_background=N\n"
+	"    -o congestion_threshold=N\n"
+	"    -o sync_read \n"
+	"    -o async_read \n"
+	"    -o atomic_o_trunc \n"
+	"    -o no_remote_lock \n"
+	"    -o no_remote_flock \n"
+	"    -o no_remote_posix_lock \n"
+	"    -o splice_write \n"
+	"    -o no_splice_write \n"
+	"    -o splice_move \n"
+	"    -o no_splice_move \n"
+	"    -o splice_read \n"
+	"    -o no_splice_read \n"
+	"    -o auto_inval_data \n"
+	"    -o no_auto_inval_data \n"
+	"    -o readdirplus=(yes,no,auto)\n"
+	"    -o async_dio \n"
+	"    -o no_async_dio \n"
+	"    -o writeback_cache \n"
+	"    -o no_writeback_cache \n"
+	"    -o time_gran=N\n"
+	);
+#endif
 }
 
 void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {
@@ -294,6 +334,7 @@ int mfs_opt_proc_stage1(void *data, const char *arg, int key, struct fuse_args *
 //   1 - keep this arg for future processing
 int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *outargs) {
 	(void)data; // remove unused argument warning
+	(void)outargs;
 
 	switch (key) {
 	case FUSE_OPT_KEY_OPT:
@@ -333,8 +374,9 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 	case KEY_NOSTDMOUNTOPTIONS:
 		gMountOptions.nostdmountoptions = 1;
 		return 0;
+#if FUSE_VERSION < 30
 	case KEY_VERSION:
-		fprintf(stderr, "LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
+		printf("LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);
 		{
 			struct fuse_args helpargs = FUSE_ARGS_INIT(0, NULL);
 			fuse_opt_add_arg(&helpargs,outargs->argv[0]);
@@ -352,7 +394,8 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 			fuse_parse_cmdline(&helpargs,NULL,NULL,NULL);
 			fuse_unmount(NULL, fuse_mount(NULL, &helpargs));
 		}
-		exit(1);
+		exit(0);
+#endif
 	default:
 		fprintf(stderr, "internal error\n");
 		abort();
