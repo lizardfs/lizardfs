@@ -83,3 +83,15 @@ TEST(DirEntryCache, Basic) {
 	by_inode_it++;
 	ASSERT_EQ(by_inode_it, cache.inode_end());
 }
+
+TEST(DirEntryCache, Repetitions) {
+	DirEntryCache cache(5000000);
+
+	Attributes dummy_attributes;
+	dummy_attributes.fill(0);
+	auto current_time = cache.updateTime();
+
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 0, std::vector<DirectoryEntry>{{7, "a1", dummy_attributes}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 1, std::vector<DirectoryEntry>{{7, "a1", dummy_attributes}}, current_time);
+	cache.removeOldest(5);
+}
