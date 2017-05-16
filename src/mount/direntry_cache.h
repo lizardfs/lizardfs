@@ -343,13 +343,20 @@ public:
 		        IndexCompare());
 		std::size_t current_index = first_index;
 		for (const DirectoryEntry &de : container) {
+			auto lookup_it = find(ctx, parent_inode, de.name);
 			if (it == index_set_.end() ||
 			    std::make_tuple(parent_inode, ctx.uid, ctx.gid) !=
 			            std::make_tuple(it->parent_inode, it->uid, it->gid) ||
 			    it->index != current_index) {
+				if (lookup_it != lookup_end()) {
+					erase(std::addressof(*lookup_it));
+				}
 				it = addEntry(ctx, parent_inode, de.inode, current_index, de.name,
 				              de.attributes, timestamp);
 			} else {
+				if (lookup_it != lookup_end() && it != index_set_.iterator_to(*lookup_it)) {
+					erase(std::addressof(*lookup_it));
+				}
 				overwriteEntry(*it, de, timestamp);
 			}
 			++it;
