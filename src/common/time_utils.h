@@ -52,6 +52,11 @@ typedef std::chrono::steady_clock SteadyClock;
 typedef SteadyClock::time_point SteadyTimePoint;
 typedef SteadyClock::duration SteadyDuration;
 
+template <class Ratio2, class Dur>
+static int64_t duration_int64_cast(Dur duration) {
+	return std::chrono::duration_cast<std::chrono::duration<int64_t, Ratio2>>(duration).count();
+}
+
 // Measures time from creation or last call to reset()
 //
 class Timer {
