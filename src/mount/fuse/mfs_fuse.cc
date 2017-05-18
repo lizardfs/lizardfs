@@ -175,7 +175,7 @@ void mfs_statfs(fuse_req_t req) {
 		auto a = LizardClient::statfs(get_context(req), ino);
 		fuse_reply_statfs(req, &a);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -184,7 +184,7 @@ void mfs_access(fuse_req_t req, fuse_ino_t ino, int mask) {
 		LizardClient::access(get_context(req), ino, mask);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -194,7 +194,7 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 				LizardClient::lookup(get_context(req), parent, name));
 		fuse_reply_entry(req, &fuseEntryParam);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -203,7 +203,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		auto a = LizardClient::getattr(get_context(req), ino, fuse_file_info_wrapper(fi));
 		fuse_reply_attr(req, &a.attr, a.attrTimeout);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -225,7 +225,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 				get_context(req), ino, stbuf, to_set, fuse_file_info_wrapper(fi));
 		fuse_reply_attr(req, &a.attr, a.attrTimeout);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -235,7 +235,7 @@ void mfs_mknod(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode,
 				LizardClient::mknod(get_context(req), parent, name, mode, rdev));
 		fuse_reply_entry(req, &fuseEntryParam);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -244,7 +244,7 @@ void mfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		LizardClient::unlink(get_context(req), parent, name);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -254,7 +254,7 @@ void mfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode)
 				LizardClient::mkdir(get_context(req), parent, name, mode));
 		fuse_reply_entry(req, &fuseEntryParam);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -263,7 +263,7 @@ void mfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		LizardClient::rmdir(get_context(req), parent, name);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -273,7 +273,7 @@ void mfs_symlink(fuse_req_t req, const char *path, fuse_ino_t parent, const char
 				LizardClient::symlink(get_context(req), path, parent, name));
 		fuse_reply_entry(req, &fuseEntryParam);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -282,7 +282,7 @@ void mfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 		fuse_reply_readlink(req,
 				LizardClient::readlink(get_context(req), ino).c_str());
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -292,7 +292,7 @@ void mfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_ino_t 
 		LizardClient::rename(get_context(req), parent, name, newparent, newname);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -302,7 +302,7 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 				LizardClient::link(get_context(req), ino, newparent, newname));
 		fuse_reply_entry(req, &fuseEntryParam);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -313,7 +313,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			assert(fi->fh == 0);
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -359,7 +359,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 		}
 		fuse_reply_buf(req, buffer, bytesInBuffer);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -368,7 +368,7 @@ void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		LizardClient::releasedir(get_context(req), ino, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -381,7 +381,7 @@ void mfs_create(fuse_req_t req, fuse_ino_t parent, const char *name, mode_t mode
 			LizardClient::remove_file_info(fuse_file_info_wrapper(fi));
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -392,7 +392,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 			LizardClient::remove_file_info(fuse_file_info_wrapper(fi));
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -401,7 +401,7 @@ void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		LizardClient::release(get_context(req), ino, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -420,7 +420,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			fuse_reply_iov(req, reply.data(), reply.size());
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -430,7 +430,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		fuse_reply_write(req, LizardClient::write(
 				get_context(req), ino, buf, size, off, fuse_file_info_wrapper(fi)));
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -439,7 +439,7 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		LizardClient::flush(get_context(req), ino, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -448,7 +448,7 @@ void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_in
 		LizardClient::fsync(get_context(req), ino, datasync, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -464,7 +464,7 @@ void mfs_setxattr (fuse_req_t req, fuse_ino_t ino, const char *name, const char 
 		LizardClient::setxattr(get_context(req), ino, name, value, size, flags, position);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -483,7 +483,7 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 			fuse_reply_buf(req,(const char*)a.valueBuffer.data(), a.valueLength);
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -496,7 +496,7 @@ void mfs_listxattr (fuse_req_t req, fuse_ino_t ino, size_t size) {
 			fuse_reply_buf(req,(const char*)a.valueBuffer.data(), a.valueLength);
 		}
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -505,7 +505,7 @@ void mfs_removexattr (fuse_req_t req, fuse_ino_t ino, const char *name) {
 		LizardClient::removexattr(get_context(req), ino, name);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -555,7 +555,7 @@ void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 		struct flock retlock = lzfs_locks::convertToFlock(lzfslock);
 		fuse_reply_lock(req, &retlock);
 	} catch (LizardClient::RequestException& e) {
-		fuse_reply_err(req, e.errNo);
+		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
@@ -601,7 +601,7 @@ void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 		// release the memory
 		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
 		if (interrupt_data.first) {
-			fuse_reply_err(req, e.errNo);
+			fuse_reply_err(req, e.system_error_code);
 		}
 	}
 }
@@ -645,7 +645,7 @@ void lzfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, int o
 		// release the memory
 		auto interrupt_data = gLockInterruptData.take(interrupt_data_key);
 		if (interrupt_data.first) {
-			fuse_reply_err(req, e.errNo);
+			fuse_reply_err(req, e.system_error_code);
 		}
 	}
 }

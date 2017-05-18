@@ -415,7 +415,7 @@ static EntryReply toEntryReply(const LizardClient::EntryParam& in) {
  */
 #define OPERATION_EPILOG\
 		} catch (LizardClient::RequestException& ex) {\
-			throw makeStatus(toStatusCode(ex.errNo));\
+			throw makeStatus(toStatusCode(ex.system_error_code));\
 		} catch (Failure& ex) {\
 			std::cerr << __FUNCTION__ << " failure: " << ex.message << std::endl;\
 			lzfs_pretty_syslog(LOG_ERR, "%s Failure: %s", __FUNCTION__, ex.message.c_str());\

@@ -175,7 +175,7 @@ EntryParam special_lookup(Inode ino, const Context &ctx, Inode parent, const cha
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'lookup' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, parent, name, attrstr);
 }

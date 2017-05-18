@@ -144,7 +144,7 @@ AttrReply special_getattr(Inode ino, const Context &ctx, FileInfo *fi, char attr
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'getattr' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, fi, attrstr);
 }

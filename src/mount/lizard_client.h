@@ -108,9 +108,10 @@ struct XattrReply {
  * An exception that is thrown when a request can't be executed successfully
  */
 struct RequestException : public std::exception {
-	RequestException(int errNo);
+	explicit RequestException(int error_code);
 
-	int errNo;
+	int system_error_code;
+	int lizardfs_error_code;
 };
 
 int updateGroups(const GroupCache::Groups &groups);

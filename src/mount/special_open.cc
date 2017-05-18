@@ -30,8 +30,8 @@ namespace InodeMasterInfo {
 static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: MASTERINFO): %s",
-		            (unsigned long int)inode_, strerr(EACCES));
-		throw RequestException(EACCES);
+		            (unsigned long int)inode_, mfsstrerr(LIZARDFS_ERROR_EACCES));
+		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = 0;
 	fi->direct_io = 0;
@@ -48,8 +48,8 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if (statsinfo==NULL) {
 		oplog_printf(ctx, "open (%lu) (internal node: STATS): %s",
 		            (unsigned long int)inode_,
-		            strerr(ENOMEM));
-		throw RequestException(ENOMEM);
+		            mfsstrerr(LIZARDFS_ERROR_OUTOFMEMORY));
+		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
 	}
 	pthread_mutex_init(&(statsinfo->lock),NULL);         // make helgrind happy
 	PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
@@ -68,8 +68,8 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: OPLOG): %s",
 		            (unsigned long int)inode_,
-		            strerr(EACCES));
-		throw RequestException(EACCES);
+		            mfsstrerr(LIZARDFS_ERROR_EACCES));
+		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = oplog_newhandle(0);
 	fi->direct_io = 1;
@@ -84,8 +84,8 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: OPHISTORY): %s",
 		            (unsigned long int)inode_,
-		            strerr(EACCES));
-		throw RequestException(EACCES);
+		            mfsstrerr(LIZARDFS_ERROR_EACCES));
+		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = oplog_newhandle(1);
 	fi->direct_io = 1;
@@ -131,7 +131,7 @@ void special_open(Inode ino, const Context &ctx, FileInfo *fi) {
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'open' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, fi);
 }

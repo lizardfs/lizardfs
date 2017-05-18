@@ -117,7 +117,7 @@ void special_release(Inode ino, const Context &ctx, FileInfo *fi) {
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'release' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, fi);
 }

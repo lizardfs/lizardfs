@@ -66,6 +66,16 @@ int mfs_errorconv(uint8_t status) {
 			return ENOTSUP;
 		case LIZARDFS_ERROR_ERANGE:
 			return ERANGE;
+		case LIZARDFS_ERROR_ENAMETOOLONG:
+			return ENAMETOOLONG;
+		case LIZARDFS_ERROR_EFBIG:
+			return EFBIG;
+		case LIZARDFS_ERROR_EBADF:
+			return EBADF;
+		case LIZARDFS_ERROR_ENODATA:
+			return ENODATA;
+		case LIZARDFS_ERROR_OUTOFMEMORY:
+			return ENOMEM;
 		default:
 			return EINVAL;
 	}

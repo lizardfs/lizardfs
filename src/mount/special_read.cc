@@ -216,7 +216,7 @@ std::vector<uint8_t> special_read(Inode ino, const Context &ctx, size_t size, of
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'read' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, size, off, fi, debug_mode);
 }

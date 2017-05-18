@@ -138,8 +138,11 @@
 #define LIZARDFS_ERROR_TEMP_NOTPOSSIBLE        49    // Operation temporarily not possible
 #define LIZARDFS_ERROR_WAITING                 50    // Waiting for operation completion
 #define LIZARDFS_ERROR_UNKNOWN                 51    // Unknown error
-
-#define LIZARDFS_ERROR_MAX                     52
+#define LIZARDFS_ERROR_ENAMETOOLONG            52    // Name too long
+#define LIZARDFS_ERROR_EFBIG                   53    // File too large
+#define LIZARDFS_ERROR_EBADF                   54    // Bad file number
+#define LIZARDFS_ERROR_ENODATA                 55    // No data available
+#define LIZARDFS_ERROR_MAX                     56
 
 #define LIZARDFS_ERROR_STRINGS \
 	"OK", \
@@ -194,6 +197,10 @@
 	"Operation temporarily not possible", \
 	"Waiting for operation completion", \
 	"Unknown LizardFS error", \
+	"Name too long", \
+	"File too large", \
+	"Bad file number", \
+	"No data available", \
 	"Unknown LizardFS error"
 
 /// field values: nodetype

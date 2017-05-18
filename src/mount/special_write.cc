@@ -30,8 +30,8 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            strerr(EACCES));
-	throw RequestException(EACCES);
+	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeMasterInfo
 
@@ -59,8 +59,8 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            strerr(EACCES));
-	throw RequestException(EACCES);
+	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeOplog
 
@@ -71,8 +71,8 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            strerr(EACCES));
-	throw RequestException(EACCES);
+	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeOphistory
 
@@ -121,7 +121,7 @@ BytesWritten special_write(Inode ino, const Context &ctx, const char *buf,
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'write' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, buf, size, off, fi);
 }

@@ -53,8 +53,8 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 	            (unsigned long int)(stbuf->st_atime),
 	            (unsigned long int)(stbuf->st_mtime),
 	            (uint64_t)(stbuf->st_size),
-	            strerr(EPERM));
-	throw RequestException(EPERM);
+	            mfsstrerr(LIZARDFS_ERROR_EPERM));
+	throw RequestException(LIZARDFS_ERROR_EPERM);
 }
 } // InodeMasterInfo
 
@@ -157,7 +157,7 @@ AttrReply special_setattr(Inode ino, const Context &ctx, struct stat *stbuf, int
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'setattr' function for special inode");
-		throw RequestException(EINVAL);
+		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	return func(ctx, stbuf, to_set, fi, modestr, attrstr);
 }
