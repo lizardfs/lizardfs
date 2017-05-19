@@ -23,6 +23,8 @@
 #include <dlfcn.h>
 #include <fstream>
 
+#include "client_error_code.h"
+
 #define LIZARDFS_LINK_FUNCTION(function_name) \
 	function_name##_ = (decltype(function_name##_))dlsym(dl_handle_, #function_name); \
 	if (function_name##_ == nullptr) { \
@@ -31,7 +33,7 @@
 
 using namespace lizardfs;
 
-typedef void(*VoidFunction)();
+typedef void (*VoidFunction)();
 
 std::atomic<int> Client::instance_count_(0);
 
@@ -72,9 +74,11 @@ void *Client::linkLibrary() {
 	return ret;
 }
 
-Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint) : fileinfos_() {
+Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint)
+		: fileinfos_() {
 	dl_handle_ = linkLibrary();
-	VoidFunction disable_verbose_printf = (VoidFunction)dlsym(dl_handle_, "lzfs_disable_printf");
+	VoidFunction disable_verbose_printf =
+	        (VoidFunction)dlsym(dl_handle_, "lzfs_disable_printf");
 	if ((void *)disable_verbose_printf == nullptr) {
 		assert(dl_handle_);
 		dlclose(dl_handle_);
@@ -129,19 +133,52 @@ int Client::init(const std::string &host, const std::string &port, const std::st
 	return lizardfs_fs_init_(params);
 }
 
-int Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
-	return lizardfs_lookup_(ctx, parent, path.c_str(), param);
+void Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
+	std::error_code ec;
+	lookup(ctx, parent, path, param, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
 }
 
-int Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param) {
-	return lizardfs_mknod_(ctx, parent, path.c_str(), mode, 0, param);
+void Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param,
+		std::error_code &ec) {
+	int ret = lizardfs_lookup_(ctx, parent, path.c_str(), param);
+	ec = make_error_code(ret);
+}
+
+void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+		EntryParam &param) {
+	std::error_code ec;
+	mknod(ctx, parent, path, mode, param, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+		EntryParam &param, std::error_code &ec) {
+	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, 0, param);
+	ec = make_error_code(ret);
 }
 
 Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags) {
+	std::error_code ec;
+	auto fileinfo = open(ctx, inode, flags, ec);
+	if (ec) {
+		assert(!fileinfo);
+		throw std::system_error(ec);
+	}
+	return fileinfo;
+}
+
+Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags, std::error_code &ec) {
 	FileInfo *fileinfo = new FileInfo(inode);
 	fileinfo->flags = flags;
 
-	if (lizardfs_open_(ctx, inode, fileinfo) != LIZARDFS_STATUS_OK) {
+	int ret = lizardfs_open_(ctx, inode, fileinfo);
+	ec = make_error_code(ret);
+	if (ec) {
 		delete fileinfo;
 		return nullptr;
 	}
@@ -150,55 +187,106 @@ Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags) {
 	return fileinfo;
 }
 
-int Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_reply) {
-	return lizardfs_getattr_(ctx, fileinfo->inode, fileinfo, attr_reply);
+void Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_reply) {
+	std::error_code ec;
+	getattr(ctx, fileinfo, attr_reply, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
 }
 
-ssize_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, int size, char *buffer) {
-	int read_size = 0;
-	if (lizardfs_isSpecialInode_(fileinfo->inode)) {
-		auto ret = lizardfs_read_special_inode_(
-			ctx, fileinfo->inode, size, offset, fileinfo);
-		if (ret.first == LIZARDFS_STATUS_OK) {
-			read_size = ret.second.size();
-			std::memcpy(buffer, ret.second.data(), read_size);
-		} else {
-			return -ret.first;
-		}
-	} else {
-		auto ret = lizardfs_read_(
-				ctx, fileinfo->inode, size, offset, fileinfo);
-		if (ret.first == LIZARDFS_STATUS_OK) {
-			small_vector<struct iovec, 8> reply;
-			ret.second.toIoVec(reply, offset, size);
-			for (auto &iov : reply) {
-				std::memcpy(buffer, iov.iov_base, iov.iov_len);
-				read_size += iov.iov_len;
-				buffer += iov.iov_len;
-			}
-		} else {
-			return -ret.first;
-		}
+void Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_reply,
+		std::error_code &ec) {
+	int ret = lizardfs_getattr_(ctx, fileinfo->inode, fileinfo, attr_reply);
+	ec = make_error_code(ret);
+}
+
+std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+		char *buffer) {
+	std::error_code ec;
+	auto read_size = read(ctx, fileinfo, offset, size, buffer, ec);
+	if (ec) {
+		throw std::system_error(ec);
 	}
 	return read_size;
 }
 
-ssize_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, int size, const char *buffer) {
-	std::pair<int, ssize_t> ret = lizardfs_write_(ctx, fileinfo->inode, buffer, size, offset, fileinfo);
-	if (ret.first != LIZARDFS_STATUS_OK) {
-		return -ret.first;
+std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+		char *buffer, std::error_code &ec) {
+	std::size_t read_size = 0;
+
+	if (lizardfs_isSpecialInode_(fileinfo->inode)) {
+		auto ret =
+		        lizardfs_read_special_inode_(ctx, fileinfo->inode, size, offset, fileinfo);
+		ec = make_error_code(ret.first);
+		if (ec) {
+			return 0;
+		}
+
+		read_size = ret.second.size();
+		std::memcpy(buffer, ret.second.data(), read_size);
+	} else {
+		auto ret = lizardfs_read_(ctx, fileinfo->inode, size, offset, fileinfo);
+		ec = make_error_code(ret.first);
+		if (ec) {
+			return 0;
+		}
+
+		small_vector<struct iovec, 8> reply;
+		ret.second.toIoVec(reply, offset, size);
+		for (auto &iov : reply) {
+			std::memcpy(buffer, iov.iov_base, iov.iov_len);
+			read_size += iov.iov_len;
+			buffer += iov.iov_len;
+		}
 	}
-	return ret.second;
+
+	return read_size;
 }
 
-int Client::release(const Context &ctx, FileInfo *fileinfo) {
+std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+		const char *buffer) {
+	std::error_code ec;
+	auto write_size = write(ctx, fileinfo, offset, size, buffer, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return write_size;
+}
+
+std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+		const char *buffer, std::error_code &ec) {
+	std::pair<int, ssize_t> ret =
+	        lizardfs_write_(ctx, fileinfo->inode, buffer, size, offset, fileinfo);
+	ec = make_error_code(ret.first);
+	return ec ? (std::size_t)0 : (std::size_t)ret.second;
+}
+
+void Client::release(const Context &ctx, FileInfo *fileinfo) {
+	std::error_code ec;
+	release(ctx, fileinfo, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::release(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
 	int ret = lizardfs_release_(ctx, fileinfo->inode, fileinfo);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.erase(fileinfos_.iterator_to(*fileinfo));
 	delete fileinfo;
-	return ret;
+	ec = make_error_code(ret);
 }
 
-int Client::flush(const Context &ctx, FileInfo *fileinfo) {
-	return lizardfs_flush_(ctx, fileinfo->inode, fileinfo);
+void Client::flush(const Context &ctx, FileInfo *fileinfo) {
+	std::error_code ec;
+	flush(ctx, fileinfo, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
+	int ret = lizardfs_flush_(ctx, fileinfo->inode, fileinfo);
+	ec = make_error_code(ret);
 }

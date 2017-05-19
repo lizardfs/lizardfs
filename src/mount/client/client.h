@@ -50,28 +50,36 @@ public:
 	~Client();
 
 	/*! \brief Find inode in parent directory by name */
-	int lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param);
+	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param);
+	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Create a file with given parent and name */
-	int mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param);
+	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param);
+	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Open a file by inode */
 	FileInfo *open(const Context &ctx, Inode inode, int flags);
+	FileInfo *open(const Context &ctx, Inode inode, int flags, std::error_code &ec);
 
 	/*! \brief Read bytes from open file */
-	ssize_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, int size, char *buffer);
+	std::size_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, char *buffer);
+	std::size_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, char *buffer, std::error_code &ec);
 
 	/*! \brief Write bytes to open file */
-	ssize_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, int size, const char *buffer);
+	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer);
+	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer, std::error_code &ec);
 
 	/*! \brief Release a previously open file */
-	int release(const Context &ctx, FileInfo *fileinfo);
+	void release(const Context &ctx, FileInfo *fileinfo);
+	void release(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
 
 	/*! \brief Flush data written to an open file */
-	int flush(const Context &ctx, FileInfo *fileinfo);
+	void flush(const Context &ctx, FileInfo *fileinfo);
+	void flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
 
 	/*! \brief Get attributes from an open file */
-	int getattr(const Context &ctx, FileInfo* fileinfo, AttrReply &attr_reply);
+	void getattr(const Context &ctx, FileInfo* fileinfo, AttrReply &attr_reply);
+	void getattr(const Context &ctx, FileInfo* fileinfo, AttrReply &attr_reply, std::error_code &ec);
 
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name
