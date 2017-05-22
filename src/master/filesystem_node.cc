@@ -34,6 +34,7 @@
 #include "master/filesystem_freenode.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_operations.h"
+#include "master/filesystem_periodic.h"
 #include "master/filesystem_quota.h"
 #include "master/fs_context.h"
 
@@ -1119,6 +1120,7 @@ static inline void fsnodes_remove_node(uint32_t ts, FSNode *toremove) {
 	fsnodes_quota_update(toremove, {{QuotaResource::kInodes, -1}});
 	fsnodes_quota_remove(QuotaOwnerType::kInode, toremove->id);
 #ifndef METARESTORE
+	fsnodes_periodic_remove(toremove->id);
 	dcm_modify(toremove->id, 0);
 #endif
 	FSNode::destroy(toremove);

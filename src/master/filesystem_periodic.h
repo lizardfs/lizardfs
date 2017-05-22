@@ -33,3 +33,4 @@ void fs_periodic_master_init();
 void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, uint32_t &ugfiles,
 			uint32_t &mfiles, uint32_t &chunks, uint32_t &ugchunks, uint32_t &mchunks,
 			std::string &report);
+void fsnodes_periodic_remove(uint32_t inode);
