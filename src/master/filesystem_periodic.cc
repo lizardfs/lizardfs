@@ -169,6 +169,10 @@ void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, ui
 		}
 
 		FSNode *node = fsnodes_id_to_node<FSNode>(entry.first);
+		if (!node) {
+			continue;
+		}
+
 		if (node->type == FSNode::kFile || node->type == FSNode::kTrash ||
 		    node->type == FSNode::kReserved) {
 			FSNodeFile *file_node = static_cast<FSNodeFile *>(node);
@@ -488,6 +492,13 @@ void fs_background_file_test(void) {
 		if (gFileTestLoopBucketLimit > 0) {
 			eventloop_make_next_poll_nonblocking();
 		}
+	}
+}
+
+void fsnodes_periodic_remove(uint32_t inode) {
+	auto it = gDefectiveNodes.find(inode);
+	if (it != gDefectiveNodes.end()) {
+		gDefectiveNodes.erase(it);
 	}
 }
 #endif
