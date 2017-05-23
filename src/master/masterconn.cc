@@ -381,7 +381,7 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 	if (responseVersion == matoml::registerShadow::kStatusPacketVersion) {
 		uint8_t status;
 		matoml::registerShadow::deserialize(data, length, status);
-		syslog(LOG_NOTICE, "Cannot register to master: %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Cannot register to master: %s", lizardfs_error_string(status));
 		eptr->mode = KILL;
 	} else if (responseVersion == matoml::registerShadow::kResponsePacketVersion) {
 		uint32_t masterVersion;
@@ -442,7 +442,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		if ((status = restore(network, version, buf.c_str(),
 				RestoreRigor::kDontIgnoreAnyErrors)) != LIZARDFS_STATUS_OK) {
 			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
-					mfsstrerr(status));
+					lizardfs_error_string(status));
 			masterconn_handle_changelog_apply_error(eptr, status);
 			return;
 		}
@@ -717,7 +717,7 @@ void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uin
 		syslog(LOG_NOTICE, "Master temporarily refused to produce a new metadata image");
 	} else {
 		eptr->state = MasterConnectionState::kLimbo;
-		syslog(LOG_NOTICE, "Master failed to produce a new metadata image: %s", mfsstrerr(status));
+		syslog(LOG_NOTICE, "Master failed to produce a new metadata image: %s", lizardfs_error_string(status));
 	}
 }
 

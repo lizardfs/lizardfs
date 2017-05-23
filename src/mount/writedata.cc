@@ -350,7 +350,7 @@ void write_job_delayed_end(inodedata* id, int status, int seconds, Glock &lock) 
 	LOG_AVG_TILL_END_OF_SCOPE1("write_job_delayed_end#sec", seconds);
 	id->locator.reset();
 	if (status != LIZARDFS_STATUS_OK) {
-		lzfs_pretty_syslog(LOG_WARNING, "error writing file number %" PRIu32 ": %s", id->inode, mfsstrerr(status));
+		lzfs_pretty_syslog(LOG_WARNING, "error writing file number %" PRIu32 ": %s", id->inode, lizardfs_error_string(status));
 		id->status = status;
 	}
 	status = id->status;
@@ -934,7 +934,7 @@ int write_data_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid,
 		status = fs_truncate(inode, opened, uid, gid, length, writeNeeded, attr, oldLength, lockId);
 		if (status != LIZARDFS_STATUS_OK) {
 			lzfs_pretty_syslog(LOG_INFO, "truncate file %" PRIu32 " to length %" PRIu64 ": %s (try %d/%d)",
-					inode, length, mfsstrerr(status), int(retries + 1), int(maxretries));
+					inode, length, lizardfs_error_string(status), int(retries + 1), int(maxretries));
 		}
 		if (retries >= maxretries) {
 			break;

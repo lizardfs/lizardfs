@@ -46,7 +46,7 @@ void PromoteShadowCommand::run(const Options& options) const {
 			cltoma::adminBecomeMaster::build(), LIZ_MATOCL_ADMIN_BECOME_MASTER);
 	uint8_t status;
 	matocl::adminBecomeMaster::deserialize(becomeMasterResponse, status);
-	std::cerr << mfsstrerr(status) << std::endl;
+	std::cerr << lizardfs_error_string(status) << std::endl;
 	if (status != LIZARDFS_STATUS_OK) {
 		exit(1);
 	}

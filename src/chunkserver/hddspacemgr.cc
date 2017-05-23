@@ -1528,7 +1528,7 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunk_type, uint32_t fir
 	int status = hdd_open(c);
 	if (status != LIZARDFS_STATUS_OK) {
 		lzfs_pretty_syslog(LOG_WARNING, "error opening chunk for prefetching: %" PRIu64 " - %s",
-				chunkid, mfsstrerr(status));
+				chunkid, lizardfs_error_string(status));
 		hdd_chunk_release(c);
 		return status;
 	}
@@ -1542,7 +1542,7 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunk_type, uint32_t fir
 	status = hdd_close(c);
 	if (status != LIZARDFS_STATUS_OK) {
 		lzfs_pretty_syslog(LOG_WARNING, "error closing prefetched chunk: %" PRIu64 " - %s",
-				chunkid, mfsstrerr(status));
+				chunkid, lizardfs_error_string(status));
 	}
 
 	hdd_chunk_release(c);

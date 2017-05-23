@@ -65,7 +65,7 @@ int master_register_old(int rfd) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n", mfsstrerr(*rptr));
+		printf("register to master: %s\n", lizardfs_error_string(*rptr));
 		return -1;
 	}
 	return 0;
@@ -106,7 +106,7 @@ int master_register(int rfd, uint32_t cuid) {
 		return -1;
 	}
 	if (*rptr) {
-		printf("register to master: %s\n", mfsstrerr(*rptr));
+		printf("register to master: %s\n", lizardfs_error_string(*rptr));
 		return -1;
 	}
 	return 0;

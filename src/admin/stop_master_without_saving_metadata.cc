@@ -49,7 +49,7 @@ void MetadataserverStopWithoutSavingMetadataCommand::run(const Options& options)
 			LIZ_MATOCL_ADMIN_STOP_WITHOUT_METADATA_DUMP);
 	uint8_t status;
 	matocl::adminStopWithoutMetadataDump::deserialize(adminStopWithoutMetadataDumpResponse, status);
-	std::cerr << mfsstrerr(status) << std::endl;
+	std::cerr << lizardfs_error_string(status) << std::endl;
 	if (status != LIZARDFS_STATUS_OK) {
 		exit(1);
 	}

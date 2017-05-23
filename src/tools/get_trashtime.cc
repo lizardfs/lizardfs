@@ -89,7 +89,7 @@ static int get_trashtime(const char *fname, uint8_t mode) {
 	}
 	leng -= 4;
 	if (leng == 1) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		printf("%s: %s\n", fname, lizardfs_error_string(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng < 8 || leng % 8 != 0) {

@@ -580,7 +580,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 		DEBUG_LOG("master.mltoma_changelog_apply_error") << "do";
 		syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
-				mfsstrerr(recvStatus));
+				lizardfs_error_string(recvStatus));
 		gShadowQueue.addRequest(eptr);
 		fs_storeall(MetadataDumper::kBackgroundDump);
 		if (recvStatus == LIZARDFS_ERROR_BADMETADATACHECKSUM) {
@@ -592,7 +592,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - "
 				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "
 				"previous request and METADATA_SAVE_REQUEST_MIN_PERIOD=%" PRIu32,
-				mfsstrerr(recvStatus), secondsSinceLastRequest, gMinMetadataSaveRequestPeriod_s);
+				lizardfs_error_string(recvStatus), secondsSinceLastRequest, gMinMetadataSaveRequestPeriod_s);
 		matomlserv_createpacket(eptr, matoml::changelogApplyError::build(LIZARDFS_ERROR_DELAYED));
 	}
 }

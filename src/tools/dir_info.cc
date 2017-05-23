@@ -87,7 +87,7 @@ static int dir_info(const char *fname) {
 	}
 	leng -= 4;
 	if (leng == 1) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		printf("%s: %s\n", fname, lizardfs_error_string(*rptr));
 		free(buff);
 		close_master_conn(1);
 		return -1;

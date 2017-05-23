@@ -53,7 +53,7 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 	            (unsigned long int)(stbuf->st_atime),
 	            (unsigned long int)(stbuf->st_mtime),
 	            (uint64_t)(stbuf->st_size),
-	            mfsstrerr(LIZARDFS_ERROR_EPERM));
+	            lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 	throw RequestException(LIZARDFS_ERROR_EPERM);
 }
 } // InodeMasterInfo

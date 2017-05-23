@@ -802,7 +802,6 @@ int do_write(const char* filename, uint64_t lv, uint32_t ts, const char* ptr) {
 int restore_line(const char* filename, uint64_t lv, const char* line) {
 	uint32_t ts;
 	int status;
-	const char* errormsgs[] = {LIZARDFS_ERROR_STRINGS};
 
 	status = LIZARDFS_ERROR_MAX;
 	const char* ptr = line;
@@ -950,9 +949,9 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 	} else if (status != LIZARDFS_STATUS_OK) {
 #ifndef METARESTORE
 		DEBUG_LOG("master.mismatch")
-				<< "File " << filename << ", " << lv << line << " -- " << mfsstrerr(status);
+				<< "File " << filename << ", " << lv << line << " -- " << lizardfs_error_string(status);
 #endif
-		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,errormsgs[status]);
+		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,lizardfs_error_string(status));
 	}
 	return status;
 }

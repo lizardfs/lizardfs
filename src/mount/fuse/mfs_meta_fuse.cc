@@ -244,7 +244,7 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 				int status;
 				Attributes attr;
 				status = fs_getdetachedattr(inode,attr);
-				status = mfs_errorconv(status);
+				status = lizardfs_error_conv(status);
 				if (status!=0) {
 					fuse_reply_err(req, status);
 				} else {
@@ -276,7 +276,7 @@ void mfs_meta_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 				int status;
 				Attributes attr;
 				status = fs_getdetachedattr(inode,attr);
-				status = mfs_errorconv(status);
+				status = lizardfs_error_conv(status);
 				if (status!=0) {
 					fuse_reply_err(req, status);
 				} else {
@@ -317,7 +317,7 @@ void mfs_meta_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		int status;
 		Attributes attr;
 		status = fs_getdetachedattr(ino, attr);
-		status = mfs_errorconv(status);
+		status = lizardfs_error_conv(status);
 		if (status!=0) {
 			fuse_reply_err(req, status);
 		} else {
@@ -347,7 +347,7 @@ void mfs_meta_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
 		return;
 	}
 	status = fs_purge(inode);
-	status = mfs_errorconv(status);
+	status = lizardfs_error_conv(status);
 	fuse_reply_err(req, status);
 }
 
@@ -365,7 +365,7 @@ void mfs_meta_rename(fuse_req_t req, fuse_ino_t parent, const char *name, fuse_i
 		return;
 	}
 	status = fs_undel(inode);
-	status = mfs_errorconv(status);
+	status = lizardfs_error_conv(status);
 	fuse_reply_err(req, status);
 }
 
@@ -674,7 +674,7 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	}
 
 	status = fs_gettrashpath(ino,&path);
-	status = mfs_errorconv(status);
+	status = lizardfs_error_conv(status);
 	if (status!=0) {
 		fuse_reply_err(req, status);
 	} else {

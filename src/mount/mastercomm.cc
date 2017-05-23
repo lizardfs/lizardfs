@@ -188,15 +188,6 @@ void master_stats_add(uint8_t id,uint64_t s) {
 	}
 }
 
-const char* errtab[]={LIZARDFS_ERROR_STRINGS};
-
-static inline const char* mfs_strerror(uint8_t status) {
-	if (status>LIZARDFS_ERROR_MAX) {
-		status=LIZARDFS_ERROR_MAX;
-	}
-	return errtab[status];
-}
-
 static inline void setDisconnect(bool value) {
 	std::unique_lock<std::mutex> fdLock(fdMutex);
 	disconnect = value;
@@ -695,9 +686,9 @@ int fs_connect(bool verbose) {
 	rptr = regbuff;
 	if (i==1) {
 		if (verbose) {
-			fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
+			fprintf(stderr,"mfsmaster register error: %s\n",lizardfs_error_string(rptr[0]));
 		} else {
-			lzfs_pretty_syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
+			lzfs_pretty_syslog(LOG_WARNING,"mfsmaster register error: %s",lizardfs_error_string(rptr[0]));
 		}
 		tcpclose(fd);
 		fd=-1;
@@ -951,7 +942,7 @@ void fs_reconnect() {
 	rptr = regbuff;
 	if (rptr[0]!=0) {
 		sessionlost=1;
-		lzfs_pretty_syslog(LOG_WARNING,"master: register status: %s",mfs_strerror(rptr[0]));
+		lzfs_pretty_syslog(LOG_WARNING,"master: register status: %s",lizardfs_error_string(rptr[0]));
 		tcpclose(fd);
 		fd=-1;
 		return;

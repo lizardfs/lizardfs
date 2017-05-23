@@ -607,7 +607,8 @@ void matocsserv_got_chunk_checksum(matocsserventry *eptr,const uint8_t *data,uin
 	version = get32bit(&data);
 	if (length==8+4+1) {
 		status = get8bit(&data);
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum status: %s",
+		       eptr->servstrip, eptr->servport, chunkid, lizardfs_error_string(status));
 	} else {
 		checksum = get32bit(&data);
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " calculate checksum: %08" PRIX32,eptr->servstrip,eptr->servport,chunkid,checksum);
@@ -658,7 +659,7 @@ void matocsserv_got_createchunk_status(matocsserventry *eptr, const std::vector<
 	chunk_got_create_status(eptr, chunkId, chunkType, status);
 	if (status != 0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " creation status: %s",
-				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
+				eptr->servstrip, eptr->servport, chunkId, lizardfs_error_string(status));
 	}
 }
 
@@ -708,7 +709,7 @@ void matocsserv_got_deletechunk_status(matocsserventry *eptr, const std::vector<
 	eptr->delcounter--;
 	if (status != 0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " deletion status: %s",
-				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
+				eptr->servstrip, eptr->servport, chunkId, lizardfs_error_string(status));
 	}
 }
 
@@ -805,7 +806,7 @@ void matocsserv_got_replicatechunk_status(matocsserventry *eptr, const std::vect
 	chunk_got_replicate_status(eptr, chunkId, chunkVersion, chunkType, status);
 	if (status != 0 && status != LIZARDFS_ERROR_WAITING) {
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " replication status: %s",
-				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
+				eptr->servstrip, eptr->servport, chunkId, lizardfs_error_string(status));
 	}
 }
 
@@ -853,7 +854,7 @@ void matocsserv_got_setchunkversion_status(matocsserventry *eptr,
 	chunk_got_setversion_status(eptr, chunkId, chunkType, status);
 	if (status != 0) {
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 " set version status: %s",
-				eptr->servstrip, eptr->servport, chunkId, mfsstrerr(status));
+				eptr->servstrip, eptr->servport, chunkId, lizardfs_error_string(status));
 	}
 }
 
@@ -903,7 +904,7 @@ void matocsserv_got_duplicatechunk_status(matocsserventry* eptr, const std::vect
 	if (status != 0) {
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %" PRIu8
 				" duplication status: %s", eptr->servstrip, eptr->servport,
-				chunkId, chunkType.getId(), mfsstrerr(status));
+				chunkId, chunkType.getId(), lizardfs_error_string(status));
 	}
 }
 
@@ -948,7 +949,8 @@ void matocsserv_got_truncatechunk_status(matocsserventry *eptr, const uint8_t *d
 	status = get8bit(&data);
 	chunk_got_truncate_status(eptr, chunkid, slice_traits::standard::ChunkPartType(), status);
 	if (status!=0) {
-		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",eptr->servstrip,eptr->servport,chunkid,mfsstrerr(status));
+		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 " truncate status: %s",
+		       eptr->servstrip, eptr->servport, chunkid, lizardfs_error_string(status));
 	}
 }
 
@@ -972,7 +974,7 @@ void matocsserv_got_liz_truncatechunk_status(matocsserventry *eptr,
 	if (status!=0) {
 		syslog(LOG_NOTICE,"(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %08" PRIX32
 				" truncate status: %s", eptr->servstrip, eptr->servport, chunkId,
-				chunkType.getId(), mfsstrerr(status));
+				chunkType.getId(), lizardfs_error_string(status));
 	}
 }
 
@@ -1022,7 +1024,7 @@ void matocsserv_got_duptruncchunk_status(matocsserventry* eptr, const std::vecto
 	if (status != 0) {
 		syslog(LOG_NOTICE, "(%s:%" PRIu16 ") chunk: %016" PRIX64 ", type: %" PRIu8
 				" duplication with truncate status: %s", eptr->servstrip, eptr->servport,
-				chunkId, chunkType.getId(), mfsstrerr(status));
+				chunkId, chunkType.getId(), lizardfs_error_string(status));
 	}
 }
 

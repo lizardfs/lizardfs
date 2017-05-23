@@ -472,9 +472,9 @@ RequestException::RequestException(int error_code) : system_error_code(), lizard
 	assert(error_code != LIZARDFS_STATUS_OK);
 
 	lizardfs_error_code = error_code;
-	system_error_code = mfs_errorconv(error_code);
+	system_error_code = lizardfs_error_conv(error_code);
 	if (debug_mode) {
-		fprintf(stderr, "status: %s\n", mfsstrerr(error_code));
+		fprintf(stderr, "status: %s\n", lizardfs_error_string(error_code));
 	}
 }
 
@@ -599,7 +599,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_l
 		oplog_printf(ctx, "lookup (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 	if (parent == SPECIAL_INODE_ROOT) {
@@ -644,7 +644,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_l
 		oplog_printf(ctx, "lookup (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	if (attr[0]==TYPE_FILE) {
@@ -706,7 +706,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
 	if (status != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "getattr (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	memset(&o_stbuf, 0, sizeof(struct stat));
@@ -785,7 +785,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					(unsigned long int)(stbuf->st_atime),
 					(unsigned long int)(stbuf->st_mtime),
 					(uint64_t)(stbuf->st_size),
-					mfsstrerr(status));
+					lizardfs_error_string(status));
 			throw RequestException(status);
 		}
 	}
@@ -838,7 +838,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					(unsigned long int)(stbuf->st_atime),
 					(unsigned long int)(stbuf->st_mtime),
 					(uint64_t)(stbuf->st_size),
-					mfsstrerr(status));
+					lizardfs_error_string(status));
 			throw RequestException(status);
 		}
 	}
@@ -854,7 +854,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					(unsigned long int)(stbuf->st_atime),
 					(unsigned long int)(stbuf->st_mtime),
 					(uint64_t)(stbuf->st_size),
-					mfsstrerr(LIZARDFS_ERROR_EINVAL));
+					lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 			throw RequestException(LIZARDFS_ERROR_EINVAL);
 		}
 		if (stbuf->st_size>=MAX_FILE_SIZE) {
@@ -868,7 +868,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					(unsigned long int)(stbuf->st_atime),
 					(unsigned long int)(stbuf->st_mtime),
 					(uint64_t)(stbuf->st_size),
-					mfsstrerr(LIZARDFS_ERROR_EFBIG));
+					lizardfs_error_string(LIZARDFS_ERROR_EFBIG));
 			throw RequestException(LIZARDFS_ERROR_EFBIG);
 		}
 		try {
@@ -891,7 +891,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 					(unsigned long int)(stbuf->st_atime),
 					(unsigned long int)(stbuf->st_mtime),
 					(uint64_t)(stbuf->st_size),
-					mfsstrerr(status));
+					lizardfs_error_string(status));
 			throw RequestException(status);
 		}
 	}
@@ -906,7 +906,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 				(unsigned long int)(stbuf->st_atime),
 				(unsigned long int)(stbuf->st_mtime),
 				(uint64_t)(stbuf->st_size),
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	gDirEntryCache.lockAndInvalidateInode(ino);
@@ -967,7 +967,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 				modestr,
 				(unsigned int)mode,
 				(unsigned long int)rdev,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 	if (S_ISFIFO(mode)) {
@@ -987,7 +987,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 				modestr,
 				(unsigned int)mode,
 				(unsigned long int)rdev,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 	}
 
@@ -999,7 +999,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 					modestr,
 					(unsigned int)mode,
 					(unsigned long int)rdev,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1012,7 +1012,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 				modestr,
 				(unsigned int)mode,
 				(unsigned long int)rdev,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1051,7 +1051,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 			oplog_printf(ctx, "unlink (%lu,%s): %s",
 					(unsigned long int)parent,
 					name,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1061,7 +1061,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 		oplog_printf(ctx, "unlink (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1072,7 +1072,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 		oplog_printf(ctx, "unlink (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		oplog_printf(ctx, "unlink (%lu,%s): OK",
@@ -1113,7 +1113,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 					name,
 					modestr+1,
 					(unsigned int)mode,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1124,7 +1124,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1136,7 +1136,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1174,7 +1174,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 			oplog_printf(ctx, "rmdir (%lu,%s): %s",
 					(unsigned long int)parent,
 					name,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1183,7 +1183,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 		oplog_printf(ctx, "rmdir (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1194,7 +1194,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 		oplog_printf(ctx, "rmdir (%lu,%s): %s",
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		oplog_printf(ctx, "rmdir (%lu,%s): OK",
@@ -1228,7 +1228,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 					path,
 					(unsigned long int)parent,
 					name,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1238,7 +1238,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 				path,
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1249,7 +1249,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 				path,
 				(unsigned long int)parent,
 				name,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1292,7 +1292,7 @@ std::string readlink(Context ctx, Inode ino) {
 	if (status != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "readlink (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		symlink_cache_insert(ino,path);
@@ -1330,7 +1330,7 @@ void rename(Context ctx, Inode parent, const char *name,
 					name,
 					(unsigned long int)newparent,
 					newname,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1341,7 +1341,7 @@ void rename(Context ctx, Inode parent, const char *name,
 					name,
 					(unsigned long int)newparent,
 					newname,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1352,7 +1352,7 @@ void rename(Context ctx, Inode parent, const char *name,
 				name,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 	newnleng = strlen(newname);
@@ -1362,7 +1362,7 @@ void rename(Context ctx, Inode parent, const char *name,
 				name,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1376,7 +1376,7 @@ void rename(Context ctx, Inode parent, const char *name,
 				name,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s): OK",
@@ -1414,7 +1414,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 				(unsigned long int)ino,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(LIZARDFS_ERROR_EACCES));
+				lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	if (newparent==SPECIAL_INODE_ROOT) {
@@ -1423,7 +1423,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 					(unsigned long int)ino,
 					(unsigned long int)newparent,
 					newname,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1433,7 +1433,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 				(unsigned long int)ino,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1444,7 +1444,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 				(unsigned long int)ino,
 				(unsigned long int)newparent,
 				newname,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		e.ino = inode;
@@ -1477,7 +1477,7 @@ void opendir(Context ctx, Inode ino) {
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "opendir (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(LIZARDFS_ERROR_ENOTDIR));
+				lizardfs_error_string(LIZARDFS_ERROR_ENOTDIR));
 		throw RequestException(LIZARDFS_ERROR_ENOTDIR);
 	}
 
@@ -1486,7 +1486,7 @@ void opendir(Context ctx, Inode ino) {
 	if (status != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "opendir (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 }
@@ -1510,7 +1510,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entr
 				(unsigned long int)ino,
 				(uint64_t)max_entries,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 
@@ -1685,7 +1685,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 					name,
 					modestr+1,
 					(unsigned int)mode,
-					mfsstrerr(LIZARDFS_ERROR_EACCES));
+					lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 			throw RequestException(LIZARDFS_ERROR_EACCES);
 		}
 	}
@@ -1696,7 +1696,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(LIZARDFS_ERROR_ENAMETOOLONG));
+				lizardfs_error_string(LIZARDFS_ERROR_ENAMETOOLONG));
 		throw RequestException(LIZARDFS_ERROR_ENAMETOOLONG);
 	}
 
@@ -1713,7 +1713,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 
@@ -1725,7 +1725,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	Attributes tmp_attr;
@@ -1738,7 +1738,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 				name,
 				modestr+1,
 				(unsigned int)mode,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 
@@ -1809,7 +1809,7 @@ void open(Context ctx, Inode ino, FileInfo *fi) {
 	if (status != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "open (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 
@@ -1903,7 +1903,7 @@ ReadCache::Result read(Context ctx,
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EBADF));
+				lizardfs_error_string(LIZARDFS_ERROR_EBADF));
 		throw RequestException(LIZARDFS_ERROR_EBADF);
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
@@ -1911,7 +1911,7 @@ ReadCache::Result read(Context ctx,
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EFBIG));
+				lizardfs_error_string(LIZARDFS_ERROR_EFBIG));
 		throw RequestException(LIZARDFS_ERROR_EFBIG);
 	}
 	try {
@@ -1926,7 +1926,7 @@ ReadCache::Result read(Context ctx,
 					(unsigned long int)ino,
 					(uint64_t)size,
 					(uint64_t)off,
-					mfsstrerr(err));
+					lizardfs_error_string(err));
 			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
@@ -1940,7 +1940,7 @@ ReadCache::Result read(Context ctx,
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EACCES));
+				lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	if (fileinfo->mode==IO_WRITE) {
@@ -1954,7 +1954,7 @@ ReadCache::Result read(Context ctx,
 					(unsigned long int)ino,
 					(uint64_t)size,
 					(uint64_t)off,
-					mfsstrerr(err));
+					lizardfs_error_string(err));
 			throw RequestException(err);
 		}
 		write_data_end(fileinfo->data);
@@ -1986,7 +1986,7 @@ ReadCache::Result read(Context ctx,
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(err));
+				lizardfs_error_string(err));
 		throw RequestException(err);
 	} else {
 		uint32_t replyOffset = off - alignedOffset;
@@ -2038,7 +2038,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EBADF));
+				lizardfs_error_string(LIZARDFS_ERROR_EBADF));
 		throw RequestException(LIZARDFS_ERROR_EBADF);
 	}
 	if (off>=MAX_FILE_SIZE || off+size>=MAX_FILE_SIZE) {
@@ -2046,7 +2046,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EFBIG));
+				lizardfs_error_string(LIZARDFS_ERROR_EFBIG));
 		throw RequestException(LIZARDFS_ERROR_EFBIG);
 	}
 	try {
@@ -2061,7 +2061,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 							(unsigned long int)ino,
 							(uint64_t)size,
 							(uint64_t)off,
-							mfsstrerr(err));
+							lizardfs_error_string(err));
 			throw RequestException(err);
 		}
 	} catch (Exception& ex) {
@@ -2074,7 +2074,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(LIZARDFS_ERROR_EACCES));
+				lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	if (fileinfo->mode==IO_READ) {
@@ -2094,7 +2094,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
-				mfsstrerr(err));
+				lizardfs_error_string(err));
 		throw RequestException(err);
 	} else {
 		if (debug_mode) {
@@ -2129,7 +2129,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	if (fileinfo==NULL) {
 		oplog_printf(ctx, "flush (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(LIZARDFS_ERROR_EBADF));
+				lizardfs_error_string(LIZARDFS_ERROR_EBADF));
 		throw RequestException(LIZARDFS_ERROR_EBADF);
 	}
 
@@ -2147,7 +2147,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	if (err != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "flush (%lu): %s",
 				(unsigned long int)ino,
-				mfsstrerr(err));
+				lizardfs_error_string(err));
 		throw RequestException(err);
 	} else {
 		oplog_printf(ctx, "flush (%lu): OK",
@@ -2176,7 +2176,7 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 		oplog_printf(ctx, "fsync (%lu,%d): %s",
 				(unsigned long int)ino,
 				datasync,
-				mfsstrerr(LIZARDFS_ERROR_EBADF));
+				lizardfs_error_string(LIZARDFS_ERROR_EBADF));
 		throw RequestException(LIZARDFS_ERROR_EBADF);
 	}
 	err = LIZARDFS_STATUS_OK;
@@ -2188,7 +2188,7 @@ void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
 		oplog_printf(ctx, "fsync (%lu,%d): %s",
 				(unsigned long int)ino,
 				datasync,
-				mfsstrerr(err));
+				lizardfs_error_string(err));
 		throw RequestException(err);
 	} else {
 		oplog_printf(ctx, "fsync (%lu,%d): OK",
@@ -2401,7 +2401,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 	}
 	if (size>MFS_XATTR_SIZE_MAX) {
@@ -2412,7 +2412,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_E2BIG));
+				lizardfs_error_string(LIZARDFS_ERROR_E2BIG));
 		throw RequestException(LIZARDFS_ERROR_E2BIG);
 #else
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
@@ -2420,7 +2420,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_ERANGE));
+				lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 		throw RequestException(LIZARDFS_ERROR_ERANGE);
 #endif
 	}
@@ -2433,7 +2433,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 #else
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
@@ -2441,7 +2441,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_ERANGE));
+				lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 		throw RequestException(LIZARDFS_ERROR_ERANGE);
 #endif
 	}
@@ -2451,7 +2451,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	if (strcmp(name,"security.capability")==0) {
@@ -2460,7 +2460,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_ENOTSUP));
+				lizardfs_error_string(LIZARDFS_ERROR_ENOTSUP));
 		throw RequestException(LIZARDFS_ERROR_ENOTSUP);
 	}
 #if defined(XATTR_CREATE) && defined(XATTR_REPLACE)
@@ -2470,7 +2470,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	mode = (flags==XATTR_CREATE)?XATTR_SMODE_CREATE_ONLY:(flags==XATTR_REPLACE)?XATTR_SMODE_REPLACE_ONLY:XATTR_SMODE_CREATE_OR_REPLACE;
@@ -2485,7 +2485,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 				name,
 				(uint64_t)size,
 				flags,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): OK",
@@ -2517,7 +2517,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_ENODATA));
+				lizardfs_error_string(LIZARDFS_ERROR_ENODATA));
 		throw RequestException(LIZARDFS_ERROR_ENODATA);
 	}
 	nleng = strlen(name);
@@ -2528,14 +2528,14 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 #else
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_ERANGE));
+				lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 		throw RequestException(LIZARDFS_ERROR_ERANGE);
 #endif
 	}
@@ -2544,7 +2544,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	if (strcmp(name,"security.capability")==0) {
@@ -2552,7 +2552,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_ENOTSUP));
+				lizardfs_error_string(LIZARDFS_ERROR_ENOTSUP));
 		throw RequestException(LIZARDFS_ERROR_ENOTSUP);
 	}
 	if (size==0) {
@@ -2568,7 +2568,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	if (size==0) {
@@ -2584,7 +2584,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 					(unsigned long int)ino,
 					name,
 					(uint64_t)size,
-					mfsstrerr(LIZARDFS_ERROR_ERANGE));
+					lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 			throw RequestException(LIZARDFS_ERROR_ERANGE);
 		} else {
 			oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",
@@ -2614,7 +2614,7 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 	}
 	if (size==0) {
@@ -2628,7 +2628,7 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	}
 	if (size==0) {
@@ -2642,7 +2642,7 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 			oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
 					(unsigned long int)ino,
 					(uint64_t)size,
-					mfsstrerr(LIZARDFS_ERROR_ERANGE));
+					lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 			throw RequestException(LIZARDFS_ERROR_ERANGE);
 		} else {
 			oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): OK (%" PRIu32 ")",
@@ -2669,7 +2669,7 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
 				(unsigned long int)ino,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 	}
 	nleng = strlen(name);
@@ -2679,13 +2679,13 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
 				(unsigned long int)ino,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_EPERM));
+				lizardfs_error_string(LIZARDFS_ERROR_EPERM));
 		throw RequestException(LIZARDFS_ERROR_EPERM);
 #else
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
 				(unsigned long int)ino,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_ERANGE));
+				lizardfs_error_string(LIZARDFS_ERROR_ERANGE));
 		throw RequestException(LIZARDFS_ERROR_ERANGE);
 #endif
 	}
@@ -2693,7 +2693,7 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
 				(unsigned long int)ino,
 				name,
-				mfsstrerr(LIZARDFS_ERROR_EINVAL));
+				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 	status = choose_xattr_handler(name)->removexattr(ctx, ino, name, nleng);
@@ -2701,7 +2701,7 @@ void removexattr(Context ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
 				(unsigned long int)ino,
 				name,
-				mfsstrerr(status));
+				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
 		oplog_printf(ctx, "removexattr (%lu,%s): OK",
@@ -2724,16 +2724,16 @@ void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper
 	stats_inc(OP_FLOCK);
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
-			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 
 	if (!fi) {
 		if (debug_mode) {
-			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -2753,16 +2753,16 @@ uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::Flo
 	stats_inc(OP_SETLK);
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
-			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 
 	if (!fi) {
 		if (debug_mode) {
-			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -2804,16 +2804,16 @@ uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op) {
 	stats_inc(OP_FLOCK);
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
-			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
 
 	if (!fi) {
 		if (debug_mode) {
-			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, mfsstrerr(LIZARDFS_ERROR_EINVAL));
+			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
+			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}

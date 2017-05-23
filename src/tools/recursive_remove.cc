@@ -108,7 +108,7 @@ static int recursive_remove(const char *file_name, int long_wait) {
 			printf("Recursive remove (%s) completed\n", path_buf);
 			return 0;
 		} else {
-			printf("Recursive remove (%s):\n returned error status %d: %s\n", path_buf, status, mfsstrerr(status));
+			printf("Recursive remove (%s):\n returned error status %d: %s\n", path_buf, status, lizardfs_error_string(status));
 			return -1;
 		}
 

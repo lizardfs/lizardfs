@@ -49,7 +49,7 @@ void ReloadConfigCommand::run(const Options& options) const {
 			connection->sendAndReceive(cltoma::adminReload::build(), LIZ_MATOCL_ADMIN_RELOAD);
 	uint8_t status;
 	matocl::adminStopWithoutMetadataDump::deserialize(adminReloadResponse, status);
-	std::cerr << mfsstrerr(status) << std::endl;
+	std::cerr << lizardfs_error_string(status) << std::endl;
 	if (status != LIZARDFS_STATUS_OK) {
 		exit(1);
 	}

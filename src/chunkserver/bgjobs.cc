@@ -265,8 +265,8 @@ void* job_worker(void *th_arg) {
 					if (ret != LIZARDFS_STATUS_OK) {
 						lzfs_silent_syslog(LOG_ERR,
 								"read job: cannot close chunk after read error (%s): %s",
-								mfsstrerr(status),
-								mfsstrerr(ret));
+								lizardfs_error_string(status),
+								lizardfs_error_string(ret));
 					}
 				}
 				break;

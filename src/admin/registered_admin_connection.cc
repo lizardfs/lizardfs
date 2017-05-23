@@ -87,7 +87,7 @@ std::unique_ptr<RegisteredAdminConnection> RegisteredAdminConnection::create(
 	matocl::adminRegisterResponse::deserialize(registerResponse, status);
 	if (status != LIZARDFS_STATUS_OK) {
 		throw ConnectionException(
-				std::string("Authentication with the admin password failed: ") + mfsstrerr(status));
+				std::string("Authentication with the admin password failed: ") + lizardfs_error_string(status));
 	}
 	return connection;
 }

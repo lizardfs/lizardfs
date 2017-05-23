@@ -23,7 +23,7 @@
 lizardfs::detail::lizardfs_error_category lizardfs::detail::lizardfs_error_category::instance_;
 
 std::string lizardfs::detail::lizardfs_error_category::message(int ev) const {
-	return mfsstrerr(ev);
+	return lizardfs_error_string(ev);
 }
 
 bool lizardfs::detail::lizardfs_error_category::equivalent(

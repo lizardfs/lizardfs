@@ -30,7 +30,7 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	            lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeMasterInfo
@@ -59,7 +59,7 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	            lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeOplog
@@ -71,7 +71,7 @@ static BytesWritten write(const Context &ctx, const char */*buf*/, size_t size,
 	            (unsigned long int)inode_,
 	            (uint64_t)size,
 	            (uint64_t)off,
-	            mfsstrerr(LIZARDFS_ERROR_EACCES));
+	            lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 	throw RequestException(LIZARDFS_ERROR_EACCES);
 }
 } // InodeOphistory

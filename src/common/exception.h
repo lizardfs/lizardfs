@@ -35,7 +35,7 @@ public:
 	Exception(const std::string& message, uint8_t status) : message_(message), status_(status) {
 		assert(status != LIZARDFS_STATUS_OK);
 		if (status != LIZARDFS_ERROR_UNKNOWN) {
-			message_ += " (" + std::string(mfsstrerr(status)) + ")";
+			message_ += " (" + std::string(lizardfs_error_string(status)) + ")";
 		}
 	}
 

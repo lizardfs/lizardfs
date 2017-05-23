@@ -105,7 +105,8 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 			printf("Snapshot %s -> %s/%s completed\n", srcname, dstdir, dstbase);
 			return 0;
 		} else {
-			printf("Snapshot %s -> %s/%s:\n returned error status %d: %s\n", srcname, dstdir, dstbase, status, mfsstrerr(status));
+			printf("Snapshot %s -> %s/%s:\n returned error status %d: %s\n",
+			       srcname, dstdir, dstbase, status, lizardfs_error_string(status));
 			return -1;
 		}
 

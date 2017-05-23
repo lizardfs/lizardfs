@@ -49,7 +49,7 @@ void MagicRecalculateMetadataChecksumCommand::run(const Options& options) const 
 	auto response = connection->sendAndReceive(request, LIZ_MATOCL_ADMIN_RECALCULATE_METADATA_CHECKSUM);
 	uint8_t status;
 	matocl::adminRecalculateMetadataChecksum::deserialize(response, status);
-	std::cerr << mfsstrerr(status) << std::endl;
+	std::cerr << lizardfs_error_string(status) << std::endl;
 	if (status != LIZARDFS_STATUS_OK) {
 		exit(1);
 	}

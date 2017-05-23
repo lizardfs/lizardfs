@@ -30,7 +30,7 @@ namespace InodeMasterInfo {
 static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: MASTERINFO): %s",
-		            (unsigned long int)inode_, mfsstrerr(LIZARDFS_ERROR_EACCES));
+		            (unsigned long int)inode_, lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = 0;
@@ -48,7 +48,7 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if (statsinfo==NULL) {
 		oplog_printf(ctx, "open (%lu) (internal node: STATS): %s",
 		            (unsigned long int)inode_,
-		            mfsstrerr(LIZARDFS_ERROR_OUTOFMEMORY));
+		            lizardfs_error_string(LIZARDFS_ERROR_OUTOFMEMORY));
 		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
 	}
 	pthread_mutex_init(&(statsinfo->lock),NULL);         // make helgrind happy
@@ -68,7 +68,7 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: OPLOG): %s",
 		            (unsigned long int)inode_,
-		            mfsstrerr(LIZARDFS_ERROR_EACCES));
+		            lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = oplog_newhandle(0);
@@ -84,7 +84,7 @@ static void open(const Context &ctx, FileInfo *fi) {
 	if ((fi->flags & O_ACCMODE) != O_RDONLY) {
 		oplog_printf(ctx, "open (%lu) (internal node: OPHISTORY): %s",
 		            (unsigned long int)inode_,
-		            mfsstrerr(LIZARDFS_ERROR_EACCES));
+		            lizardfs_error_string(LIZARDFS_ERROR_EACCES));
 		throw RequestException(LIZARDFS_ERROR_EACCES);
 	}
 	fi->fh = oplog_newhandle(1);

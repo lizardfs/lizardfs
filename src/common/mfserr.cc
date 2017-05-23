@@ -43,7 +43,7 @@
 # endif
 #endif
 
-int mfs_errorconv(uint8_t status) {
+int lizardfs_error_conv(uint8_t status) {
 	switch (status) {
 		case LIZARDFS_STATUS_OK:
 			return 0;

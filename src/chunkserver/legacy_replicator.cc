@@ -399,7 +399,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // create chunk
 	status = hdd_create(chunkid, 0, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -448,7 +448,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // open chunk
 	status = hdd_open(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -511,7 +511,8 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 			return LIZARDFS_ERROR_WRONGVERSION;
 		}
 		if (pstatus!=LIZARDFS_STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+			       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return pstatus;
 		}
@@ -544,7 +545,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // wait for replication bandwidth limit to be assigned
 	status = replicationBandwidthLimiter().wait(requestsSummaryLength, std::chrono::seconds(60));
 	if (status != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING, "Replication bandwidth limit error: %s", mfsstrerr(status));
+		syslog(LOG_WARNING, "Replication bandwidth limit error: %s", lizardfs_error_string(status));
 		return status;
 	}
 // send read request
@@ -602,7 +603,8 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_DISCONNECTED;
 					}
-					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+					       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 					rep_cleanup(&r);
 					return pstatus;
 				} else if (type==CSTOCL_READ_DATA && size==20+MFSBLOCKSIZE) {
@@ -652,7 +654,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 					status = hdd_write(chunkid, 0, slice_traits::standard::ChunkPartType(),
 							b, 0, MFSBLOCKSIZE, crc, rptr + 20);
 					if (status!=LIZARDFS_STATUS_OK) {
-						syslog(LOG_WARNING,"replicator: write status: %s",mfsstrerr(status));
+						syslog(LOG_WARNING,"replicator: write status: %s",lizardfs_error_string(status));
 						rep_cleanup(&r);
 						return status;
 					}
@@ -697,7 +699,8 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 				return LIZARDFS_ERROR_WRONGCHUNKID;
 			}
 			if (pstatus!=LIZARDFS_STATUS_OK) {
-				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",mfsstrerr(pstatus),r.repsources[i].ip,r.repsources[i].port);
+				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+				       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return pstatus;
 			}
@@ -706,14 +709,14 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // close chunk and change version
 	status = hdd_close(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
 	r.opened = 0;
 	status = hdd_version(chunkid, 0, slice_traits::standard::ChunkPartType(), version);
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",mfsstrerr(status));
+		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}

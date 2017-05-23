@@ -88,7 +88,7 @@ static int get_eattr(const char *fname, uint8_t mode) {
 	}
 	leng -= 4;
 	if (leng == 1) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		printf("%s: %s\n", fname, lizardfs_error_string(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng % 5 != 2) {

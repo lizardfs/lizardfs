@@ -108,7 +108,7 @@ static int append_file(const char *fname, const char *afname) {
 		free(buff);
 		return -1;
 	} else if (*rptr != LIZARDFS_STATUS_OK) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		printf("%s: %s\n", fname, lizardfs_error_string(*rptr));
 		free(buff);
 		return -1;
 	}

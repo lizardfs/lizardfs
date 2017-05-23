@@ -22,19 +22,11 @@
 
 #include <inttypes.h>
 
+#include "common/lizardfs_error_codes.h"
 #include "protocol/MFSCommunication.h"
 
 /// returns errno string representation
 const char* strerr(int error);
 
 /// converts mfs error to errno
-int mfs_errorconv(uint8_t status);
-
-/// returns mfs error string representation
-static inline const char* mfsstrerr(uint8_t status) {
-	static const char* errtab[]={LIZARDFS_ERROR_STRINGS};
-	if (status>LIZARDFS_ERROR_MAX) {
-		status=LIZARDFS_ERROR_MAX;
-	}
-	return errtab[status];
-}
+int lizardfs_error_conv(uint8_t status);

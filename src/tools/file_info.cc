@@ -104,7 +104,7 @@ static int file_info(const char *fileName) {
 			return -1;
 		}
 		if (status != LIZARDFS_STATUS_OK) {
-			printf("%s [tape info]: %s\n", fileName, mfsstrerr(status));
+			printf("%s [tape info]: %s\n", fileName, lizardfs_error_string(status));
 			close_master_conn(1);
 			return -1;
 		}
@@ -188,7 +188,7 @@ static int file_info(const char *fileName) {
 				return -1;
 			}
 			if (status != LIZARDFS_STATUS_OK) {
-				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, mfsstrerr(status));
+				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, lizardfs_error_string(status));
 				close_master_conn(1);
 				return -1;
 			}

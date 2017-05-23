@@ -101,7 +101,7 @@ static void processUnlock(RegisteredAdminConnection &conn, const Options &option
 
 	uint8_t status;
 	matocl::manageLocksUnlock::deserialize(response, status);
-	std::cerr << "Status: " << mfsstrerr(status) << std::endl;
+	std::cerr << "Status: " << lizardfs_error_string(status) << std::endl;
 	if (status == LIZARDFS_ERROR_EPERM) {
 		std::cerr << "This error might be caused by unmatched owner, sessionid, start or end"
 			" parameters." << std::endl;

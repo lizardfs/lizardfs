@@ -96,7 +96,7 @@ static int set_trashtime(const char *fname, uint32_t trashtime, uint8_t mode, in
 	}
 	leng -= 4;
 	if (leng == 1) {
-		printf("%s: %s\n", fname, mfsstrerr(*rptr));
+		printf("%s: %s\n", fname, lizardfs_error_string(*rptr));
 		free(buff);
 		return -1;
 	} else if (leng != 12) {
