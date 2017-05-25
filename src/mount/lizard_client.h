@@ -39,12 +39,172 @@ namespace LizardClient {
 
 typedef unsigned long int Inode;
 
+struct FsInitParams {
+	static constexpr const char *kDefaultSubfolder = "/";
+	static constexpr bool     kDefaultDoNotRememberPassword = false;
+	static constexpr bool     kDefaultDelayedInit = false;
+#ifdef _WIN32
+	static constexpr unsigned kDefaultReportReservedPeriod = 60;
+#else
+	static constexpr unsigned kDefaultReportReservedPeriod = 30;
+#endif
+	static constexpr unsigned kDefaultIoRetries = 30;
+	static constexpr unsigned kDefaultRoundTime = 200;
+	static constexpr unsigned kDefaultChunkserverConnectTo = 2000;
+	static constexpr unsigned kDefaultChunkserverReadTo = 2000;
+	static constexpr unsigned kDefaultChunkserverWaveReadTo = 500;
+	static constexpr unsigned kDefaultChunkserverTotalReadTo = 2000;
+	static constexpr unsigned kDefaultCacheExpirationTime = 0;
+	static constexpr unsigned kDefaultReadaheadMaxWindowSize = 4096;
+	static constexpr bool     kDefaultPrefetchXorStripes = false;
+
+	static constexpr float    kDefaultBandwidthOveruse = 1.25;
+	static constexpr unsigned kDefaultChunkserverWriteTo = 5000;
+#ifdef _WIN32
+	static constexpr unsigned kDefaultWriteCacheSize = 50;
+#else
+	static constexpr unsigned kDefaultWriteCacheSize = 0;
+#endif
+	static constexpr unsigned kDefaultCachePerInodePercentage = 25;
+	static constexpr unsigned kDefaultWriteWorkers = 10;
+	static constexpr unsigned kDefaultWriteWindowSize = 15;
+	static constexpr unsigned kDefaultSymlinkCacheTimeout = 3600;
+
+	static constexpr bool     kDefaultDebugMode = false;
+	static constexpr bool     kDefaultKeepCache = false;
+	static constexpr double   kDefaultDirentryCacheTimeout = 0.25;
+	static constexpr unsigned kDefaultDirentryCacheSize = 100000;
+	static constexpr double   kDefaultEntryCacheTimeout = 0.0;
+	static constexpr double   kDefaultAttrCacheTimeout = 1.0;
+#ifdef __linux__
+	static constexpr bool     kDefaultMkdirCopySgid = true;
+#else
+	static constexpr bool     kDefaultMkdirCopySgid = false;
+#endif
+#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
+	static constexpr SugidClearMode kDefaultSugidClearMode = SugidClearMode::kExt;
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
+	static constexpr SugidClearMode kDefaultSugidClearMode = SugidClearMode::kBsd;
+#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
+	static constexpr SugidClearMode kDefaultSugidClearMode = SugidClearMode::kOsx;
+#else
+	static constexpr SugidClearMode kDefaultSugidClearMode = SugidClearMode::kNever;
+#endif
+	static constexpr bool     kDefaultAclEnabled = false;
+	static constexpr bool     kDefaultUseRwLock = true;
+	static constexpr double   kDefaultAclCacheTimeout = 1.0;
+	static constexpr unsigned kDefaultAclCacheSize = 1000;
+	static constexpr bool     kDefaultVerbose = false;
+
+	// Thank you, GCC 4.6, for no delegating constructors
+	FsInitParams()
+	             : bind_host(), host(), port(), meta(false), mountpoint(), subfolder(kDefaultSubfolder),
+	             do_not_remember_password(kDefaultDoNotRememberPassword), delayed_init(kDefaultDelayedInit),
+	             report_reserved_period(kDefaultReportReservedPeriod),
+	             io_retries(kDefaultIoRetries),
+	             chunkserver_round_time_ms(kDefaultRoundTime),
+	             chunkserver_connect_timeout_ms(kDefaultChunkserverConnectTo),
+	             chunkserver_wave_read_timeout_ms(kDefaultChunkserverWaveReadTo),
+	             total_read_timeout_ms(kDefaultChunkserverTotalReadTo),
+	             cache_expiration_time_ms(kDefaultCacheExpirationTime),
+	             readahead_max_window_size_kB(kDefaultReadaheadMaxWindowSize),
+	             prefetch_xor_stripes(kDefaultPrefetchXorStripes),
+	             bandwidth_overuse(kDefaultBandwidthOveruse),
+	             write_cache_size(kDefaultWriteCacheSize),
+	             write_workers(kDefaultWriteWorkers), write_window_size(kDefaultWriteWindowSize),
+	             chunkserver_write_timeout_ms(kDefaultChunkserverWriteTo),
+	             cache_per_inode_percentage(kDefaultCachePerInodePercentage),
+	             symlink_cache_timeout_s(kDefaultSymlinkCacheTimeout),
+	             debug_mode(kDefaultDebugMode), keep_cache(kDefaultKeepCache),
+	             direntry_cache_timeout(kDefaultDirentryCacheTimeout), direntry_cache_size(kDefaultDirentryCacheSize),
+	             entry_cache_timeout(kDefaultEntryCacheTimeout), attr_cache_timeout(kDefaultAttrCacheTimeout),
+	             mkdir_copy_sgid(kDefaultMkdirCopySgid), sugid_clear_mode(kDefaultSugidClearMode),
+	             acl_enabled(kDefaultAclEnabled), use_rw_lock(kDefaultUseRwLock),
+	             acl_cache_timeout(kDefaultAclCacheTimeout), acl_cache_size(kDefaultAclCacheSize),
+	             verbose(kDefaultVerbose) {
+	}
+
+	FsInitParams(const std::string &bind_host, const std::string &host, const std::string &port, const std::string &mountpoint)
+	             : bind_host(bind_host), host(host), port(port), meta(false), mountpoint(mountpoint), subfolder(kDefaultSubfolder),
+	             do_not_remember_password(kDefaultDoNotRememberPassword), delayed_init(kDefaultDelayedInit),
+	             report_reserved_period(kDefaultReportReservedPeriod),
+	             io_retries(kDefaultIoRetries),
+	             chunkserver_round_time_ms(kDefaultRoundTime),
+	             chunkserver_connect_timeout_ms(kDefaultChunkserverConnectTo),
+	             chunkserver_wave_read_timeout_ms(kDefaultChunkserverWaveReadTo),
+	             total_read_timeout_ms(kDefaultChunkserverTotalReadTo),
+	             cache_expiration_time_ms(kDefaultCacheExpirationTime),
+	             readahead_max_window_size_kB(kDefaultReadaheadMaxWindowSize),
+	             prefetch_xor_stripes(kDefaultPrefetchXorStripes),
+	             bandwidth_overuse(kDefaultBandwidthOveruse),
+	             write_cache_size(kDefaultWriteCacheSize),
+	             write_workers(kDefaultWriteWorkers), write_window_size(kDefaultWriteWindowSize),
+	             chunkserver_write_timeout_ms(kDefaultChunkserverWriteTo),
+	             cache_per_inode_percentage(kDefaultCachePerInodePercentage),
+	             symlink_cache_timeout_s(kDefaultSymlinkCacheTimeout),
+	             debug_mode(kDefaultDebugMode), keep_cache(kDefaultKeepCache),
+	             direntry_cache_timeout(kDefaultDirentryCacheTimeout), direntry_cache_size(kDefaultDirentryCacheSize),
+	             entry_cache_timeout(kDefaultEntryCacheTimeout), attr_cache_timeout(kDefaultAttrCacheTimeout),
+	             mkdir_copy_sgid(kDefaultMkdirCopySgid), sugid_clear_mode(kDefaultSugidClearMode),
+	             acl_enabled(kDefaultAclEnabled), use_rw_lock(kDefaultUseRwLock),
+	             acl_cache_timeout(kDefaultAclCacheTimeout), acl_cache_size(kDefaultAclCacheSize),
+	             verbose(kDefaultVerbose) {
+	}
+
+	std::string bind_host;
+	std::string host;
+	std::string port;
+	bool meta;
+	std::string mountpoint;
+	std::string subfolder;
+	std::vector<uint8_t> password_digest;
+	bool do_not_remember_password;
+	bool delayed_init;
+	unsigned report_reserved_period;
+
+	unsigned io_retries;
+	unsigned chunkserver_round_time_ms;
+	unsigned chunkserver_connect_timeout_ms;
+	unsigned chunkserver_wave_read_timeout_ms;
+	unsigned total_read_timeout_ms;
+	unsigned cache_expiration_time_ms;
+	unsigned readahead_max_window_size_kB;
+	bool prefetch_xor_stripes;
+	double bandwidth_overuse;
+
+	unsigned write_cache_size;
+	unsigned write_workers;
+	unsigned write_window_size;
+	unsigned chunkserver_write_timeout_ms;
+	unsigned cache_per_inode_percentage;
+	unsigned symlink_cache_timeout_s;
+
+	bool debug_mode;
+	bool keep_cache;
+	double direntry_cache_timeout;
+	unsigned direntry_cache_size;
+	double entry_cache_timeout;
+	double attr_cache_timeout;
+	bool mkdir_copy_sgid;
+	SugidClearMode sugid_clear_mode;
+	bool acl_enabled;
+	bool use_rw_lock;
+	double acl_cache_timeout;
+	unsigned acl_cache_size;
+
+	bool verbose;
+
+	std::string io_limits_config_file;
+};
+
 /**
  * A class that is used for passing information between subsequent calls to the filesystem.
  * It is created when a file is opened, updated with every use of the file descriptor and
  * removed when a file is closed.
  */
 struct FileInfo {
+	FileInfo() {}
+
 	FileInfo(int flags, unsigned int direct_io, unsigned int keep_cache, uint64_t fh,
 		uint64_t lock_owner)
 			: flags(flags),
@@ -52,6 +212,15 @@ struct FileInfo {
 			keep_cache(keep_cache),
 			fh(fh),
 			lock_owner(lock_owner) {
+	}
+
+	FileInfo &operator=(FileInfo &&other) {
+		flags = other.flags;
+		direct_io = other.direct_io;
+		keep_cache = other.keep_cache;
+		fh = other.fh;
+		lock_owner = other.lock_owner;
+		return *this;
 	}
 
 	int flags;
@@ -204,6 +373,7 @@ void flock_recv();
 void flock_interrupt(const lzfs_locks::InterruptData &data);
 void setlk_interrupt(const lzfs_locks::InterruptData &data);
 
+// NOTICE(sarna): Becomes obsolete, used only in fuse/main.cc and polonaise, to be removed in the next commit
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 		unsigned direntry_cache_size_, double entry_cache_timeout_, double attr_cache_timeout_,
 		int mkdir_copy_sgid_, SugidClearMode sugid_clear_mode_, bool acl_enabled_,
@@ -212,17 +382,9 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);
 
-// TODO what about following fuse_lowlevel_ops functions?
-// destroy
-// forget
-// fsyncdir
-// bmap
-// ioctl
-// poll
-// write_buf
-// retrieve_reply
-// forget_multi
-// fallocate
-// readdirplus
+// NOTICE(sarna): It calls init() as well and makes it obsolete (used only in fuse/main.cc and polonaise)
+void fs_init(FsInitParams &params);
 
-} // namespace LizardClient
+void fs_term();
+
+}

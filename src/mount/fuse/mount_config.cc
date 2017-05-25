@@ -18,6 +18,7 @@
 
 #include "common/platform.h"
 #include "mount/fuse/mount_config.h"
+#include "mount/sugid_clear_mode_string.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,8 +106,6 @@ struct fuse_opt gMfsOptsStage2[] = {
 };
 
 void usage(const char *progname) {
-#define STR_AUX(x) #x
-#define STR(x) STR_AUX(x)
 	fprintf(stderr,
 "usage: %s mountpoint [options]\n"
 "\n", progname);
@@ -130,65 +129,79 @@ void usage(const char *progname) {
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
-"    -o mfsacl                   enable ACL support (disabled by default)\n"
+"    -o mfsacl                   enable ACL support (%s by default)\n"
 "    -o mfsrwlock=0|1            when set to 1, parallel reads from the same descriptor are"
-		" performed (default: 1)\n"
-#ifdef __linux__
-"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 1)\n"
-#else
-"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: 0)\n"
-#endif
-#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: EXT)\n"
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: BSD)\n"
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: OSX)\n"
-#else
-"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: NEVER)\n"
-#endif
+		" performed (default: %d)\n"
+"    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: %d)\n"
+"    -o mfssugidclearmode=SMODE  set sugid clear mode (see below ; default: %s)\n"
 "    -o mfscachemode=CMODE       set cache mode (see below ; default: AUTO)\n"
 "    -o mfscachefiles            (deprecated) equivalent to '-o mfscachemode=YES'\n"
-"    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: 1.0)\n"
-"    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: 0.0)\n"
-"    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: 0.25)\n"
-"    -o mfsdirentrycachesize=N   define directory entry cache size in number of entries (default: 100000)\n"
-"    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: 1.0)\n"
-"    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: 60)\n"
-"    -o mfschunkserverrtt=MSEC   set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver (default: " STR(LIZARDFS_MOUNT_DEFAULT_RTT) ")\n"
-"    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
-"    -o mfschunkserverwavereadto=MSEC   set timeout for executing each wave of a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWAVEREADTO) ")\n"
-"    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERREADTO) ")\n"
-"    -o cacheexpirationtime=MSEC set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: " STR(LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS) ")\n"
-"    -o readaheadmaxwindowsize=KB set max value of readahead window per single descriptor in kibibytes (default: " STR(LIZARDFS_MOUNT_DEFAULT_CACHE_EXPIRATION_TIME_MS) ")\n"
+"    -o mfsattrcacheto=SEC       set attributes cache timeout in seconds (default: %.2f)\n"
+"    -o mfsentrycacheto=SEC      set file entry cache timeout in seconds (default: %.2f)\n"
+"    -o mfsdirentrycacheto=SEC   set directory entry cache timeout in seconds (default: %.2f)\n"
+"    -o mfsdirentrycachesize=N   define directory entry cache size in number of entries (default: %u)\n"
+"    -o mfsaclcacheto=SEC        set ACL cache timeout in seconds (default: %.2f)\n"
+"    -o mfsreportreservedperiod=SEC set reporting reserved inodes interval in seconds (default: %u)\n"
+"    -o mfschunkserverrtt=MSEC   set timeout after which SYN packet is considered lost during the first retry of connecting a chunkserver (default: %u)\n"
+"    -o mfschunkserverconnectreadto=MSEC set timeout for connecting with chunkservers during read operation in milliseconds (default: %u)\n"
+"    -o mfschunkserverwavereadto=MSEC   set timeout for executing each wave of a read operation in milliseconds (default: %u)\n"
+"    -o mfschunkservertotalreadto=MSEC   set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: %u)\n"
+"    -o cacheexpirationtime=MSEC set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: %u)\n"
+"    -o readaheadmaxwindowsize=KB set max value of readahead window per single descriptor in kibibytes (default: %u)\n"
 "    -o mfsprefetchxorstripes    prefetch full xor stripe on every first read of a xor chunk\n"
-"    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: " STR(LIZARDFS_MOUNT_DEFAULT_CHUNKSERVERWRITETO) ")\n"
+"    -o mfschunkserverwriteto=MSEC       set chunkserver response timeout during write operation in milliseconds (default: %u)\n"
 "    -o mfsnice=N                on startup mfsmount tries to change his 'nice' value (default: -19)\n"
 #ifdef MFS_USE_MEMLOCK
 "    -o mfsmemlock               try to lock memory\n"
 #endif
-"    -o mfswritecachesize=N      define size of write cache in MiB (default: 128)\n"
-"    -o mfsaclcachesize=N        define ACL cache size in number of entries (0: no cache; default: 1000)\n"
-"    -o mfscacheperinodepercentage  define what part of the write cache non occupied by other inodes"
-"                                   can a single inode occupy (in %%, default: 25)\n"
-"    -o mfswriteworkers=N        define number of write workers (default: 10)\n"
-"    -o mfsioretries=N           define number of retries before I/O error is returned (default: 30)\n"
-"    -o mfswritewindowsize=N     define write window size (in blocks) for each chunk (default: 15)\n"
+"    -o mfswritecachesize=N      define size of write cache in MiB (default: %u)\n"
+"    -o mfsaclcachesize=N        define ACL cache size in number of entries (0: no cache; default: %u)\n"
+"    -o mfscacheperinodepercentage  define what part of the write cache non occupied by other inodes can a single inode occupy (in %%, default: %u)\n"
+"    -o mfswriteworkers=N        define number of write workers (default: %u)\n"
+"    -o mfsioretries=N           define number of retries before I/O error is returned (default: %u)\n"
+"    -o mfswritewindowsize=N     define write window size (in blocks) for each chunk (default: %u)\n"
 "    -o mfsmaster=HOST           define mfsmaster location (default: mfsmaster)\n"
 "    -o mfsport=PORT             define mfsmaster port number (default: 9421)\n"
 "    -o mfsbind=IP               define source ip address for connections (default: NOT DEFINED - chosen automatically by OS)\n"
-"    -o mfssubfolder=PATH        define subfolder to mount as root (default: /)\n"
+"    -o mfssubfolder=PATH        define subfolder to mount as root (default: %s)\n"
 "    -o mfspassword=PASSWORD     authenticate to mfsmaster with password\n"
 "    -o mfsmd5pass=MD5           authenticate to mfsmaster using directly given md5 (only if mfspassword is not defined)\n"
 "    -o askpassword              show prompt and ask user for password\n"
 "    -o mfsdonotrememberpassword do not remember password in memory - more secure, but when session is lost then new session is created without password\n"
 "    -o mfsiolimits=FILE         define I/O limits configuration file\n"
-"    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: 3600)\n"
-"    -o bandwidthoveruse=N       define ratio of allowed bandwidth overuse when fetching data (default: 1.25)\n"
+"    -o symlinkcachetimeout=N    define timeout of symlink cache in seconds (default: %u)\n"
+"    -o bandwidthoveruse=N       define ratio of allowed bandwidth overuse when fetching data (default: %.2f)\n"
 #if FUSE_VERSION >= 26
 "    -o enablefilelocks=0|1      enables/disables global file locking (disabled by default)\n"
 #endif
-"\n");
+"\n",
+		(LizardClient::FsInitParams::kDefaultAclEnabled ? "enabled" : "disabled"),
+		LizardClient::FsInitParams::kDefaultUseRwLock,
+		LizardClient::FsInitParams::kDefaultMkdirCopySgid,
+		sugidClearModeString(LizardClient::FsInitParams::kDefaultSugidClearMode),
+		LizardClient::FsInitParams::kDefaultAttrCacheTimeout,
+		LizardClient::FsInitParams::kDefaultEntryCacheTimeout,
+		LizardClient::FsInitParams::kDefaultDirentryCacheTimeout,
+		LizardClient::FsInitParams::kDefaultDirentryCacheSize,
+		LizardClient::FsInitParams::kDefaultAclCacheTimeout,
+		LizardClient::FsInitParams::kDefaultReportReservedPeriod,
+		LizardClient::FsInitParams::kDefaultRoundTime,
+		LizardClient::FsInitParams::kDefaultChunkserverReadTo,
+		LizardClient::FsInitParams::kDefaultChunkserverWaveReadTo,
+		LizardClient::FsInitParams::kDefaultChunkserverTotalReadTo,
+		LizardClient::FsInitParams::kDefaultCacheExpirationTime,
+		LizardClient::FsInitParams::kDefaultReadaheadMaxWindowSize,
+		LizardClient::FsInitParams::kDefaultChunkserverWriteTo,
+		LizardClient::FsInitParams::kDefaultWriteCacheSize,
+		LizardClient::FsInitParams::kDefaultAclCacheSize,
+		LizardClient::FsInitParams::kDefaultCachePerInodePercentage,
+		LizardClient::FsInitParams::kDefaultWriteWorkers,
+		LizardClient::FsInitParams::kDefaultIoRetries,
+		LizardClient::FsInitParams::kDefaultWriteWindowSize,
+		LizardClient::FsInitParams::kDefaultSubfolder,
+		LizardClient::FsInitParams::kDefaultSymlinkCacheTimeout,
+		LizardClient::FsInitParams::kDefaultBandwidthOveruse
+	);
 	fprintf(stderr,
 "CMODE can be set to:\n"
 "    NO,NONE or NEVER            never allow files data to be kept in cache (safest but can reduce efficiency)\n"
@@ -209,8 +222,6 @@ void usage(const char *progname) {
 "    operation - chown(-1,-1) which is usually converted by a kernel into something\n"
 "    like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'\n"
 "\n");
-#undef STR_AUX
-#undef STR
 }
 
 void mfs_opt_parse_cfg_file(const char *filename,int optional,struct fuse_args *outargs) {

@@ -130,19 +130,21 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	int err;
 	int i;
 	md5ctx ctx;
-	uint8_t md5pass[16];
+	std::vector<uint8_t> md5pass;
 
 	if (gMountOptions.passwordask && gMountOptions.password==NULL
 			&& gMountOptions.md5pass==NULL) {
 		gMountOptions.password = getpass("MFS Password:");
 	}
 	if (gMountOptions.password) {
+		md5pass.resize(16);
 		md5_init(&ctx);
 		md5_update(&ctx,(uint8_t*)(gMountOptions.password),
 				strlen(gMountOptions.password));
-		md5_final(md5pass,&ctx);
+		md5_final(md5pass.data(),&ctx);
 		memset(gMountOptions.password,0,strlen(gMountOptions.password));
 	} else if (gMountOptions.md5pass) {
+		md5pass.resize(16);
 		uint8_t *p = (uint8_t*)(gMountOptions.md5pass);
 		for (i=0 ; i<16 ; i++) {
 			if (*p>='0' && *p<='9') {
@@ -175,36 +177,27 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(gMountOptions.md5pass,0,strlen(gMountOptions.md5pass));
 	}
 
+	LizardClient::FsInitParams params(
+		gMountOptions.bindhost ? gMountOptions.bindhost : "",
+		gMountOptions.masterhost,
+		gMountOptions.masterport,
+		mp
+	);
+	params.meta = gMountOptions.meta;
+	params.subfolder = gMountOptions.subfolder;
+	params.password_digest = std::move(md5pass);
+	params.do_not_remember_password = gMountOptions.donotrememberpassword;
+	params.delayed_init = gMountOptions.delayedinit;
+	params.io_retries = gMountOptions.ioretries;
+	params.report_reserved_period = gMountOptions.reportreservedperiod;
+	params.verbose = true;
 	if (gMountOptions.delayedinit) {
-		fs_init_master_connection(
-				gMountOptions.bindhost,
-				gMountOptions.masterhost,
-				gMountOptions.masterport,
-				gMountOptions.meta,
-				mp,
-				gMountOptions.subfolder,
-				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
-				gMountOptions.donotrememberpassword,
-				1,
-				gMountOptions.ioretries,
-				gMountOptions.reportreservedperiod);
+		fs_init_master_connection(params);
 	} else {
-		if (fs_init_master_connection(
-				gMountOptions.bindhost,
-				gMountOptions.masterhost,
-				gMountOptions.masterport,
-				gMountOptions.meta,
-				mp,
-				gMountOptions.subfolder,
-				(gMountOptions.password||gMountOptions.md5pass) ? md5pass : NULL,
-				gMountOptions.donotrememberpassword,
-				0,
-				gMountOptions.ioretries,
-				gMountOptions.reportreservedperiod) < 0) {
+		if (fs_init_master_connection(params) < 0) {
 			return 1;
 		}
 	}
-	memset(md5pass,0,16);
 
 	if (fg==0) {
 		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY , LOG_DAEMON);
@@ -610,15 +603,7 @@ int main(int argc, char *argv[]) try {
 		return 1;
 	}
 	if (gMountOptions.sugidclearmodestr==NULL) {
-#if defined(DEFAULT_SUGID_CLEAR_MODE_EXT)
-		gMountOptions.sugidclearmode = SugidClearMode::kExt;
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_BSD)
-		gMountOptions.sugidclearmode = SugidClearMode::kBsd;
-#elif defined(DEFAULT_SUGID_CLEAR_MODE_OSX)
-		gMountOptions.sugidclearmode = SugidClearMode::kOsx;
-#else
-		gMountOptions.sugidclearmode = SugidClearMode::kNever;
-#endif
+		gMountOptions.sugidclearmode = LizardClient::FsInitParams::kDefaultSugidClearMode;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"NEVER")==0) {
 		gMountOptions.sugidclearmode = SugidClearMode::kNever;
 	} else if (strcasecmp(gMountOptions.sugidclearmodestr,"ALWAYS")==0) {

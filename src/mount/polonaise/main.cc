@@ -1077,10 +1077,16 @@ int main (int argc, char **argv) {
 	socketinit();
 	strerr_init();
 	mycrc32_init();
-	if (fs_init_master_connection(nullptr,
-				gSetup.master_host.c_str(), gSetup.master_port.c_str(),
-				0, gSetup.mountpoint.c_str(), gSetup.subfolder.c_str(), nullptr,
-				gSetup.forget_password, 0, gSetup.io_retries, gSetup.report_reserved_period) < 0) {
+	LizardClient::FsInitParams params("", gSetup.master_host, gSetup.master_port, gSetup.mountpoint);
+	params.subfolder = gSetup.subfolder;
+	params.password_digest = gSetup.password;
+	params.meta = false;
+	params.do_not_remember_password = gSetup.forget_password;
+	params.delayed_init = false;
+	params.report_reserved_period = gSetup.report_reserved_period;
+	params.io_retries = gSetup.io_retries;
+	params.verbose = true;
+	if (fs_init_master_connection(params) < 0) {
 		std::cerr << "Can't initialize connection with master server" << std::endl;
 		lzfs_pretty_syslog(LOG_ERR, "Can't initialize connection with master server");
 		return 2;

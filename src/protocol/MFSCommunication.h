@@ -342,16 +342,6 @@ enum class SugidClearMode {
 };
 #endif
 
-#define SUGID_CLEAR_MODE_OPTIONS 6
-
-#define SUGID_CLEAR_MODE_STRINGS \
-	"never", \
-	"always", \
-	"osx", \
-	"bsd", \
-	"ext", \
-	"xfs"
-
 /// field values: operation
 #define LIZARDFS_LOCK_UNLOCK    1
 #define LIZARDFS_LOCK_SHARED    2

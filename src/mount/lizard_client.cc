@@ -37,10 +37,12 @@
 #include "common/access_control_list.h"
 #include "common/acl_converter.h"
 #include "common/acl_type.h"
+#include "common/crc.h"
 #include "common/datapack.h"
 #include "common/lru_cache.h"
 #include "common/mfserr.h"
 #include "common/slogger.h"
+#include "common/sockets.h"
 #include "common/special_inode_defs.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
@@ -57,6 +59,7 @@
 #include "mount/readdata.h"
 #include "mount/special_inode.h"
 #include "mount/stats.h"
+#include "mount/sugid_clear_mode_string.h"
 #include "mount/symlinkcache.h"
 #include "mount/tweaks.h"
 #include "mount/writedata.h"
@@ -2853,7 +2856,6 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,
 		double acl_cache_timeout_, unsigned acl_cache_size_) {
-	const char* sugid_clear_mode_strings[] = {SUGID_CLEAR_MODE_STRINGS};
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
 	direntry_cache_timeout = direntry_cache_timeout_;
@@ -2867,11 +2869,11 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 	gDirEntryCache.setTimeout(timeout);
 	gDirEntryCacheMaxSize = direntry_cache_size_;
 	if (debug_mode) {
-		fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
-		fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,(sugid_clear_mode<SUGID_CLEAR_MODE_OPTIONS)?sugid_clear_mode_strings[sugid_clear_mode]:"???");
-		fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
-		fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
-		fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
+		std::fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
+		std::fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,sugidClearModeString(sugid_clear_mode_));
+		std::fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
+		std::fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
+		std::fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
 				acl_cache_timeout_, acl_cache_size_);
 	}
 	statsptr_init();
@@ -2886,6 +2888,63 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 	gTweaks.registerVariable("AclCacheHit", acl_cache->cacheHit);
 	gTweaks.registerVariable("AclCacheExpired", acl_cache->cacheExpired);
 	gTweaks.registerVariable("AclCacheMiss", acl_cache->cacheMiss);
+}
+
+void fs_init(FsInitParams &params) {
+	socketinit();
+	strerr_init();
+	mycrc32_init();
+	if (fs_init_master_connection(params) < 0) {
+		lzfs_pretty_syslog(LOG_ERR, "Can't initialize connection with master server");
+		socketrelease();
+		throw std::runtime_error("Can't initialize connection with master server");
+	}
+	symlink_cache_init(params.symlink_cache_timeout_s);
+	gGlobalIoLimiter();
+	fs_init_threads(params.io_retries);
+	masterproxy_init();
+
+	gLocalIoLimiter();
+	try {
+		IoLimitsConfigLoader loader;
+		if (!params.io_limits_config_file.empty()) {
+			loader.load(std::ifstream(params.io_limits_config_file.c_str()));
+		}
+		gMountLimiter().loadConfiguration(loader);
+	} catch (Exception &ex) {
+		lzfs_pretty_syslog(LOG_ERR, "Can't initialize I/O limiting: %s", ex.what());
+		masterproxy_term();
+		fs_term();
+		symlink_cache_term();
+		socketrelease();
+		throw std::runtime_error("Can't initialize I/O limiting");
+	}
+
+	read_data_init(params.io_retries,
+			params.chunkserver_round_time_ms,
+			params.chunkserver_connect_timeout_ms,
+			params.chunkserver_wave_read_timeout_ms,
+			params.total_read_timeout_ms,
+			params.cache_expiration_time_ms,
+			params.readahead_max_window_size_kB,
+			params.prefetch_xor_stripes,
+			std::max(params.bandwidth_overuse, 1.));
+	write_data_init(params.write_cache_size, params.io_retries, params.write_workers,
+			params.write_window_size, params.chunkserver_write_timeout_ms, params.cache_per_inode_percentage);
+
+	init(params.debug_mode, params.keep_cache, params.direntry_cache_timeout, params.direntry_cache_size,
+		params.entry_cache_timeout, params.attr_cache_timeout, params.mkdir_copy_sgid,
+		params.sugid_clear_mode, params.acl_enabled, params.use_rw_lock,
+		params.acl_cache_timeout, params.acl_cache_size);
+}
+
+void fs_term() {
+	write_data_term();
+	read_data_term();
+	masterproxy_term();
+	::fs_term();
+	symlink_cache_term();
+	socketrelease();
 }
 
 } // namespace LizardClient

@@ -106,7 +106,6 @@ static uint32_t masterip=0;
 static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
-static unsigned gIoRetries;
 static unsigned gReservedInodesPeriod;
 
 static uint8_t fterm;
@@ -138,18 +137,30 @@ enum {
 
 static uint64_t *statsptr[STATNODES];
 
-struct connect_args_t {
-	char *bindhostname;
-	char *masterhostname;
-	char *masterportname;
-	uint8_t meta;
-	uint8_t clearpassword;
-	char *info;
-	char *subfolder;
-	uint8_t *passworddigest;
+struct InitParams {
+	std::string bind_host;
+	std::string host;
+	std::string port;
+	bool meta;
+	bool do_not_remember_password;
+	std::string mountpoint;
+	std::string subfolder;
+	std::vector<uint8_t> password_digest;
+
+	InitParams &operator=(const LizardClient::FsInitParams &params) {
+		bind_host = params.bind_host;
+		host = params.host;
+		port = params.port;
+		meta = params.meta;
+		do_not_remember_password = params.do_not_remember_password;
+		mountpoint = params.mountpoint;
+		subfolder = params.subfolder;
+		password_digest = params.password_digest;
+		return *this;
+	}
 };
 
-static struct connect_args_t connect_args;
+static InitParams gInitParams;
 
 void master_statsptr_init(void) {
 	void *s;
@@ -422,37 +433,41 @@ bool fs_lizsendandreceive_any(threc *rec, MessageBuffer& messageData) {
 	return false;
 }
 
-int fs_resolve(uint8_t oninit,const char *bindhostname,const char *masterhostname,const char *masterportname) {
-	if (bindhostname) {
-		if (tcpresolve(bindhostname,NULL,&srcip,NULL,1)<0) {
-			if (oninit) {
-				fprintf(stderr,"can't resolve source hostname (%s)\n",bindhostname);
+int fs_resolve(bool verbose, const std::string &bindhostname, const std::string &masterhostname, const std::string &masterportname) {
+	if (!bindhostname.empty()) {
+		if (tcpresolve(bindhostname.c_str(), nullptr, &srcip, nullptr, 1) < 0) {
+			if (verbose) {
+				fprintf(stderr,"can't resolve source hostname (%s)\n", bindhostname.c_str());
 			} else {
-				lzfs_pretty_syslog(LOG_WARNING,"can't resolve source hostname (%s)",bindhostname);
+				lzfs_pretty_syslog(LOG_WARNING,"can't resolve source hostname (%s)", bindhostname.c_str());
 			}
 			return -1;
 		}
 	} else {
-		srcip=0;
+		srcip = 0;
 	}
-	snprintf(srcstrip,17,"%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,(srcip>>24)&0xFF,(srcip>>16)&0xFF,(srcip>>8)&0xFF,srcip&0xFF);
-	srcstrip[16]=0;
+	snprintf(srcstrip, 17, "%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,
+	         (srcip>>24)&0xFF, (srcip>>16)&0xFF, (srcip>>8)&0xFF, srcip&0xFF);
+	srcstrip[16] = 0;
 
-	if (tcpresolve(masterhostname,masterportname,&masterip,&masterport,0)<0) {
-		if (oninit) {
-			fprintf(stderr,"can't resolve master hostname and/or portname (%s:%s)\n",masterhostname,masterportname);
+	if (tcpresolve(masterhostname.c_str(), masterportname.c_str(), &masterip, &masterport, 0) < 0) {
+		if (verbose) {
+			fprintf(stderr, "can't resolve master hostname and/or portname (%s:%s)\n",
+			        masterhostname.c_str(), masterportname.c_str());
 		} else {
-			lzfs_pretty_syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",masterhostname,masterportname);
+			lzfs_pretty_syslog(LOG_WARNING,"can't resolve master hostname and/or portname (%s:%s)",
+			                   masterhostname.c_str(), masterportname.c_str());
 		}
 		return -1;
 	}
-	snprintf(masterstrip,17,"%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,(masterip>>24)&0xFF,(masterip>>16)&0xFF,(masterip>>8)&0xFF,masterip&0xFF);
-	masterstrip[16]=0;
+	snprintf(masterstrip, 17, "%" PRIu32 ".%" PRIu32 ".%" PRIu32 ".%" PRIu32,
+	        (masterip>>24)&0xFF, (masterip>>16)&0xFF, (masterip>>8)&0xFF, masterip&0xFF);
+	masterstrip[16] = 0;
 
 	return 0;
 }
 
-int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
+int fs_connect(bool verbose) {
 	uint32_t i,j;
 	uint8_t *wptr,*regbuff;
 	md5ctx ctx;
@@ -467,17 +482,17 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	const char *sesflagposstrtab[]={SESFLAG_POS_STRINGS};
 	const char *sesflagnegstrtab[]={SESFLAG_NEG_STRINGS};
 
-	if (fs_resolve(oninit,cargs->bindhostname,cargs->masterhostname,cargs->masterportname)<0) {
+	if (fs_resolve(verbose ,gInitParams.bind_host, gInitParams.host, gInitParams.port) < 0) {
 		return -1;
 	}
 
-	havepassword=(cargs->passworddigest==NULL)?0:1;
-	ileng=strlen(cargs->info)+1;
-	if (cargs->meta) {
+	havepassword = !gInitParams.password_digest.empty();
+	ileng=gInitParams.mountpoint.size() + 1;
+	if (gInitParams.meta) {
 		pleng=0;
 		regbuff = (uint8_t*) malloc(8+64+9+ileng+16);
 	} else {
-		pleng=strlen(cargs->subfolder)+1;
+		pleng=gInitParams.subfolder.size() + 1;
 		regbuff = (uint8_t*) malloc(8+64+13+pleng+ileng+16);
 	}
 
@@ -487,7 +502,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		return -1;
 	}
 	if (tcpnodelay(fd)<0) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"can't set TCP_NODELAY\n");
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"can't set TCP_NODELAY");
@@ -495,7 +510,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	if (srcip>0) {
 		if (tcpnumbind(fd,srcip,0)<0) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"can't bind socket to given ip (\"%s\")\n",srcstrip);
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"can't bind socket to given ip (\"%s\")",srcstrip);
@@ -507,7 +522,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		}
 	}
 	if (tcpnumconnect(fd,masterip,masterport)<0) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")\n",masterstrip,masterport);
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"can't connect to mfsmaster (\"%s\":\"%" PRIu16 "\")",masterstrip,masterport);
@@ -525,7 +540,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		wptr+=64;
 		put8bit(&wptr,REGISTER_GETRANDOM);
 		if (tcptowrite(fd,regbuff,8+65,1000)!=8+65) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"error sending data to mfsmaster\n");
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster");
@@ -536,7 +551,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			return -1;
 		}
 		if (tcptoread(fd,regbuff,8,1000)!=8) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"error receiving data from mfsmaster\n");
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster");
@@ -549,7 +564,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		rptr = regbuff;
 		i = get32bit(&rptr);
 		if (i!=MATOCL_FUSE_REGISTER) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"got incorrect answer from mfsmaster\n");
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
@@ -561,7 +576,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		}
 		i = get32bit(&rptr);
 		if (i!=32) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"got incorrect answer from mfsmaster\n");
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
@@ -572,7 +587,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 			return -1;
 		}
 		if (tcptoread(fd,regbuff,32,1000)!=32) {
-			if (oninit) {
+			if (verbose) {
 				fprintf(stderr,"error receiving data from mfsmaster\n");
 			} else {
 				lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster");
@@ -584,13 +599,13 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		}
 		md5_init(&ctx);
 		md5_update(&ctx,regbuff,16);
-		md5_update(&ctx,cargs->passworddigest,16);
+		md5_update(&ctx, gInitParams.password_digest.data(), gInitParams.password_digest.size());
 		md5_update(&ctx,regbuff+16,16);
 		md5_final(digest,&ctx);
 	}
 	wptr = regbuff;
 	put32bit(&wptr,CLTOMA_FUSE_REGISTER);
-	if (cargs->meta) {
+	if (gInitParams.meta) {
 		if (havepassword) {
 			put32bit(&wptr,64+9+ileng+16);
 		} else {
@@ -605,22 +620,22 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	memcpy(wptr,FUSE_REGISTER_BLOB_ACL,64);
 	wptr+=64;
-	put8bit(&wptr,(cargs->meta)?REGISTER_NEWMETASESSION:REGISTER_NEWSESSION);
+	put8bit(&wptr,(gInitParams.meta)?REGISTER_NEWMETASESSION:REGISTER_NEWSESSION);
 	put16bit(&wptr,LIZARDFS_PACKAGE_VERSION_MAJOR);
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MINOR);
 	put8bit(&wptr,LIZARDFS_PACKAGE_VERSION_MICRO);
 	put32bit(&wptr,ileng);
-	memcpy(wptr,cargs->info,ileng);
+	memcpy(wptr,gInitParams.mountpoint.c_str(),ileng);
 	wptr+=ileng;
-	if (!cargs->meta) {
+	if (!gInitParams.meta) {
 		put32bit(&wptr,pleng);
-		memcpy(wptr,cargs->subfolder,pleng);
+		memcpy(wptr,gInitParams.subfolder.c_str(),pleng);
 	}
 	if (havepassword) {
 		memcpy(wptr+pleng,digest,16);
 	}
-	if (tcptowrite(fd,regbuff,8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(cargs->meta?9:13)+ileng+pleng+(havepassword?16:0))) {
-		if (oninit) {
+	if (tcptowrite(fd,regbuff,8+64+(gInitParams.meta?9:13)+ileng+pleng+(havepassword?16:0),1000)!=(int32_t)(8+64+(gInitParams.meta?9:13)+ileng+pleng+(havepassword?16:0))) {
+		if (verbose) {
 			fprintf(stderr,"error sending data to mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"error sending data to mfsmaster: %s",strerr(tcpgetlasterror()));
@@ -631,7 +646,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		return -1;
 	}
 	if (tcptoread(fd,regbuff,8,1000)!=8) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(tcpgetlasterror()));
@@ -644,7 +659,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	rptr = regbuff;
 	i = get32bit(&rptr);
 	if (i!=MATOCL_FUSE_REGISTER) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
@@ -655,8 +670,8 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		return -1;
 	}
 	i = get32bit(&rptr);
-	if (!(i==1 || (cargs->meta && (i==5 || i==9 || i==19)) || (cargs->meta==0 && (i==13 || i==21 || i==25 || i==35)))) {
-		if (oninit) {
+	if (!(i==1 || (gInitParams.meta && (i==5 || i==9 || i==19)) || (gInitParams.meta==0 && (i==13 || i==21 || i==25 || i==35)))) {
+		if (verbose) {
 			fprintf(stderr,"got incorrect answer from mfsmaster\n");
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"got incorrect answer from mfsmaster");
@@ -667,7 +682,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		return -1;
 	}
 	if (tcptoread(fd,regbuff,i,1000)!=(int32_t)i) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"error receiving data from mfsmaster: %s\n",strerr(tcpgetlasterror()));
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"error receiving data from mfsmaster: %s",strerr(tcpgetlasterror()));
@@ -679,7 +694,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	rptr = regbuff;
 	if (i==1) {
-		if (oninit) {
+		if (verbose) {
 			fprintf(stderr,"mfsmaster register error: %s\n",mfs_strerror(rptr[0]));
 		} else {
 			lzfs_pretty_syslog(LOG_WARNING,"mfsmaster register error: %s",mfs_strerror(rptr[0]));
@@ -696,7 +711,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	sessionid = get32bit(&rptr);
 	sesflags = get8bit(&rptr);
-	if (!cargs->meta) {
+	if (!gInitParams.meta) {
 		rootuid = get32bit(&rptr);
 		rootgid = get32bit(&rptr);
 		if (i==21 || i==25 || i==35) {
@@ -725,15 +740,13 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 	}
 	free(regbuff);
 	lastwrite=time(NULL);
-	if (oninit==0) {
+	if (!verbose) {
 		lzfs_pretty_syslog(LOG_NOTICE,"registered to master with new session (id #%" PRIu32 ")", sessionid);
 	}
-	if (cargs->clearpassword && cargs->passworddigest!=NULL) {
-		memset(cargs->passworddigest,0,16);
-		free(cargs->passworddigest);
-		cargs->passworddigest = NULL;
+	if (gInitParams.do_not_remember_password) {
+		std::fill(gInitParams.password_digest.begin(), gInitParams.password_digest.end(), 0);
 	}
-	if (oninit==1) {
+	if (verbose) {
 		fprintf(stderr,"mfsmaster accepted connection with parameters: ");
 		j=0;
 		for (i=0 ; i<8 ; i++) {
@@ -748,7 +761,7 @@ int fs_connect(uint8_t oninit,struct connect_args_t *cargs) {
 		if (j==0) {
 			fprintf(stderr,"-");
 		}
-		if (!cargs->meta) {
+		if (!gInitParams.meta) {
 #ifndef _WIN32
 			struct passwd pwd,*pw;
 			struct group grp,*gr;
@@ -1116,11 +1129,11 @@ void* fs_receive_thread(void *) {
 		}
 		if (fd==-1) {   // still not connected
 			if (sessionlost) {      // if previous session is lost then try to register as a new session
-				if (fs_connect(0,&connect_args)==0) {
+				if (fs_connect(false)==0) {
 					sessionlost=0;
 				}
 			} else {        // if other problem occurred then try to resolve hostname and portname then try to reconnect using the same session id
-				if (fs_resolve(0,connect_args.bindhostname,connect_args.masterhostname,connect_args.masterportname)==0) {
+				if (fs_resolve(false, gInitParams.bind_host, gInitParams.host, gInitParams.port) == 0) {
 					fs_reconnect();
 				}
 			}
@@ -1224,42 +1237,21 @@ void* fs_receive_thread(void *) {
 }
 
 // called before fork
-int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
-		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
-		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
-		unsigned retries, unsigned reportreservedperiod) {
+int fs_init_master_connection(LizardClient::FsInitParams &params) {
 	master_statsptr_init();
 
-	gIoRetries = retries;
-	gReservedInodesPeriod = reportreservedperiod;
+	gInitParams = params;
+	std::fill(params.password_digest.begin(), params.password_digest.end(), 0);
 
 	fd = -1;
-	sessionlost = bgregister;
+	sessionlost = params.delayed_init;
 	sessionid = 0;
 	disconnect = false;
 
-	if (bindhostname) {
-		connect_args.bindhostname = strdup(bindhostname);
-	} else {
-		connect_args.bindhostname = NULL;
-	}
-	connect_args.masterhostname = strdup(masterhostname);
-	connect_args.masterportname = strdup(masterportname);
-	connect_args.meta = meta;
-	connect_args.clearpassword = donotrememberpassword;
-	connect_args.info = strdup(info);
-	connect_args.subfolder = strdup(subfolder);
-	if (passworddigest==NULL) {
-		connect_args.passworddigest = NULL;
-	} else {
-		connect_args.passworddigest = (uint8_t*) malloc(16);
-		memcpy(connect_args.passworddigest,passworddigest,16);
-	}
-
-	if (bgregister) {
+	if (params.delayed_init) {
 		return 1;
 	}
-	return fs_connect(1,&connect_args);
+	return fs_connect(params.verbose);
 }
 
 // called after fork
@@ -1295,16 +1287,6 @@ void fs_term(void) {
 	}
 	if (fd>=0) {
 		tcpclose(fd);
-	}
-	if (connect_args.bindhostname) {
-		free(connect_args.bindhostname);
-	}
-	free(connect_args.masterhostname);
-	free(connect_args.masterportname);
-	free(connect_args.info);
-	free(connect_args.subfolder);
-	if (connect_args.passworddigest) {
-		free(connect_args.passworddigest);
 	}
 }
 

@@ -28,6 +28,7 @@
 #include "common/attributes.h"
 #include "common/chunk_type_with_address.h"
 #include "mount/group_cache.h"
+#include "mount/lizard_client.h"
 #include "protocol/packet.h"
 #include "protocol/lock_info.h"
 #include "protocol/directory_entry.h"
@@ -103,10 +104,7 @@ uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expected
 uint8_t fs_send_custom(MessageBuffer buffer);
 
 // called before fork
-int fs_init_master_connection(const char *bindhostname, const char *masterhostname,
-		const char *masterportname, uint8_t meta, const char *info, const char *subfolder,
-		const uint8_t passworddigest[16], uint8_t donotrememberpassword, uint8_t bgregister,
-		unsigned retries, unsigned reportreservedperiod);
+int fs_init_master_connection(LizardClient::FsInitParams &params);
 // called after fork
 void fs_init_threads(uint32_t retries);
 void fs_term(void);
