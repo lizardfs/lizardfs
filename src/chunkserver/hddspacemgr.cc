@@ -77,7 +77,6 @@
 #include "common/disk_info.h"
 #include "common/exceptions.h"
 #include "common/event_loop.h"
-#include "common/list.h"
 #include "common/massert.h"
 #include "common/moosefs_vector.h"
 #include "common/random.h"
