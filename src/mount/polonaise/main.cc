@@ -32,9 +32,9 @@
 #include <thrift/transport/TServerSocket.h>
 
 #include "common/crc.h"
-#include "common/errno_defs.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
@@ -533,7 +533,7 @@ public:
 	Descriptor opendir(const Context& context, const Inode inode) {
 		OPERATION_PROLOG
 		Descriptor descriptor = createDescriptor(0);
-		LizardClient::opendir(toLizardFsContext(context), toUint32(inode));
+		LizardClient::opendir(toLizardFsContext(context), toUint32(inode), getFileInfo(descriptor));
 		return descriptor;
 		OPERATION_EPILOG
 	}
@@ -553,7 +553,8 @@ public:
 				toLizardFsContext(context),
 				toUint64(inode),
 				firstEntryOffset,
-				toUint64(maxNumberOfEntries));
+				toUint64(maxNumberOfEntries),
+				getFileInfo(descriptor));
 
 		_return.reserve(entries.size());
 		for (LizardClient::DirEntry& entry : entries) {
@@ -576,7 +577,8 @@ public:
 		}
 		LizardClient::releasedir(
 				toLizardFsContext(context),
-				toUint64(inode));
+				toUint64(inode),
+				getFileInfo(descriptor));
 		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}
@@ -1072,43 +1074,41 @@ int main (int argc, char **argv) {
 	setvbuf(stderr, NULL, _IONBF, 0);
 
 	// Initialize LizardFS client
-	socketinit();
-	mycrc32_init();
 	LizardClient::FsInitParams params("", gSetup.master_host, gSetup.master_port, gSetup.mountpoint);
-	params.subfolder = gSetup.subfolder;
-	params.password_digest.assign(gSetup.password.begin(), gSetup.password.end());
 	params.meta = false;
+	params.subfolder = gSetup.subfolder;
+	params.password_digest = std::vector<uint8_t>(gSetup.password.begin(), gSetup.password.end());
 	params.do_not_remember_password = gSetup.forget_password;
-	params.delayed_init = false;
 	params.report_reserved_period = gSetup.report_reserved_period;
+	params.bandwidth_overuse = bandwidthOveruse;
+
 	params.io_retries = gSetup.io_retries;
+	params.chunkserver_round_time_ms = chunkserverrtt;
+	params.chunkserver_connect_timeout_ms = chunkserverconnectreadto;
+	params.chunkserver_wave_read_timeout_ms = chunkserverwavereadto;
+	params.total_read_timeout_ms = chunkservertotalreadto;
+	params.cache_expiration_time_ms = cacheexpirationtime;
+	params.readahead_max_window_size_kB = readaheadmaxwindowsize;
+	params.prefetch_xor_stripes = prefetchFullXorStripes;
+	params.write_cache_size = gSetup.write_buffer_size;
+	params.write_workers = writeworkers;
+	params.write_window_size = writewindowsize;
+	params.chunkserver_write_timeout_ms = chunkserverwriteto;
+	params.cache_per_inode_percentage = cacheperinodepercentage;
+
+	params.keep_cache = true;
+	params.direntry_cache_timeout = gSetup.direntry_cache_timeout;
+	params.direntry_cache_size = gSetup.direntry_cache_size;
+	params.entry_cache_timeout = gSetup.entry_cache_timeout;
+	params.attr_cache_timeout = gSetup.attr_cache_timeout;
+	params.mkdir_copy_sgid = !gSetup.no_mkdir_copy_sgid;
+	params.sugid_clear_mode = gSetup.sugid_clear_mode;
+	params.acl_enabled = gSetup.enable_acl;
+	params.use_rw_lock = userwlock;
+
+	params.debug_mode = gSetup.debug;
 	params.verbose = true;
-	if (fs_init_master_connection(params) < 0) {
-		std::cerr << "Can't initialize connection with master server" << std::endl;
-		lzfs_pretty_syslog(LOG_ERR, "Can't initialize connection with master server");
-		return 2;
-	}
-	symlink_cache_init();
-	gGlobalIoLimiter();
-	fs_init_threads(gSetup.io_retries);
-	masterproxy_init();
-	gLocalIoLimiter();
-	IoLimitsConfigLoader loader;
-	gMountLimiter().loadConfiguration(loader);
-	read_data_init(gSetup.io_retries,
-			chunkserverrtt,
-			chunkserverconnectreadto,
-			chunkserverwavereadto,
-			chunkservertotalreadto,
-			cacheexpirationtime,
-			readaheadmaxwindowsize,
-			prefetchFullXorStripes,
-			bandwidthOveruse);
-	write_data_init(gSetup.write_buffer_size, gSetup.io_retries, writeworkers,
-			writewindowsize, chunkserverwriteto, cacheperinodepercentage);
-	LizardClient::init(gSetup.debug, true, gSetup.direntry_cache_timeout, gSetup.direntry_cache_size,
-			gSetup.entry_cache_timeout, gSetup.attr_cache_timeout,
-			!gSetup.no_mkdir_copy_sgid, gSetup.sugid_clear_mode, gSetup.enable_acl, userwlock, 0, 0);
+	LizardClient::fs_init(params);
 
 	// Thrift server start
 	using namespace ::apache::thrift;
@@ -1137,12 +1137,7 @@ int main (int argc, char **argv) {
 		gServer->serve();
 	}
 
-	write_data_term();
-	read_data_term();
-	masterproxy_term();
-	fs_term();
-	symlink_cache_term();
-	socketrelease();
+	LizardClient::fs_term();
 
 	return 0;
 }

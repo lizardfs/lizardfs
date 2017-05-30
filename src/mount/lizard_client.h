@@ -378,16 +378,9 @@ void flock_recv();
 void flock_interrupt(const lzfs_locks::InterruptData &data);
 void setlk_interrupt(const lzfs_locks::InterruptData &data);
 
-// NOTICE(sarna): Becomes obsolete, used only in fuse/main.cc and polonaise, to be removed in the next commit
-void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_,
-		unsigned direntry_cache_size_, double entry_cache_timeout_, double attr_cache_timeout_,
-		int mkdir_copy_sgid_, SugidClearMode sugid_clear_mode_, bool acl_enabled_,
-		bool use_rw_lock_, double acl_cache_timeout_, unsigned acl_cache_size_);
-
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);
 
-// NOTICE(sarna): It calls init() as well and makes it obsolete (used only in fuse/main.cc and polonaise)
 void fs_init(FsInitParams &params);
 
 void fs_term();

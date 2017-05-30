@@ -177,28 +177,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		memset(gMountOptions.md5pass,0,strlen(gMountOptions.md5pass));
 	}
 
-	LizardClient::FsInitParams params(
-		gMountOptions.bindhost ? gMountOptions.bindhost : "",
-		gMountOptions.masterhost,
-		gMountOptions.masterport,
-		mp
-	);
-	params.meta = gMountOptions.meta;
-	params.subfolder = gMountOptions.subfolder;
-	params.password_digest = std::move(md5pass);
-	params.do_not_remember_password = gMountOptions.donotrememberpassword;
-	params.delayed_init = gMountOptions.delayedinit;
-	params.io_retries = gMountOptions.ioretries;
-	params.report_reserved_period = gMountOptions.reportreservedperiod;
-	params.verbose = true;
-	if (gMountOptions.delayedinit) {
-		fs_init_master_connection(params);
-	} else {
-		if (fs_init_master_connection(params) < 0) {
-			return 1;
-		}
-	}
-
 	if (fg==0) {
 		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY , LOG_DAEMON);
 	} else {
@@ -234,7 +212,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		if (err<0) {
 			fprintf(stderr,"fork error\n");
 			return 1;
-		} else if (err>0) {
+		} else if (err > 0) {
+			std::fill(md5pass.begin(), md5pass.end(), 0);
 			close(piped[1]);
 			err = read(piped[0],&s,1);
 			if (err==0) {
@@ -255,72 +234,78 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
-	symlink_cache_init(gMountOptions.symlinkcachetimeout);
 	if (gMountOptions.meta == 0) {
-		// initialize the global IO limiter before starting mastercomm threads
-		gGlobalIoLimiter();
-	}
-	fs_init_threads(gMountOptions.ioretries);
-	masterproxy_init();
+		LizardClient::FsInitParams params(
+			gMountOptions.bindhost ? gMountOptions.bindhost : "",
+			gMountOptions.masterhost, gMountOptions.masterport, mp);
+		params.meta = gMountOptions.meta;
+		params.subfolder = gMountOptions.subfolder;
+		params.password_digest = std::move(md5pass);
+		params.do_not_remember_password = gMountOptions.donotrememberpassword;
+		params.delayed_init = gMountOptions.delayedinit;
+		params.report_reserved_period = gMountOptions.reportreservedperiod;
 
-	uint32_t bindIp;
-	if (tcpresolve(gMountOptions.bindhost, NULL, &bindIp, NULL, 1) < 0) {
-		bindIp = 0;
-	}
+		params.io_limits_config_file = gMountOptions.iolimits ? gMountOptions.iolimits : "";
+		params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
 
-	if (gMountOptions.meta==0) {
+		params.io_retries = gMountOptions.ioretries;
+		params.chunkserver_round_time_ms = gMountOptions.chunkserverrtt;
+		params.chunkserver_connect_timeout_ms = gMountOptions.chunkserverconnectreadto;
+		params.chunkserver_wave_read_timeout_ms = gMountOptions.chunkserverwavereadto;
+		params.total_read_timeout_ms = gMountOptions.chunkservertotalreadto;
+		params.cache_expiration_time_ms = gMountOptions.cacheexpirationtime;
+		params.readahead_max_window_size_kB = gMountOptions.readaheadmaxwindowsize;
+		params.prefetch_xor_stripes = gMountOptions.prefetchxorstripes;
+		params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
+		params.write_cache_size = gMountOptions.writecachesize;
+		params.write_workers = gMountOptions.writeworkers;
+		params.write_window_size = gMountOptions.writewindowsize;
+		params.chunkserver_write_timeout_ms = gMountOptions.chunkserverwriteto;
+		params.cache_per_inode_percentage = gMountOptions.cachePerInodePercentage;
+
+		params.keep_cache = gMountOptions.keepcache;
+		params.direntry_cache_timeout = gMountOptions.direntrycacheto;
+		params.direntry_cache_size = gMountOptions.direntrycachesize;
+		params.entry_cache_timeout = gMountOptions.entrycacheto;
+		params.attr_cache_timeout = gMountOptions.attrcacheto;
+		params.mkdir_copy_sgid = gMountOptions.mkdircopysgid;
+		params.sugid_clear_mode = gMountOptions.sugidclearmode;
+		params.acl_enabled = gMountOptions.acl;
+		params.use_rw_lock = gMountOptions.rwlock;
+		params.acl_cache_timeout = gMountOptions.aclcacheto;
+		params.acl_cache_size = gMountOptions.aclcachesize;
+
+		params.debug_mode = gMountOptions.debug;
+		params.verbose = true;
 		try {
-			IoLimitsConfigLoader loader;
-			if (gMountOptions.iolimits) {
-				loader.load(std::ifstream(gMountOptions.iolimits));
+			LizardClient::fs_init(params);
+		} catch (...) {
+			if (piped[1] >= 0) {
+				if (write(piped[1], &s, 1) != 1) {
+					fprintf(stderr,"pipe write error\n");
+				}
+				close(piped[1]);
 			}
-			// initialize the local limiter before loading configuration
-			gLocalIoLimiter();
-			gMountLimiter().loadConfiguration(loader);
-		} catch (Exception& ex) {
-			fprintf(stderr, "Can't initialize I/O limiting: %s", ex.what());
-			masterproxy_term();
-			fs_term();
-			symlink_cache_term();
 			return 1;
 		}
-		if (gMountOptions.bandwidthoveruse < 1.) {
-			gMountOptions.bandwidthoveruse = 1.;
-		}
-
-		read_data_init(gMountOptions.ioretries,
-				gMountOptions.chunkserverrtt,
-				gMountOptions.chunkserverconnectreadto,
-				gMountOptions.chunkserverwavereadto,
-				gMountOptions.chunkservertotalreadto,
-				gMountOptions.cacheexpirationtime,
-				gMountOptions.readaheadmaxwindowsize,
-				gMountOptions.prefetchxorstripes,
-				gMountOptions.bandwidthoveruse);
-		write_data_init(gMountOptions.writecachesize,
-				gMountOptions.ioretries,
-				gMountOptions.writeworkers,
-				gMountOptions.writewindowsize,
-				gMountOptions.chunkserverwriteto,
-				gMountOptions.cachePerInodePercentage);
 	}
 
 	ch = fuse_mount(mp, args);
-	if (ch==NULL) {
+	if (ch == NULL) {
 		fprintf(stderr,"error in fuse_mount\n");
 		if (piped[1]>=0) {
-			if (write(piped[1],&s,1)!=1) {
+			if (write(piped[1], &s, 1) != 1) {
 				fprintf(stderr,"pipe write error\n");
 			}
 			close(piped[1]);
 		}
-		if (gMountOptions.meta==0) {
-			write_data_term();
-			read_data_term();
+		if (gMountOptions.meta == 0) {
+			LizardClient::fs_term();
+		} else {
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
 		}
-		masterproxy_term();
-		fs_term();
-		symlink_cache_term();
 		return 1;
 	}
 
@@ -330,22 +315,9 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 				gMountOptions.attrcacheto);
 		se = fuse_lowlevel_new(args, &mfs_meta_oper, sizeof(mfs_meta_oper), (void*)piped);
 	} else {
-		mfs_init(
-				gMountOptions.debug,
-				gMountOptions.keepcache,
-				gMountOptions.direntrycacheto,
-				gMountOptions.direntrycachesize,
-				gMountOptions.entrycacheto,
-				gMountOptions.attrcacheto,
-				gMountOptions.mkdircopysgid,
-				gMountOptions.sugidclearmode,
-				gMountOptions.acl,
-				gMountOptions.aclcacheto,
-				gMountOptions.aclcachesize,
-				gMountOptions.rwlock);
 		se = fuse_lowlevel_new(args, &mfs_oper, sizeof(mfs_oper), (void*)piped);
 	}
-	if (se==NULL) {
+	if (se == NULL) {
 		fuse_unmount(mp,ch);
 		fprintf(stderr,"error in fuse_lowlevel_new\n");
 		usleep(100000); // time for print other error messages by FUSE
@@ -558,8 +530,6 @@ int main(int argc, char *argv[]) try {
 	char *mountpoint;
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
-
-	mycrc32_init();
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 

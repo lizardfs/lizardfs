@@ -2889,7 +2889,8 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 void fs_init(FsInitParams &params) {
 	socketinit();
 	mycrc32_init();
-	if (fs_init_master_connection(params) < 0) {
+	int connection_ret = fs_init_master_connection(params);
+	if (!params.delayed_init && connection_ret < 0) {
 		lzfs_pretty_syslog(LOG_ERR, "Can't initialize connection with master server");
 		socketrelease();
 		throw std::runtime_error("Can't initialize connection with master server");
