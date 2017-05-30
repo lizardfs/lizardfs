@@ -29,7 +29,6 @@ int main(int argc, char **argv) {
 	::testing::InitGoogleTest(&argc, argv);
 	rnd_init();
 	mycrc32_init();
-	strerr_init();
 	signal(SIGPIPE, SIG_IGN);
 	return RUN_ALL_TESTS();
 }

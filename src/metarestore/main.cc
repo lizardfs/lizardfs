@@ -199,7 +199,6 @@ int main(int argc,char **argv) {
 	hstorage::Storage::reset(new hstorage::MemStorage());
 
 	prepareEnvironment();
-	strerr_init();
 	openlog(nullptr, LOG_PID | LOG_NDELAY, LOG_USER);
 
 	while ((ch = getopt(argc, argv, "gfck:vm:o:d:abB:xih:z#?")) != -1) {

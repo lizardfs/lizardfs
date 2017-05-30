@@ -54,7 +54,6 @@ static void print_prefix() {
 
 int main(int argc, char **argv) {
 	int status = 0;
-	strerr_init();
 	set_humode();
 
 	if (argc > 1) {

@@ -1075,7 +1075,6 @@ int main (int argc, char **argv) {
 
 	// Initialize LizardFS client
 	socketinit();
-	strerr_init();
 	mycrc32_init();
 	LizardClient::FsInitParams params("", gSetup.master_host, gSetup.master_port, gSetup.mountpoint);
 	params.subfolder = gSetup.subfolder;

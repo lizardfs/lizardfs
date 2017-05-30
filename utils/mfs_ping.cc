@@ -28,7 +28,6 @@
 
 
 int main(int argc, char **argv) {
-	strerr_init();
 	if (argc != 6) {
 		std::cerr << "Usage: " << argv[0] << " host port bytes count usleep" << std::endl;
 		return 1;

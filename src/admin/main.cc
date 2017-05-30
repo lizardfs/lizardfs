@@ -46,7 +46,6 @@
 #include "common/mfserr.h"
 
 int main(int argc, const char** argv) {
-	strerr_init();
 	std::vector<const LizardFsProbeCommand*> allCommands = {
 			new ChunksHealthCommand(),
 			new InfoCommand(),
@@ -85,7 +84,6 @@ int main(int argc, const char** argv) {
 						supportedOptions.push_back(optionWithDescription.first);
 					}
 					command->run(Options(supportedOptions, arguments));
-					strerr_term();
 					return 0;
 				} catch (Options::ParseError& ex) {
 					throw WrongUsageException("Wrong usage of " + command->name()
@@ -135,11 +133,9 @@ int main(int argc, const char** argv) {
 				}
 			}
 		}
-		strerr_term();
 		return 1;
 	} catch (Exception& ex) {
 		std::cerr << "Error: " << ex.what() << std::endl;
-		strerr_term();
 		return 1;
 	}
 }

@@ -26,8 +26,6 @@
 
 /// returns errno string representation
 const char* strerr(int error);
-void strerr_init();
-void strerr_term();
 
 /// converts mfs error to errno
 int mfs_errorconv(uint8_t status);

@@ -797,7 +797,6 @@ int main(int argc,char **argv) {
 	std::string pidfile;
 
 	prepareEnvironment();
-	strerr_init();
 	mycrc32_init();
 
 	locktimeout = 1800;
@@ -1035,7 +1034,6 @@ int main(int argc,char **argv) {
 	eventloop_release_resources();
 	signal_cleanup();
 	cfg_term();
-	strerr_term();
 	closelog();
 	close_pam_session();
 	return ch;

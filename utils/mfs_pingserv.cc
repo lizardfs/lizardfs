@@ -28,7 +28,6 @@
 
 
 int main(int argc, char **argv) {
-	strerr_init();
 	if (argc != 2) {
 		std::cerr << "Usage: " << argv[0] << " port" << std::endl;
 		return 1;

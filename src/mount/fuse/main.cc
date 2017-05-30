@@ -559,7 +559,6 @@ int main(int argc, char *argv[]) try {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 	struct fuse_args defaultargs = FUSE_ARGS_INIT(0, NULL);
 
-	strerr_init();
 	mycrc32_init();
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
@@ -710,7 +709,6 @@ int main(int argc, char *argv[]) try {
 	}
 	free(mountpoint);
 	stats_term();
-	strerr_term();
 	return res;
 } catch (std::bad_alloc ex) {
 	mabort("run out of memory");
