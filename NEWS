@@ -1,5 +1,10 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.11.1) (2017-05-30)
+ - (master) fix high cpu usage in fs_periodic_file_test
+ - (master) fix dangling nodes in defective files list
+ - (mount) fix direntry cache bug for repeated paths
+
  * Lizardfs (3.11.0) (2017-05-09)
  - (master) improve ACL implementation
  - (master) add option to avoid same-ip chunkserver replication

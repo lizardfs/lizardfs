@@ -1,49 +1,14 @@
 Dear Users,
 
-here comes LizardFS 3.11.0!
-Featuring:
+LizardFS 3.11.1 is out!
 
-master: improve ACL implementation
-master: add option to avoid same-ip chunkserver replication
-master: add minimal goal configuration option
-master: reimplement directory entry cache for faster lookups
-master: add whole-path lookups
-master: chunkserver add chunkserver load awareness
-mount: add readahead to improve sequential read perfromance
-mount: add secondary groups support
-tools: add correct-only flag to filerepair
-tools: add -s and -i options to snapshot command
-tools: add recursive remove operations (for removing large directories and snapshots)
-tools: add tool for stopping execution of tasks (snapshot, recursive remove, etc.)
-all: change to semantic versioning system
-all: many fixes
+This is a minor bugfix release, so it contains bugfixes only:
 
-Detailed information:
+* master: fix high cpu usage in fs_periodic_file_test
+* master: fix dangling nodes in defective files list
+* mount:  fix direntry cache bug for repeated paths
 
-Readahead
-Clients can now benefit from integrated readahead mechanism.
-In order to enable readahead, please mount with the following options:
- -o cacheexpirationtime={MSEC}
- -o readaheadmaxwindowsize={KB}
-Example:
- mfsmount -o cacheexpirationtime=1000 -o readaheadmaxwindowsize=8192
-
-Recursive remove
-A tool for removing large directories/snapshots is finally implemented.
-Example:
- lizardfs rremove big_directory/
- lizardfs rremove -h
-
-Tools for managing tasks
-Two administration tools are available for managing long tasks:
- lizardfs-admin list-tasks
- lizardfs-admin stop-task
-Run above commands for detailed usage information.
-
-Secondary groups support
-LizardFS is now able to fully recognize secondary groups of users
-and take them into account while evaluating permissions.
-
+Enjoy!
 
 Best,
 Piotr Sarna
