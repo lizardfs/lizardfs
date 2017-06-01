@@ -1,0 +1,170 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:		lizardfs-cluster
+# Required-Start:	$network $remote_fs
+# Required-Stop:	$remote_fs
+# Default-Start:	2 3 4 5
+# Default-Stop:		0 1 6
+# Short-Description:	Check and change status of LizardFS cluster
+# Description:		lizardfs-cluster provides cluster management for LizardFS.
+### END INIT INFO
+
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+NAME=lfscluster
+DESC=lizardfs-cluster
+DEFAULT_WORKING_USER=mfs
+DEFAULT_WORKING_GROUP=mfs
+DEFAULT_DATA_PATH=/var/lib/mfs
+DEFAULT_RUN_PATH=/var/run/mfs
+DEFAULT_CFG=/etc/mfs/mfsmaster.cfg
+COMPAT_CFG=/etc/mfsmaster.cfg
+
+test -e $DAEMON || exit 0
+
+# Include lizardfs-master defaults if available
+. /lib/lsb/init-functions
+LIZARDFSMASTER_ENABLE=false
+LIZARDFSMASTER_CONFIG_FILE=
+LIZARDFSMASTER_DEFAULTS_FILE=/etc/default/lizardfs-master
+if [ -s "$LIZARDFSMASTER_DEFAULTS_FILE" ]; then
+    . "$LIZARDFSMASTER_DEFAULTS_FILE"
+    case "x$LIZARDFSMASTER_ENABLE" in
+        xtrue) ;;
+        xfalse)
+	    log_warning_msg "lizardfs-master not enabled in \"$LIZARDFSMASTER_DEFAULTS_FILE\", exiting..."
+	    exit 0
+	    ;;
+        *)
+            log_failure_msg "value of LIZARDFSMASTER_ENABLE must be either 'true' or 'false';"
+            log_failure_msg "not starting lizardfs-master."
+            exit 1
+            ;;
+    esac
+fi
+
+set -e
+
+if [ -n "$LIZARDFSMASTER_CONFIG_FILE" ]; then
+	CFGFILE="$LIZARDFSMASTER_CONFIG_FILE"
+elif [ -f "$DEFAULT_CFG" -o ! -f "$COMPAT_CFG" ]; then
+	CFGFILE="$DEFAULT_CFG"
+else
+	CFGFILE="$COMPAT_CFG"
+fi
+
+get_config_value_from_CFGFILE()
+{
+		echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+}
+
+if [ -s "$CFGFILE" ]; then
+	DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+	RUN_PATH=$(get_config_value_from_CFGFILE "RUN_PATH")
+	WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+	WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
+fi
+
+: ${DATA_PATH:=$DEFAULT_DATA_PATH}
+: ${RUN_PATH:=$DEFAULT_RUN_PATH}
+: ${WORKING_USER:=$DEFAULT_WORKING_USER}
+: ${WORKING_GROUP:=$DEFAULT_WORKING_GROUP}
+
+check_dirs()
+{
+	# check that the metadata dir exists
+	if [ ! -d "$DATA_PATH" ]; then
+		mkdir -p "$DATA_PATH"
+	fi
+	chmod 0755 "$DATA_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+	if [ ! -e "$DATA_PATH"/metadata.mfs ]; then
+		if [ ! -e "$DATA_PATH"/metadata.mfs.back ]; then
+			echo "LFSM NEW" > "$DATA_PATH"/metadata.mfs
+		fi
+	fi
+
+	if [ ! -d "$RUN_PATH" ]; then
+		mkdir -p "$RUN_PATH"
+	fi
+	chmod 0755 "$RUN_PATH"
+	chown -R $WORKING_USER:$WORKING_GROUP "$RUN_PATH"
+}
+
+check_status()
+{
+	# check current personality
+	if grep -q "PERSONALITY = master" "/etc/mfs/mfsmaster.cfg"
+	then
+		LFS_PERSONALITY=master
+		echo "Current personality is $LFS_PERSONALITY"
+		exit 0;
+	elif grep -q "PERSONALITY = shadow" "/etc/mfs/mfsmaster.cfg"
+	then
+		LFS_PERSONALITY=shadow
+		echo "Current personality is $LFS_PERSONALITY"
+		exit 1;
+	fi
+}
+
+become_master()
+{
+	# promote to master, making a backup of the config
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.master.cfg /etc/mfs/mfsmaster.cfg
+
+	# reload the master service
+	service lizardfs-master reload
+
+	# force corosync to move the failover-ip to this host
+	crm resource migrate failover-ip $(hostname)
+
+	# remove the constraint that corosync just created
+	crm resource unmigrate failover-ip
+
+	exit 0;
+}
+
+become_shadow()
+{
+	# demote to shadow, making a backup of the config
+	cp /etc/mfs/mfsmaster.cfg /etc/mfs/mfsmaster.cfg.bak
+	cp /etc/mfs/mfsmaster.shadow.cfg /etc/mfs/mfsmaster.cfg
+
+	# restart the master service
+	service lizardfs-master restart
+
+	exit 0;
+}
+
+case "$1" in
+	start|master)
+		check_dirs
+		echo "Starting $DESC:"
+		become_master
+		;;
+
+	stop|slave|shadow)
+		echo "Stopping $DESC:"
+		become_shadow
+		;;
+
+	reload|force-reload)
+		echo "Option not supported. Nothing to reload."
+		;;
+
+	restart)
+		echo "Option not supported. Nothing to restart."
+		;;
+	status)
+		echo "Checking $DESC:"
+		check_status
+		;;
+	*)
+		N=/etc/init.d/$NAME
+		echo "Usage: $N {start|stop|status}" >&2
+		exit 1
+		;;
+esac
+
+exit 0
