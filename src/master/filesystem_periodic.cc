@@ -368,6 +368,11 @@ void fs_process_file_test() {
 	watchdog.start();
 	for (k = 0; k < gFileTestLoopBucketLimit && gFileTestLoopIndex < NODEHASHSIZE;
 	     k++, gFileTestLoopIndex++) {
+		if (k > 0 && watchdog.expired()) {
+			gFileTestLoopBucketLimit -= k;
+			return;
+		}
+
 		for (f = gMetadata->nodehash[gFileTestLoopIndex]; f; f = f->next) {
 			node_error_flag = 0;
 
@@ -460,11 +465,6 @@ void fs_process_file_test() {
 					(*it).second = node_error_flag;
 				}
 			}
-		}
-
-		if (watchdog.expired()) {
-			gFileTestLoopBucketLimit -= k;
-			return;
 		}
 	}
 
@@ -588,7 +588,7 @@ uint8_t fs_apply_emptyreserved_deprecated(uint32_t /*ts*/,uint32_t /*freeinodes*
 
 #ifndef METARESTORE
 void fs_read_periodic_config_file() {
-	gFileTestLoopTime = cfg_get_minmaxvalue<uint32_t>("FILE_TEST_LOOP_MIN_TIME", 300, FILETESTSMINLOOPTIME, FILETESTSMAXLOOPTIME);
+	gFileTestLoopTime = cfg_get_minmaxvalue<uint32_t>("FILE_TEST_LOOP_MIN_TIME", 3600, FILETESTSMINLOOPTIME, FILETESTSMAXLOOPTIME);
 }
 
 void fs_periodic_master_init() {

@@ -278,5 +278,5 @@
 # SNAPSHOT_INITIAL_BATCH_SIZE_LIMIT = 10000
 
 ## Test files loop will try to check all files in specified time (in seconds).
-## (Default: 300)
-# FILE_TEST_LOOP_MIN_TIME = 300
+## (Default: 3600)
+# FILE_TEST_LOOP_MIN_TIME = 3600
