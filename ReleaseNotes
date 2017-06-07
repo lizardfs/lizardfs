@@ -1,16 +1,13 @@
 Dear Users,
 
-LizardFS 3.11.1 is out!
+LizardFS 3.11.2 is out!
 
 This is a minor bugfix release, so it contains bugfixes only:
 
-* master: fix high cpu usage in fs_periodic_file_test
-* master: fix dangling nodes in defective files list
-* mount:  fix direntry cache bug for repeated paths
+* all: display proper version
 
 Enjoy!
 
 Best,
-Piotr Sarna
+Pawel Kalinowski
 LizardFS Team
-

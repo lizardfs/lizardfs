@@ -1,5 +1,8 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.11.2) (2017-06-07)
+ - (all) display proper version
+
  * Lizardfs (3.11.1) (2017-05-30)
  - (master) fix high cpu usage in fs_periodic_file_test
  - (master) fix dangling nodes in defective files list
