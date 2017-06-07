@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -23,7 +23,6 @@
 
 #include <pthread.h>
 #include <sys/time.h>
-#include <syslog.h>
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
@@ -42,6 +41,7 @@
 #include <boost/iostreams/filtering_stream.hpp>
 
 #include "common/massert.h"
+#include "common/slogger.h"
 #include "devtools/configuration.h"
 
 class RequestLogConfiguration : Configuration {
@@ -55,7 +55,11 @@ public:
 	}
 
 	static std::string logPath() {
+#ifdef _WIN32
+		return Configuration::getOptionValue("REQUESTS_LOG", "C:\\Windows\\Temp\\requests.log");
+#else
 		return Configuration::getOptionValue("REQUESTS_LOG", "/tmp/requests.log");
+#endif
 	}
 
 	static long requestsToBeLogged() {
@@ -229,7 +233,7 @@ private:
 						std::cout << "done!" << std::endl;
 					} catch (...) {
 						std::cout << "FAILED!" << std::endl;
-						syslog(LOG_WARNING,"Failed to flush the request log");
+						lzfs_pretty_syslog(LOG_WARNING, "Failed to flush the request log");
 					}
 				}
 				logOutputStream.flush();
@@ -239,7 +243,7 @@ private:
 				auto timestamp = std::make_tuple(timer.getCreationUsectime());
 				for (auto& it : selectedRequestsAvgTimes_) {
 					auto average = std::make_tuple(
-							std::get<0>(it.second) / std::max(1UL, std::get<1>(it.second)));
+							std::get<0>(it.second) / std::max<uint64_t>(1UL, std::get<1>(it.second)));
 					TuplePrinter<Compressor>::print_tuple(
 							avgLogOutputStream,
 							std::tuple_cat(timestamp, std::tuple_cat(it.first,
@@ -286,7 +290,7 @@ public:
 			requests.push_back(request);
 			if (requests.size() == requestsToBeLogged) {
 				std::cerr << "Requests log full!" << std::endl;
-				syslog(LOG_WARNING, "Requests log full");
+				lzfs_pretty_syslog(LOG_WARNING, "Requests log full");
 			}
 		}
 	}
