@@ -19,6 +19,7 @@
 #include "common/platform.h"
 #include "common/time_utils.h"
 
+#include <unistd.h>
 #include <chrono>
 #include <thread>
 

@@ -24,11 +24,15 @@
 #include "common/crc.h"
 #include "common/mfserr.h"
 #include "common/random.h"
+#include "common/sockets.h"
 
 int main(int argc, char **argv) {
 	::testing::InitGoogleTest(&argc, argv);
 	rnd_init();
 	mycrc32_init();
+	socketinit();
+#ifndef _WIN32
 	signal(SIGPIPE, SIG_IGN);
+#endif
 	return RUN_ALL_TESTS();
 }

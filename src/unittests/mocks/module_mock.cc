@@ -19,7 +19,6 @@
 #include "common/platform.h"
 #include "unittests/mocks/module_mock.h"
 
-#include <poll.h>
 #include <thread>
 #include <gtest/gtest.h>
 
@@ -89,7 +88,7 @@ void ModuleMock::operator()() {
 			}
 			pfd.push_back(pollfd{client.first, mask, 0});
 		}
-		poll(pfd.data(), pfd.size(), 10);
+		tcppoll(pfd, 10);
 
 		for (const auto& p : pfd) {
 			if (p.fd == sock_) {

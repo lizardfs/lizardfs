@@ -19,6 +19,7 @@
 #include "common/platform.h"
 #include "common/shared_mutex.h"
 
+#include <unistd.h>
 #include <list>
 #include <thread>
 
