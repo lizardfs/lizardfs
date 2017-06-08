@@ -22,6 +22,7 @@
 #include <iostream>
 #include <boost/program_options.hpp>
 
+#include "mount/lizard_client.h"
 #include "mount/polonaise/setup.h"
 
 std::istream& operator >> (std::istream& in, SugidClearMode& scm) {
@@ -99,46 +100,46 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 				po::value<std::string>(&setup.password),
 				"password for lizardfs instance")
 			("io-retries",
-				po::value<uint32_t>(&setup.io_retries)->default_value(LizardClient::FsInitParams::kDefaultIoRetries),
+				po::value<uint32_t>(&setup.io_retries)->default_value((unsigned)LizardClient::FsInitParams::kDefaultIoRetries),
 				"number of retries for I/O failres")
 			("write-buffer-size",
-				po::value<uint32_t>(&setup.write_buffer_size)->default_value(LizardClient::FsInitParams::kDefaultWriteCacheSize),
+				po::value<uint32_t>(&setup.write_buffer_size)->default_value((unsigned)LizardClient::FsInitParams::kDefaultWriteCacheSize),
 				"size of global write buffer in MiB")
 			("report-reserved-period",
-				po::value<uint32_t>(&setup.report_reserved_period)->default_value(LizardClient::FsInitParams::kDefaultReportReservedPeriod),
+				po::value<uint32_t>(&setup.report_reserved_period)->default_value((unsigned)LizardClient::FsInitParams::kDefaultReportReservedPeriod),
 				"period between reporting of reserved inodes expressed in seconds")
 			("forget-password",
-				po::bool_switch(&setup.forget_password)->default_value(LizardClient::FsInitParams::kDefaultDoNotRememberPassword),
+				po::bool_switch(&setup.forget_password)->default_value((bool)LizardClient::FsInitParams::kDefaultDoNotRememberPassword),
 				"forget password after successful registration")
 			("subfolder,S",
-				po::value<std::string>(&setup.subfolder)->default_value(LizardClient::FsInitParams::kDefaultSubfolder),
+				po::value<std::string>(&setup.subfolder)->default_value((const char *)LizardClient::FsInitParams::kDefaultSubfolder),
 				"mount only given subfolder of the file system")
 			("debug",
-				po::bool_switch(&setup.debug)->default_value(LizardClient::FsInitParams::kDefaultDebugMode),
+				po::bool_switch(&setup.debug)->default_value((bool)LizardClient::FsInitParams::kDefaultDebugMode),
 				"enable debug mode")
 			("direntry-cache-timeout",
-				po::value<double>(&setup.direntry_cache_timeout)->default_value(LizardClient::FsInitParams::kDefaultDirentryCacheTimeout),
+				po::value<double>(&setup.direntry_cache_timeout)->default_value((unsigned)LizardClient::FsInitParams::kDefaultDirentryCacheTimeout),
 				"timeout for direntry cache")
 			("direntry-cache-size",
-				po::value<unsigned>(&setup.direntry_cache_size)->default_value(LizardClient::FsInitParams::kDefaultDirentryCacheSize),
+				po::value<unsigned>(&setup.direntry_cache_size)->default_value((unsigned)LizardClient::FsInitParams::kDefaultDirentryCacheSize),
 				"size of direntry cache in number of elements")
 			("entry-cache-timeout",
-				po::value<double>(&setup.entry_cache_timeout)->default_value(LizardClient::FsInitParams::kDefaultEntryCacheTimeout),
+				po::value<double>(&setup.entry_cache_timeout)->default_value((unsigned)LizardClient::FsInitParams::kDefaultEntryCacheTimeout),
 				"timeout for enty cache")
 			("attr-cache-timeout",
-				po::value<double>(&setup.attr_cache_timeout)->default_value(LizardClient::FsInitParams::kDefaultAttrCacheTimeout),
+				po::value<double>(&setup.attr_cache_timeout)->default_value((unsigned)LizardClient::FsInitParams::kDefaultAttrCacheTimeout),
 				"timeout for attribute cache")
 			("no-mkdir-copy-sgid",
-				po::bool_switch(&setup.no_mkdir_copy_sgid)->default_value(LizardClient::FsInitParams::kDefaultMkdirCopySgid),
+				po::bool_switch(&setup.no_mkdir_copy_sgid)->default_value((bool)LizardClient::FsInitParams::kDefaultMkdirCopySgid),
 				"sgid bit should NOT be copied during mkdir operation")
 			("sugid-clear-mode",
-				po::value<SugidClearMode>(&setup.sugid_clear_mode)->default_value(LizardClient::FsInitParams::kDefaultSugidClearMode),
+				po::value<SugidClearMode>(&setup.sugid_clear_mode)->default_value((SugidClearMode)LizardClient::FsInitParams::kDefaultSugidClearMode),
 				"set sugid clear mode")
 			("daemonize",
 				po::bool_switch(&setup.make_daemon)->default_value(false),
 				"work in daemon mode")
 			("enable-acl",
-				po::bool_switch(&setup.enable_acl)->default_value(LizardClient::FsInitParams::kDefaultAclEnabled),
+				po::bool_switch(&setup.enable_acl)->default_value((bool)LizardClient::FsInitParams::kDefaultAclEnabled),
 				"enable acl support")
 #ifdef _WIN32
 			("pipe-name,N",

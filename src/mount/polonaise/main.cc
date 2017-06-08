@@ -1078,7 +1078,7 @@ int main (int argc, char **argv) {
 	mycrc32_init();
 	LizardClient::FsInitParams params("", gSetup.master_host, gSetup.master_port, gSetup.mountpoint);
 	params.subfolder = gSetup.subfolder;
-	params.password_digest = gSetup.password;
+	params.password_digest.assign(gSetup.password.begin(), gSetup.password.end());
 	params.meta = false;
 	params.do_not_remember_password = gSetup.forget_password;
 	params.delayed_init = false;

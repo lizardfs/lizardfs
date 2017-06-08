@@ -214,14 +214,11 @@ struct FileInfo {
 			lock_owner(lock_owner) {
 	}
 
-	FileInfo &operator=(FileInfo &&other) {
-		flags = other.flags;
-		direct_io = other.direct_io;
-		keep_cache = other.keep_cache;
-		fh = other.fh;
-		lock_owner = other.lock_owner;
-		return *this;
-	}
+	FileInfo(const FileInfo &other) = default;
+	FileInfo(FileInfo &&other) = default;
+
+	FileInfo &operator=(const FileInfo &other) = default;
+	FileInfo &operator=(FileInfo &&other) = default;
 
 	int flags;
 	unsigned int direct_io : 1;
