@@ -89,6 +89,7 @@ public:
 
 	typedef flat_set<Entry, compact_vector<Entry, uint16_t>>::iterator iterator;
 	typedef flat_set<Entry, compact_vector<Entry, uint16_t>>::const_iterator const_iterator;
+	typedef flat_set<Entry, compact_vector<Entry, uint16_t>>::size_type size_type;
 
 	AccessControlList() : list_(), basic_permissions_(0xF000) {
 	}
@@ -343,6 +344,10 @@ public:
 			return access_rights & getMaskRights();
 		}
 		return access_rights;
+	}
+
+	size_type size() const noexcept {
+		return list_.size();
 	}
 
 	iterator begin() {
