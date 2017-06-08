@@ -110,6 +110,10 @@ void fs_readreserved_data(uint32_t rootinode, uint8_t sesflags, uint8_t *dbuff) 
 	fsnodes_getdetacheddata(gMetadata->reserved, dbuff);
 }
 
+void fs_readreserved(uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries) {
+	fsnodes_getdetacheddata(gMetadata->reserved, off, max_entries, entries);
+}
+
 uint8_t fs_readtrash_size(uint32_t rootinode, uint8_t sesflags, uint32_t *dbuffsize) {
 	if (rootinode != 0) {
 		return LIZARDFS_ERROR_EPERM;
@@ -123,6 +127,10 @@ void fs_readtrash_data(uint32_t rootinode, uint8_t sesflags, uint8_t *dbuff) {
 	(void)rootinode;
 	(void)sesflags;
 	fsnodes_getdetacheddata(gMetadata->trash, dbuff);
+}
+
+void fs_readtrash(uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries) {
+	fsnodes_getdetacheddata(gMetadata->trash, off, max_entries, entries);
 }
 
 /* common procedure for trash and reserved files */

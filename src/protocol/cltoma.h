@@ -350,6 +350,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseGetDir, LIZ_CLTOMA_FUSE_GETDIR,
 		uint64_t, first_entry,
 		uint64_t, number_of_entries)
 
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseGetReserved, LIZ_CLTOMA_FUSE_GETRESERVED, 0,
+		uint32_t, msgid,
+		uint32_t, off,
+		uint32_t, max_entries)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, fuseGetTrash, LIZ_CLTOMA_FUSE_GETTRASH, 0,
+		uint32_t, msgid,
+		uint32_t, off,
+		uint32_t, max_entries)
+
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, listTasks, LIZ_CLTOMA_LIST_TASKS, 0,
 		bool, dummy)

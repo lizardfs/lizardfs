@@ -3687,6 +3687,14 @@ void matoclserv_fuse_gettrash(matoclserventry *eptr,const uint8_t *data,uint32_t
 	}
 }
 
+void matoclserv_fuse_gettrash(matoclserventry *eptr, const PacketHeader &header, const uint8_t *data) {
+	uint32_t off, max_entries, msg_id;
+	cltoma::fuseGetTrash::deserialize(data, header.length, msg_id, off, max_entries);
+	std::vector<NamedInodeEntry> entries;
+	fs_readtrash(off, std::min<uint32_t>(max_entries, matocl::fuseGetDir::kMaxNumberOfDirectoryEntries), entries);
+	matoclserv_createpacket(eptr, matocl::fuseGetTrash::build(msg_id, entries));
+}
+
 void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
 	uint32_t inode;
 	Attributes attr;
@@ -3831,6 +3839,14 @@ void matoclserv_fuse_getreserved(matoclserventry *eptr,const uint8_t *data,uint3
 	} else {
 		fs_readreserved_data(eptr->sesdata->rootinode,eptr->sesdata->sesflags,ptr);
 	}
+}
+
+void matoclserv_fuse_getreserved(matoclserventry *eptr, const PacketHeader &header, const uint8_t *data) {
+	uint32_t off, max_entries, msg_id;
+	cltoma::fuseGetReserved::deserialize(data, header.length, msg_id, off, max_entries);
+	std::vector<NamedInodeEntry> entries;
+	fs_readreserved(off, std::min<uint32_t>(max_entries, matocl::fuseGetDir::kMaxNumberOfDirectoryEntries), entries);
+	matoclserv_createpacket(eptr, matocl::fuseGetReserved::build(msg_id, entries));
 }
 
 void matoclserv_fuse_deleteacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
@@ -4790,6 +4806,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_FUSE_GETTRASH:
 					matoclserv_fuse_gettrash(eptr,data,length);
 					break;
+				case LIZ_CLTOMA_FUSE_GETTRASH:
+					matoclserv_fuse_gettrash(eptr, PacketHeader(type, length), data);
+					break;
 				case CLTOMA_FUSE_GETDETACHEDATTR:
 					matoclserv_fuse_getdetachedattr(eptr,data,length);
 					break;
@@ -4807,6 +4826,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case CLTOMA_FUSE_GETRESERVED:
 					matoclserv_fuse_getreserved(eptr,data,length);
+					break;
+				case LIZ_CLTOMA_FUSE_GETRESERVED:
+					matoclserv_fuse_getreserved(eptr, PacketHeader(type, length), data);
 					break;
 				case CLTOMA_FUSE_CHECK:
 					matoclserv_fuse_check(eptr,data,length);

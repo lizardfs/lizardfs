@@ -86,6 +86,8 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_readreserved);
+		LIZARDFS_LINK_FUNCTION(lizardfs_readtrash);
 		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_unlink);
@@ -196,6 +198,40 @@ Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off
 Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
 		size_t max_entries, std::error_code &ec) {
 	auto ret = lizardfs_readdir_(ctx, fileinfo->inode, offset, max_entries);
+	ec = make_error_code(ret.first);
+	return ret.second;
+}
+
+Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOffset offset,
+	                                       NamedInodeOffset max_entries) {
+	std::error_code ec;
+	auto reserved_entries = readreserved(ctx, offset, max_entries, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return reserved_entries;
+}
+
+Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOffset offset,
+	                                       NamedInodeOffset max_entries, std::error_code &ec) {
+	auto ret = lizardfs_readreserved_(ctx, offset, max_entries);
+	ec = make_error_code(ret.first);
+	return ret.second;
+}
+
+Client::ReadTrashReply Client::readtrash(const Context &ctx, NamedInodeOffset offset,
+	                                 NamedInodeOffset max_entries) {
+	std::error_code ec;
+	auto trash_entries = readtrash(ctx, offset, max_entries, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return trash_entries;
+}
+
+Client::ReadTrashReply Client::readtrash(const Context &ctx, NamedInodeOffset offset,
+	                                 NamedInodeOffset max_entries, std::error_code &ec) {
+	auto ret = lizardfs_readtrash_(ctx, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
 }

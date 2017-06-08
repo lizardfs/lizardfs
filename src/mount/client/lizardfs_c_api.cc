@@ -284,7 +284,7 @@ int liz_readdir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *filein
 	try {
 		p_namebuf = new char[total_name_size];
 	} catch (...) {
-		gLastErrorCode = ENOMEM;
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
 		return -1;
 	}
 
@@ -317,6 +317,73 @@ int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fil
 	client.releasedir(context, (Client::FileInfo *)fileinfo, ec);
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
+}
+
+static int convert_named_inodes(liz_namedinode_entry *out_entries, uint32_t *num_entries,
+	                     const std::vector<NamedInodeEntry> &input) {
+	*num_entries = 0;
+	if (input.empty()) {
+		return 0;
+	}
+
+	size_t total_name_size = 0;
+	for (const auto &ni : input) {
+		total_name_size += ni.name.size() + 1;
+	}
+
+	char *p_namebuf;
+	try {
+		p_namebuf = new char[total_name_size];
+	} catch (...) {
+		gLastErrorCode = ENOMEM;
+		return -1;
+	}
+
+	for (const auto &ni : input) {
+		out_entries->ino = ni.inode;
+		out_entries->name = p_namebuf;
+		out_entries++;
+
+		auto s = ni.name.size();
+		ni.name.copy(p_namebuf, s);
+		p_namebuf[s] = '\0';
+		p_namebuf += s + 1;
+	}
+
+	*num_entries = input.size();
+	return 0;
+}
+
+int liz_readreserved(liz_t *instance, liz_context_t *ctx, uint32_t offset, uint32_t max_entries,
+	             struct liz_namedinode_entry *out_entries, uint32_t *num_entries) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	auto named_inodes = client.readreserved(context, offset, max_entries, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	return convert_named_inodes(out_entries, num_entries, named_inodes);
+}
+
+int liz_readtrash(liz_t *instance, liz_context_t *ctx, uint32_t offset, uint32_t max_entries,
+	          struct liz_namedinode_entry *out_entries, uint32_t *num_entries) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	auto named_inodes = client.readtrash(context, offset, max_entries, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	return convert_named_inodes(out_entries, num_entries, named_inodes);
+}
+
+void liz_free_namedinode_entries(struct liz_namedinode_entry *entries, uint32_t num_entries) {
+	assert(num_entries > 0);
+	(void)num_entries;
+	delete[] entries->name;
 }
 
 int liz_mkdir(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,

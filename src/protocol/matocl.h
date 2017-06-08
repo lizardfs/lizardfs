@@ -38,6 +38,7 @@
 #include "protocol/chunkserver_list_entry.h"
 #include "protocol/directory_entry.h"
 #include "protocol/lock_info.h"
+#include "protocol/named_inode_entry.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
 #include "protocol/quota.h"
@@ -424,6 +425,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, message_id,
 		uint64_t, first_entry_index,
 		std::vector<DirectoryEntry>, dir_entry)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetReserved, LIZ_MATOCL_FUSE_GETRESERVED, 0,
+		uint32_t, msgid,
+		std::vector<NamedInodeEntry>, entries)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetTrash, LIZ_MATOCL_FUSE_GETTRASH, 0,
+		uint32_t, msgid,
+		std::vector<NamedInodeEntry>, entries)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, listTasks, LIZ_MATOCL_LIST_TASKS, 0,

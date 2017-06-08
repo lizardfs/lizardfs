@@ -32,6 +32,7 @@
 #include "protocol/packet.h"
 #include "protocol/lock_info.h"
 #include "protocol/directory_entry.h"
+#include "protocol/named_inode_entry.h"
 
 void fs_getmasterlocation(uint8_t loc[14]);
 uint32_t fs_getsrcip(void);
@@ -83,7 +84,11 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, const AccessControlList& acl);
 
 uint8_t fs_getreserved(const uint8_t **dbuff,uint32_t *dbuffsize);
+uint8_t fs_getreserved(LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries,
+	               std::vector<NamedInodeEntry> &entries);
 uint8_t fs_gettrash(const uint8_t **dbuff,uint32_t *dbuffsize);
+uint8_t fs_gettrash(LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries,
+	            std::vector<NamedInodeEntry> &entries);
 uint8_t fs_getdetachedattr(uint32_t inode, Attributes &attr);
 uint8_t fs_gettrashpath(uint32_t inode,const uint8_t **path);
 uint8_t fs_settrashpath(uint32_t inode,const uint8_t *path);

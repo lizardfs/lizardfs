@@ -1737,6 +1737,22 @@ enum class SugidClearMode {
 #define LIZ_MATOCL_LIST_DEFECTIVE_FILES (1000U + 598U)
 /// last_entry_index:64 files:(vector<DefectiveFileInfo>)
 
+// 0x63f
+#define LIZ_CLTOMA_FUSE_GETRESERVED (1000U + 599U)
+/// msgid:32 off:32 max_entries:32
+
+// 0x640
+#define LIZ_MATOCL_FUSE_GETRESERVED (1000U + 600U)
+/// msgid:32 entries:(vector<NamedInodeEntry>)
+
+// 0x641
+#define LIZ_CLTOMA_FUSE_GETTRASH (1000U + 601U)
+/// msgid:32 off:32 max_entries:32
+
+// 0x642
+#define LIZ_MATOCL_FUSE_GETTRASH (1000U + 602U)
+/// msgid:32 entries:(vector<NamedInodeEntry>)
+
 // CHUNKSERVER STATS
 
 // 0x0258

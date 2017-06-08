@@ -70,6 +70,11 @@ typedef struct liz_direntry {
 	off_t next_entry_offset;
 } liz_direntry_t;
 
+typedef struct liz_namedinode_entry {
+	liz_inode_t ino;
+	char *name;
+} liz_namedinode_entry_t;
+
 /* Result of getxattr, setxattr and listattr operations */
 typedef struct liz_xattr_reply {
 	uint32_t value_length;
@@ -270,6 +275,40 @@ void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries);
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+
+/*! \brief Get reserved file inodes and names
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param offset 0-based index of the first wanted entry
+ * \param max_entries maximum number of entries to retrieve
+ * \param out_entries array entries are placed in
+ * \param num_entries number of entries placed in out_entries
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ * \post liz_free_namedinode_entries(out_entries, result) must be called
+ *       if (returned 0 && num_entries > 0) to dispose of returned entries
+ */
+int liz_readreserved(liz_t *instance, liz_context_t *ctx, uint32_t offset, uint32_t max_entries,
+                     liz_namedinode_entry_t *out_entries, uint32_t *num_entries);
+
+/*! \brief Get trash file inodes and names
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param offset 0-based index of the first wanted entry
+ * \param max_entries maximum number of entries to retrieve
+ * \param out_entries array entries are placed in
+ * \param num_entries number of entries placed in out_entries
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ * \post liz_free_namedinode_entry(out_entries, result) must be called
+ *       if (returned 0 && num_entries > 0) to dispose of returned entries
+ */
+int liz_readtrash(liz_t *instance, liz_context_t *ctx, uint32_t offset, uint32_t max_entries,
+                  liz_namedinode_entry_t *out_entries, uint32_t *num_entries);
+
+/*! \brief Destroy named inode entries placed in an array
+ * \param entries out_entries argument to previous call to either liz_readreserved or liz_readtrash
+ * \param num_entries positive number of entries returned by the respective call
+ */
+void liz_free_namedinode_entries(struct liz_namedinode_entry *entries, uint32_t num_entries);
 
 /*! \brief Create a directory
  * \param instance instance returned from liz_init

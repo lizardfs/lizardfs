@@ -34,11 +34,13 @@
 #include "mount/readdata_cache.h"
 #include "mount/stat_defs.h"
 #include "protocol/lock_info.h"
+#include "protocol/named_inode_entry.h"
 
 namespace LizardClient {
 
 typedef uint32_t Inode;
 typedef uint32_t JobId;
+typedef uint32_t NamedInodeOffset;
 
 struct FsInitParams {
 	static constexpr const char *kDefaultSubfolder = "/";
@@ -318,7 +320,7 @@ EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode
 
 void unlink(const Context &ctx, Inode parent, const char *name);
 
-void undel(Context ctx, Inode ino);
+void undel(const Context &ctx, Inode ino);
 
 void rmdir(const Context &ctx, Inode parent, const char *name);
 
@@ -348,6 +350,10 @@ void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi);
 void opendir(const Context &ctx, Inode ino);
 
 std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t max_entries);
+
+std::vector<NamedInodeEntry> readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+
+std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 
 void releasedir(const Context &ctx, Inode ino);
 
@@ -383,10 +389,10 @@ void setlk_interrupt(const lzfs_locks::InterruptData &data);
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);
 
-JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
+JobId makesnapshot(const Context &ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
 	          bool can_overwrite);
-std::string getgoal(Context ctx, Inode ino);
-void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode);
+std::string getgoal(const Context &ctx, Inode ino);
+void setgoal(const Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode);
 
 void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, uint64_t *reservedspace, uint32_t *inodes);
 

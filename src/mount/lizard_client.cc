@@ -254,6 +254,8 @@ void statsptr_init(void) {
 	statsptr[OP_CREATE] = stats_get_counterptr(stats_get_subnode(s,"create",0));
 	statsptr[OP_RELEASEDIR] = stats_get_counterptr(stats_get_subnode(s,"releasedir",0));
 	statsptr[OP_READDIR] = stats_get_counterptr(stats_get_subnode(s,"readdir",0));
+	statsptr[OP_READRESERVED] = stats_get_counterptr(stats_get_subnode(s,"readreserved",0));
+	statsptr[OP_READTRASH] = stats_get_counterptr(stats_get_subnode(s,"readtrash",0));
 	statsptr[OP_OPENDIR] = stats_get_counterptr(stats_get_subnode(s,"opendir",0));
 	statsptr[OP_LINK] = stats_get_counterptr(stats_get_subnode(s,"link",0));
 	statsptr[OP_RENAME] = stats_get_counterptr(stats_get_subnode(s,"rename",0));
@@ -1090,7 +1092,7 @@ void unlink(const Context &ctx, Inode parent, const char *name) {
 	}
 }
 
-void undel(Context ctx, Inode ino) {
+void undel(const Context &ctx, Inode ino) {
 	stats_inc(OP_UNDEL);
 	if (debug_mode) {
 		oplog_printf(ctx, "undel (%lu) ...", (unsigned long)ino);
@@ -1607,6 +1609,52 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 	}
 
 	return result;
+}
+
+std::vector<NamedInodeEntry> readreserved(const Context &ctx, NamedInodeOffset off, NamedInodeOffset max_entries) {
+	stats_inc(OP_READRESERVED);
+	if (debug_mode) {
+		oplog_printf(ctx, "readreserved (%" PRIu64 ",%" PRIu64 ") ...",
+				(uint64_t)max_entries,
+				(uint64_t)off);
+		fprintf(stderr,"readreserved (%" PRIu64 ",%" PRIu64 ")\n",
+				(uint64_t)max_entries,
+				(uint64_t)off);
+	}
+
+	std::vector<NamedInodeEntry> entries;
+	uint8_t status;
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_getreserved(off, max_entries, entries));
+
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+
+	return entries;
+}
+
+std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset off, NamedInodeOffset max_entries) {
+	stats_inc(OP_READTRASH);
+	if (debug_mode) {
+		oplog_printf(ctx, "readtrash (%" PRIu64 ",%" PRIu64 ") ...",
+				(uint64_t)max_entries,
+				(uint64_t)off);
+		fprintf(stderr,"readtrash (%" PRIu64 ",%" PRIu64 ")\n",
+				(uint64_t)max_entries,
+				(uint64_t)off);
+	}
+
+	std::vector<NamedInodeEntry> entries;
+	uint8_t status;
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_gettrash(off, max_entries, entries));
+
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+
+	return entries;
 }
 
 void releasedir(const Context &ctx, Inode ino) {
@@ -2869,7 +2917,7 @@ void flock_recv() {
 	}
 }
 
-JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
+JobId makesnapshot(const Context &ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
 	          bool can_overwrite) {
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "makesnapshot (%lu, %lu, %s): %s",
@@ -2888,7 +2936,7 @@ JobId makesnapshot(Context ctx, Inode ino, Inode dst_parent, const std::string &
 	return job_id;
 }
 
-std::string getgoal(Context ctx, Inode ino) {
+std::string getgoal(const Context &ctx, Inode ino) {
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "getgoal (%lu): %s",
 				(unsigned long)ino, strerr(EINVAL));
@@ -2904,7 +2952,7 @@ std::string getgoal(Context ctx, Inode ino) {
 	return goal;
 }
 
-void setgoal(Context ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
+void setgoal(const Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "setgoal (%lu, %s): %s",
 				(unsigned long)ino, goal_name.c_str(), strerr(EINVAL));

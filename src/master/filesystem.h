@@ -39,6 +39,7 @@
 #include "master/metadata_dumper.h"
 #include "master/setgoal_task.h"
 #include "master/settrashtime_task.h"
+#include "protocol/named_inode_entry.h"
 #include "protocol/quota.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(NoMetadataException, Exception, "no metadata");
@@ -207,10 +208,12 @@ uint32_t fs_newsessionid(void);
 // RESERVED
 uint8_t fs_readreserved_size(uint32_t rootinode,uint8_t sesflags,uint32_t *dbuffsize);
 void fs_readreserved_data(uint32_t rootinode,uint8_t sesflags,uint8_t *dbuff);
+void fs_readreserved(uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries);
 
 // TRASH
 uint8_t fs_readtrash_size(uint32_t rootinode,uint8_t sesflags,uint32_t *dbuffsize);
 void fs_readtrash_data(uint32_t rootinode,uint8_t sesflags,uint8_t *dbuff);
+void fs_readtrash(uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries);
 uint8_t fs_gettrashpath(uint32_t rootinode,uint8_t sesflags,uint32_t inode,std::string &path);
 
 // RESERVED+TRASH

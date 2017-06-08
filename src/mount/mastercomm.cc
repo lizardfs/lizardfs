@@ -2272,6 +2272,50 @@ uint8_t fs_gettrash(const uint8_t **dbuff,uint32_t *dbuffsize) {
 	return ret;
 }
 
+uint8_t fs_getreserved(LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries,
+	               std::vector<NamedInodeEntry> &entries) {
+	threc *rec = fs_get_my_threc();
+	auto message = cltoma::fuseGetReserved::build(rec->packetId, off, max_entries);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GETRESERVED, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		PacketVersion dummy_packet_version;
+		uint32_t dummy_message_id;
+		deserializePacketVersionNoHeader(message, dummy_packet_version);
+		matocl::fuseGetReserved::deserialize(message, dummy_message_id, entries);
+		return LIZARDFS_STATUS_OK;
+	} catch (Exception &ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_GETRESERVED", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+uint8_t fs_gettrash(LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries,
+	            std::vector<NamedInodeEntry> &entries) {
+	threc *rec = fs_get_my_threc();
+	auto message = cltoma::fuseGetTrash::build(rec->packetId, off, max_entries);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_GETTRASH, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		PacketVersion dummy_packet_version;
+		uint32_t dummy_message_id;
+		deserializePacketVersionNoHeader(message, dummy_packet_version);
+		matocl::fuseGetTrash::deserialize(message, dummy_message_id, entries);
+		return LIZARDFS_STATUS_OK;
+	} catch (Exception &ex) {
+		fs_got_inconsistent("LIZ_MATOCL_FUSE_GETTRASH", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 uint8_t fs_getdetachedattr(uint32_t inode, Attributes &attr) {
 	uint8_t *wptr;
 	const uint8_t *rptr;

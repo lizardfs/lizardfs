@@ -23,6 +23,7 @@
 #include "master/filesystem_node_types.h"
 #include "master/filesystem_metadata.h"
 #include "protocol/directory_entry.h"
+#include "protocol/named_inode_entry.h"
 
 inline uint32_t fsnodes_hash(uint32_t parentid, const hstorage::Handle &name) {
 	return (parentid * 0x5F2318BD) + name.hash();
@@ -118,8 +119,10 @@ std::string fsnodes_escape_name(const std::string &name);
 int fsnodes_purge(uint32_t ts, FSNode *p);
 uint32_t fsnodes_getdetachedsize(const TrashPathContainer &data);
 void fsnodes_getdetacheddata(const TrashPathContainer &data, uint8_t *dbuff);
+void fsnodes_getdetacheddata(const TrashPathContainer &data, uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries);
 uint32_t fsnodes_getdetachedsize(const ReservedPathContainer &data);
 void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint8_t *dbuff);
+void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries);
 void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path);
 void fsnodes_fill_attr(FSNode *node, FSNode *parent, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, Attributes &attr);

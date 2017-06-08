@@ -38,12 +38,15 @@ class Client {
 public:
 	typedef LizardClient::Inode Inode;
 	typedef LizardClient::JobId JobId;
+	typedef LizardClient::NamedInodeOffset NamedInodeOffset;
 	typedef LizardClient::AttrReply AttrReply;
 	typedef LizardClient::DirEntry DirEntry;
 	typedef LizardClient::EntryParam EntryParam;
 	typedef LizardClient::Context Context;
 	typedef std::vector<DirEntry> ReadDirReply;
 	typedef ReadCache::Result ReadResult;
+	typedef std::vector<NamedInodeEntry> ReadReservedReply;
+	typedef std::vector<NamedInodeEntry> ReadTrashReply;
 
 	struct Stats {
 		uint64_t total_space;
@@ -100,6 +103,14 @@ public:
 	                     size_t max_entries);
 	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
 	                     size_t max_entries, std::error_code &ec);
+
+	/*! \brief Read reserved contents */
+	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
+
+	/*! \brief Read trash contents */
+	ReadTrashReply readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+	ReadTrashReply readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
 
 	/*! \brief Create a directory */
 	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
@@ -189,6 +200,8 @@ protected:
 	typedef decltype(&lizardfs_mkdir) MkDirFunction;
 	typedef decltype(&lizardfs_rmdir) RmDirFunction;
 	typedef decltype(&lizardfs_readdir) ReadDirFunction;
+	typedef decltype(&lizardfs_readreserved) ReadReservedFunction;
+	typedef decltype(&lizardfs_readtrash) ReadTrashFunction;
 	typedef decltype(&lizardfs_opendir) OpenDirFunction;
 	typedef decltype(&lizardfs_releasedir) ReleaseDirFunction;
 	typedef decltype(&lizardfs_unlink) UnlinkFunction;
@@ -218,6 +231,8 @@ protected:
 	MkDirFunction lizardfs_mkdir_;
 	RmDirFunction lizardfs_rmdir_;
 	ReadDirFunction lizardfs_readdir_;
+	ReadReservedFunction lizardfs_readreserved_;
+	ReadTrashFunction lizardfs_readtrash_;
 	OpenDirFunction lizardfs_opendir_;
 	ReleaseDirFunction lizardfs_releasedir_;
 	UnlinkFunction lizardfs_unlink_;

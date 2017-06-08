@@ -748,12 +748,34 @@ void fsnodes_getdetacheddata(const TrashPathContainer &data, uint8_t *dbuff)
 	getdetacheddata(data, dbuff);
 }
 
+void fsnodes_getdetacheddata(const TrashPathContainer &data, uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries) {
+#ifdef LIZARDFS_HAVE_JUDY
+	auto it = data.find_nth(off);
+#else
+	auto it = off < data.size() ? std::next(data.begin(), off) : data.end();
+#endif
+	for (; max_entries > 0 && it != data.end(); max_entries--, ++it) {
+		entries.emplace_back((std::string)(*it).second, (*it).first.id);
+	}
+}
+
 uint32_t fsnodes_getdetachedsize(const ReservedPathContainer &data) {
 	return getdetachedsize(data);
 }
 
 void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint8_t *dbuff) {
 	getdetacheddata(data, dbuff);
+}
+
+void fsnodes_getdetacheddata(const ReservedPathContainer &data, uint32_t off, uint32_t max_entries, std::vector<NamedInodeEntry> &entries) {
+#ifdef LIZARDFS_HAVE_JUDY
+	auto it = data.find_nth(off);
+#else
+	auto it = off < data.size() ? std::next(data.begin(), off) : data.end();
+#endif
+	for (; max_entries > 0 && it != data.end(); max_entries--, ++it) {
+		entries.emplace_back((std::string)(*it).second, (*it).first);
+	}
 }
 
 uint32_t fsnodes_getdirsize(const FSNodeDirectory *p, uint8_t withattr) {
