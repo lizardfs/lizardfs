@@ -1270,21 +1270,28 @@ void fs_init_threads(uint32_t retries) {
 void fs_term(void) {
 	threc *tr,*trn;
 	acquired_file *af,*afn;
-	std::unique_lock<std::mutex> fdLock(fdMutex);
+	std::unique_lock<std::mutex> fd_lock(fdMutex);
 	fterm = 1;
-	fdLock.unlock();
+	fd_lock.unlock();
 	pthread_join(npthid,NULL);
 	pthread_join(rpthid,NULL);
+	std::unique_lock<std::mutex> rec_lock(recMutex);
 	for (tr = threchead ; tr ; tr = trn) {
 		trn = tr->next;
 		tr->outputBuffer.clear();
 		tr->inputBuffer.clear();
 		delete tr;
 	}
+	threchead = nullptr;
+	rec_lock.unlock();
+	std::unique_lock<std::mutex> af_lock(acquiredFileMutex);
 	for (af = afhead ; af ; af = afn) {
 		afn = af->next;
 		free(af);
 	}
+	afhead = nullptr;
+	af_lock.unlock();
+	fd_lock.lock();
 	if (fd>=0) {
 		tcpclose(fd);
 	}
