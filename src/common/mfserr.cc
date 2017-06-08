@@ -30,6 +30,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "common/errno_defs.h"
+
 #ifndef EDQUOT
 # define EDQUOT ENOSPC
 #endif

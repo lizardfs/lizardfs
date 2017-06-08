@@ -32,9 +32,9 @@
 #include <thrift/transport/TServerSocket.h>
 
 #include "common/crc.h"
+#include "common/errno_defs.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
-#include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
