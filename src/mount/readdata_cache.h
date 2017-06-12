@@ -186,6 +186,9 @@ public:
 		}
 
 		Size requestSize(Offset real_offset, Size real_size) const {
+			if (entries.empty()) {
+				return 0;
+			}
 			assert(real_offset >= frontOffset());
 			assert(real_offset <= endOffset());
 			return std::min<Size>(endOffset() - real_offset, real_size);
