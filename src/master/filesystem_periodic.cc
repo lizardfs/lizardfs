@@ -92,36 +92,11 @@ void fs_background_task_manager_work() {
 	}
 }
 
-std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
-	                                                   uint64_t &entry_index) {
-	FSNode *node;
-	FSNodeDirectory *parent;
-	std::string file_path;
-	std::vector<DefectiveFileInfo> defective_nodes_info;
-	ActiveLoopWatchdog watchdog;
-	defective_nodes_info.reserve(max_entries);
-	auto it = gDefectiveNodes.find_nth(entry_index);
-	watchdog.start();
-	for (uint64_t i = 0; i < max_entries && it != gDefectiveNodes.end(); ++it) {
-		if (((*it).second & requested_flags) != 0) {
-			node = fsnodes_id_to_node<FSNode>((*it).first);
-			parent = fsnodes_get_first_parent(node);
-			fsnodes_getpath(parent, node, file_path);
-			file_path = "/" + file_path;
-			defective_nodes_info.emplace_back(file_path, (*it).second);
-			++i;
-		}
-		++entry_index;
-		if (watchdog.expired()) {
-			return defective_nodes_info;
-		}
-	}
-	entry_index = 0;
-	return defective_nodes_info;
-}
-
 static std::string get_node_info(FSNode *node) {
 	std::string name;
+	if (node == nullptr) {
+		return name;
+	}
 	if (node->type == FSNode::kTrash) {
 		name = "file in trash " + std::to_string(node->id) + ": " +
 		       (std::string)gMetadata->trash.at(TrashPathKey(node));
@@ -157,6 +132,30 @@ static std::string get_node_info(FSNode *node) {
 	return fsnodes_escape_name(name);
 }
 
+std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
+	                                                   uint64_t &entry_index) {
+	FSNode *node;
+	std::vector<DefectiveFileInfo> defective_nodes_info;
+	ActiveLoopWatchdog watchdog;
+	defective_nodes_info.reserve(max_entries);
+	auto it = gDefectiveNodes.find_nth(entry_index);
+	watchdog.start();
+	for (uint64_t i = 0; i < max_entries && it != gDefectiveNodes.end(); ++it) {
+		if (((*it).second & requested_flags) != 0) {
+			node = fsnodes_id_to_node<FSNode>((*it).first);
+			std::string info = get_node_info(node);
+			defective_nodes_info.emplace_back(std::move(info), (*it).second);
+			++i;
+		}
+		++entry_index;
+		if (watchdog.expired()) {
+			return defective_nodes_info;
+		}
+	}
+	entry_index = 0;
+	return defective_nodes_info;
+}
+
 void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, uint32_t &ugfiles,
 		uint32_t &mfiles, uint32_t &chunks, uint32_t &ugchunks, uint32_t &mchunks,
 		std::string &result) {
@@ -170,6 +169,8 @@ void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, ui
 
 		FSNode *node = fsnodes_id_to_node<FSNode>(entry.first);
 		if (!node) {
+			report << "Structure error in defective list, entry " << std::to_string(entry.first) << "\n";
+			errors++;
 			continue;
 		}
 
@@ -213,6 +214,7 @@ void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, ui
 				report << "*";
 			}
 			report << " currently unavailable " << name << "\n";
+			errors++;
 		}
 
 		if (errors >= ERRORS_LOG_MAX) {
@@ -222,6 +224,7 @@ void fs_test_getdata(uint32_t &loopstart, uint32_t &loopend, uint32_t &files, ui
 		if (entry.second & kStructureError) {
 			std::string name = get_node_info(node);
 			report << "Structure error in " << name << "\n";
+			errors++;
 		}
 
 		if (errors >= ERRORS_LOG_MAX) {
