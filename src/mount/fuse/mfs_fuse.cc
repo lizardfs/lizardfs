@@ -308,17 +308,15 @@ void mfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t newparent, const char *
 
 void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	try {
-		LizardClient::opendir(get_context(req), ino, fuse_file_info_wrapper(fi));
-		if (fuse_reply_open(req, fi) == -ENOENT) {
-			assert(fi->fh == 0);
-		}
+		LizardClient::opendir(get_context(req), ino);
+		fuse_reply_open(req, fi);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-		struct fuse_file_info *fi) {
+		struct fuse_file_info */*fi*/) {
 	try {
 		char buffer[READDIR_BUFFSIZE];
 		if (size > READDIR_BUFFSIZE) {
@@ -339,8 +337,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 			// should be called only once.
 			size_t maxEntries = 1 + size / 32;
 			// Now extract some entries and rewrite them into the buffer.
-			auto fsDirEntries = LizardClient::readdir(get_context(req),
-					ino, off, maxEntries, fuse_file_info_wrapper(fi));
+			auto fsDirEntries = LizardClient::readdir(get_context(req), ino, off, maxEntries);
 			if (fsDirEntries.empty()) {
 				break; // no more entries (we don't need to set 'end = true' here to end the loop)
 			}
@@ -363,9 +360,9 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 	}
 }
 
-void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info */*fi*/) {
 	try {
-		LizardClient::releasedir(get_context(req), ino, fuse_file_info_wrapper(fi));
+		LizardClient::releasedir(get_context(req), ino);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

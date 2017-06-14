@@ -1465,10 +1465,8 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 	}
 }
 
-void opendir(Context ctx, Inode ino, FileInfo *fi) {
+void opendir(Context ctx, Inode ino) {
 	int status;
-
-	fi->fh = 0;
 
 	stats_inc(OP_OPENDIR);
 	if (debug_mode) {
@@ -1493,7 +1491,7 @@ void opendir(Context ctx, Inode ino, FileInfo *fi) {
 	}
 }
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entries, FileInfo */*fi*/) {
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entries) {
 	static constexpr int kBatchSize = 1000;
 
 	stats_inc(OP_READDIR);
@@ -1590,10 +1588,8 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entr
 	return result;
 }
 
-void releasedir(Context ctx, Inode ino, FileInfo */*fi*/) {
+void releasedir(Context ctx, Inode ino) {
 	static constexpr int kBatchSize = 1000;
-
-	(void)ino;
 
 	stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {

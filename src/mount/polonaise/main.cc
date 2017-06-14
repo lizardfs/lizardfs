@@ -533,7 +533,7 @@ public:
 	Descriptor opendir(const Context& context, const Inode inode) {
 		OPERATION_PROLOG
 		Descriptor descriptor = createDescriptor(0);
-		LizardClient::opendir(toLizardFsContext(context), toUint32(inode), getFileInfo(descriptor));
+		LizardClient::opendir(toLizardFsContext(context), toUint32(inode));
 		return descriptor;
 		OPERATION_EPILOG
 	}
@@ -553,8 +553,7 @@ public:
 				toLizardFsContext(context),
 				toUint64(inode),
 				firstEntryOffset,
-				toUint64(maxNumberOfEntries),
-				getFileInfo(descriptor));
+				toUint64(maxNumberOfEntries));
 
 		_return.reserve(entries.size());
 		for (LizardClient::DirEntry& entry : entries) {
@@ -577,8 +576,7 @@ public:
 		}
 		LizardClient::releasedir(
 				toLizardFsContext(context),
-				toUint64(inode),
-				getFileInfo(descriptor));
+				toUint64(inode));
 		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}

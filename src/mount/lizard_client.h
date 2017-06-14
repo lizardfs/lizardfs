@@ -343,11 +343,11 @@ void release(Context ctx, Inode ino, FileInfo* fi);
 
 void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi);
 
-void opendir(Context ctx, Inode ino, FileInfo* fi);
+void opendir(Context ctx, Inode ino);
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries, FileInfo* fi);
+std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries);
 
-void releasedir(Context ctx, Inode ino, FileInfo* fi);
+void releasedir(Context ctx, Inode ino);
 
 struct statvfs statfs(Context ctx, Inode ino);
 
