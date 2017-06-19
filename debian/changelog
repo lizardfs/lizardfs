@@ -1,3 +1,10 @@
+lizardfs (3.11.3) stable; urgency=low
+
+  * (master) fix issues with reporting defective files
+  * (mount) fix request size in read cache for empty results
+
+ -- Pawel Kalinowski <contact@lizardfs.org>  Thu, 13 Jul 2017 11:00:00 +0200
+
 lizardfs (3.11.2) stable; urgency=low
 
   * (all) display proper version

@@ -1,5 +1,9 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.11.3) (2017-07-13)
+ - (master) fix issues with reporting defective files
+ - (mount) fix request size in read cache for empty results
+
  * Lizardfs (3.11.2) (2017-06-07)
  - (all) display proper version
 

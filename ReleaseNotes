@@ -1,13 +1,12 @@
 Dear Users,
 
-LizardFS 3.11.2 is out!
+LizardFS 3.11.3 is ready.
 
-This is a minor bugfix release, so it contains bugfixes only:
+Yet another bugfix release, here's what we fixed:
 
-* all: display proper version
-
-Enjoy!
+ * master: fix issues with reporting defective files
+ * mount: fix request size in read cache for empty results
 
 Best,
-Pawel Kalinowski
+Piotr Sarna
 LizardFS Team
