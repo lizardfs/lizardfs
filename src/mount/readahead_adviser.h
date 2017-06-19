@@ -54,6 +54,10 @@ public:
 	 * \param size size of read operation
 	 */
 	void feed(uint64_t offset, uint32_t size) {
+		if (timeout_ms_ == 0) {
+			window_ = 0;
+			return;
+		}
 		addToHistory(size);
 		if (offset == current_offset_) {
 			random_candidates_ = 0;

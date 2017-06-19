@@ -61,7 +61,7 @@ public:
 		}
 
 		bool expired(uint32_t expiration_time) const {
-			return timer.elapsed_ms() > expiration_time;
+			return timer.elapsed_ms() >= expiration_time;
 		}
 
 		Offset endOffset() const {
