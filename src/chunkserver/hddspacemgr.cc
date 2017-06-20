@@ -3032,7 +3032,7 @@ static inline void hdd_add_chunk(folder *f,
  */
 void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) {
 	DIR *dd;
-	struct dirent *de, *destorage;
+	struct dirent *de;
 	uint32_t tcheckcnt;
 	uint8_t lastperc, currentperc;
 	uint32_t lasttime, currenttime;
@@ -3043,10 +3043,6 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 	if (scan_state == SCST_SCANTERMINATE) {
 		return;
 	}
-
-	/* size of name added to size of structure because on some os'es d_name has size of 1 byte */
-	std::vector<uint8_t> buffer(sizeof(struct dirent) + pathconf(f->path, _PC_NAME_MAX) + 1);
-	destorage = reinterpret_cast<struct dirent *>(buffer.data());
 
 	bool scanterm = false;
 	tcheckcnt = 0;
@@ -3061,7 +3057,12 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 			continue;
 		}
 
-		while (readdir_r(dd, destorage, &de) == 0 && de != NULL && !scanterm) {
+		while (!scanterm) {
+			de = readdir(dd);
+			if (!de) {
+				break;
+			}
+
 			ChunkFilenameParser filenameParser(de->d_name);
 			if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
 				if (strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
@@ -3116,7 +3117,7 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
  */
 int64_t hdd_folder_migrate_directories(folder *f, int layout_version) {
 	DIR *dd;
-	struct dirent *de, *destorage;
+	struct dirent *de;
 	int64_t count = 0;
 
 	assert(layout_version > 0);
@@ -3127,10 +3128,6 @@ int64_t hdd_folder_migrate_directories(folder *f, int layout_version) {
 			return count;
 		}
 	}
-
-	/* size of name added to size of structure because on some os'es d_name has size of 1 byte */
-	std::vector<uint8_t> buffer(sizeof(struct dirent) + pathconf(f->path, _PC_NAME_MAX) + 1);
-	destorage = reinterpret_cast<struct dirent *>(buffer.data());
 
 	bool scan_term = false;
 	int check_cnt = 0;
@@ -3143,7 +3140,12 @@ int64_t hdd_folder_migrate_directories(folder *f, int layout_version) {
 			continue;
 		}
 
-		while (readdir_r(dd, destorage, &de) == 0 && de != NULL && !scan_term) {
+		while (!scan_term) {
+			de = readdir(dd);
+			if (!de) {
+				break;
+			}
+
 			ChunkFilenameParser filenameParser(de->d_name);
 			if (filenameParser.parse() != ChunkFilenameParser::Status::OK) {
 				continue;
