@@ -156,3 +156,14 @@ void lizardfs_fs_term() {
 bool lizardfs_isSpecialInode(Inode ino) {
 	return LizardClient::isSpecialInode(ino);
 }
+
+int lizardfs_update_groups(LizardClient::Context &ctx) {
+	try {
+		LizardClient::updateGroups(ctx);
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch(...) {
+		return LIZARDFS_ERROR_IO;
+	}
+	return LIZARDFS_STATUS_OK;
+}

@@ -100,6 +100,7 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_release);
 		LIZARDFS_LINK_FUNCTION(lizardfs_flush);
 		LIZARDFS_LINK_FUNCTION(lizardfs_isSpecialInode);
+		LIZARDFS_LINK_FUNCTION(lizardfs_update_groups);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -132,6 +133,20 @@ int Client::init(const std::string &host, const std::string &port, const std::st
 	LizardClient::FsInitParams params("", host, port, mountpoint);
 	return lizardfs_fs_init_(params);
 }
+
+void Client::updateGroups(Context &ctx) {
+	std::error_code ec;
+	updateGroups(ctx, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::updateGroups(Context &ctx, std::error_code &ec) {
+	auto ret = lizardfs_update_groups_(ctx);
+	ec = make_error_code(ret);
+}
+
 
 void Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
 	std::error_code ec;

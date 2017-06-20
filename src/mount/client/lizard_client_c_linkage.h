@@ -48,5 +48,6 @@ std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(LizardClient::C
 std::pair<int, ssize_t> lizardfs_write(LizardClient::Context ctx, LizardClient::Inode ino, const char *buf, size_t size, off_t off, LizardClient::FileInfo* fi);
 int lizardfs_flush(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 bool lizardfs_isSpecialInode(LizardClient::Inode ino);
+int lizardfs_update_groups(LizardClient::Context &ctx);
 
 } // extern "C"

@@ -49,6 +49,10 @@ public:
 
 	~Client();
 
+	/*! \brief Update groups information */
+	void updateGroups(Context &ctx);
+	void updateGroups(Context &ctx, std::error_code &ec);
+
 	/*! \brief Find inode in parent directory by name */
 	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param);
 	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param, std::error_code &ec);
@@ -103,6 +107,7 @@ protected:
 	typedef decltype(&lizardfs_release) ReleaseFunction;
 	typedef decltype(&lizardfs_flush) FlushFunction;
 	typedef decltype(&lizardfs_isSpecialInode) IsSpecialInodeFunction;
+	typedef decltype(&lizardfs_update_groups) UpdateGroupsFunction;
 
 	FsInitFunction lizardfs_fs_init_;
 	FsTermFunction lizardfs_fs_term_;
@@ -116,6 +121,7 @@ protected:
 	ReleaseFunction lizardfs_release_;
 	FlushFunction lizardfs_flush_;
 	IsSpecialInodeFunction lizardfs_isSpecialInode_;
+	UpdateGroupsFunction lizardfs_update_groups_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;
