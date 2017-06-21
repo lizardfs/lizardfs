@@ -48,25 +48,27 @@ void checkTypesEqual(const A& a, const B& b) {
 			"Types don't match");
 }
 
-void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+	static_assert(sizeof(gid_t) == sizeof(LizardClient::Context::IdType), "Invalid IdType to call fuse_req_getgroups");
+
 #if defined(__APPLE__)
 	(void)req, (void)ctx;
 #else
 	static const int kMaxGroups = GroupCache::kDefaultGroupsSize - 1;
 
-	GroupCache::Groups groups(kMaxGroups + 1);
-	// First group is always the primary group. It may be duplicated later but it is not a problem.
-	groups[0] = ctx.gid;
-	int getgroups_ret = fuse_req_getgroups(req, kMaxGroups, groups.data() + 1);
+	assert(ctx.gids.size() == 1);
+	ctx.gids.resize(kMaxGroups + 1);
+
+	int getgroups_ret = fuse_req_getgroups(req, kMaxGroups, ctx.gids.data() + 1);
+	ctx.gids.resize(std::max(1, getgroups_ret + 1));
 	if (getgroups_ret > kMaxGroups) {
-		groups.resize(getgroups_ret + 1);
-		getgroups_ret = fuse_req_getgroups(req, groups.size() - 1, groups.data() + 1);
-	} else if (getgroups_ret >= 0) {
-		groups.resize(getgroups_ret + 1);
+		getgroups_ret = fuse_req_getgroups(req, ctx.gids.size() - 1, ctx.gids.data() + 1);
+
+		// we include check for case when number of groups has been changed between
+		// calls to fuse_req_getgroups
+		ctx.gids.resize(std::max(1, std::min<int>(getgroups_ret + 1, ctx.gids.size())));
 	}
-	if (getgroups_ret > 0) {
-		ctx.gid = LizardClient::updateGroups(groups);
-	}
+	LizardClient::updateGroups(ctx);
 #endif
 }
 

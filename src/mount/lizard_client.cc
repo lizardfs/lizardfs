@@ -106,24 +106,35 @@ static void update_credentials(Context::IdType index, const GroupCache::Groups &
 			} \
 		} while (0);
 
-Context::IdType updateGroups(const GroupCache::Groups &groups) {
+void updateGroups(Context &ctx) {
 	static const uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31;
 
-	auto result = gGroupCache.find(groups);
+	if (ctx.gids.empty()) {
+		return;
+	}
+
+	if (ctx.gids.size() == 1) {
+		ctx.gid = ctx.gids[0];
+		return;
+	}
+
+	static_assert(sizeof(Context::IdType) >= sizeof(uint32_t), "IdType too small");
+
+	auto result = gGroupCache.find(ctx.gids);
 	Context::IdType gid = 0;
-	uint32_t index;
 	if (result.found == false) {
 		try {
-			index = gGroupCache.put(groups);
-			LizardClient::update_credentials(index, groups);
+			uint32_t index = gGroupCache.put(ctx.gids);
+			update_credentials(index, ctx.gids);
 			gid = index | kSecondaryGroupsBit;
-		} catch (LizardClient::RequestException &e) {
+		} catch (RequestException &e) {
 			lzfs_pretty_syslog(LOG_ERR, "Cannot update groups: %d", e.system_error_code);
 		}
 	} else {
 		gid = result.index | kSecondaryGroupsBit;
 	}
-	return gid;
+
+	ctx.gid = gid;
 }
 
 Inode getSpecialInodeByName(const char *name) {
@@ -480,7 +491,7 @@ RequestException::RequestException(int error_code) : system_error_code(), lizard
 	}
 }
 
-struct statvfs statfs(Context ctx, Inode ino) {
+struct statvfs statfs(const Context &ctx, Inode ino) {
 	uint64_t totalspace,availspace,trashspace,reservedspace;
 	uint32_t inodes;
 	uint32_t bsize;
@@ -542,7 +553,7 @@ struct statvfs statfs(Context ctx, Inode ino) {
 	return stfsbuf;
 }
 
-void access(Context ctx, Inode ino, int mask) {
+void access(const Context &ctx, Inode ino, int mask) {
 	int status;
 
 	int mmode;
@@ -578,7 +589,7 @@ void access(Context ctx, Inode ino, int mask) {
 	}
 }
 
-EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_lookup) {
+EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole_path_lookup) {
 	EntryParam e;
 	uint64_t maxfleng;
 	uint32_t inode;
@@ -674,7 +685,7 @@ EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_l
 	return e;
 }
 
-AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
+AttrReply getattr(const Context &ctx, Inode ino, FileInfo *fi) {
 	uint64_t maxfleng;
 	double attr_timeout;
 	struct stat o_stbuf;
@@ -725,7 +736,7 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo *fi) {
 	return AttrReply{o_stbuf, attr_timeout};
 }
 
-AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
+AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf,
 	          int to_set, FileInfo *fi) {
 	struct stat o_stbuf;
 	uint64_t maxfleng;
@@ -934,7 +945,7 @@ AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf,
 	return AttrReply{o_stbuf, attr_timeout};
 }
 
-EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t rdev) {
+EntryParam mknod(const Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev) {
 	EntryParam e;
 	uint32_t inode;
 	Attributes attr;
@@ -1037,7 +1048,7 @@ EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t
 	}
 }
 
-void unlink(Context ctx, Inode parent, const char *name) {
+void unlink(const Context &ctx, Inode parent, const char *name) {
 	uint32_t nleng;
 	int status;
 
@@ -1084,7 +1095,7 @@ void unlink(Context ctx, Inode parent, const char *name) {
 	}
 }
 
-EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
+EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode) {
 	struct EntryParam e;
 	uint32_t inode;
 	Attributes attr;
@@ -1160,7 +1171,7 @@ EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode) {
 	}
 }
 
-void rmdir(Context ctx, Inode parent, const char *name) {
+void rmdir(const Context &ctx, Inode parent, const char *name) {
 	uint32_t nleng;
 	int status;
 
@@ -1206,7 +1217,7 @@ void rmdir(Context ctx, Inode parent, const char *name) {
 	}
 }
 
-EntryParam symlink(Context ctx, const char *path, Inode parent,
+EntryParam symlink(const Context &ctx, const char *path, Inode parent,
 			 const char *name) {
 	struct EntryParam e;
 	uint32_t inode;
@@ -1273,7 +1284,7 @@ EntryParam symlink(Context ctx, const char *path, Inode parent,
 	}
 }
 
-std::string readlink(Context ctx, Inode ino) {
+std::string readlink(const Context &ctx, Inode ino) {
 	int status;
 	const uint8_t *path;
 
@@ -1305,7 +1316,7 @@ std::string readlink(Context ctx, Inode ino) {
 	}
 }
 
-void rename(Context ctx, Inode parent, const char *name,
+void rename(const Context &ctx, Inode parent, const char *name,
 			Inode newparent, const char *newname) {
 	uint32_t nleng,newnleng;
 	int status;
@@ -1390,7 +1401,7 @@ void rename(Context ctx, Inode parent, const char *name,
 	}
 }
 
-EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
+EntryParam link(const Context &ctx, Inode ino, Inode newparent, const char *newname) {
 	uint32_t newnleng;
 	int status;
 	EntryParam e;
@@ -1467,7 +1478,7 @@ EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname) {
 	}
 }
 
-void opendir(Context ctx, Inode ino) {
+void opendir(const Context &ctx, Inode ino) {
 	int status;
 
 	stats_inc(OP_OPENDIR);
@@ -1493,7 +1504,7 @@ void opendir(Context ctx, Inode ino) {
 	}
 }
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entries) {
+std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t max_entries) {
 	static constexpr int kBatchSize = 1000;
 
 	stats_inc(OP_READDIR);
@@ -1590,7 +1601,7 @@ std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t max_entr
 	return result;
 }
 
-void releasedir(Context ctx, Inode ino) {
+void releasedir(const Context &ctx, Inode ino) {
 	static constexpr int kBatchSize = 1000;
 
 	stats_inc(OP_RELEASEDIR);
@@ -1653,7 +1664,7 @@ void remove_file_info(FileInfo *f) {
 	free(fileinfo);
 }
 
-EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
+EntryParam create(const Context &ctx, Inode parent, const char *name, mode_t mode,
 		FileInfo* fi) {
 	struct EntryParam e;
 	uint32_t inode;
@@ -1778,7 +1789,7 @@ EntryParam create(Context ctx, Inode parent, const char *name, mode_t mode,
 	return e;
 }
 
-void open(Context ctx, Inode ino, FileInfo *fi) {
+void open(const Context &ctx, Inode ino, FileInfo *fi) {
 	uint8_t oflags;
 	Attributes attr;
 	uint8_t mattr;
@@ -1844,7 +1855,7 @@ static void update_credentials(Context::IdType index, const GroupCache::Groups &
 	}
 }
 
-void release(Context ctx, Inode ino, FileInfo *fi) {
+void release(const Context &ctx, Inode ino, FileInfo *fi) {
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 
 	stats_inc(OP_RELEASE);
@@ -1872,7 +1883,7 @@ void release(Context ctx, Inode ino, FileInfo *fi) {
 			(unsigned long int)ino);
 }
 
-std::vector<uint8_t> read_special_inode(Context ctx,
+std::vector<uint8_t> read_special_inode(const Context &ctx,
 			Inode ino,
 			size_t size,
 			off_t off,
@@ -1883,7 +1894,7 @@ std::vector<uint8_t> read_special_inode(Context ctx,
 	return special_read(ino, ctx, size, off, fi, debug_mode);
 }
 
-ReadCache::Result read(Context ctx,
+ReadCache::Result read(const Context &ctx,
 			Inode ino,
 			size_t size,
 			off_t off,
@@ -2014,7 +2025,7 @@ ReadCache::Result read(Context ctx,
 	return ret;
 }
 
-BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t off,
+BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, off_t off,
 			FileInfo *fi) {
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
@@ -2113,7 +2124,7 @@ BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t o
 	}
 }
 
-void flush(Context ctx, Inode ino, FileInfo* fi) {
+void flush(const Context &ctx, Inode ino, FileInfo* fi) {
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
 
@@ -2157,7 +2168,7 @@ void flush(Context ctx, Inode ino, FileInfo* fi) {
 	}
 }
 
-void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi) {
+void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi) {
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 	int err;
 
@@ -2233,8 +2244,8 @@ public:
 
 class PlainXattrHandler : public XattrHandler {
 public:
-	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *name,
-			uint32_t nleng, const char *value, size_t size, int mode) {
+	uint8_t setxattr(const Context& ctx, Inode ino, const char *name,
+		uint32_t nleng, const char *value, size_t size, int mode) override {
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 			fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
@@ -2242,8 +2253,8 @@ public:
 		return status;
 	}
 
-	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *name,
-			uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) {
+	uint8_t getxattr(const Context& ctx, Inode ino, const char *name,
+		uint32_t nleng, int mode, uint32_t& valueLength, std::vector<uint8_t>& value) override {
 		const uint8_t *buff;
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
@@ -2255,8 +2266,8 @@ public:
 		return status;
 	}
 
-	virtual uint8_t removexattr(const Context& ctx, Inode ino, const char *name,
-			uint32_t nleng) {
+	uint8_t removexattr(const Context& ctx, Inode ino, const char *name,
+			uint32_t nleng) override {
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 			fs_removexattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name));
@@ -2267,18 +2278,18 @@ public:
 class ErrorXattrHandler : public XattrHandler {
 public:
 	ErrorXattrHandler(uint8_t error) : error_(error) {}
-	virtual uint8_t setxattr(const Context&, Inode, const char *,
-			uint32_t, const char *, size_t, int) {
+	uint8_t setxattr(const Context&, Inode, const char *,
+			uint32_t, const char *, size_t, int) override {
 		return error_;
 	}
 
-	virtual uint8_t getxattr(const Context&, Inode, const char *,
-			uint32_t, int, uint32_t&, std::vector<uint8_t>&) {
+	uint8_t getxattr(const Context&, Inode, const char *,
+			uint32_t, int, uint32_t&, std::vector<uint8_t>&) override {
 		return error_;
 	}
 
-	virtual uint8_t removexattr(const Context&, Inode, const char *,
-			uint32_t) {
+	uint8_t removexattr(const Context&, Inode, const char *,
+			uint32_t) override {
 		return error_;
 	}
 private:
@@ -2289,8 +2300,8 @@ class AclXattrHandler : public XattrHandler {
 public:
 	AclXattrHandler(AclType type) : type_(type) { }
 
-	virtual uint8_t setxattr(const Context& ctx, Inode ino, const char *,
-			uint32_t, const char *value, size_t size, int) {
+	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, const char *value, size_t size, int) override {
 		static constexpr size_t kEmptyAclSize = 4;
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
@@ -2315,8 +2326,8 @@ public:
 		return status;
 	}
 
-	virtual uint8_t getxattr(const Context& ctx, Inode ino, const char *,
-			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) {
+	uint8_t getxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) override {
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
@@ -2339,8 +2350,8 @@ public:
 		}
 	}
 
-	virtual uint8_t removexattr(const Context& ctx, Inode ino, const char *,
-			uint32_t) {
+	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
+			uint32_t) override {
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
@@ -2377,7 +2388,7 @@ static XattrHandler* choose_xattr_handler(const char *name) {
 	}
 }
 
-void setxattr(Context ctx, Inode ino, const char *name, const char *value,
+void setxattr(const Context &ctx, Inode ino, const char *name, const char *value,
 			size_t size, int flags, uint32_t position) {
 	uint32_t nleng;
 	int status;
@@ -2497,7 +2508,7 @@ void setxattr(Context ctx, Inode ino, const char *name, const char *value,
 			flags);
 }
 
-XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint32_t position) {
+XattrReply getxattr(const Context &ctx, Inode ino, const char *name, size_t size, uint32_t position) {
 	uint32_t nleng;
 	int status;
 	uint8_t mode;
@@ -2599,7 +2610,7 @@ XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint3
 	}
 }
 
-XattrReply listxattr(Context ctx, Inode ino, size_t size) {
+XattrReply listxattr(const Context &ctx, Inode ino, size_t size) {
 	const uint8_t *buff;
 	uint32_t leng;
 	int status;
@@ -2656,7 +2667,7 @@ XattrReply listxattr(Context ctx, Inode ino, size_t size) {
 	}
 }
 
-void removexattr(Context ctx, Inode ino, const char *name) {
+void removexattr(const Context &ctx, Inode ino, const char *name) {
 	uint32_t nleng;
 	int status;
 
@@ -2720,7 +2731,7 @@ void setlk_interrupt(const lzfs_locks::InterruptData &data) {
 	fs_setlk_interrupt(data);
 }
 
-void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
+void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
 	uint32_t status;
 
 	stats_inc(OP_FLOCK);
@@ -2748,7 +2759,7 @@ void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper
 	}
 }
 
-uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
+uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock) {
 	uint32_t reqid;
 	uint32_t status;
 
@@ -2799,7 +2810,7 @@ void setlk_recv() {
 	}
 }
 
-uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op) {
+uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op) {
 	uint32_t reqid;
 	uint32_t status;
 

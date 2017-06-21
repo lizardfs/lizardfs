@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <sys/types.h>
+#include <protocol/cltoma.h>
 
 namespace LizardClient {
 
@@ -31,14 +32,21 @@ struct Context {
 	typedef uint32_t IdType;
 	typedef uint16_t MaskType;
 
+	typedef cltoma::updateCredentials::GroupsContainer GroupsContainer;
+
 	Context(IdType uid, IdType gid, pid_t pid, MaskType umask)
-			: uid(uid), gid(gid), pid(pid), umask(umask) {
+			: uid(uid), gid(gid), pid(pid), umask(umask), gids(1, gid) {
+	}
+
+	Context(IdType uid, const GroupsContainer &gids, pid_t pid, MaskType umask)
+		  : uid(uid), gid(0), pid(pid), umask(umask), gids(gids) {
 	}
 
 	IdType uid;
 	IdType gid;
 	pid_t  pid; // Never sent to master so we can use local type.
 	MaskType umask;
+	GroupsContainer gids;
 };
 
 } // namespace LizardClient

@@ -288,15 +288,15 @@ struct RequestException : public std::exception {
 	int lizardfs_error_code;
 };
 
-Context::IdType updateGroups(const GroupCache::Groups &groups);
+void updateGroups(Context &ctx);
 
 // TODO what about this one? Will decide when writing non-fuse client
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
 
-EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_lookup = false);
+EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole_path_lookup = false);
 
-AttrReply getattr(Context ctx, Inode ino, FileInfo* fi);
+AttrReply getattr(const Context &ctx, Inode ino, FileInfo* fi);
 
 #define LIZARDFS_SET_ATTR_MODE      (1 << 0)
 #define LIZARDFS_SET_ATTR_UID       (1 << 1)
@@ -306,71 +306,71 @@ AttrReply getattr(Context ctx, Inode ino, FileInfo* fi);
 #define LIZARDFS_SET_ATTR_MTIME     (1 << 5)
 #define LIZARDFS_SET_ATTR_ATIME_NOW (1 << 7)
 #define LIZARDFS_SET_ATTR_MTIME_NOW (1 << 8)
-AttrReply setattr(Context ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi);
+AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi);
 
-std::string readlink(Context ctx, Inode ino);
+std::string readlink(const Context &ctx, Inode ino);
 
-EntryParam mknod(Context ctx, Inode parent, const char *name, mode_t mode, dev_t rdev);
+EntryParam mknod(const Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev);
 
-EntryParam mkdir(Context ctx, Inode parent, const char *name, mode_t mode);
+EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode);
 
-void unlink(Context ctx, Inode parent, const char *name);
+void unlink(const Context &ctx, Inode parent, const char *name);
 
-void rmdir(Context ctx, Inode parent, const char *name);
+void rmdir(const Context &ctx, Inode parent, const char *name);
 
-EntryParam symlink(Context ctx, const char *link, Inode parent, const char *name);
+EntryParam symlink(const Context &ctx, const char *link, Inode parent, const char *name);
 
-void rename(Context ctx, Inode parent, const char *name, Inode newparent, const char *newname);
+void rename(const Context &ctx, Inode parent, const char *name, Inode newparent, const char *newname);
 
-EntryParam link(Context ctx, Inode ino, Inode newparent, const char *newname);
+EntryParam link(const Context &ctx, Inode ino, Inode newparent, const char *newname);
 
-void open(Context ctx, Inode ino, FileInfo* fi);
+void open(const Context &ctx, Inode ino, FileInfo* fi);
 
-std::vector<uint8_t> read_special_inode(Context ctx, Inode ino, size_t size, off_t off,
+std::vector<uint8_t> read_special_inode(const Context &ctx, Inode ino, size_t size, off_t off,
 				        FileInfo* fi);
 
-ReadCache::Result read(Context ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
+ReadCache::Result read(const Context &ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
 
 typedef size_t BytesWritten;
-BytesWritten write(Context ctx, Inode ino, const char *buf, size_t size, off_t off,
+BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, off_t off,
 		FileInfo* fi);
 
-void flush(Context ctx, Inode ino, FileInfo* fi);
+void flush(const Context &ctx, Inode ino, FileInfo* fi);
 
-void release(Context ctx, Inode ino, FileInfo* fi);
+void release(const Context &ctx, Inode ino, FileInfo* fi);
 
-void fsync(Context ctx, Inode ino, int datasync, FileInfo* fi);
+void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi);
 
-void opendir(Context ctx, Inode ino);
+void opendir(const Context &ctx, Inode ino);
 
-std::vector<DirEntry> readdir(Context ctx, Inode ino, off_t off, size_t maxEntries);
+std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t maxEntries);
 
-void releasedir(Context ctx, Inode ino);
+void releasedir(const Context &ctx, Inode ino);
 
-struct statvfs statfs(Context ctx, Inode ino);
+struct statvfs statfs(const Context &ctx, Inode ino);
 
-void setxattr(Context ctx, Inode ino, const char *name, const char *value,
+void setxattr(const Context &ctx, Inode ino, const char *name, const char *value,
 		size_t size, int flags, uint32_t position);
 
-XattrReply getxattr(Context ctx, Inode ino, const char *name, size_t size, uint32_t position);
+XattrReply getxattr(const Context &ctx, Inode ino, const char *name, size_t size, uint32_t position);
 
-XattrReply listxattr(Context ctx, Inode ino, size_t size);
+XattrReply listxattr(const Context &ctx, Inode ino, size_t size);
 
-void removexattr(Context ctx, Inode ino, const char *name);
+void removexattr(const Context &ctx, Inode ino, const char *name);
 
-void access(Context ctx, Inode ino, int mask);
+void access(const Context &ctx, Inode ino, int mask);
 
-EntryParam create(Context ctx, Inode parent, const char *name,
+EntryParam create(const Context &ctx, Inode parent, const char *name,
 		mode_t mode, FileInfo* fi);
 
-void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
-void setlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock, int sleep);
+void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+void setlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock, int sleep);
 void flock_interrupt(uint32_t reqid);
 void setlk_interrupt(uint32_t reqid);
-void getlk(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
-uint32_t setlk_send(Context ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
 void setlk_recv();
-uint32_t flock_send(Context ctx, Inode ino, FileInfo* fi, int op);
+uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op);
 void flock_recv();
 
 void flock_interrupt(const lzfs_locks::InterruptData &data);
