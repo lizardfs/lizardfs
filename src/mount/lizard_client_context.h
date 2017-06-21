@@ -22,25 +22,23 @@
 #include <cstdint>
 #include <sys/types.h>
 
-#ifdef _WIN32
-typedef uint32_t uid_t;
-typedef uint32_t gid_t;
-#endif
-
 namespace LizardClient {
 
 /**
  * Class containing arguments that are passed with every request to the filesystem
  */
 struct Context {
-	Context(uid_t uid, gid_t gid, pid_t pid, mode_t umask)
+	typedef uint32_t IdType;
+	typedef uint16_t MaskType;
+
+	Context(IdType uid, IdType gid, pid_t pid, MaskType umask)
 			: uid(uid), gid(gid), pid(pid), umask(umask) {
 	}
 
-	uid_t uid;
-	gid_t gid;
-	pid_t pid;
-	mode_t umask;
+	IdType uid;
+	IdType gid;
+	pid_t  pid; // Never sent to master so we can use local type.
+	MaskType umask;
 };
 
 } // namespace LizardClient

@@ -37,7 +37,7 @@
 
 namespace LizardClient {
 
-typedef unsigned long int Inode;
+typedef uint32_t Inode;
 
 struct FsInitParams {
 	static constexpr const char *kDefaultSubfolder = "/";
@@ -288,13 +288,11 @@ struct RequestException : public std::exception {
 	int lizardfs_error_code;
 };
 
-int updateGroups(const GroupCache::Groups &groups);
+Context::IdType updateGroups(const GroupCache::Groups &groups);
 
 // TODO what about this one? Will decide when writing non-fuse client
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
-
-void update_credentials(int index, const GroupCache::Groups &groups);
 
 EntryParam lookup(Context ctx, Inode parent, const char *name, bool whole_path_lookup = false);
 

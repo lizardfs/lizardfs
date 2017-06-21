@@ -87,7 +87,7 @@ IoLimitGroupId getIoLimitGroupId(std::istream& input, const std::string& subsyst
 
 IoLimitGroupId getIoLimitGroupId(const pid_t pid, const std::string& subsystem) {
 	char filename[32];
-	sprintf(filename, "/proc/%u/cgroup", pid);
+	sprintf(filename, "/proc/%u/cgroup", (unsigned)pid);
 	try {
 		std::ifstream ifs;
 		ifs.exceptions(std::ifstream::failbit | std::ifstream::badbit);

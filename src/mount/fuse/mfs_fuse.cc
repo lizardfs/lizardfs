@@ -81,10 +81,6 @@ LizardClient::Context get_context(fuse_req_t& req) {
 	mode_t umask = 0000;
 #endif
 	auto ret = LizardClient::Context(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, umask);
-	checkTypesEqual(ret.uid,   fuse_ctx->uid);
-	checkTypesEqual(ret.gid,   fuse_ctx->gid);
-	checkTypesEqual(ret.pid,   fuse_ctx->pid);
-	checkTypesEqual(ret.umask, umask);
 	updateGroupsForContext(req, ret);
 	return ret;
 }
@@ -136,7 +132,6 @@ private:
 fuse_entry_param make_fuse_entry_param(const LizardClient::EntryParam& e) {
 	fuse_entry_param ret;
 	memset(&ret, 0, sizeof(ret));
-	checkTypesEqual(ret.ino,           e.ino);
 	checkTypesEqual(ret.generation,    e.generation);
 	checkTypesEqual(ret.attr,          e.attr);
 	checkTypesEqual(ret.attr_timeout,  e.attr_timeout);
@@ -159,9 +154,6 @@ fuse_entry_param make_fuse_entry_param(const LizardClient::EntryParam& e) {
 #  define ENOATTR ENOENT
 # endif
 #endif
-
-static_assert(std::is_same<LizardClient::Inode, fuse_ino_t>::value, "Types don't match");
-
 
 ThreadSafeMap<std::uintptr_t, lzfs_locks::InterruptData> gLockInterruptData;
 

@@ -90,6 +90,8 @@ namespace LizardClient {
 
 static GroupCache gGroupCache;
 
+static void update_credentials(Context::IdType index, const GroupCache::Groups &groups);
+
 #define RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, group_id, function_expression) \
 		do { \
 			const uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31; \
@@ -104,11 +106,11 @@ static GroupCache gGroupCache;
 			} \
 		} while (0);
 
-int updateGroups(const GroupCache::Groups &groups) {
+Context::IdType updateGroups(const GroupCache::Groups &groups) {
 	static const uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31;
 
 	auto result = gGroupCache.find(groups);
-	uint32_t gid = 0;
+	Context::IdType gid = 0;
 	uint32_t index;
 	if (result.found == false) {
 		try {
@@ -1835,7 +1837,7 @@ void open(Context ctx, Inode ino, FileInfo *fi) {
 			(unsigned long int)fi->keep_cache);
 }
 
-void update_credentials(int index, const GroupCache::Groups &groups) {
+static void update_credentials(Context::IdType index, const GroupCache::Groups &groups) {
 	uint8_t status = fs_update_credentials(index, groups);
 	if (status != LIZARDFS_STATUS_OK) {
 		throw RequestException(status);
