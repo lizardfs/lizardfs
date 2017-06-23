@@ -37,4 +37,5 @@ git ls-tree -r --name-only HEAD \
 		| grep -v 'lizardfs_c_api[.]h' \
 		| grep -v 'lizardfs_error_codes[.]h' \
 		| grep -v '^external/' \
+		| grep -v 'src/nfs-ganesha' \
 		| while read file; do verify_file "$file"; done

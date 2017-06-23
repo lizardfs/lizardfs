@@ -206,7 +206,7 @@
 	NULL, \
 	NULL
 
-#ifdef LIZARDFS_WIRESHARK_PLUGIN
+#if defined(LIZARDFS_WIRESHARK_PLUGIN) || !defined(__cplusplus)
 /// field values: sugidclearmode
 #define SUGIDCLEAR_NEVER 0
 #define SUGIDCLEAR_ALWAYS 1

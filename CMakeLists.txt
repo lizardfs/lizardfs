@@ -39,6 +39,7 @@ option(ENABLE_TRACES        "Enable traces"                                     
 option(ENABLE_CRC           "Enable checksums"                                        ON)
 option(ENABLE_REQUEST_LOG   "Enable logging request times"                            OFF)
 option(USE_LEGACY_READ_MESSAGES "Enable sending old type of messages by mount"        OFF)
+option(ENABLE_NFS_GANESHA   "Enable nfs-ganesha plugin"                               OFF)
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
@@ -65,6 +66,7 @@ message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
 message(STATUS "ENABLE_CRC: ${ENABLE_CRC}")
 message(STATUS "ENABLE_REQUEST_LOG: ${ENABLE_REQUEST_LOG}")
 message(STATUS "USE_LEGACY_READ_MESSAGES: ${USE_LEGACY_READ_MESSAGES}")
+message(STATUS "ENABLE_NFS_GANESHA: ${ENABLE_NFS_GANESHA}")
 
 execute_process(COMMAND "git" "rev-parse" "HEAD"
   OUTPUT_VARIABLE GIT_SHA1 RESULT_VARIABLE GIT_SHA1_RETURN_VALUE
@@ -112,8 +114,8 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -ftree
 set(CMAKE_CXX_FLAGS_COVERAGE "-O0 -g --coverage")
 set(CMAKE_CXX_FLAGS_CLANG_ANALYZE "--analyze -Xanalyzer -analyzer-output=text")
 set(CMAKE_CXX_FLAGS_CLANG_SANITIZE_THREAD "-g -O0 -fsanitize=thread")
-
 set(CMAKE_CXX_FLAGS_CXXDEBUG "-O0 -g -D_GLIBCXX_DEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11 -Wall")
 
 add_definitions(-D_LARGEFILE_SOURCE)
 add_definitions(-D_FILE_OFFSET_BITS=64)
@@ -308,5 +310,8 @@ if(NOT MINGW)
   endif()
   if(ENABLE_DOCS)
     add_subdirectory(doc)
+  endif()
+  if(ENABLE_NFS_GANESHA)
+    add_subdirectory(src/nfs-ganesha)
   endif()
 endif()
