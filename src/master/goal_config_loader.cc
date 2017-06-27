@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -120,6 +120,11 @@ Goal::Slice::Type parseErasureCodeType(const std::string &token) {
 
 	if (parsed != 2) {
 		throw ParseException("Unknown goal type '" + token + "'");
+	}
+
+	if (k < slice_traits::ec::kMinDataCount || k > slice_traits::ec::kMaxDataCount ||
+		m < slice_traits::ec::kMinParityCount || m > slice_traits::ec::kMaxParityCount) {
+		throw ParseException("Wrong erasure code type '" + token + "'");
 	}
 
 	Goal::Slice::Type slice_type = slice_traits::ec::getSliceType(k, m);

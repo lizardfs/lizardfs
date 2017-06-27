@@ -201,6 +201,10 @@ TEST(GoalConfigTests, IncorrectLines) {
 	EXPECT_THROW(TRY_PARSE("1 1 : $ex(2,2) {A B C}"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 1 : $ex(2,2) {A B C}"), ParseException);
 	EXPECT_THROW(TRY_PARSE("1 1 : (4,3) {A B C}"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(1,1)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(33,1)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(3,0)"), ParseException);
+	EXPECT_THROW(TRY_PARSE("1 1 : $ec(3,33)"), ParseException);
 	// duplicates
 	EXPECT_THROW(TRY_PARSE("1 1: _\n2 2: _ _\n2: 3 _ _"), ParseException);
 
