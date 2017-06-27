@@ -37,6 +37,7 @@ public:
 	typedef LizardClient::AttrReply AttrReply;
 	typedef LizardClient::EntryParam EntryParam;
 	typedef LizardClient::Context Context;
+	typedef ReadCache::Result ReadResult;
 
 	struct FileInfo : public LizardClient::FileInfo, public boost::intrusive::list_base_hook<> {
 		FileInfo() {}
@@ -64,6 +65,10 @@ public:
 	/*! \brief Open a file by inode */
 	FileInfo *open(const Context &ctx, Inode inode, int flags);
 	FileInfo *open(const Context &ctx, Inode inode, int flags, std::error_code &ec);
+
+	/*! \brief Read bytes from open file, returns read cache result that holds cache lock */
+	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
+	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, std::error_code &ec);
 
 	/*! \brief Read bytes from open file */
 	std::size_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, char *buffer);

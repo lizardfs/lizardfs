@@ -216,6 +216,35 @@ void Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_rep
 	ec = make_error_code(ret);
 }
 
+Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
+	                       off_t offset, std::size_t size) {
+	std::error_code ec;
+	auto ret = read(ctx, fileinfo, offset, size, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return ret;
+}
+
+Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
+	                       off_t offset, std::size_t size, std::error_code &ec) {
+	if (lizardfs_isSpecialInode_(fileinfo->inode)) {
+		auto ret = lizardfs_read_special_inode_(ctx, fileinfo->inode, size, offset, fileinfo);
+		ec = make_error_code(ret.first);
+		if (ec) {
+			return ReadResult();
+		}
+		return ReadResult(std::move(ret.second));
+	} else {
+		auto ret = lizardfs_read_(ctx, fileinfo->inode, size, offset, fileinfo);
+		ec = make_error_code(ret.first);
+		if (ec) {
+			return ReadResult();
+		}
+		return std::move(ret.second);
+	}
+}
+
 std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 		char *buffer) {
 	std::error_code ec;
@@ -228,35 +257,11 @@ std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, s
 
 std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 		char *buffer, std::error_code &ec) {
-	std::size_t read_size = 0;
-
-	if (lizardfs_isSpecialInode_(fileinfo->inode)) {
-		auto ret =
-		        lizardfs_read_special_inode_(ctx, fileinfo->inode, size, offset, fileinfo);
-		ec = make_error_code(ret.first);
-		if (ec) {
-			return 0;
-		}
-
-		read_size = ret.second.size();
-		std::memcpy(buffer, ret.second.data(), read_size);
-	} else {
-		auto ret = lizardfs_read_(ctx, fileinfo->inode, size, offset, fileinfo);
-		ec = make_error_code(ret.first);
-		if (ec) {
-			return 0;
-		}
-
-		small_vector<struct iovec, 8> reply;
-		ret.second.toIoVec(reply, offset, size);
-		for (auto &iov : reply) {
-			std::memcpy(buffer, iov.iov_base, iov.iov_len);
-			read_size += iov.iov_len;
-			buffer += iov.iov_len;
-		}
+	auto ret = read(ctx, fileinfo, offset, size, ec);
+	if (ec) {
+		return 0;
 	}
-
-	return read_size;
+	return ret.copyToBuffer((uint8_t *)buffer, offset, size);
 }
 
 std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,

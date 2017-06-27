@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstring>
 #include <deque>
 #include <map>
 #include <memory>
@@ -91,17 +92,31 @@ public:
 
 	struct Result {
 		small_vector<Entry *, 8> entries;
+		bool is_fake;
 
-		Result() : entries() {}
+		Result() : entries(), is_fake(false) {}
 		Result(Result &&other) noexcept
-		       : entries(std::move(other.entries)) {}
+		       : entries(std::move(other.entries)), is_fake(other.is_fake) {}
 		Result &operator=(Result &&other) noexcept {
 			entries = std::move(other.entries);
+			is_fake = other.is_fake;
 			return *this;
 		}
 
+		// Wrapper for returning data not really residing in cache
+		Result(std::vector<uint8_t> &&data) : entries(), is_fake(true) {
+			Entry *entry = new Entry(0);
+			entry->buffer = std::move(data);
+			entries.push_back(entry);
+		}
+
 		~Result() {
-			release();
+			if (is_fake) {
+				assert(entries.size() == 1);
+				delete entries.front();
+			} else {
+				release();
+			}
 		}
 
 		Offset frontOffset() const {
@@ -168,6 +183,32 @@ public:
 			return offset - real_offset;
 		}
 
+		Size copyToBuffer(uint8_t *output, Offset real_offset, Size real_size) const {
+			assert(real_offset >= frontOffset());
+			uint64_t offset = real_offset;
+			Size bytes_left = real_size;
+			for (const auto &entry_ptr : entries) {
+				const ReadCache::Entry &entry = *entry_ptr;
+				if (bytes_left <= 0) {
+					break;
+				}
+				// Special case: Read request was past the end of the file
+				if (entry.buffer.empty() || offset >= entry.endOffset()) {
+					break;
+				}
+				assert(offset >= entry.offset && offset < entry.endOffset());
+				auto start = entry.buffer.data() + (offset - entry.offset);
+				auto end = std::min(start + bytes_left, entry.buffer.data() + entry.buffer.size());
+				assert(start < end);
+				size_t length = std::distance(start, end);
+				std::memcpy(output, (void *)start, length);
+				output += length;
+				offset += length;
+				bytes_left -= length;
+			}
+			return offset - real_offset;
+		}
+
 		bool empty() const {
 			return entries.empty();
 		}
@@ -203,7 +244,6 @@ public:
 			}
 			return text;
 		}
-
 	};
 
 	explicit ReadCache(uint32_t expiration_time)
