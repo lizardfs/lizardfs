@@ -151,7 +151,7 @@ liz_fileinfo *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, i
 }
 
 ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, off_t offset,
-	         int size, char *buffer) {
+	         size_t size, char *buffer) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
@@ -162,7 +162,7 @@ ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, of
 }
 
 ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, off_t offset,
-	          int size, const char *buffer){
+	          size_t size, const char *buffer){
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;

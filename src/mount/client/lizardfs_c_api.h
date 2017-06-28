@@ -23,11 +23,12 @@
 extern "C" {
 #endif
 
-typedef long long liz_inode_t;
+typedef uint32_t liz_inode_t;
 typedef int liz_err_t;
 struct liz;
 typedef struct liz liz_t;
 struct liz_fileinfo;
+typedef struct liz_fileinfo liz_fileinfo_t;
 struct liz_context;
 typedef struct liz_context liz_context_t;
 
@@ -109,6 +110,7 @@ liz_t *liz_init(const char *host, const char *port, const char *mountpoint);
  * \param ctx context to be updated
  * \param gids array of new group ids to be set
  * \param gid_num length of gids array
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_update_groups(liz_t *instance, liz_context_t *ctx, gid_t *gids, int gid_num);
 
@@ -142,7 +144,7 @@ int liz_mknod(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const cha
  * \return fileinfo descriptor of an open file,
  *  if failed - nullptr and sets last error code (check with liz_last_err())
  */
-struct liz_fileinfo *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, int flags);
+liz_fileinfo_t *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, int flags);
 
 /*! \brief Read bytes from open file
  * \param instance instance returned from liz_init
@@ -154,10 +156,8 @@ struct liz_fileinfo *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t i
  * \return number of bytes read on success,
  *  -1 if failed and sets last error code (check with liz_last_err())
  */
-ssize_t liz_read(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo, off_t offset,
-	         int size, char *buffer);
-ssize_t liz_readv(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo, off_t offset,
-	          int size, const struct iovec *iov, int iovcnt);
+ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo, off_t offset,
+	         size_t size, char *buffer);
 
 /*! \brief Write bytes to open file
  * \param instance instance returned from liz_init
@@ -169,8 +169,8 @@ ssize_t liz_readv(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *file
  * \return number of bytes written on success,
  *  -1 if failed and sets last error code (check with liz_last_err())
  */
-ssize_t liz_write(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo,
-	          off_t offset, int size, const char *buffer);
+ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
+	          off_t offset, size_t size, const char *buffer);
 
 /*! \brief Release a previously open file
  * \param instance instance returned from liz_init
@@ -178,7 +178,7 @@ ssize_t liz_write(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *file
  * \param fileinfo descriptor of an open file
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_release(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+int liz_release(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo);
 
 /*! \brief Flush data written to an open file
  * \param instance instance returned from liz_init
@@ -186,7 +186,7 @@ int liz_release(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *filein
  * \param fileinfo descriptor of an open file
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_flush(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+int liz_flush(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo);
 
 /*! \brief Get attributes from an open file
  * \param instance instance returned from liz_init
@@ -195,7 +195,7 @@ int liz_flush(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo
  * \param reply structure to be filled with getattr result
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_getattr(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo,
+int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
 	        struct liz_attr_reply *reply);
 
 /*! \brief End a connection with master server
