@@ -70,10 +70,6 @@ public:
 	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
 	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, std::error_code &ec);
 
-	/*! \brief Read bytes from open file */
-	std::size_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, char *buffer);
-	std::size_t read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, char *buffer, std::error_code &ec);
-
 	/*! \brief Write bytes to open file */
 	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer);
 	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size, const char *buffer, std::error_code &ec);

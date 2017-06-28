@@ -159,10 +159,12 @@ ssize_t liz_read(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, of
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
-	std::size_t read_ret = client.read(context, (Client::FileInfo *)fileinfo, offset, size,
-	                                   buffer, ec);
-	gLastErrorCode = ec.value();
-	return ec ? -1 : read_ret;
+	auto ret = client.read(context, (Client::FileInfo *)fileinfo, offset, size, ec);
+	if (ec) {
+		gLastErrorCode = ec.value();
+		return -1;
+	}
+	return ret.copyToBuffer((uint8_t *)buffer, offset, size);
 }
 
 ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, off_t offset,

@@ -236,25 +236,6 @@ Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
 	}
 }
 
-std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
-		char *buffer) {
-	std::error_code ec;
-	auto read_size = read(ctx, fileinfo, offset, size, buffer, ec);
-	if (ec) {
-		throw std::system_error(ec);
-	}
-	return read_size;
-}
-
-std::size_t Client::read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
-		char *buffer, std::error_code &ec) {
-	auto ret = read(ctx, fileinfo, offset, size, ec);
-	if (ec) {
-		return 0;
-	}
-	return ret.copyToBuffer((uint8_t *)buffer, offset, size);
-}
-
 std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 		const char *buffer) {
 	std::error_code ec;
