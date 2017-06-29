@@ -353,3 +353,49 @@ int lizardfs_update_groups(LizardClient::Context &ctx) {
 	}
 	return LIZARDFS_STATUS_OK;
 }
+
+int lizardfs_setxattr(LizardClient::Context ctx, Inode ino, const char *name, const char *value,
+		size_t size, int flags) {
+	try {
+		LizardClient::setxattr(ctx, ino, name, value, size, flags, 0);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
+	              size_t size, LizardClient::XattrReply &xattr_reply) {
+	try {
+		xattr_reply = LizardClient::getxattr(ctx, ino, name, size, 0);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+int lizardfs_listxattr(LizardClient::Context ctx, LizardClient::Inode ino, size_t size,
+	               LizardClient::XattrReply &xattr_reply) {
+	try {
+		xattr_reply = LizardClient::listxattr(ctx, ino, size);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_removexattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name) {
+	try {
+		LizardClient::removexattr(ctx, ino, name);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}

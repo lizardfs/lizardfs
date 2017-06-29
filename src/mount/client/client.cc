@@ -108,6 +108,10 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_fsync);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rename);
 		LIZARDFS_LINK_FUNCTION(lizardfs_statfs);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setxattr);
+		LIZARDFS_LINK_FUNCTION(lizardfs_getxattr);
+		LIZARDFS_LINK_FUNCTION(lizardfs_listxattr);
+		LIZARDFS_LINK_FUNCTION(lizardfs_removexattr);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -546,4 +550,85 @@ void Client::statfs(Stats &stats, std::error_code &ec) {
 	int ret = lizardfs_statfs_(&stats.total_space, &stats.avail_space, &stats.trash_space,
 	                 &stats.reserved_space, &stats.inodes);
 	ec = make_error_code(ret);
+}
+
+void Client::setxattr(const Context &ctx, Inode ino, const std::string &name,
+	             const XattrBuffer &value, int flags) {
+	std::error_code ec;
+	setxattr(ctx, ino, name, value, flags, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setxattr(const Context &ctx, Inode ino, const std::string &name,
+	              const XattrBuffer &value, int flags, std::error_code &ec) {
+	int ret = lizardfs_setxattr_(ctx, ino, name.c_str(),
+	                             (const char *)value.data(), value.size(), flags);
+	ec = make_error_code(ret);
+}
+
+Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::string &name) {
+	std::error_code ec;
+	auto ret = getxattr(ctx, ino, name, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return ret;
+}
+
+Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::string &name,
+	                                  std::error_code &ec) {
+	LizardClient::XattrReply reply;
+	int ret = lizardfs_getxattr_(ctx, ino, name.c_str(), kMaxXattrRequestSize, reply);
+	ec = make_error_code(ret);
+	return reply.valueBuffer;
+}
+
+Client::XattrBuffer Client::listxattr(const Context &ctx, Inode ino) {
+	std::error_code ec;
+	auto ret = listxattr(ctx, ino, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return ret;
+}
+
+Client::XattrBuffer Client::listxattr(const Context &ctx, Inode ino, std::error_code &ec) {
+	LizardClient::XattrReply reply;
+	int ret = lizardfs_listxattr_(ctx, ino, kMaxXattrRequestSize, reply);
+	ec = make_error_code(ret);
+	return reply.valueBuffer;
+}
+
+void Client::removexattr(const Context &ctx, Inode ino, const std::string &name) {
+	std::error_code ec;
+	removexattr(ctx, ino, name, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec) {
+	int ret = lizardfs_removexattr_(ctx, ino, name.c_str());
+	ec = make_error_code(ret);
+}
+
+
+std::vector<std::string> Client::toXattrList(const XattrBuffer &buffer) {
+	std::vector<std::string> xattr_list;
+	size_t base = 0;
+	size_t length = 0;
+	while (base < buffer.size()) {
+		while (base + length < buffer.size() && buffer[base + length] != '\0') {
+			length++;
+		}
+		if (base + length == buffer.size()) {
+			break;
+		}
+		xattr_list.push_back(std::string((const char *)buffer.data() + base, length));
+		base += length + 1;
+		length = 0;
+	}
+	return xattr_list;
 }

@@ -40,6 +40,7 @@ public:
 	typedef LizardClient::JobId JobId;
 	typedef LizardClient::NamedInodeOffset NamedInodeOffset;
 	typedef LizardClient::AttrReply AttrReply;
+	typedef std::vector<uint8_t> XattrBuffer;
 	typedef LizardClient::DirEntry DirEntry;
 	typedef LizardClient::EntryParam EntryParam;
 	typedef LizardClient::Context Context;
@@ -182,6 +183,22 @@ public:
 	void statfs(Stats &stats);
 	void statfs(Stats &stats, std::error_code &ec);
 
+	void setxattr(const Context &ctx, Inode ino, const std::string &name,
+	              const XattrBuffer &value, int flags);
+	void setxattr(const Context &ctx, Inode ino, const std::string &name,
+	              const XattrBuffer &value, int flags, std::error_code &ec);
+
+	XattrBuffer getxattr(const Context &ctx, Inode ino, const std::string &name);
+	XattrBuffer getxattr(const Context &ctx, Inode ino, const std::string &name,
+	                     std::error_code &ec);
+
+	XattrBuffer listxattr(const Context &ctx, Inode ino);
+	XattrBuffer listxattr(const Context &ctx, Inode ino, std::error_code &ec);
+
+	void removexattr(const Context &ctx, Inode ino, const std::string &name);
+	void removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec);
+
+	static std::vector<std::string> toXattrList(const XattrBuffer &buffer);
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name
 	 * \param host - master server connection address
@@ -222,6 +239,10 @@ protected:
 	typedef decltype(&lizardfs_fsync) FsyncFunction;
 	typedef decltype(&lizardfs_rename) RenameFunction;
 	typedef decltype(&lizardfs_statfs) StatfsFunction;
+	typedef decltype(&lizardfs_setxattr) SetXattrFunction;
+	typedef decltype(&lizardfs_getxattr) GetXattrFunction;
+	typedef decltype(&lizardfs_listxattr) ListXattrFunction;
+	typedef decltype(&lizardfs_removexattr) RemoveXattrFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -253,6 +274,10 @@ protected:
 	FsyncFunction lizardfs_fsync_;
 	RenameFunction lizardfs_rename_;
 	StatfsFunction lizardfs_statfs_;
+	SetXattrFunction lizardfs_setxattr_;
+	GetXattrFunction lizardfs_getxattr_;
+	ListXattrFunction lizardfs_listxattr_;
+	RemoveXattrFunction lizardfs_removexattr_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;
@@ -260,6 +285,7 @@ protected:
 
 	static std::atomic<int> instance_count_;
 
+	static constexpr int kMaxXattrRequestSize = 65536;
 	static constexpr const char *kLibraryPath = LIB_PATH "/liblizardfsmount_shared.so";
 };
 

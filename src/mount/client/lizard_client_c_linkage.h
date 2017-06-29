@@ -85,5 +85,11 @@ int lizardfs_rename(const LizardClient::Context &ctx, LizardClient::Inode parent
 	            LizardClient::Inode newparent, const char *newname);
 int lizardfs_statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace,
 	             uint64_t *reservedspace, uint32_t *inodes);
-
+int lizardfs_setxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
+	              const char *value, size_t size, int flags);
+int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
+	              size_t size, LizardClient::XattrReply &xattr_reply);
+int lizardfs_listxattr(LizardClient::Context ctx, LizardClient::Inode ino, size_t size,
+	               LizardClient::XattrReply &xattr_reply);
+int lizardfs_removexattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name);
 } // extern "C"

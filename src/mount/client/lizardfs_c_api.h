@@ -48,6 +48,13 @@ enum liz_special_ino {
 	LIZARDFS_INODE_ROOT = 1,
 };
 
+enum liz_setxattr_mode {
+	XATTR_SMODE_CREATE_OR_REPLACE = 0,
+	XATTR_SMODE_CREATE_ONLY       = 1,
+	XATTR_SMODE_REPLACE_ONLY      = 2,
+	XATTR_SMODE_REMOVE            = 3,
+};
+
 /* Basic attributes of a file */
 typedef struct liz_entry {
 	liz_inode_t ino;
@@ -420,6 +427,52 @@ int liz_rename(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const ch
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_statfs(liz_t *instance, liz_stat_t *buf);
+
+/*! \brief Set extended attribute of a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino inode of a file
+ * \param name attribute name
+ * \param value attribute value
+ * \param size size of attribute value
+ * \param mode one of enum liz_setxattr_mode values
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
+	         const uint8_t *value, size_t size, enum liz_setxattr_mode mode);
+
+/*! \brief Get extended attribute of a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino inode of a file
+ * \param name attribute name
+ * \param size size of the provided buffer
+ * \param out_size filled with actual size of xattr value
+ * \param buf buffer to be filled with xattr value
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_getxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
+	         size_t size, size_t *out_size, uint8_t *buf);
+
+/*! \brief Get extended attributes list of a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino inode of a file
+ * \param size size of the provided buffer
+ * \param buf buffer to be filled with listed attributes
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_listxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, size_t size,
+	          size_t *out_size, char *buf);
+
+/*! \brief Remove extended attribute from a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino inode of a file
+ * \param name attribute name
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name);
 
 #ifdef __cplusplus
 } // extern "C"

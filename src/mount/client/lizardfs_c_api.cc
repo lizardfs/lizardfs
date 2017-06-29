@@ -511,3 +511,56 @@ int liz_statfs(liz_t *instance, liz_stat_t *buf) {
 	to_stat(stats, buf);
 	return 0;
 }
+
+int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
+	         const uint8_t *value, size_t size, int flags) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.setxattr(context, ino, name, std::vector<uint8_t>(value, value + size), flags, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_getxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
+	         size_t size, size_t *out_size, uint8_t *buf) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	auto ret = client.getxattr(context, ino, name, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	std::memcpy(buf, ret.data(), std::min(size, ret.size()));
+	if (out_size) {
+		*out_size = ret.size();
+	}
+	return 0;
+}
+
+int liz_listxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, size_t size,
+	          size_t *out_size, char *buf) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	auto ret = client.listxattr(context, ino, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	std::memcpy(buf, ret.data(), std::min(size, ret.size()));
+	if (out_size) {
+		*out_size = ret.size();
+	}
+	return 0;
+}
+
+int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.removexattr(context, ino, name, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
