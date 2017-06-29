@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include <lizardfs/lizardfs_c_api.h>
 #include <lizardfs/lizardfs_error_codes.h>
 
@@ -18,6 +19,7 @@ int main() {
 	int i, r;
 	liz_t *liz;
 	liz_context_t *ctx;
+	liz_init_params_t params;
 	liz_chunkserver_info_t servers[65536];
 	struct liz_fileinfo *fi;
 	struct liz_entry entry, entry2;
@@ -25,16 +27,18 @@ int main() {
 
 	/* Create a connection */
 	ctx = liz_create_context();
-	liz = liz_init("localhost", "9421", "test123");
+	liz_set_default_init_params(&params, "localhost", "9421", "test123");
+	params.acl_enabled = true;
+	liz = liz_init_with_params(&params);
 	if (!liz) {
 		fprintf(stderr, "Connection failed\n");
 		liz_err = liz_last_err();
 		goto destroy_context;
 	}
-	/* Try to create a file */
+	/* Try to unlink file if it exists and recreate it */
+	liz_unlink(liz, ctx, LIZARDFS_INODE_ROOT, "testfile");
 	err = liz_mknod(liz, ctx, LIZARDFS_INODE_ROOT, "testfile", 0755, 0, &entry);
 	if (err) {
-		fprintf(stderr, "File exists\n");
 		liz_err = liz_last_err();
 		goto destroy_context;
 	}
@@ -64,6 +68,7 @@ int main() {
 	}
 	printf("Read %.3s from inode %u\n", buf, entry.ino);
 
+	/* Get chunkservers info */
 	uint32_t reply_size;
 	r = liz_get_chunkservers_info(liz, servers, 65536, &reply_size);
 	if (r < 0) {
@@ -76,6 +81,58 @@ int main() {
 	               servers[i].ip, servers[i].port, servers[i].label);
 	}
 	liz_destroy_chunkservers_info(servers);
+
+	/* Set and get access control lists */
+	liz_acl_t *acl = liz_create_acl();
+	liz_acl_ace_t acl_ace = {LIZ_ACL_ACCESS_ALLOWED_ACE_TYPE, LIZ_ACL_SPECIAL_WHO, LIZ_ACL_POSIX_MODE_WRITE, 0};
+	liz_add_acl_entry(acl, &acl_ace);
+	acl_ace.id = 100;
+	acl_ace.flags &= ~LIZ_ACL_SPECIAL_WHO;
+	acl_ace.mask |= LIZ_ACL_POSIX_MODE_WRITE;
+	liz_add_acl_entry(acl, &acl_ace);
+	acl_ace.id = 101;
+	acl_ace.flags |= LIZ_ACL_IDENTIFIER_GROUP;
+	acl_ace.mask &= ~LIZ_ACL_APPEND_DATA;
+	acl_ace.mask |= LIZ_ACL_WRITE_ACL;
+	liz_add_acl_entry(acl, &acl_ace);
+	size_t acl_reply_size;
+	char acl_buf[256] = {};
+	r = liz_print_acl(acl, acl_buf, 256, &acl_reply_size);
+	if (r < 0) {
+		fprintf(stderr, "Printing acl failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("[%d %lu] ACL to set: %s\n", r, acl_reply_size, acl_buf);
+	r = liz_setacl(liz, ctx, entry.ino, acl);
+	if (r < 0) {
+		fprintf(stderr, "setacl failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	liz_destroy_acl(acl);
+
+	memset(acl_buf, 0, 256);
+	r = liz_getacl(liz, ctx, entry.ino, &acl);
+	if (r < 0) {
+		fprintf(stderr, "Getting acl failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	size_t acl_size = liz_get_acl_size(acl);
+	printf("ACL size=%lu\n", acl_size);
+	for (i = 0; i < acl_size; ++i) {
+		liz_get_acl_entry(acl, i, &acl_ace);
+		printf("entry %u %u %x\n", acl_ace.id, acl_ace.type, acl_ace.mask);
+	}
+	r = liz_print_acl(acl, acl_buf, 256, &acl_reply_size);
+	if (r < 0) {
+		fprintf(stderr, "Printing acl failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("[%d %lu] ACL extracted: %s\n", r, acl_reply_size, acl_buf);
+	liz_destroy_acl(acl);
 
 release_fileinfo:
 	liz_release(liz, fi);

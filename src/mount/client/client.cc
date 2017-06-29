@@ -24,6 +24,7 @@
 #include <fstream>
 
 #include "client_error_code.h"
+#include "common/richacl_converter.h"
 
 #define LIZARDFS_LINK_FUNCTION(function_name) do { \
 	void *function_name##_ptr = dlsym(dl_handle_, #function_name); \
@@ -34,6 +35,8 @@
 } while (0)
 
 using namespace lizardfs;
+
+static const char *kRichAclXattrName = "system.richacl";
 
 std::atomic<int> Client::instance_count_(0);
 
@@ -667,6 +670,44 @@ void Client::removexattr(const Context &ctx, Inode ino, const std::string &name,
 	ec = make_error_code(ret);
 }
 
+void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl) {
+	std::error_code ec;
+	setacl(ctx, ino, std::move(acl), ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec) {
+	try {
+		std::vector<uint8_t> xattr = richAclConverter::objectToRichACLXattr(acl);
+		setxattr(ctx, ino, kRichAclXattrName, xattr, 0, ec);
+	} catch (...) {
+		ec = make_error_code(LIZARDFS_ERROR_ENOATTR);
+	}
+}
+
+RichACL Client::getacl(const Context &ctx, Inode ino) {
+	std::error_code ec;
+	auto ret = getacl(ctx, ino, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return ret;
+}
+
+RichACL Client::getacl(const Context &ctx, Inode ino, std::error_code &ec) {
+	try {
+		auto buffer = getxattr(ctx, ino, kRichAclXattrName, ec);
+		if (ec) {
+			return RichACL();
+		}
+		return richAclConverter::extractObjectFromRichACL(buffer.data(), buffer.size());
+	} catch (...) {
+		ec = make_error_code(LIZARDFS_ERROR_ENOATTR);
+	}
+	return RichACL();
+}
 
 std::vector<std::string> Client::toXattrList(const XattrBuffer &buffer) {
 	std::vector<std::string> xattr_list;

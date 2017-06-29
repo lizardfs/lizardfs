@@ -755,6 +755,103 @@ int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const 
 	return ec ? -1 : 0;
 }
 
+liz_acl_t *liz_create_acl() {
+	try {
+		return (liz_acl_t *)new RichACL;
+	} catch (...) {
+		return nullptr;
+	}
+}
+
+void liz_destroy_acl(liz_acl_t *acl) {
+	delete (RichACL *)acl;
+}
+
+int liz_print_acl(liz_acl_t *acl, char *buf, size_t size, size_t *reply_size) {
+	assert(acl);
+	assert(buf || size == 0);
+	RichACL &richacl = *(RichACL *)acl;
+	std::string repr = richacl.toString();
+	assert(reply_size);
+	*reply_size = repr.size();
+	if (size < repr.size()) {
+		gLastErrorCode = LIZARDFS_ERROR_WRONGSIZE;
+		return -1;
+	}
+	repr.copy(buf, size);
+
+	return 0;
+}
+
+void liz_add_acl_entry(liz_acl_t *acl, const liz_acl_ace_t *ace) {
+	assert(acl);
+	assert(ace);
+	RichACL &richacl = *(RichACL *)acl;
+	richacl.insert(RichACL::Ace(ace->type, ace->flags, ace->mask, ace->id));
+}
+
+int liz_get_acl_entry(const liz_acl_t *acl, int n, liz_acl_ace_t *ace) {
+	assert(acl);
+	assert(ace);
+	const RichACL &richacl = *(RichACL *)acl;
+	if ((size_t)n > richacl.size()) {
+		gLastErrorCode = LIZARDFS_ERROR_WRONGSIZE;
+		return -1;
+	}
+	auto it = std::next(richacl.begin(), n);
+	ace->type = it->type;
+	ace->flags = it->flags;
+	ace->mask = it->mask;
+	ace->id = it->id;
+	return 0;
+}
+
+size_t liz_get_acl_size(const liz_acl_t *acl) {
+	assert(acl);
+	const RichACL &richacl = *(RichACL *)acl;
+	return richacl.size();
+}
+
+int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const liz_acl_t *acl) {
+	assert(instance);
+	assert(ctx);
+	assert(acl);
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	try {
+		const RichACL &richacl = *(RichACL *)acl;
+		client.setacl(context, ino, richacl, ec);
+		gLastErrorCode = ec.value();
+		return ec ? -1 : 0;
+	} catch (...) {
+		gLastErrorCode = LIZARDFS_ERROR_ENOATTR;
+		return -1;
+	}
+}
+
+int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, liz_acl_t **acl) {
+	assert(instance);
+	assert(ctx);
+	assert(acl);
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	*acl = nullptr;
+	try {
+		RichACL richacl = client.getacl(context, ino, ec);
+		gLastErrorCode = ec.value();
+		if (ec) {
+			return -1;
+		}
+		*acl = (liz_acl_t *)new RichACL(std::move(richacl));
+	} catch (...) {
+		gLastErrorCode = LIZARDFS_ERROR_ENOATTR;
+		return -1;
+	}
+	return 0;
+}
+
 int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	                    uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
 	                    uint32_t *reply_size) {

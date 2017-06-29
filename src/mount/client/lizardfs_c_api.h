@@ -93,6 +93,7 @@ struct liz_fileinfo;
 typedef struct liz_fileinfo liz_fileinfo_t;
 struct liz_context;
 typedef struct liz_context liz_context_t;
+typedef struct liz_acl liz_acl_t;
 
 #define LIZ_SET_ATTR_MODE      (1 << 0)
 #define LIZ_SET_ATTR_UID       (1 << 1)
@@ -102,6 +103,62 @@ typedef struct liz_context liz_context_t;
 #define LIZ_SET_ATTR_MTIME     (1 << 5)
 #define LIZ_SET_ATTR_ATIME_NOW (1 << 7)
 #define LIZ_SET_ATTR_MTIME_NOW (1 << 8)
+
+/* ACL flags */
+#define LIZ_ACL_AUTO_INHERIT 0x01
+#define LIZ_ACL_PROTECTED 0x02
+#define LIZ_ACL_DEFAULTED 0x04
+#define LIZ_ACL_WRITE_THROUGH 0x40
+#define LIZ_ACL_MASKED 0x80
+
+/* ACL ace types */
+#define LIZ_ACL_ACCESS_ALLOWED_ACE_TYPE 0x0000
+#define LIZ_ACL_ACCESS_DENIED_ACE_TYPE 0x0001
+
+/* ACL ace flags bits */
+#define LIZ_ACL_FILE_INHERIT_ACE 0x0001
+#define LIZ_ACL_DIRECTORY_INHERIT_ACE 0x0002
+#define LIZ_ACL_NO_PROPAGATE_INHERIT_ACE 0x0004
+#define LIZ_ACL_INHERIT_ONLY_ACE 0x0008
+#define LIZ_ACL_SUCCESSFUL_ACCESS_ACE_FLAG 0x00000010
+#define LIZ_ACL_FAILED_ACCESS_ACE_FLAG 0x00000020
+#define LIZ_ACL_IDENTIFIER_GROUP 0x0040
+#define LIZ_ACL_INHERITED_ACE 0x0080  /* non nfs4 */
+#define LIZ_ACL_SPECIAL_WHO 0x0100    /* lizardfs */
+
+/* ACL ace mask bits */
+#define LIZ_ACL_READ_DATA 0x00000001
+#define LIZ_ACL_LIST_DIRECTORY 0x00000001
+#define LIZ_ACL_WRITE_DATA 0x00000002
+#define LIZ_ACL_ADD_FILE 0x00000002
+#define LIZ_ACL_APPEND_DATA 0x00000004
+#define LIZ_ACL_ADD_SUBDIRECTORY 0x00000004
+#define LIZ_ACL_READ_NAMED_ATTRS 0x00000008
+#define LIZ_ACL_WRITE_NAMED_ATTRS 0x00000010
+#define LIZ_ACL_EXECUTE 0x00000020
+#define LIZ_ACL_DELETE_CHILD 0x00000040
+#define LIZ_ACL_READ_ATTRIBUTES 0x00000080
+#define LIZ_ACL_WRITE_ATTRIBUTES 0x00000100
+#define LIZ_ACL_WRITE_RETENTION 0x00000200
+#define LIZ_ACL_WRITE_RETENTION_HOLD 0x00000400
+#define LIZ_ACL_DELETE 0x00010000
+#define LIZ_ACL_READ_ACL 0x00020000
+#define LIZ_ACL_WRITE_ACL 0x00040000
+#define LIZ_ACL_WRITE_OWNER 0x00080000
+#define LIZ_ACL_SYNCHRONIZE 0x00100000
+
+/* ACL ace special ids */
+#define LIZ_ACL_OWNER_SPECIAL_ID 0x0
+#define LIZ_ACL_GROUP_SPECIAL_ID 0x1
+#define LIZ_ACL_EVERYONE_SPECIAL_ID 0x2
+
+/* ACL helper macros */
+#define LIZ_ACL_POSIX_MODE_READ (LIZ_ACL_READ_DATA | LIZ_ACL_LIST_DIRECTORY)
+#define LIZ_ACL_POSIX_MODE_WRITE (LIZ_ACL_WRITE_DATA | LIZ_ACL_ADD_FILE \
+	| LIZ_ACL_APPEND_DATA | LIZ_ACL_ADD_SUBDIRECTORY | LIZ_ACL_DELETE_CHILD)
+#define LIZ_ACL_POSIX_MODE_EXECUTE (EXECUTE)
+#define LIZ_ACL_POSIX_MODE_ALL (LIZ_ACL_POSIX_MODE_READ | LIZ_ACL_POSIX_MODE_WRITE \
+	| LIZ_POSIX_MODE_EXEC)
 
 enum liz_special_ino {
 	LIZARDFS_INODE_ERROR = 0,
@@ -189,6 +246,13 @@ typedef struct liz_chunkserver_info {
 	uint32_t error_counter;
 	char *label;
 } liz_chunkserver_info_t;
+
+typedef struct liz_acl_ace {
+	uint16_t type;
+	uint16_t flags;
+	uint32_t mask;
+	uint32_t id;
+} liz_acl_ace_t;
 
 /*!
  * \brief Create a context for LizardFS operations
@@ -613,6 +677,76 @@ int liz_listxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, size_t s
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name);
+
+/*!
+ * \brief Create acl
+ * \return acl entry
+ * \post free memory with liz_destroy_acl call
+ */
+liz_acl_t *liz_create_acl();
+
+/*!
+ * \brief Destroy acl
+ * \param acl access control list
+ */
+void liz_destroy_acl(liz_acl_t *acl);
+
+/*!
+ * \brief Print acl in human readable format
+ * \param acl access control list
+ * \param buf buffer to be filled with acl representation
+ * \param size buffer size
+ * \param reply_size size needed to store acl representation
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_print_acl(liz_acl_t *acl, char *buf, size_t size, size_t *reply_size);
+
+/*!
+ * \brief Add access control entry to acl
+ * \param acl access control list
+ * \param ace prepared acl entry
+ */
+void liz_add_acl_entry(liz_acl_t *acl, const liz_acl_ace_t *ace);
+
+/*!
+ * \brief Get nth acl entry
+ * \param acl access control list
+ * \param n entry index
+ * \param ace entry to be filled with data
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_get_acl_entry(const liz_acl_t *acl, int n, liz_acl_ace_t *ace);
+
+/*!
+ * \brief Get number of acl entries
+ * \param acl access control list
+ * \return number of entries
+ */
+size_t liz_get_acl_size(const liz_acl_t *acl);
+
+/*!
+ * \brief Set acl for a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino target inode
+ * \param type acl type (access, default)
+ * \param acl acl to be set
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+	       const liz_acl_t *acl);
+
+/*!
+ * \brief Get acl from a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param ino target inode
+ * \param type acl type (access, default)
+ * \param acl acl pointer to be filled with acl
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+	       liz_acl_t **acl);
 
 /*! \brief Gather chunks information for a file
  * \param instance instance returned from liz_init

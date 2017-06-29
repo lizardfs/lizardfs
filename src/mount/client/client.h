@@ -21,7 +21,7 @@
 #include "common/platform.h"
 
 #include "client/lizard_client_c_linkage.h"
-#include "mount/lizard_client.h"
+#include "common/richacl.h"
 
 #include <boost/intrusive/list.hpp>
 #include <mutex>
@@ -216,6 +216,12 @@ public:
 
 	void removexattr(const Context &ctx, Inode ino, const std::string &name);
 	void removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec);
+
+	void setacl(const Context &ctx, Inode ino, const RichACL &acl);
+	void setacl(const Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec);
+
+	RichACL getacl(const Context &ctx, Inode ino);
+	RichACL getacl(const Context &ctx, Inode ino, std::error_code &ec);
 
 	static std::vector<std::string> toXattrList(const XattrBuffer &buffer);
 
