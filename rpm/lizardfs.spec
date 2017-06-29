@@ -373,7 +373,6 @@ rm -rf $RPM_BUILD_ROOT
 %doc NEWS README UPGRADE
 %attr(755,root,root) %{_bindir}/lizardfs
 %attr(755,root,root) %{_bindir}/mfsmount
-%attr(755,root,root) %{_bindir}/mfssnapshot
 %attr(755,root,root) %{_bindir}/mfstools.sh
 %{_bindir}/mfsappendchunks
 %{_bindir}/mfscheckfile

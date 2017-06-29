@@ -20,7 +20,6 @@ usr/bin/mfsseteattr
 usr/bin/mfssetquota
 usr/bin/mfssettrashtime
 usr/bin/lizardfs
-usr/bin/mfssnapshot
 usr/bin/mfstools.sh
 usr/share/man/man1/lizardfs-appendchunks.1
 usr/share/man/man1/lizardfs-checkfile.1
