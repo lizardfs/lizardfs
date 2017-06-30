@@ -685,14 +685,13 @@ EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole
 	return e;
 }
 
-AttrReply getattr(const Context &ctx, Inode ino, FileInfo *fi) {
+AttrReply getattr(const Context &ctx, Inode ino) {
 	uint64_t maxfleng;
 	double attr_timeout;
 	struct stat o_stbuf;
 	Attributes attr;
 	char attrstr[256];
 	int status;
-	(void)fi;
 
 	if (debug_mode) {
 		oplog_printf(ctx, "getattr (%lu) ...",
@@ -701,7 +700,7 @@ AttrReply getattr(const Context &ctx, Inode ino, FileInfo *fi) {
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
-		return special_getattr(ino, ctx, fi, attrstr);
+		return special_getattr(ino, ctx, attrstr);
 	}
 
 	maxfleng = write_data_getmaxfleng(ino);

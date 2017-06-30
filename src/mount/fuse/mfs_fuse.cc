@@ -192,9 +192,10 @@ void mfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name) {
 	}
 }
 
-void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
+void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *) {
 	try {
-		auto a = LizardClient::getattr(get_context(req), ino, fuse_file_info_wrapper(fi));
+		// FileInfo not needed, not conducive to optimization
+		auto a = LizardClient::getattr(get_context(req), ino);
 		fuse_reply_attr(req, &a.attr, a.attrTimeout);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

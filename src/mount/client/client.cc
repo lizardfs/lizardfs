@@ -25,12 +25,13 @@
 
 #include "client_error_code.h"
 
-#define LIZARDFS_LINK_FUNCTION(function_name) \
+#define LIZARDFS_LINK_FUNCTION(function_name) do { \
 	void *function_name##_ptr = dlsym(dl_handle_, #function_name); \
 	function_name##_ = *(decltype(function_name##_)*)&function_name##_ptr; \
 	if (function_name##_ == nullptr) { \
 		throw std::runtime_error(std::string("dl lookup failed for ") + #function_name); \
-	};
+	} \
+} while (0)
 
 using namespace lizardfs;
 
@@ -193,17 +194,17 @@ Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags, std::
 	return fileinfo;
 }
 
-void Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_reply) {
+void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply) {
 	std::error_code ec;
-	getattr(ctx, fileinfo, attr_reply, ec);
+	getattr(ctx, inode, attr_reply, ec);
 	if (ec) {
 		throw std::system_error(ec);
 	}
 }
 
-void Client::getattr(const Context &ctx, FileInfo *fileinfo, AttrReply &attr_reply,
+void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply,
 		std::error_code &ec) {
-	int ret = lizardfs_getattr_(ctx, fileinfo->inode, fileinfo, attr_reply);
+	int ret = lizardfs_getattr_(ctx, inode, attr_reply);
 	ec = make_error_code(ret);
 }
 

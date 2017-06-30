@@ -196,13 +196,13 @@ int liz_flush(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo) {
 	return ec ? -1 : 0;
 }
 
-int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo,
+int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	        liz_attr_reply *reply) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	Client::AttrReply r;
 	std::error_code ec;
-	client.getattr(context, (Client::FileInfo *)fileinfo, r, ec);
+	client.getattr(context, inode, r, ec);
 	gLastErrorCode = ec.value();
 	if (ec) {
 		return -1;

@@ -74,9 +74,9 @@ int lizardfs_open(Context ctx, Inode ino, FileInfo *fi) {
 	}
 }
 
-int lizardfs_getattr(Context ctx, Inode ino, FileInfo *fi, AttrReply &reply) {
+int lizardfs_getattr(Context ctx, Inode ino, AttrReply &reply) {
 	try {
-		reply = LizardClient::getattr(ctx, ino, fi);
+		reply = LizardClient::getattr(ctx, ino);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

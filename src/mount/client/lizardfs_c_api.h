@@ -188,14 +188,14 @@ int liz_release(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo);
  */
 int liz_flush(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo);
 
-/*! \brief Get attributes from an open file
+/*! \brief Get attributes by inode
  * \param instance instance returned from liz_init
  * \param ctx context returned from liz_create_context
- * \param fileinfo descriptor of an open file
+ * \param inode inode of a file
  * \param reply structure to be filled with getattr result
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
+int liz_getattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	        struct liz_attr_reply *reply);
 
 /*! \brief End a connection with master server

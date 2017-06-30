@@ -24,7 +24,7 @@
 using namespace LizardClient;
 
 namespace InodeMasterInfo {
-static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -38,7 +38,7 @@ static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]
 } // InodeMasterInfo
 
 namespace InodeStats {
-static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -52,7 +52,7 @@ static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]
 } // InodeStats
 
 namespace InodeOplog {
-static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -66,7 +66,7 @@ static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]
 } // InodeOplog
 
 namespace InodeOphistory {
-static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -80,16 +80,10 @@ static AttrReply getattr(const Context &ctx, FileInfo */*fi*/, char attrstr[256]
 } // InodeOphistory
 
 namespace InodeTweaks {
-static AttrReply getattr(const Context &ctx, FileInfo *fi, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
-	if (fi != NULL) {
-		// fstat is called on an open descriptor -- provide the actual length
-		MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
-		std::unique_lock<std::mutex> lock(file->mutex);
-		o_stbuf.st_size = file->value.size();
-	}
 	stats_inc(OP_GETATTR);
 	makeattrstr(attrstr, 256, &o_stbuf);
 	oplog_printf(ctx, "getattr (%lu) (internal node: TWEAKS_FILE): OK (3600,%s)",
@@ -100,16 +94,10 @@ static AttrReply getattr(const Context &ctx, FileInfo *fi, char attrstr[256]) {
 } // InodeTweaks
 
 namespace InodeFileByInode {
-static AttrReply getattr(const Context &ctx, FileInfo *fi, char attrstr[256]) {
+static AttrReply getattr(const Context &ctx, char (&attrstr)[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
-	if (fi != NULL) {
-		// fstat is called on an open descriptor -- provide the actual length
-		MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
-		std::unique_lock<std::mutex> lock(file->mutex);
-		o_stbuf.st_size = file->value.size();
-	}
 	stats_inc(OP_GETATTR);
 	makeattrstr(attrstr, 256, &o_stbuf);
 	oplog_printf(ctx, "getattr (%lu) (internal node: FILE_BY_INODE_FILE): OK (3600,%s)",
@@ -119,8 +107,8 @@ static AttrReply getattr(const Context &ctx, FileInfo *fi, char attrstr[256]) {
 }
 } // InodeFileByInode
 
-static const std::array<std::function<AttrReply
-	(const Context&, FileInfo*, char[256])>, 16> funcs = {{
+typedef AttrReply (*GetAttrFunc)(const Context&, char (&)[256]);
+static const std::array<GetAttrFunc, 16> funcs = {{
 	 &InodeStats::getattr,          //0x0U
 	 &InodeOplog::getattr,          //0x1U
 	 &InodeOphistory::getattr,      //0x2U
@@ -139,12 +127,12 @@ static const std::array<std::function<AttrReply
 	 &InodeMasterInfo::getattr      //0xFU
 }};
 
-AttrReply special_getattr(Inode ino, const Context &ctx, FileInfo *fi, char attrstr[256]) {
+AttrReply special_getattr(Inode ino, const Context &ctx, char (&attrstr)[256]) {
 	auto func = funcs[ino - SPECIAL_INODE_BASE];
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'getattr' function for special inode");
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
-	return func(ctx, fi, attrstr);
+	return func(ctx, attrstr);
 }

@@ -82,9 +82,9 @@ public:
 	void flush(const Context &ctx, FileInfo *fileinfo);
 	void flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
 
-	/*! \brief Get attributes from an open file */
-	void getattr(const Context &ctx, FileInfo* fileinfo, AttrReply &attr_reply);
-	void getattr(const Context &ctx, FileInfo* fileinfo, AttrReply &attr_reply, std::error_code &ec);
+	/*! \brief Get attributes by inode */
+	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply);
+	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply, std::error_code &ec);
 
 protected:
 	/*! \brief Initialize client with master host, port and mountpoint name

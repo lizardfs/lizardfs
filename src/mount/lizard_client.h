@@ -296,7 +296,7 @@ bool isSpecialInode(LizardClient::Inode ino);
 
 EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole_path_lookup = false);
 
-AttrReply getattr(const Context &ctx, Inode ino, FileInfo* fi);
+AttrReply getattr(const Context &ctx, Inode ino);
 
 #define LIZARDFS_SET_ATTR_MODE      (1 << 0)
 #define LIZARDFS_SET_ATTR_UID       (1 << 1)

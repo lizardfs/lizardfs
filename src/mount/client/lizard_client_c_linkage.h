@@ -39,8 +39,7 @@ int lizardfs_lookup(LizardClient::Context ctx, LizardClient::Inode parent,
 int lizardfs_mknod(LizardClient::Context ctx, LizardClient::Inode parent, const char *name, mode_t mode, dev_t rdev, LizardClient::EntryParam &param);
 int lizardfs_open(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_release(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
-int lizardfs_getattr(LizardClient::Context ctx, LizardClient::Inode ino,
-	                                 LizardClient::FileInfo* fi, LizardClient::AttrReply &reply);
+int lizardfs_getattr(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
 std::pair<int, ReadCache::Result> lizardfs_read(LizardClient::Context ctx, LizardClient::Inode ino,
 	                                         size_t size, off_t off, LizardClient::FileInfo* fi);
 std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(LizardClient::Context ctx,

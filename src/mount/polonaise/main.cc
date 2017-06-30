@@ -462,12 +462,11 @@ public:
 	 * \note for more information, see the protocol definition in Polonaise sources
 	 */
 	void getattr(AttributesReply& _return, const Context& context, const Inode inode,
-			const Descriptor descriptor) {
+			const Descriptor) {
 		OPERATION_PROLOG
 		LizardClient::AttrReply reply = LizardClient::getattr(
 				toLizardFsContext(context),
-				toUint64(inode),
-				getFileInfo(descriptor));
+				toUint64(inode));
 		_return.attributes = toFileStat(reply.attr);
 		_return.attributesTimeout = reply.attrTimeout;
 		OPERATION_EPILOG
