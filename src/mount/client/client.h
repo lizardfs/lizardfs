@@ -100,6 +100,7 @@ protected:
 
 	void *linkLibrary();
 
+	typedef decltype(&lzfs_disable_printf) DisablePrintfFunction;
 	typedef decltype(&lizardfs_fs_init) FsInitFunction;
 	typedef decltype(&lizardfs_fs_term) FsTermFunction;
 	typedef decltype(&lizardfs_lookup) LookupFunction;
@@ -114,6 +115,7 @@ protected:
 	typedef decltype(&lizardfs_isSpecialInode) IsSpecialInodeFunction;
 	typedef decltype(&lizardfs_update_groups) UpdateGroupsFunction;
 
+	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
 	FsTermFunction lizardfs_fs_term_;
 	LookupFunction lizardfs_lookup_;

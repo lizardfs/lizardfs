@@ -26,14 +26,13 @@
 #include "client_error_code.h"
 
 #define LIZARDFS_LINK_FUNCTION(function_name) \
-	function_name##_ = (decltype(function_name##_))dlsym(dl_handle_, #function_name); \
+	void *function_name##_ptr = dlsym(dl_handle_, #function_name); \
+	function_name##_ = *(decltype(function_name##_)*)&function_name##_ptr; \
 	if (function_name##_ == nullptr) { \
 		throw std::runtime_error(std::string("dl lookup failed for ") + #function_name); \
 	};
 
 using namespace lizardfs;
-
-typedef void (*VoidFunction)();
 
 std::atomic<int> Client::instance_count_(0);
 
@@ -77,17 +76,8 @@ void *Client::linkLibrary() {
 Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint)
 		: fileinfos_() {
 	dl_handle_ = linkLibrary();
-	VoidFunction disable_verbose_printf =
-	        (VoidFunction)dlsym(dl_handle_, "lzfs_disable_printf");
-	if ((void *)disable_verbose_printf == nullptr) {
-		assert(dl_handle_);
-		dlclose(dl_handle_);
-		instance_count_--;
-		throw std::runtime_error("Failed to find lzfs_disable_printf");
-	}
-	disable_verbose_printf();
-
 	try {
+		LIZARDFS_LINK_FUNCTION(lzfs_disable_printf);
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_init);
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_term);
 		LIZARDFS_LINK_FUNCTION(lizardfs_lookup);
@@ -107,6 +97,7 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		throw e;
 	}
 
+	lzfs_disable_printf_();
 	if (init(host, port, mountpoint) != 0) {
 		assert(dl_handle_);
 		dlclose(dl_handle_);
