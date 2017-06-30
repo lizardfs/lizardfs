@@ -32,9 +32,9 @@
 #include <thrift/transport/TServerSocket.h>
 
 #include "common/crc.h"
+#include "common/errno_defs.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
-#include "mount/errno_defs.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
@@ -533,7 +533,7 @@ public:
 	Descriptor opendir(const Context& context, const Inode inode) {
 		OPERATION_PROLOG
 		Descriptor descriptor = createDescriptor(0);
-		LizardClient::opendir(toLizardFsContext(context), toUint32(inode), getFileInfo(descriptor));
+		LizardClient::opendir(toLizardFsContext(context), toUint32(inode));
 		return descriptor;
 		OPERATION_EPILOG
 	}
@@ -544,17 +544,13 @@ public:
 	 */
 	void readdir(std::vector<polonaise::DirectoryEntry> & _return, const Context& context,
 			const Inode inode, const int64_t firstEntryOffset,
-			const int64_t maxNumberOfEntries, const Descriptor descriptor) {
+			const int64_t maxNumberOfEntries, const Descriptor) {
 		OPERATION_PROLOG
-		if (descriptor == g_polonaise_constants.kNullDescriptor) {
-			throw makeFailure("Null descriptor");
-		}
 		std::vector<LizardClient::DirEntry> entries = LizardClient::readdir(
 				toLizardFsContext(context),
 				toUint64(inode),
 				firstEntryOffset,
-				toUint64(maxNumberOfEntries),
-				getFileInfo(descriptor));
+				toUint64(maxNumberOfEntries));
 
 		_return.reserve(entries.size());
 		for (LizardClient::DirEntry& entry : entries) {
@@ -572,13 +568,9 @@ public:
 	 */
 	void releasedir(const Context& context, const Inode inode, const Descriptor descriptor) {
 		OPERATION_PROLOG
-		if (descriptor == g_polonaise_constants.kNullDescriptor) {
-			throw makeFailure("Null descriptor");
-		}
 		LizardClient::releasedir(
 				toLizardFsContext(context),
-				toUint64(inode),
-				getFileInfo(descriptor));
+				toUint64(inode));
 		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}
