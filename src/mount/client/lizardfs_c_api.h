@@ -21,7 +21,66 @@
 
 #ifdef __cplusplus
 extern "C" {
+#else
+#include <stdbool.h>
 #endif
+
+enum liz_sugid_clear_mode {
+	LIZARDFS_SUGID_CLEAR_MODE_NEVER,
+	LIZARDFS_SUGID_CLEAR_MODE_ALWAYS,
+	LIZARDFS_SUGID_CLEAR_MODE_OSX,
+	LIZARDFS_SUGID_CLEAR_MODE_BSD,
+	LIZARDFS_SUGID_CLEAR_MODE_EXT,
+	LIZARDFS_SUGID_CLEAR_MODE_XFS,
+	LIZARDFS_SUGID_CLEAR_MODE_END_
+};
+
+typedef struct liz_init_params {
+	const char *bind_host;
+	const char *host;
+	const char *port;
+	bool meta;
+	const char *mountpoint;
+	const char *subfolder;
+	const char *password;
+	bool do_not_remember_password;
+	bool delayed_init;
+	unsigned report_reserved_period;
+
+	unsigned io_retries;
+	unsigned chunkserver_round_time_ms;
+	unsigned chunkserver_connect_timeout_ms;
+	unsigned chunkserver_wave_read_timeout_ms;
+	unsigned total_read_timeout_ms;
+	unsigned cache_expiration_time_ms;
+	unsigned readahead_max_window_size_kB;
+	bool prefetch_xor_stripes;
+	double bandwidth_overuse;
+
+	unsigned write_cache_size;
+	unsigned write_workers;
+	unsigned write_window_size;
+	unsigned chunkserver_write_timeout_ms;
+	unsigned cache_per_inode_percentage;
+	unsigned symlink_cache_timeout_s;
+
+	bool debug_mode;
+	int keep_cache;
+	double direntry_cache_timeout;
+	unsigned direntry_cache_size;
+	double entry_cache_timeout;
+	double attr_cache_timeout;
+	bool mkdir_copy_sgid;
+	enum liz_sugid_clear_mode sugid_clear_mode;
+	bool acl_enabled;
+	bool use_rw_lock;
+	double acl_cache_timeout;
+	unsigned acl_cache_size;
+
+	bool verbose;
+
+	const char *io_limits_config_file;
+} liz_init_params_t;
 
 #define LIZARDFS_MAX_GOAL_NAME 64
 
@@ -138,6 +197,15 @@ const char *liz_error_string(liz_err_t lizardfs_error_code);
 void liz_destroy_context(liz_context_t *ctx);
 
 /*!
+ * \brief Initialize init params to defaults
+ * \param host master server connection host
+ * \param port master server connection port
+ * \param mountpoint a human-readable name for 'mountpoint' created by a connection
+ */
+void liz_set_default_init_params(struct liz_init_params *params,
+		const char *host, const char *port, const char *mountpoint);
+
+/*!
  * \brief Initialize a connection with master server
  * \param host master server connection host
  * \param port master server connection port
@@ -146,6 +214,15 @@ void liz_destroy_context(liz_context_t *ctx);
  *  sets last error code (check with liz_last_err())
  */
 liz_t *liz_init(const char *host, const char *port, const char *mountpoint);
+
+/*!
+ * \brief Initialize a connection with master server
+ * \param params init params initialized via liz_set_default_init_params()
+ *        and possibly tweaked
+ * \return a LizardFS client instance, nullptr if connection is impossible,
+ *  sets last error code (check with liz_last_err())
+ */
+liz_t *liz_init_with_params(struct liz_init_params *params);
 
 /*!
  * \brief Update secondary group information in context

@@ -74,8 +74,30 @@ void *Client::linkLibrary() {
 	return ret;
 }
 
-Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint)
-		: fileinfos_() {
+Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint) {
+	FsInitParams params("", host, port, mountpoint);
+	init(params);
+}
+
+Client::Client(FsInitParams &params) {
+	init(params);
+}
+
+Client::~Client() {
+	assert(instance_count_ >= 1);
+	assert(dl_handle_);
+
+	Context ctx(0, 0, 0, 0);
+	while (!fileinfos_.empty()) {
+		release(ctx, std::addressof(fileinfos_.front()));
+	}
+
+	lizardfs_fs_term_();
+	dlclose(dl_handle_);
+	instance_count_--;
+}
+
+void Client::init(FsInitParams &params) {
 	dl_handle_ = linkLibrary();
 	try {
 		LIZARDFS_LINK_FUNCTION(lzfs_disable_printf);
@@ -119,31 +141,12 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 	}
 
 	lzfs_disable_printf_();
-	if (init(host, port, mountpoint) != 0) {
+	if (lizardfs_fs_init_(params) != 0) {
 		assert(dl_handle_);
 		dlclose(dl_handle_);
 		instance_count_--;
 		throw std::runtime_error("Can't connect to master server");
 	}
-}
-
-Client::~Client() {
-	assert(instance_count_ >= 1);
-	assert(dl_handle_);
-
-	Context ctx(0, 0, 0, 0);
-	while (!fileinfos_.empty()) {
-		release(ctx, std::addressof(fileinfos_.front()));
-	}
-
-	lizardfs_fs_term_();
-	dlclose(dl_handle_);
-	instance_count_--;
-}
-
-int Client::init(const std::string &host, const std::string &port, const std::string &mountpoint) {
-	LizardClient::FsInitParams params("", host, port, mountpoint);
-	return lizardfs_fs_init_(params);
 }
 
 void Client::updateGroups(Context &ctx) {

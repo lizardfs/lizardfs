@@ -21,6 +21,7 @@
 #include "common/platform.h"
 
 #include "client/lizard_client_c_linkage.h"
+#include "mount/lizard_client.h"
 
 #include <boost/intrusive/list.hpp>
 #include <mutex>
@@ -36,6 +37,7 @@ namespace lizardfs {
 
 class Client {
 public:
+	typedef LizardClient::FsInitParams FsInitParams;
 	typedef LizardClient::Inode Inode;
 	typedef LizardClient::JobId JobId;
 	typedef LizardClient::NamedInodeOffset NamedInodeOffset;
@@ -65,6 +67,7 @@ public:
 	typedef boost::intrusive::list<FileInfo> FileInfoList;
 
 	Client(const std::string &host, const std::string &port, const std::string &mountpoint);
+	Client(FsInitParams &params);
 
 	~Client();
 
@@ -200,12 +203,8 @@ public:
 
 	static std::vector<std::string> toXattrList(const XattrBuffer &buffer);
 protected:
-	/*! \brief Initialize client with master host, port and mountpoint name
-	 * \param host - master server connection address
-	 * \param port - master server connection port
-	 * \param mountpoint - human-readable 'mountpoint' name for web/cli interface
-	 */
-	int init(const std::string &host, const std::string &port, const std::string &mountpoint);
+	/*! \brief Initialize client with parameters */
+	void init(FsInitParams &params);
 
 	void *linkLibrary();
 

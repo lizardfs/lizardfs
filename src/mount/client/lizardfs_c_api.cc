@@ -30,6 +30,73 @@
 
 using namespace lizardfs;
 
+void liz_set_default_init_params(struct liz_init_params *params,
+		const char *host, const char *port, const char *mountpoint) {
+	assert(params != nullptr);
+	params->bind_host = nullptr;
+	params->host = host;
+	params->port = port;
+	params->meta = false;
+	params->mountpoint = mountpoint;
+	params->subfolder = LizardClient::FsInitParams::kDefaultSubfolder;
+	params->password = nullptr;
+	params->do_not_remember_password = LizardClient::FsInitParams::kDefaultDoNotRememberPassword;
+	params->delayed_init = LizardClient::FsInitParams::kDefaultDelayedInit;
+	params->report_reserved_period = LizardClient::FsInitParams::kDefaultReportReservedPeriod;
+
+	params->io_retries = LizardClient::FsInitParams::kDefaultIoRetries;
+	params->chunkserver_round_time_ms = LizardClient::FsInitParams::kDefaultRoundTime;
+	params->chunkserver_connect_timeout_ms = LizardClient::FsInitParams::kDefaultChunkserverConnectTo;
+	params->chunkserver_wave_read_timeout_ms = LizardClient::FsInitParams::kDefaultChunkserverWaveReadTo;
+	params->total_read_timeout_ms = LizardClient::FsInitParams::kDefaultChunkserverTotalReadTo;
+	params->cache_expiration_time_ms = LizardClient::FsInitParams::kDefaultCacheExpirationTime;
+	params->readahead_max_window_size_kB = LizardClient::FsInitParams::kDefaultReadaheadMaxWindowSize;
+	params->prefetch_xor_stripes = LizardClient::FsInitParams::kDefaultPrefetchXorStripes;
+	params->bandwidth_overuse = LizardClient::FsInitParams::kDefaultBandwidthOveruse;
+
+	params->write_cache_size = LizardClient::FsInitParams::kDefaultWriteCacheSize;
+	params->write_workers = LizardClient::FsInitParams::kDefaultWriteWorkers;
+	params->write_window_size = LizardClient::FsInitParams::kDefaultWriteWindowSize;
+	params->chunkserver_write_timeout_ms = LizardClient::FsInitParams::kDefaultChunkserverWriteTo;
+	params->cache_per_inode_percentage = LizardClient::FsInitParams::kDefaultCachePerInodePercentage;
+	params->symlink_cache_timeout_s = LizardClient::FsInitParams::kDefaultSymlinkCacheTimeout;
+
+	params->debug_mode = LizardClient::FsInitParams::kDefaultDebugMode;
+	params->keep_cache = LizardClient::FsInitParams::kDefaultKeepCache;
+	params->direntry_cache_timeout = LizardClient::FsInitParams::kDefaultDirentryCacheTimeout;
+	params->direntry_cache_size = LizardClient::FsInitParams::kDefaultDirentryCacheSize;
+	params->entry_cache_timeout = LizardClient::FsInitParams::kDefaultEntryCacheTimeout;
+	params->attr_cache_timeout = LizardClient::FsInitParams::kDefaultAttrCacheTimeout;
+	params->mkdir_copy_sgid = LizardClient::FsInitParams::kDefaultMkdirCopySgid;
+	params->sugid_clear_mode = (liz_sugid_clear_mode)LizardClient::FsInitParams::kDefaultSugidClearMode;
+	params->acl_enabled = LizardClient::FsInitParams::kDefaultAclEnabled;
+	params->use_rw_lock = LizardClient::FsInitParams::kDefaultUseRwLock;
+	params->acl_cache_timeout = LizardClient::FsInitParams::kDefaultAclCacheTimeout;
+	params->acl_cache_size = LizardClient::FsInitParams::kDefaultAclCacheSize;
+
+	params->verbose = LizardClient::FsInitParams::kDefaultVerbose;
+
+	params->io_limits_config_file = nullptr;
+
+	// statically assert that all SugidClearMode value are covered and consistent
+	static_assert(sizeof(liz_sugid_clear_mode) >= sizeof(SugidClearMode), "");
+	for (int dummy = LIZARDFS_SUGID_CLEAR_MODE_NEVER; dummy < LIZARDFS_SUGID_CLEAR_MODE_END_; ++dummy) {
+		switch (SugidClearMode(dummy)) { // exhaustive match check thanks to 'enum class'
+			#define STATIC_ASSERT_SUGID_CLEAR_MODE(KNAME,CENUM) \
+					case SugidClearMode::KNAME: \
+						static_assert((liz_sugid_clear_mode)SugidClearMode::KNAME  == CENUM, \
+							"liz_sugid_clear_mode incompatible with SugidClearMode");
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kNever, LIZARDFS_SUGID_CLEAR_MODE_NEVER);
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kAlways, LIZARDFS_SUGID_CLEAR_MODE_ALWAYS);
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kOsx, LIZARDFS_SUGID_CLEAR_MODE_OSX);
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kBsd, LIZARDFS_SUGID_CLEAR_MODE_BSD);
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kExt, LIZARDFS_SUGID_CLEAR_MODE_EXT);
+				STATIC_ASSERT_SUGID_CLEAR_MODE(kXfs, LIZARDFS_SUGID_CLEAR_MODE_XFS);
+			#undef STATIC_ASSERT_SUGID_CLEAR_MODE
+		}
+	}
+}
+
 #ifdef LIZARDFS_HAVE_THREAD_LOCAL
 static thread_local liz_err_t gLastErrorCode(LIZARDFS_STATUS_OK);
 #else
@@ -102,6 +169,78 @@ void liz_destroy_context(liz_context_t *ctx) {
 liz_t *liz_init(const char *host, const char *port, const char *mountpoint) {
 	try {
 		Client *ret = new Client(host, port, mountpoint);
+		gLastErrorCode = LIZARDFS_STATUS_OK;
+		return (liz_t *)ret;
+	} catch (...) {
+		gLastErrorCode = LIZARDFS_ERROR_CANTCONNECT;
+		return nullptr;
+	}
+}
+
+liz_t *liz_init_with_params(struct liz_init_params *params) {
+	assert(params != nullptr);
+	assert(params->host != nullptr);
+	assert(params->port != nullptr);
+	assert(params->mountpoint != nullptr);
+	assert(params->sugid_clear_mode >= 0);
+	assert(params->sugid_clear_mode < LIZARDFS_SUGID_CLEAR_MODE_END_);
+
+	Client::FsInitParams init_params(params->bind_host != nullptr ? params->bind_host : "",
+			params->host, params->port, params->mountpoint);
+
+	init_params.meta = params->meta;
+	if (params->subfolder != nullptr) {
+		init_params.subfolder = params->subfolder;
+	}
+	if (params->password != nullptr) {
+		init_params.password_digest.assign(params->password,
+				params->password + strlen(params->password));
+	}
+
+	#define COPY_PARAM(PARAM) do { \
+		static_assert(std::is_same<decltype(init_params.PARAM), decltype(params->PARAM)>::value, \
+			"liz_init_params member incompatible with FsInitParams"); \
+		init_params.PARAM = params->PARAM; \
+	} while (0)
+		COPY_PARAM(do_not_remember_password);
+		COPY_PARAM(delayed_init);
+		COPY_PARAM(report_reserved_period);
+		COPY_PARAM(io_retries);
+		COPY_PARAM(chunkserver_round_time_ms);
+		COPY_PARAM(chunkserver_connect_timeout_ms);
+		COPY_PARAM(chunkserver_wave_read_timeout_ms);
+		COPY_PARAM(total_read_timeout_ms);
+		COPY_PARAM(cache_expiration_time_ms);
+		COPY_PARAM(readahead_max_window_size_kB);
+		COPY_PARAM(prefetch_xor_stripes);
+		COPY_PARAM(bandwidth_overuse);
+		COPY_PARAM(write_cache_size);
+		COPY_PARAM(write_workers);
+		COPY_PARAM(write_window_size);
+		COPY_PARAM(chunkserver_write_timeout_ms);
+		COPY_PARAM(cache_per_inode_percentage);
+		COPY_PARAM(symlink_cache_timeout_s);
+		COPY_PARAM(debug_mode);
+		COPY_PARAM(keep_cache);
+		COPY_PARAM(direntry_cache_timeout);
+		COPY_PARAM(direntry_cache_size);
+		COPY_PARAM(entry_cache_timeout);
+		COPY_PARAM(attr_cache_timeout);
+		COPY_PARAM(mkdir_copy_sgid);
+		init_params.sugid_clear_mode = (SugidClearMode)params->sugid_clear_mode;
+		COPY_PARAM(acl_enabled);
+		COPY_PARAM(use_rw_lock);
+		COPY_PARAM(acl_cache_timeout);
+		COPY_PARAM(acl_cache_size);
+		COPY_PARAM(verbose);
+	#undef COPY_PARAM
+
+	if (params->io_limits_config_file != nullptr) {
+		init_params.io_limits_config_file = params->io_limits_config_file;
+	}
+
+	try {
+		Client *ret = new Client(init_params);
 		gLastErrorCode = LIZARDFS_STATUS_OK;
 		return (liz_t *)ret;
 	} catch (...) {
