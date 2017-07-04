@@ -31,7 +31,7 @@ int main() {
 		goto destroy_context;
 	}
 	/* Try to create a file */
-	err = liz_mknod(liz, ctx, LIZARDFS_INODE_ROOT, "testfile", 0755, &entry);
+	err = liz_mknod(liz, ctx, LIZARDFS_INODE_ROOT, "testfile", 0755, 0, &entry);
 	if (err) {
 		fprintf(stderr, "File exists\n");
 		liz_err = liz_last_err();

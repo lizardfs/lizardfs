@@ -82,9 +82,9 @@ public:
 
 	/*! \brief Create a file with given parent and name */
 	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
-	           EntryParam &param);
+	           dev_t rdev, EntryParam &param);
 	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
-	           EntryParam &param, std::error_code &ec);
+	           dev_t rdev, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Create a link with a given parent and name */
 	void link(const Context &ctx, Inode inode, Inode parent,

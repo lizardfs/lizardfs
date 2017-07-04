@@ -289,12 +289,12 @@ int liz_lookup(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const ch
 }
 
 int liz_mknod(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,
-	      mode_t mode, liz_entry *entry) {
+	      mode_t mode, dev_t rdev, liz_entry *entry) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	Client::EntryParam entry_param;
 	std::error_code ec;
-	client.mknod(context, parent, path, mode, entry_param, ec);
+	client.mknod(context, parent, path, mode, rdev, entry_param, ec);
 	gLastErrorCode = ec.value();
 	if (ec) {
 		return -1;

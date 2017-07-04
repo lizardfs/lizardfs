@@ -179,17 +179,17 @@ void Client::lookup(const Context &ctx, Inode parent, const std::string &path, E
 }
 
 void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
-		EntryParam &param) {
+		dev_t rdev, EntryParam &param) {
 	std::error_code ec;
-	mknod(ctx, parent, path, mode, param, ec);
+	mknod(ctx, parent, path, mode, rdev, param, ec);
 	if (ec) {
 		throw std::system_error(ec);
 	}
 }
 
 void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
-		EntryParam &param, std::error_code &ec) {
-	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, 0, param);
+		dev_t rdev, EntryParam &param, std::error_code &ec) {
+	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, rdev, param);
 	ec = make_error_code(ret);
 }
 

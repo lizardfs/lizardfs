@@ -251,11 +251,13 @@ int liz_lookup(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const ch
  * \param ctx context returned from liz_create_context
  * \param parent parent inode
  * \param path name to be looked up
- * \param mode file permissions
+ * \param mode file permissions and node type
+ * \param rdev major/minor numbers for block devices, otherwise ignored
+ * \param entry filled upon successful creation
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_mknod(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,
-	      mode_t mode, struct liz_entry *entry);
+	      mode_t mode, dev_t rdev, struct liz_entry *entry);
 
 /*! \brief Create a link with given parent and name
  * \param instance instance returned from liz_init
