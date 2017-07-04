@@ -304,6 +304,21 @@ int liz_mknod(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const cha
 	return 0;
 }
 
+int liz_symlink(liz_t *instance, liz_context_t *ctx, const char *link, liz_inode_t parent,
+	      const char *name, struct liz_entry *entry) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	Client::EntryParam entry_param;
+	std::error_code ec;
+	client.symlink(context, link, parent, name, entry_param, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	to_entry(entry_param, entry);
+	return 0;
+}
+
 liz_fileinfo *liz_open(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, int flags) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;

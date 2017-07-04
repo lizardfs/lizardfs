@@ -104,6 +104,7 @@ void Client::init(FsInitParams &params) {
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_term);
 		LIZARDFS_LINK_FUNCTION(lizardfs_lookup);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mknod);
+		LIZARDFS_LINK_FUNCTION(lizardfs_symlink);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
@@ -188,6 +189,21 @@ void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mo
 void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
 		EntryParam &param, std::error_code &ec) {
 	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, 0, param);
+	ec = make_error_code(ret);
+}
+
+void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
+		const std::string &name, EntryParam &param) {
+	std::error_code ec;
+	symlink(ctx, link, parent, name, param, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
+		const std::string &name, EntryParam &param, std::error_code &ec) {
+	int ret = lizardfs_symlink_(ctx, link.c_str(), parent, name.c_str(), param);
 	ec = make_error_code(ret);
 }
 
