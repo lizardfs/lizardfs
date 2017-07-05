@@ -106,7 +106,6 @@ static uint32_t masterip=0;
 static uint16_t masterport=0;
 static char srcstrip[17];
 static uint32_t srcip=0;
-static unsigned gReservedInodesPeriod;
 
 static uint8_t fterm;
 static std::atomic<bool> gIsKilled(false);
@@ -146,6 +145,7 @@ struct InitParams {
 	std::string mountpoint;
 	std::string subfolder;
 	std::vector<uint8_t> password_digest;
+	unsigned report_reserved_period;
 
 	InitParams &operator=(const LizardClient::FsInitParams &params) {
 		bind_host = params.bind_host;
@@ -156,6 +156,7 @@ struct InitParams {
 		mountpoint = params.mountpoint;
 		subfolder = params.subfolder;
 		password_digest = params.password_digest;
+		report_reserved_period = params.report_reserved_period;
 		return *this;
 	}
 };
@@ -1016,7 +1017,7 @@ void* fs_nop_thread(void *arg) {
 				}
 				lastwrite=now;
 			}
-			if (++inodeswritecnt >= gReservedInodesPeriod) {
+			if (++inodeswritecnt >= gInitParams.report_reserved_period) {
 				inodeswritecnt = 0;
 				std::unique_lock<std::mutex> asLock(acquiredFileMutex);
 				inodesleng=8;
