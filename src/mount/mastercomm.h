@@ -40,8 +40,7 @@ void fs_notify_sendremoved(uint32_t cnt,uint32_t *inodes);
 
 void fs_statfs(uint64_t *totalspace,uint64_t *availspace,uint64_t *trashspace,uint64_t *reservedspace,uint32_t *inodes);
 uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask);
-uint8_t fs_lookup(uint32_t parent, uint8_t nleng, const uint8_t *name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr);
-uint8_t fs_whole_path_lookup(uint32_t parent, const std::string &name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr);
+uint8_t fs_lookup(uint32_t parent, const std::string &path, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr);
 uint8_t fs_getattr(uint32_t inode, uint32_t uid, uint32_t gid, Attributes &attr);
 uint8_t fs_setattr(uint32_t inode, uint32_t uid, uint32_t gid, uint8_t setmask, uint16_t attrmode, uint32_t attruid, uint32_t attrgid, uint32_t attratime, uint32_t attrmtime, uint8_t sugidclearmode, Attributes &attr);
 uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uint64_t length,

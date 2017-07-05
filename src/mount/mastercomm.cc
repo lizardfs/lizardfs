@@ -1348,43 +1348,9 @@ uint8_t fs_access(uint32_t inode,uint32_t uid,uint32_t gid,uint8_t modemask) {
 	return ret;
 }
 
-uint8_t fs_lookup(uint32_t parent, uint8_t nleng, const uint8_t *name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
-	uint8_t *wptr;
-	const uint8_t *rptr;
-	uint32_t i;
-	uint32_t t32;
-	uint8_t ret;
+uint8_t fs_lookup(uint32_t parent, const std::string &path, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
 	threc *rec = fs_get_my_threc();
-	wptr = fs_createpacket(rec,CLTOMA_FUSE_LOOKUP,13+nleng);
-	if (wptr==NULL) {
-		return LIZARDFS_ERROR_IO;
-	}
-	put32bit(&wptr,parent);
-	put8bit(&wptr,nleng);
-	memcpy(wptr,name,nleng);
-	wptr+=nleng;
-	put32bit(&wptr,uid);
-	put32bit(&wptr,gid);
-	rptr = fs_sendandreceive(rec,MATOCL_FUSE_LOOKUP,&i);
-	if (rptr==NULL) {
-		ret = LIZARDFS_ERROR_IO;
-	} else if (i==1) {
-		ret = rptr[0];
-	} else if (i!=39) {
-		setDisconnect(true);
-		ret = LIZARDFS_ERROR_IO;
-	} else {
-		t32 = get32bit(&rptr);
-		*inode = t32;
-		memcpy(attr.data(), rptr, attr.size());
-		ret = LIZARDFS_STATUS_OK;
-	}
-	return ret;
-}
-
-uint8_t fs_whole_path_lookup(uint32_t parent, const std::string &name, uint32_t uid, uint32_t gid, uint32_t *inode, Attributes &attr) {
-	threc *rec = fs_get_my_threc();
-	auto message = cltoma::wholePathLookup::build(rec->packetId, parent, name, uid, gid);
+	auto message = cltoma::wholePathLookup::build(rec->packetId, parent, path, uid, gid);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return LIZARDFS_ERROR_IO;
 	}

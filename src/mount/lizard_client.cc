@@ -589,7 +589,7 @@ void access(const Context &ctx, Inode ino, int mask) {
 	}
 }
 
-EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole_path_lookup) {
+EntryParam lookup(const Context &ctx, Inode parent, const char *name) {
 	EntryParam e;
 	uint64_t maxfleng;
 	uint32_t inode;
@@ -644,13 +644,8 @@ EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole
 //              oplog_printf(ctx, "lookup (%lu,%s) (using open dir cache): OK (%lu)",(unsigned long int)parent,name,(unsigned long int)inode);
 	} else {
 		stats_inc(OP_LOOKUP);
-		if (whole_path_lookup) {
-			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-			fs_whole_path_lookup(parent, std::string(name, nleng), ctx.uid, ctx.gid, &inode, attr));
-		} else {
-			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-			fs_lookup(parent,nleng,(const uint8_t*)name,ctx.uid,ctx.gid,&inode,attr));
-		}
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_lookup(parent, std::string(name, nleng), ctx.uid, ctx.gid, &inode, attr));
 		icacheflag = 0;
 	}
 	if (status != LIZARDFS_STATUS_OK) {

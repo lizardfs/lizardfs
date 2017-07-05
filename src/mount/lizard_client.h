@@ -294,7 +294,7 @@ void updateGroups(Context &ctx);
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
 
-EntryParam lookup(const Context &ctx, Inode parent, const char *name, bool whole_path_lookup = false);
+EntryParam lookup(const Context &ctx, Inode parent, const char *name);
 
 AttrReply getattr(const Context &ctx, Inode ino);
 
