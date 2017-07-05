@@ -87,9 +87,8 @@ Client::~Client() {
 	assert(instance_count_ >= 1);
 	assert(dl_handle_);
 
-	Context ctx(0, 0, 0, 0);
 	while (!fileinfos_.empty()) {
-		release(ctx, std::addressof(fileinfos_.front()));
+		release(std::addressof(fileinfos_.front()));
 	}
 
 	lizardfs_fs_term_();
@@ -451,16 +450,16 @@ std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, 
 	return ec ? (std::size_t)0 : (std::size_t)ret.second;
 }
 
-void Client::release(const Context &ctx, FileInfo *fileinfo) {
+void Client::release(FileInfo *fileinfo) {
 	std::error_code ec;
-	release(ctx, fileinfo, ec);
+	release(fileinfo, ec);
 	if (ec) {
 		throw std::system_error(ec);
 	}
 }
 
-void Client::release(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
-	int ret = lizardfs_release_(ctx, fileinfo->inode, fileinfo);
+void Client::release(FileInfo *fileinfo, std::error_code &ec) {
+	int ret = lizardfs_release_(fileinfo->inode, fileinfo);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.erase(fileinfos_.iterator_to(*fileinfo));
 	delete fileinfo;

@@ -352,11 +352,10 @@ ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, o
 	return ec ? -1 : write_ret;
 }
 
-int liz_release(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo) {
+int liz_release(liz_t *instance, liz_fileinfo *fileinfo) {
 	Client &client = *(Client *)instance;
-	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
-	client.release(context, (Client::FileInfo *)fileinfo, ec);
+	client.release((Client::FileInfo *)fileinfo, ec);
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }

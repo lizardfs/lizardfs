@@ -154,8 +154,8 @@ public:
 	                  const char *buffer, std::error_code &ec);
 
 	/*! \brief Release a previously open file */
-	void release(const Context &ctx, FileInfo *fileinfo);
-	void release(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
+	void release(FileInfo *fileinfo);
+	void release(FileInfo *fileinfo, std::error_code &ec);
 
 	/*! \brief Flush data written to an open file */
 	void flush(const Context &ctx, FileInfo *fileinfo);

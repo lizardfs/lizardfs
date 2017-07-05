@@ -82,4 +82,4 @@ LizardClient::AttrReply special_setattr(LizardClient::Inode ino, const LizardCli
 
 void special_open(LizardClient::Inode ino, const LizardClient::Context &ctx, LizardClient::FileInfo *fi);
 
-void special_release(LizardClient::Inode ino, const LizardClient::Context &ctx, LizardClient::FileInfo *fi);
+void special_release(LizardClient::Inode ino, LizardClient::FileInfo *fi);

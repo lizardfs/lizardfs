@@ -343,7 +343,7 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 
 void flush(const Context &ctx, Inode ino, FileInfo* fi);
 
-void release(const Context &ctx, Inode ino, FileInfo* fi);
+void release(Inode ino, FileInfo* fi);
 
 void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi);
 

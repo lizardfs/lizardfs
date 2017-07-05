@@ -25,14 +25,14 @@
 using namespace LizardClient;
 
 namespace InodeMasterInfo {
-static void release(const Context &ctx, FileInfo */*fi*/) {
-	oplog_printf(ctx, "release (%lu) (internal node: MASTERINFO): OK",
+static void release(FileInfo */*fi*/) {
+	oplog_printf("release (%lu) (internal node: MASTERINFO): OK",
 	            (unsigned long int)inode_);
 }
 } // InodeMasterInfo
 
 namespace InodeStats {
-static void release(const Context &ctx, FileInfo *fi) {
+static void release(FileInfo *fi) {
 	sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
 	if (statsinfo!=NULL) {
 		PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
@@ -46,29 +46,29 @@ static void release(const Context &ctx, FileInfo *fi) {
 		pthread_mutex_destroy(&(statsinfo->lock));      // make helgrind happy
 		free(statsinfo);
 	}
-	oplog_printf(ctx, "release (%lu) (internal node: STATS): OK",
+	oplog_printf("release (%lu) (internal node: STATS): OK",
 	            (unsigned long int)inode_);
 }
 } // InodeStats
 
 namespace InodeOplog {
-static void release(const Context &ctx, FileInfo *fi) {
+static void release(FileInfo *fi) {
 	oplog_releasehandle(fi->fh);
-	oplog_printf(ctx, "release (%lu) (internal node: OPLOG): OK",
+	oplog_printf("release (%lu) (internal node: OPLOG): OK",
 	            (unsigned long int)inode_);
 }
 } // InodeOplog
 
 namespace InodeOphistory {
-static void release(const Context &ctx, FileInfo *fi) {
+static void release(FileInfo *fi) {
 	oplog_releasehandle(fi->fh);
-	oplog_printf(ctx, "release (%lu) (internal node: OPHISTORY): OK",
+	oplog_printf("release (%lu) (internal node: OPHISTORY): OK",
 	            (unsigned long int)inode_);
 }
 } // InodeOphistory
 
 namespace InodeTweaks {
-static void release(const Context &ctx, FileInfo *fi) {
+static void release(FileInfo *fi) {
 	MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
 	if (file->wasWritten) {
 		auto separatorPos = file->value.find('=');
@@ -87,13 +87,13 @@ static void release(const Context &ctx, FileInfo *fi) {
 		}
 	}
 	delete file;
-	oplog_printf(ctx, "release (%lu) (internal node: TWEAKS_FILE): OK",
+	oplog_printf("release (%lu) (internal node: TWEAKS_FILE): OK",
 	            (unsigned long int)inode_);
 }
 } // InodeTweaks
 
-static const std::array<std::function<void
-	(const Context&, FileInfo*)>, 16> funcs = {{
+typedef void (*ReleaseFunc)(FileInfo *);
+static const std::array<ReleaseFunc, 16> funcs = {{
 	 &InodeStats::release,          //0x0U
 	 &InodeOplog::release,          //0x1U
 	 &InodeOphistory::release,      //0x2U
@@ -112,12 +112,12 @@ static const std::array<std::function<void
 	 &InodeMasterInfo::release      //0xFU
 }};
 
-void special_release(Inode ino, const Context &ctx, FileInfo *fi) {
+void special_release(Inode ino, FileInfo *fi) {
 	auto func = funcs[ino - SPECIAL_INODE_BASE];
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'release' function for special inode");
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
-	return func(ctx, fi);
+	return func(fi);
 }

@@ -389,7 +389,7 @@ void mfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	try {
-		LizardClient::release(get_context(req), ino, fuse_file_info_wrapper(fi));
+		LizardClient::release(ino, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

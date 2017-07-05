@@ -1909,18 +1909,18 @@ static void update_credentials(Context::IdType index, const GroupCache::Groups &
 	}
 }
 
-void release(const Context &ctx, Inode ino, FileInfo *fi) {
+void release(Inode ino, FileInfo *fi) {
 	finfo *fileinfo = reinterpret_cast<finfo*>(fi->fh);
 
 	stats_inc(OP_RELEASE);
 	if (debug_mode) {
-		oplog_printf(ctx, "release (%lu) ...",
+		oplog_printf("release (%lu) ...",
 				(unsigned long int)ino);
 		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
-		special_release(ino, ctx, fi);
+		special_release(ino, fi);
 		return;
 	}
 
@@ -1933,7 +1933,7 @@ void release(const Context &ctx, Inode ino, FileInfo *fi) {
 		remove_file_info(fi);
 	}
 	fs_release(ino);
-	oplog_printf(ctx, "release (%lu): OK",
+	oplog_printf("release (%lu): OK",
 			(unsigned long int)ino);
 }
 

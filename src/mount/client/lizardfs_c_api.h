@@ -296,11 +296,10 @@ ssize_t liz_write(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
 
 /*! \brief Release a previously open file
  * \param instance instance returned from liz_init
- * \param ctx context returned from liz_create_context
  * \param fileinfo descriptor of an open file
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_release(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo);
+int liz_release(liz_t *instance, liz_fileinfo_t *fileinfo);
 
 /*! \brief Flush data written to an open file
  * \param instance instance returned from liz_init

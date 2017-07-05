@@ -46,7 +46,7 @@ int lizardfs_unlink(const LizardClient::Context &ctx, LizardClient::Inode parent
 int lizardfs_undel(const LizardClient::Context &ctx, LizardClient::Inode ino);
 int lizardfs_open(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_opendir(const LizardClient::Context &ctx, LizardClient::Inode ino);
-int lizardfs_release(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
+int lizardfs_release(LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_getattr(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
 
 int lizardfs_releasedir(LizardClient::Inode ino);

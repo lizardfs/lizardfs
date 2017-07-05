@@ -195,9 +195,9 @@ std::pair<int, ssize_t> lizardfs_write(const Context &ctx, Inode ino, const char
 	}
 }
 
-int lizardfs_release(const Context &ctx, Inode ino, FileInfo *fi) {
+int lizardfs_release(Inode ino, FileInfo *fi) {
 	try {
-		LizardClient::release(ctx, ino, fi);
+		LizardClient::release(ino, fi);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

@@ -728,12 +728,12 @@ public:
 	 * Implement Polonaise.release method
 	 * \note for more information, see the protocol definition in Polonaise sources
 	 */
-	void release(const Context& context, const Inode inode, const Descriptor descriptor) {
+	void release(const Context&, const Inode inode, const Descriptor descriptor) {
 		OPERATION_PROLOG
 		if (descriptor == g_polonaise_constants.kNullDescriptor) {
 			throw makeFailure("Null descriptor");
 		}
-		LizardClient::release(toLizardFsContext(context), toUint64(inode), getFileInfo(descriptor));
+		LizardClient::release(toUint64(inode), getFileInfo(descriptor));
 		removeDescriptor(descriptor);
 		OPERATION_EPILOG
 	}
