@@ -234,49 +234,48 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	}
 #endif
 
+	LizardClient::FsInitParams params(
+		gMountOptions.bindhost ? gMountOptions.bindhost : "",
+		gMountOptions.masterhost, gMountOptions.masterport, mp);
+	params.verbose = true;
+	params.meta = gMountOptions.meta;
+	params.subfolder = gMountOptions.subfolder;
+	params.password_digest = std::move(md5pass);
+	params.do_not_remember_password = gMountOptions.donotrememberpassword;
+	params.delayed_init = gMountOptions.delayedinit;
+	params.report_reserved_period = gMountOptions.reportreservedperiod;
+	params.io_retries = gMountOptions.ioretries;
+	params.io_limits_config_file = gMountOptions.iolimits ? gMountOptions.iolimits : "";
+	params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
+
+	params.chunkserver_round_time_ms = gMountOptions.chunkserverrtt;
+	params.chunkserver_connect_timeout_ms = gMountOptions.chunkserverconnectreadto;
+	params.chunkserver_wave_read_timeout_ms = gMountOptions.chunkserverwavereadto;
+	params.total_read_timeout_ms = gMountOptions.chunkservertotalreadto;
+	params.cache_expiration_time_ms = gMountOptions.cacheexpirationtime;
+	params.readahead_max_window_size_kB = gMountOptions.readaheadmaxwindowsize;
+	params.prefetch_xor_stripes = gMountOptions.prefetchxorstripes;
+	params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
+	params.write_cache_size = gMountOptions.writecachesize;
+	params.write_workers = gMountOptions.writeworkers;
+	params.write_window_size = gMountOptions.writewindowsize;
+	params.chunkserver_write_timeout_ms = gMountOptions.chunkserverwriteto;
+	params.cache_per_inode_percentage = gMountOptions.cachePerInodePercentage;
+
+	params.keep_cache = gMountOptions.keepcache;
+	params.direntry_cache_timeout = gMountOptions.direntrycacheto;
+	params.direntry_cache_size = gMountOptions.direntrycachesize;
+	params.entry_cache_timeout = gMountOptions.entrycacheto;
+	params.attr_cache_timeout = gMountOptions.attrcacheto;
+	params.mkdir_copy_sgid = gMountOptions.mkdircopysgid;
+	params.sugid_clear_mode = gMountOptions.sugidclearmode;
+	params.acl_enabled = gMountOptions.acl;
+	params.use_rw_lock = gMountOptions.rwlock;
+	params.acl_cache_timeout = gMountOptions.aclcacheto;
+	params.acl_cache_size = gMountOptions.aclcachesize;
+
+	params.debug_mode = gMountOptions.debug;
 	if (gMountOptions.meta == 0) {
-		LizardClient::FsInitParams params(
-			gMountOptions.bindhost ? gMountOptions.bindhost : "",
-			gMountOptions.masterhost, gMountOptions.masterport, mp);
-		params.meta = gMountOptions.meta;
-		params.subfolder = gMountOptions.subfolder;
-		params.password_digest = std::move(md5pass);
-		params.do_not_remember_password = gMountOptions.donotrememberpassword;
-		params.delayed_init = gMountOptions.delayedinit;
-		params.report_reserved_period = gMountOptions.reportreservedperiod;
-
-		params.io_limits_config_file = gMountOptions.iolimits ? gMountOptions.iolimits : "";
-		params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
-
-		params.io_retries = gMountOptions.ioretries;
-		params.chunkserver_round_time_ms = gMountOptions.chunkserverrtt;
-		params.chunkserver_connect_timeout_ms = gMountOptions.chunkserverconnectreadto;
-		params.chunkserver_wave_read_timeout_ms = gMountOptions.chunkserverwavereadto;
-		params.total_read_timeout_ms = gMountOptions.chunkservertotalreadto;
-		params.cache_expiration_time_ms = gMountOptions.cacheexpirationtime;
-		params.readahead_max_window_size_kB = gMountOptions.readaheadmaxwindowsize;
-		params.prefetch_xor_stripes = gMountOptions.prefetchxorstripes;
-		params.bandwidth_overuse = gMountOptions.bandwidthoveruse;
-		params.write_cache_size = gMountOptions.writecachesize;
-		params.write_workers = gMountOptions.writeworkers;
-		params.write_window_size = gMountOptions.writewindowsize;
-		params.chunkserver_write_timeout_ms = gMountOptions.chunkserverwriteto;
-		params.cache_per_inode_percentage = gMountOptions.cachePerInodePercentage;
-
-		params.keep_cache = gMountOptions.keepcache;
-		params.direntry_cache_timeout = gMountOptions.direntrycacheto;
-		params.direntry_cache_size = gMountOptions.direntrycachesize;
-		params.entry_cache_timeout = gMountOptions.entrycacheto;
-		params.attr_cache_timeout = gMountOptions.attrcacheto;
-		params.mkdir_copy_sgid = gMountOptions.mkdircopysgid;
-		params.sugid_clear_mode = gMountOptions.sugidclearmode;
-		params.acl_enabled = gMountOptions.acl;
-		params.use_rw_lock = gMountOptions.rwlock;
-		params.acl_cache_timeout = gMountOptions.aclcacheto;
-		params.acl_cache_size = gMountOptions.aclcachesize;
-
-		params.debug_mode = gMountOptions.debug;
-		params.verbose = true;
 		try {
 			LizardClient::fs_init(params);
 		} catch (...) {
@@ -288,6 +287,22 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			return 1;
 		}
+	} else {
+		masterproxy_init();
+		if (gMountOptions.delayedinit) {
+			fs_init_master_connection(params);
+		} else {
+			if (fs_init_master_connection(params) < 0) {
+				if (piped[1] >= 0) {
+					if (write(piped[1], &s, 1) != 1) {
+						fprintf(stderr,"pipe write error\n");
+					}
+					close(piped[1]);
+				}
+				return 1;
+			}
+		}
+		fs_init_threads(params.io_retries);
 	}
 
 	ch = fuse_mount(mp, args);

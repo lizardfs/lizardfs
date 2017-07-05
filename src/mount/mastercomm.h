@@ -102,9 +102,8 @@ uint8_t fs_custom(MessageBuffer& buffer);
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);
 uint8_t fs_send_custom(MessageBuffer buffer);
 
-// called before fork
-int fs_init_master_connection(LizardClient::FsInitParams &params);
 // called after fork
+int fs_init_master_connection(LizardClient::FsInitParams &params);
 void fs_init_threads(uint32_t retries);
 void fs_term(void);
 
