@@ -602,6 +602,19 @@ int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const ch
 	return ec ? -1 : 0;
 }
 
+int liz_readlink(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, char *buf, size_t size) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	std::string link = client.readlink(context, inode, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	link.copy(buf, size);
+	return link.size();
+}
+
 int liz_unlink(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;

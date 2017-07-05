@@ -108,6 +108,7 @@ void Client::init(FsInitParams &params) {
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_readdir);
+		LIZARDFS_LINK_FUNCTION(lizardfs_readlink);
 		LIZARDFS_LINK_FUNCTION(lizardfs_readreserved);
 		LIZARDFS_LINK_FUNCTION(lizardfs_readtrash);
 		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
@@ -222,6 +223,22 @@ Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off
 	auto ret = lizardfs_readdir_(ctx, fileinfo->inode, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
+}
+
+std::string Client::readlink(const Context &ctx, Inode inode) {
+	std::error_code ec;
+	std::string link = readlink(ctx, inode);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return link;
+}
+
+std::string Client::readlink(const Context &ctx, Inode inode, std::error_code &ec) {
+	std::string link;
+	int ret = lizardfs_readlink_(ctx, inode, link);
+	ec = make_error_code(ret);
+	return link;
 }
 
 Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOffset offset,

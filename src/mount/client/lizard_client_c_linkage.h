@@ -50,7 +50,6 @@ int lizardfs_open(const LizardClient::Context &ctx, LizardClient::Inode ino, Liz
 int lizardfs_opendir(const LizardClient::Context &ctx, LizardClient::Inode ino);
 int lizardfs_release(LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_getattr(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
-
 int lizardfs_releasedir(LizardClient::Inode ino);
 int lizardfs_setattr(const LizardClient::Context &ctx, LizardClient::Inode ino,
 	             struct stat *stbuf, int to_set, LizardClient::AttrReply &attr_reply);
@@ -63,6 +62,8 @@ std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(const LizardCli
 
 std::pair<int, std::vector<LizardClient::DirEntry>> lizardfs_readdir(const LizardClient::Context &ctx,
 	                    LizardClient::Inode ino, off_t off, size_t max_entries);
+
+int lizardfs_readlink(const LizardClient::Context &ctx, LizardClient::Inode ino, std::string &link);
 
 std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readreserved(const LizardClient::Context &ctx,
 	                    LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries);

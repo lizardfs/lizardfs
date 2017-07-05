@@ -114,6 +114,10 @@ public:
 	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
 	                     size_t max_entries, std::error_code &ec);
 
+	/*! \brief Read link contents */
+	std::string readlink(const Context &ctx, Inode inode);
+	std::string readlink(const Context &ctx, Inode inode, std::error_code &ec);
+
 	/*! \brief Read reserved contents */
 	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
@@ -223,6 +227,7 @@ protected:
 	typedef decltype(&lizardfs_mkdir) MkDirFunction;
 	typedef decltype(&lizardfs_rmdir) RmDirFunction;
 	typedef decltype(&lizardfs_readdir) ReadDirFunction;
+	typedef decltype(&lizardfs_readlink) ReadLinkFunction;
 	typedef decltype(&lizardfs_readreserved) ReadReservedFunction;
 	typedef decltype(&lizardfs_readtrash) ReadTrashFunction;
 	typedef decltype(&lizardfs_opendir) OpenDirFunction;
@@ -259,6 +264,7 @@ protected:
 	SymlinkFunction lizardfs_symlink_;
 	RmDirFunction lizardfs_rmdir_;
 	ReadDirFunction lizardfs_readdir_;
+	ReadLinkFunction lizardfs_readlink_;
 	ReadReservedFunction lizardfs_readreserved_;
 	ReadTrashFunction lizardfs_readtrash_;
 	OpenDirFunction lizardfs_opendir_;

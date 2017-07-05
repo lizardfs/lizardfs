@@ -274,6 +274,17 @@ std::pair<int, std::vector<DirEntry>> lizardfs_readdir(const Context &ctx, Inode
 	}
 }
 
+int lizardfs_readlink(const LizardClient::Context &ctx, LizardClient::Inode ino, std::string &link) {
+	try {
+		link = LizardClient::readlink(ctx, ino);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readreserved(const Context &ctx,
 		LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries) {
 	try {

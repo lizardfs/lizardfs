@@ -83,6 +83,7 @@ typedef struct liz_init_params {
 } liz_init_params_t;
 
 #define LIZARDFS_MAX_GOAL_NAME 64
+#define LIZARDFS_MAX_READLINK_LENGTH 65535
 
 typedef uint32_t liz_inode_t;
 typedef int liz_err_t;
@@ -369,6 +370,17 @@ void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries);
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_releasedir(liz_t *instance, struct liz_fileinfo *fileinfo);
+
+/*! \brief Read link contents
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode link inode
+ * \param buf filled with result on success (no trailing '\0'),
+ *        should be at least LIZARDFS_MAX_READLINK_LENGTH characters long
+ * \param size allocated buf size
+ * \return true link size on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_readlink(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, char *buf, size_t size);
 
 /*! \brief Get reserved file inodes and names
  * \param instance instance returned from liz_init
