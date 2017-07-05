@@ -1655,16 +1655,16 @@ std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset off,
 	return entries;
 }
 
-void releasedir(const Context &ctx, Inode ino) {
+void releasedir(Inode ino) {
 	static constexpr int kBatchSize = 1000;
 
 	stats_inc(OP_RELEASEDIR);
 	if (debug_mode) {
-		oplog_printf(ctx, "releasedir (%lu) ...",
+		oplog_printf("releasedir (%lu) ...",
 				(unsigned long int)ino);
 		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
-	oplog_printf(ctx, "releasedir (%lu): OK",
+	oplog_printf("releasedir (%lu): OK",
 			(unsigned long int)ino);
 
 	std::unique_lock<shared_mutex> write_guard(gDirEntryCache.rwlock());

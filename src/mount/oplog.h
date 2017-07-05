@@ -33,6 +33,7 @@
 
 void oplog_printf(
 		const struct LizardClient::Context &ctx,const char *format,...) __printflike(2, 3);
+void oplog_printf(const char *format,...) __printflike(1, 2);
 unsigned long oplog_newhandle(int hflag);
 void oplog_releasehandle(unsigned long fh);
 void oplog_getdata(unsigned long fh,uint8_t **buff,uint32_t *leng,uint32_t maxleng);

@@ -49,7 +49,7 @@ int lizardfs_opendir(const LizardClient::Context &ctx, LizardClient::Inode ino);
 int lizardfs_release(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_getattr(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
 
-int lizardfs_releasedir(const LizardClient::Context &ctx, LizardClient::Inode ino);
+int lizardfs_releasedir(LizardClient::Inode ino);
 int lizardfs_setattr(const LizardClient::Context &ctx, LizardClient::Inode ino,
 	             struct stat *stbuf, int to_set, LizardClient::AttrReply &attr_reply);
 

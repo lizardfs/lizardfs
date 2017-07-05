@@ -95,8 +95,8 @@ public:
 	FileInfo *opendir(const Context &ctx, Inode ino, std::error_code &ec);
 
 	/*! \brief Release a previously open directory */
-	void releasedir(const Context &ctx, FileInfo* fileinfo);
-	void releasedir(const Context &ctx, FileInfo* fileinfo, std::error_code &ec);
+	void releasedir(FileInfo* fileinfo);
+	void releasedir(FileInfo* fileinfo, std::error_code &ec);
 
 	/*! \brief Remove a directory */
 	void rmdir(const Context &ctx, Inode parent, const std::string &path);

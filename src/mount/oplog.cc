@@ -48,8 +48,8 @@ static uint8_t waiting=0;
 static pthread_mutex_t opbufflock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t nodata = PTHREAD_COND_INITIALIZER;
 
-static time_t convts=0;
-static struct tm convtm;
+static time_t gConvTmHour = std::numeric_limits<time_t>::max(); // enforce update on first read
+static struct tm gConvTm;
 static pthread_mutex_t timelock = PTHREAD_MUTEX_INITIALIZER;
 
 static inline void oplog_put(uint8_t *buff,uint32_t leng) {
@@ -75,38 +75,84 @@ static inline void oplog_put(uint8_t *buff,uint32_t leng) {
 	pthread_mutex_unlock(&opbufflock);
 }
 
-void oplog_printf(const struct LizardClient::Context &ctx,const char *format,...) {
-	va_list ap;
-	char buff[LINELENG];
-	uint32_t leng;
-	struct timeval tv;
-	struct tm ltime;
+static void get_time(timeval &tv, tm &ltime) {
+	gettimeofday(&tv, nullptr);
+	static constexpr time_t secs_per_hour = 60 * 60;
+	time_t hour = tv.tv_sec / secs_per_hour;
+	unsigned secs_this_hour = tv.tv_sec % secs_per_hour;
 
 	pthread_mutex_lock(&timelock);
-	gettimeofday(&tv,NULL);
-	if (convts/900!=tv.tv_sec/900) {
-		convts=tv.tv_sec/900;
-		convts*=900;
-		localtime_r(&convts,&convtm);
+	if (hour != gConvTmHour) {
+		gConvTmHour = hour;
+		time_t convts = hour * secs_per_hour;
+		localtime_r(&convts, &gConvTm);
 	}
-	ltime = convtm;
-	leng = tv.tv_sec - convts;
-	ltime.tm_sec += leng%60;
-	ltime.tm_min += leng/60;
+	ltime = gConvTm;
 	pthread_mutex_unlock(&timelock);
-	leng = snprintf(buff,LINELENG,"%ld %02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",tv.tv_sec,ltime.tm_mon+1,ltime.tm_mday,ltime.tm_hour,ltime.tm_min,ltime.tm_sec,(unsigned)(tv.tv_usec),(unsigned)(ctx.uid),(unsigned)(ctx.gid),(unsigned)(ctx.pid));
-	if (leng<LINELENG) {
-		va_start(ap,format);
-		leng += vsnprintf(buff+leng,LINELENG-leng,format,ap);
-		va_end(ap);
-	}
-	if (leng>=LINELENG) {
-		leng=LINELENG-1;
-	}
-	buff[leng++]='\n';
-	oplog_put((uint8_t*)buff,leng);
+
+	assert(ltime.tm_sec == 0);
+	assert(ltime.tm_min == 0);
+
+	ltime.tm_sec = secs_this_hour % 60;
+	ltime.tm_min = secs_this_hour / 60;
 }
 
+void oplog_printf(const struct LizardClient::Context &ctx,const char *format,...) {
+	struct timeval tv;
+	struct tm ltime;
+	va_list ap;
+	int r, leng = 0;
+	char buff[LINELENG];
+
+	get_time(tv, ltime);
+	r  = snprintf(buff, LINELENG, "%llu %02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",
+		(unsigned long long)tv.tv_sec, ltime.tm_mon + 1, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec, (unsigned)tv.tv_usec,
+		(unsigned)ctx.uid, (unsigned)ctx.gid, (unsigned)ctx.pid);
+	if (r < 0) {
+		return;
+	}
+	leng = std::min(LINELENG - 1, r);
+
+	va_start(ap, format);
+	r = vsnprintf(buff + leng, LINELENG - leng, format, ap);
+	va_end(ap);
+	if (r < 0) {
+		return;
+	}
+	leng += r;
+
+	leng = std::min(LINELENG - 1, leng);
+	buff[leng++] = '\n';
+	oplog_put((uint8_t*)buff, leng);
+}
+
+void oplog_printf(const char *format, ...) {
+	struct timeval tv;
+	struct tm ltime;
+	va_list ap;
+	int r, leng = 0;
+	char buff[LINELENG];
+
+	get_time(tv, ltime);
+	r = snprintf(buff, LINELENG, "%llu %02u.%02u %02u:%02u:%02u.%06u: cmd:",
+		(unsigned long long)tv.tv_sec, ltime.tm_mon + 1, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec, (unsigned)tv.tv_usec);
+	if (r < 0) {
+		return;
+	}
+	leng = std::min(LINELENG - 1, r);
+
+	va_start(ap, format);
+	r = vsnprintf(buff + leng, LINELENG - leng, format, ap);
+	va_end(ap);
+	if (r < 0) {
+		return;
+	}
+	leng += r;
+
+	leng = std::min(LINELENG - 1, leng);
+	buff[leng++] = '\n';
+	oplog_put((uint8_t*)buff, leng);
+}
 
 unsigned long oplog_newhandle(int hflag) {
 	fhentry *fhptr;

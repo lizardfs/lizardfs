@@ -451,11 +451,10 @@ void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries) {
 	delete[] buf->name;
 }
 
-int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo) {
+int liz_releasedir(liz_t *instance, struct liz_fileinfo *fileinfo) {
 	Client &client = *(Client *)instance;
-	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
-	client.releasedir(context, (Client::FileInfo *)fileinfo, ec);
+	client.releasedir((Client::FileInfo *)fileinfo, ec);
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }

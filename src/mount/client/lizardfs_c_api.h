@@ -354,11 +354,10 @@ void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries);
 
 /*! \brief Release a directory
  * \param instance instance returned from liz_init
- * \param ctx context returned from liz_create_context
  * \param fileinfo descriptor of an open directory
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_releasedir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *fileinfo);
+int liz_releasedir(liz_t *instance, struct liz_fileinfo *fileinfo);
 
 /*! \brief Get reserved file inodes and names
  * \param instance instance returned from liz_init

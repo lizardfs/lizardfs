@@ -356,7 +356,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 
 void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info */*fi*/) {
 	try {
-		LizardClient::releasedir(get_context(req), ino);
+		LizardClient::releasedir(ino);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

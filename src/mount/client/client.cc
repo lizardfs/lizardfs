@@ -265,17 +265,17 @@ Client::FileInfo *Client::opendir(const Context &ctx, Inode inode, std::error_co
 	return fileinfo;
 }
 
-void Client::releasedir(const Context &ctx, FileInfo* fileinfo) {
+void Client::releasedir(FileInfo* fileinfo) {
 	std::error_code ec;
-	releasedir(ctx, fileinfo, ec);
+	releasedir(fileinfo, ec);
 	if (ec) {
 		throw std::system_error(ec);
 	}
 }
 
-void Client::releasedir(const Context &ctx, FileInfo* fileinfo, std::error_code &ec) {
+void Client::releasedir(FileInfo* fileinfo, std::error_code &ec) {
 	assert(fileinfo != nullptr);
-	int ret = lizardfs_releasedir_(ctx, fileinfo->inode);
+	int ret = lizardfs_releasedir_(fileinfo->inode);
 	ec = make_error_code(ret);
 	{
 		std::lock_guard<std::mutex> guard(mutex_);

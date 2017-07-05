@@ -297,9 +297,9 @@ int lizardfs_opendir(const Context &ctx, Inode ino) {
 	}
 }
 
-int lizardfs_releasedir(const Context &ctx, Inode ino) {
+int lizardfs_releasedir(Inode ino) {
 	try {
-		LizardClient::releasedir(ctx, ino);
+		LizardClient::releasedir(ino);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

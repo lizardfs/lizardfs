@@ -355,7 +355,7 @@ std::vector<NamedInodeEntry> readreserved(const Context &ctx, NamedInodeOffset o
 
 std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 
-void releasedir(const Context &ctx, Inode ino);
+void releasedir(Inode ino);
 
 struct statvfs statfs(const Context &ctx, Inode ino);
 
