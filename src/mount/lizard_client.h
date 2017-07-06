@@ -71,7 +71,7 @@ struct FsInitParams {
 	static constexpr unsigned kDefaultSymlinkCacheTimeout = 3600;
 
 	static constexpr bool     kDefaultDebugMode = false;
-	static constexpr bool     kDefaultKeepCache = false;
+	static constexpr int      kDefaultKeepCache = 0;
 	static constexpr double   kDefaultDirentryCacheTimeout = 0.25;
 	static constexpr unsigned kDefaultDirentryCacheSize = 100000;
 	static constexpr double   kDefaultEntryCacheTimeout = 0.0;
@@ -180,7 +180,8 @@ struct FsInitParams {
 	unsigned symlink_cache_timeout_s;
 
 	bool debug_mode;
-	bool keep_cache;
+	// NOTICE(sarna): This variable can hold more values than 0-1, don't change it to bool ever.
+	int keep_cache;
 	double direntry_cache_timeout;
 	unsigned direntry_cache_size;
 	double entry_cache_timeout;
