@@ -70,5 +70,6 @@ destroy_connection:
 destroy_context:
 	liz_destroy_context(ctx);
 
-	return liz_error_conv(err);
+	printf("Program status: %s\n", liz_error_string(liz_err));
+	return liz_error_conv(liz_err);
 }

@@ -116,6 +116,11 @@ liz_err_t liz_last_err();
 int liz_error_conv(liz_err_t lizardfs_error_code);
 
 /*!
+ * \brief Returns human-readable description of LizardFS error code
+ */
+const char *liz_error_string(liz_err_t lizardfs_error_code);
+
+/*!
  * \brief Destroy a context for LizardFS operations
  */
 void liz_destroy_context(liz_context_t *ctx);

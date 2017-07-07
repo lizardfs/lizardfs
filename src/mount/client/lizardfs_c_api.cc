@@ -64,12 +64,16 @@ liz_err_t liz_last_err() {
 	return gLastErrorCode;
 }
 
-liz_err_t liz_error_conv(int lizardfs_error_code) {
+liz_err_t liz_error_conv(liz_err_t lizardfs_error_code) {
 	if (lizardfs_error_code < 0) {
 		return EINVAL;
 	} else {
 		return lizardfs_error_conv(lizardfs_error_code);
 	}
+}
+
+const char *liz_error_string(liz_err_t lizardfs_error_code) {
+	return lizardfs_error_string(lizardfs_error_code);
 }
 
 liz_context_t *liz_create_context() {
