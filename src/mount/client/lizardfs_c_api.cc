@@ -390,6 +390,15 @@ int liz_unlink(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const ch
 	return ec ? -1 : 0;
 }
 
+int liz_undel(liz_t *instance, liz_context_t *ctx, liz_inode_t inode) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	std::error_code ec;
+	client.undel(context, inode, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
 int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf, int to_set,
 		struct liz_fileinfo *fileinfo, struct liz_attr_reply *reply) {
 	Client &client = *(Client *)instance;

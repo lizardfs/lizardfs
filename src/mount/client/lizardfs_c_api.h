@@ -335,6 +335,14 @@ int liz_setgoal(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, const ch
  */
 int liz_unlink(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *name);
 
+/*! \brief Restore file from trash
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of the file
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_undel(liz_t *instance, liz_context_t *ctx, liz_inode_t inode);
+
 /*! \brief Set file attributes
  * \param instance instance returned from liz_init
  * \param ctx context returned from liz_create_context

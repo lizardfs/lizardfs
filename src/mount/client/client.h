@@ -111,6 +111,10 @@ public:
 	void unlink(const Context &ctx, Inode parent, const std::string &path);
 	void unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
 
+	/*! \brief Undelete file from trash */
+	void undel(const Context &ctx, Inode ino);
+	void undel(const Context &ctx, Inode ino, std::error_code &ec);
+
 	/*! \brief Rename a file */
 	void rename(const Context &ctx, Inode parent, const std::string &path, Inode new_parent,
 	            const std::string &new_path);
@@ -188,6 +192,7 @@ protected:
 	typedef decltype(&lizardfs_opendir) OpenDirFunction;
 	typedef decltype(&lizardfs_releasedir) ReleaseDirFunction;
 	typedef decltype(&lizardfs_unlink) UnlinkFunction;
+	typedef decltype(&lizardfs_undel) UndelFunction;
 	typedef decltype(&lizardfs_open) OpenFunction;
 	typedef decltype(&lizardfs_setattr) SetAttrFunction;
 	typedef decltype(&lizardfs_getattr) GetAttrFunction;
@@ -216,6 +221,7 @@ protected:
 	OpenDirFunction lizardfs_opendir_;
 	ReleaseDirFunction lizardfs_releasedir_;
 	UnlinkFunction lizardfs_unlink_;
+	UndelFunction lizardfs_undel_;
 	OpenFunction lizardfs_open_;
 	SetAttrFunction lizardfs_setattr_;
 	GetAttrFunction lizardfs_getattr_;

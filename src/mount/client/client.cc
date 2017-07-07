@@ -89,6 +89,7 @@ Client::Client(const std::string &host, const std::string &port, const std::stri
 		LIZARDFS_LINK_FUNCTION(lizardfs_opendir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_releasedir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_unlink);
+		LIZARDFS_LINK_FUNCTION(lizardfs_undel);
 		LIZARDFS_LINK_FUNCTION(lizardfs_open);
 		LIZARDFS_LINK_FUNCTION(lizardfs_setattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_getattr);
@@ -275,6 +276,19 @@ void Client::unlink(const Context &ctx, Inode parent, const std::string &path) {
 
 void Client::unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
 	int ret = lizardfs_unlink_(ctx, parent, path.c_str());
+	ec = make_error_code(ret);
+}
+
+void Client::undel(const Context &ctx, Inode ino) {
+	std::error_code ec;
+	undel(ctx, ino, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::undel(const Context &ctx, Inode ino, std::error_code &ec) {
+	int ret = lizardfs_undel_(ctx, ino);
 	ec = make_error_code(ret);
 }
 

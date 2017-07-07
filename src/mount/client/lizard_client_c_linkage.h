@@ -41,6 +41,7 @@ int lizardfs_mkdir(LizardClient::Context ctx, LizardClient::Inode parent,
 	                                 const char *name, mode_t mode, LizardClient::EntryParam &entry_param);
 int lizardfs_rmdir(LizardClient::Context ctx, LizardClient::Inode parent, const char *name);
 int lizardfs_unlink(LizardClient::Context ctx, LizardClient::Inode parent, const char *name);
+int lizardfs_undel(LizardClient::Context ctx, LizardClient::Inode ino);
 int lizardfs_open(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_opendir(LizardClient::Context ctx, LizardClient::Inode ino);
 int lizardfs_release(LizardClient::Context ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);

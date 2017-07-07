@@ -74,6 +74,17 @@ int lizardfs_unlink(Context ctx, Inode parent, const char *name) {
 	}
 }
 
+int lizardfs_undel(Context ctx, Inode ino) {
+	try {
+		LizardClient::undel(ctx, ino);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_open(Context ctx, Inode ino, FileInfo *fi) {
 	try {
 		LizardClient::open(ctx, ino, fi);

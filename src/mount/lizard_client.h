@@ -318,6 +318,8 @@ EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode
 
 void unlink(const Context &ctx, Inode parent, const char *name);
 
+void undel(Context ctx, Inode ino);
+
 void rmdir(const Context &ctx, Inode parent, const char *name);
 
 EntryParam symlink(const Context &ctx, const char *link, Inode parent, const char *name);

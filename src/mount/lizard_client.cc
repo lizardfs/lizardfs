@@ -263,6 +263,7 @@ void statsptr_init(void) {
 	statsptr[OP_RMDIR] = stats_get_counterptr(stats_get_subnode(s,"rmdir",0));
 	statsptr[OP_MKDIR] = stats_get_counterptr(stats_get_subnode(s,"mkdir",0));
 	statsptr[OP_UNLINK] = stats_get_counterptr(stats_get_subnode(s,"unlink",0));
+	statsptr[OP_UNDEL] = stats_get_counterptr(stats_get_subnode(s,"undel",0));
 	statsptr[OP_MKNOD] = stats_get_counterptr(stats_get_subnode(s,"mknod",0));
 	statsptr[OP_SETATTR] = stats_get_counterptr(stats_get_subnode(s,"setattr",0));
 	statsptr[OP_GETATTR] = stats_get_counterptr(stats_get_subnode(s,"getattr",0));
@@ -1086,6 +1087,19 @@ void unlink(const Context &ctx, Inode parent, const char *name) {
 				(unsigned long int)parent,
 				name);
 		return;
+	}
+}
+
+void undel(Context ctx, Inode ino) {
+	stats_inc(OP_UNDEL);
+	if (debug_mode) {
+		oplog_printf(ctx, "undel (%lu) ...", (unsigned long)ino);
+		fprintf(stderr, "undel (%lu)\n", (unsigned long)ino);
+	}
+	uint8_t status;
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid, fs_undel(ino));
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
 	}
 }
 
