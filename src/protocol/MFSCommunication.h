@@ -1238,11 +1238,11 @@ enum class SugidClearMode {
 /// msgid:32 status:8
 
 //0x01E2
-#define LIZ_CLTOMA_CHUNK_INFO (1000U + 482U)
+#define LIZ_CLTOMA_CHUNKS_INFO (1000U + 482U)
 /// msgid:32 inode:32 chunkindex:32
 
 //0x01E3
-#define LIZ_MATOCL_CHUNK_INFO (1000U + 483U)
+#define LIZ_MATOCL_CHUNKS_INFO (1000U + 483U)
 
 //0x01E4
 #define LIZ_CLTOMA_UPDATE_CREDENTIALS (1000U + 484U)

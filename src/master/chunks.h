@@ -73,7 +73,7 @@ int chunk_repair(uint8_t goal,uint64_t ochunkid,uint32_t *nversion, uint8_t corr
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
 		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList);
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
-		uint32_t maxNumberOfChunkCopies, std::vector<ChunkWithAddressAndLabel>& serversList);
+		uint32_t maxNumberOfChunkCopies, std::vector<ChunkPartWithAddressAndLabel>& serversList);
 void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkPartType chunkType);
 void chunk_damaged(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunk_type);
 void chunk_lost(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunk_type);

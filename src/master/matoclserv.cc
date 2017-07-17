@@ -2839,56 +2839,35 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, PacketHeader header, cons
 	}
 }
 
-void matoclserv_chunk_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+void matoclserv_chunks_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	uint32_t message_id, inode, chunk_index, chunk_count, uid, gid;
+	PacketVersion version;
 	uint8_t status;
-	uint64_t chunkid;
-	uint64_t fleng;
-	uint32_t version;
-	uint32_t messageId;
-	uint32_t inode;
-	uint32_t index;
-	std::vector<uint8_t> outMessage;
+	std::vector<ChunkWithAddressAndLabel> chunks;
 
-	cltoma::chunkInfo::deserialize(data, length, messageId, inode, index);
-
-	status = fs_readchunk(inode, index, &chunkid, &fleng);
-	std::vector<ChunkWithAddressAndLabel> allChunkCopies;
-	if (status == LIZARDFS_STATUS_OK) {
-		if (chunkid > 0) {
-			status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
-					kMaxNumberOfChunkCopies, allChunkCopies);
-		} else {
-			version = 0;
-		}
-	}
-
-	if (status != LIZARDFS_STATUS_OK) {
-		matocl::chunkInfo::serialize(outMessage, messageId, status);
-		matoclserv_createpacket(eptr, outMessage);
+	deserializePacketVersionNoHeader(data, length, version);
+	if (version != cltoma::chunksInfo::kMultiChunk) {
+		matoclserv_createpacket(eptr, matocl::chunksInfo::build(message_id, (uint8_t)LIZARDFS_ERROR_EINVAL));
 		return;
 	}
 
-	dcm_access(inode, eptr->sesdata->sessionid);
-	if (eptr->version < kFirstECVersion) {
-		std::vector<legacy::ChunkWithAddressAndLabel> chunk_copies;
+	cltoma::chunksInfo::deserialize(data, length, message_id, uid, gid, inode, chunk_index, chunk_count);
 
-		for(const auto &part : allChunkCopies) {
-			if ((int)part.chunkType.getSliceType() >= Goal::Slice::Type::kECFirst) {
-				continue;
-			}
-			chunk_copies.push_back(legacy::ChunkWithAddressAndLabel(part.address, part.label, (legacy::ChunkPartType)part.chunkType));
-		}
+	chunk_count = std::max<uint32_t>(chunk_count, 1);
+	chunk_count = std::min(chunk_count, matocl::chunksInfo::kMaxNumberOfResultEntries);
 
-		matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, chunk_copies);
-		matoclserv_createpacket(eptr, outMessage);
-	} else {
-		matocl::chunkInfo::serialize(outMessage, messageId, fleng, chunkid, version, allChunkCopies);
-		matoclserv_createpacket(eptr, outMessage);
+	status = matoclserv_check_group_cache(eptr, gid);
+	if (status == LIZARDFS_STATUS_OK) {
+		FsContext context = matoclserv_get_context(eptr, uid, gid);
+		status = fs_getchunksinfo(context, eptr->peerip, inode, chunk_index, chunk_count, chunks);
 	}
 
-	if (eptr->sesdata) {
-		eptr->sesdata->currentopstats[14]++;
+	if (status != LIZARDFS_STATUS_OK) {
+		matoclserv_createpacket(eptr, matocl::chunksInfo::build(message_id, status));
+		return;
 	}
+
+	matoclserv_createpacket(eptr, matocl::chunksInfo::build(message_id, chunks));
 }
 
 void matoclserv_tape_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
@@ -4800,8 +4779,8 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 				case CLTOMA_FUSE_READ_CHUNK:
 					matoclserv_fuse_read_chunk(eptr, PacketHeader(type, length), data);
 					break;
-				case LIZ_CLTOMA_CHUNK_INFO:
-					matoclserv_chunk_info(eptr, data, length);
+				case LIZ_CLTOMA_CHUNKS_INFO:
+					matoclserv_chunks_info(eptr, data, length);
 					break;
 				case LIZ_CLTOMA_TAPE_INFO:
 					matoclserv_tape_info(eptr, data, length);

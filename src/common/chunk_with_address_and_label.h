@@ -29,18 +29,18 @@
 
 namespace legacy {
 
-SERIALIZABLE_CLASS_BEGIN(ChunkWithAddressAndLabel)
-SERIALIZABLE_CLASS_BODY(ChunkWithAddressAndLabel,
+SERIALIZABLE_CLASS_BEGIN(ChunkPartWithAddressAndLabel)
+SERIALIZABLE_CLASS_BODY(ChunkPartWithAddressAndLabel,
 		NetworkAddress, address,
 		std::string   , label,
 		ChunkPartType , chunkType)
 
-	bool operator==(const ChunkWithAddressAndLabel& other) const {
+	bool operator==(const ChunkPartWithAddressAndLabel& other) const {
 		return std::make_tuple(address, label, chunkType)
 				== std::make_tuple(other.address, other.label, other.chunkType);
 	}
 
-	bool operator<(const ChunkWithAddressAndLabel& other) const {
+	bool operator<(const ChunkPartWithAddressAndLabel& other) const {
 		return std::make_tuple(address, label, chunkType)
 				< std::make_tuple(other.address, other.label, other.chunkType);
 	}
@@ -48,19 +48,26 @@ SERIALIZABLE_CLASS_END;
 
 } // legacy
 
-SERIALIZABLE_CLASS_BEGIN(ChunkWithAddressAndLabel)
-SERIALIZABLE_CLASS_BODY(ChunkWithAddressAndLabel,
+SERIALIZABLE_CLASS_BEGIN(ChunkPartWithAddressAndLabel)
+SERIALIZABLE_CLASS_BODY(ChunkPartWithAddressAndLabel,
 		NetworkAddress, address,
 		std::string   , label,
 		ChunkPartType , chunkType)
 
-	bool operator==(const ChunkWithAddressAndLabel& other) const {
+	bool operator==(const ChunkPartWithAddressAndLabel& other) const {
 		return std::make_tuple(address, label, chunkType)
 				== std::make_tuple(other.address, other.label, other.chunkType);
 	}
 
-	bool operator<(const ChunkWithAddressAndLabel& other) const {
+	bool operator<(const ChunkPartWithAddressAndLabel& other) const {
 		return std::make_tuple(address, label, chunkType)
 				< std::make_tuple(other.address, other.label, other.chunkType);
 	}
+SERIALIZABLE_CLASS_END;
+
+SERIALIZABLE_CLASS_BEGIN(ChunkWithAddressAndLabel)
+SERIALIZABLE_CLASS_BODY(ChunkWithAddressAndLabel,
+	uint64_t, chunk_id,
+	uint32_t, chunk_version,
+	std::vector<ChunkPartWithAddressAndLabel>, chunk_parts)
 SERIALIZABLE_CLASS_END;

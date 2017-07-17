@@ -185,11 +185,17 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		bool, dummy)
 
 // LIZ_CLTOMA_CHUNK_INFO
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, chunksInfo, kSingleChunk, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, chunksInfo, kMultiChunk, 1)
+
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cltoma, chunkInfo, LIZ_CLTOMA_CHUNK_INFO, 0,
-		uint32_t, messageId,
+		cltoma, chunksInfo, LIZ_CLTOMA_CHUNKS_INFO, kMultiChunk,
+		uint32_t, message_id,
+		uint32_t, uid,
+		uint32_t, gid,
 		uint32_t, inode,
-		uint32_t, chunkIndex)
+		uint32_t, chunk_index,
+		uint32_t, chunk_count)
 
 // LIZ_CLTOMA_HOSTNAME
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

@@ -43,16 +43,113 @@ static std::string chunkTypeToString(ChunkPartType type) {
 	return "";
 }
 
+static int chunks_info(const char *file_name, int fd, uint32_t inode) {
+	static constexpr uint32_t kRequestSize = 100;
+	std::vector<ChunkWithAddressAndLabel> chunks;
+	std::vector<uint8_t> buffer;
+	uint32_t message_id, chunk_index;
+
+	chunk_index = 0;
+
+	do {
+		buffer.clear();
+		cltoma::chunksInfo::serialize(buffer, (uint32_t)0, (uint32_t)0, (uint32_t)0, inode, chunk_index, kRequestSize);
+		if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
+			printf("%s [%" PRIu32 "]: master query: send error\n", file_name, chunk_index);
+			return -1;
+		}
+
+		buffer.resize(PacketHeader::kSize);
+		if (tcpread(fd, buffer.data(), PacketHeader::kSize) != (int)PacketHeader::kSize) {
+			printf("%s [%" PRIu32 "]: master query: receive error\n", file_name, chunk_index);
+			return -1;
+		}
+
+		PacketHeader header;
+		deserializePacketHeader(buffer, header);
+
+		if (header.type != LIZ_MATOCL_CHUNKS_INFO) {
+			printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n", file_name,
+					chunk_index);
+			return -1;
+		}
+
+		buffer.resize(header.length);
+
+		if (tcpread(fd, buffer.data(), header.length) != (int)header.length) {
+			printf("%s [%" PRIu32 "]: master query: receive error\n", file_name, chunk_index);
+			return -1;
+		}
+
+		PacketVersion version;
+		deserialize(buffer, version, message_id);
+
+		if (message_id != 0) {
+			printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n", file_name,
+					chunk_index);
+			return -1;
+		}
+
+		uint8_t status = LIZARDFS_STATUS_OK;
+		if (version == matocl::chunksInfo::kStatusPacketVersion) {
+			matocl::chunksInfo::deserialize(buffer, message_id, status);
+		} else if (version != matocl::chunksInfo::kResponsePacketVersion) {
+			printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n", file_name,
+					chunk_index);
+			return -1;
+		}
+		if (status != LIZARDFS_STATUS_OK) {
+			printf("%s [%" PRIu32 "]: %s\n", file_name, chunk_index, lizardfs_error_string(status));
+			return -1;
+		}
+
+		chunks.clear();
+		matocl::chunksInfo::deserialize(buffer, message_id, chunks);
+
+		for(auto &chunk : chunks) {
+			if (chunk.chunk_id == 0 && chunk.chunk_version == 0) {
+				printf("\tchunk %" PRIu32 ": empty\n", chunk_index);
+			} else {
+				printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 ""
+						" / (id:%" PRIu64 " ver:%" PRIu32 ")\n",
+						chunk_index, chunk.chunk_id, chunk.chunk_version, chunk.chunk_id, chunk.chunk_version);
+				ChunkCopiesCalculator chunk_calculator;
+				for(const auto &part : chunk.chunk_parts) {
+					chunk_calculator.addPart(part.chunkType, MediaLabel::kWildcard);
+				}
+				chunk_calculator.evalRedundancyLevel();
+				if (chunk.chunk_parts.size() > 0) {
+					std::sort(chunk.chunk_parts.begin(), chunk.chunk_parts.end());
+					for (size_t i = 0; i < chunk.chunk_parts.size(); i++) {
+						printf("\t\tcopy %lu: %s:%s%s\n", i + 1,
+								chunk.chunk_parts[i].address.toString().c_str(),
+								chunk.chunk_parts[i].label.c_str(),
+								chunkTypeToString(chunk.chunk_parts[i].chunkType).c_str());
+					}
+				}
+				if (chunk_calculator.getFullCopiesCount() == 0) {
+					if (chunk.chunk_parts.size() == 0) {
+						printf("\t\tno valid copies !!!\n");
+					} else {
+						printf("\t\tnot enough parts available\n");
+					}
+				}
+			}
+			chunk_index++;
+		}
+	} while (chunks.size() >= kRequestSize);
+
+	return 0;
+}
+
 static int file_info(const char *fileName) {
 	std::vector<uint8_t> buffer;
-	uint32_t chunkIndex, inode, chunkVersion, messageId = 0;
-	uint64_t fileLength, chunkId;
+	uint32_t inode, messageId = 0;
 	int fd;
 	fd = open_master_conn(fileName, &inode, nullptr, 0, 0);
 	if (fd < 0) {
 		return -1;
 	}
-	chunkIndex = 0;
 	try {
 		buffer.clear();
 		cltoma::tapeInfo::serialize(buffer, 0, inode);
@@ -134,104 +231,12 @@ static int file_info(const char *fileName) {
 			}
 		}
 
-		do {
-			buffer.clear();
-			cltoma::chunkInfo::serialize(buffer, 0, inode, chunkIndex);
-			if (tcpwrite(fd, buffer.data(), buffer.size()) != (int)buffer.size()) {
-				printf("%s [%" PRIu32 "]: master query: send error\n", fileName, chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-
-			buffer.resize(PacketHeader::kSize);
-			if (tcpread(fd, buffer.data(), PacketHeader::kSize) != (int)PacketHeader::kSize) {
-				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-
-			PacketHeader header;
-			deserializePacketHeader(buffer, header);
-
-			if (header.type != LIZ_MATOCL_CHUNK_INFO) {
-				printf("%s [%" PRIu32 "]: master query: wrong answer (type)\n", fileName,
-				       chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-
-			buffer.resize(header.length);
-
-			if (tcpread(fd, buffer.data(), header.length) != (int)header.length) {
-				printf("%s [%" PRIu32 "]: master query: receive error\n", fileName, chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-
-			PacketVersion version;
-			deserialize(buffer, version, messageId);
-
-			if (messageId != 0) {
-				printf("%s [%" PRIu32 "]: master query: wrong answer (queryid)\n", fileName,
-				       chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-
-			uint8_t status = LIZARDFS_STATUS_OK;
-			if (version == matocl::chunkInfo::kStatusPacketVersion) {
-				matocl::chunkInfo::deserialize(buffer, messageId, status);
-			} else if (version != matocl::chunkInfo::kECChunks_ResponsePacketVersion) {
-				printf("%s [%" PRIu32 "]: master query: wrong answer (packet version)\n", fileName,
-				       chunkIndex);
-				close_master_conn(1);
-				return -1;
-			}
-			if (status != LIZARDFS_STATUS_OK) {
-				printf("%s [%" PRIu32 "]: %s\n", fileName, chunkIndex, lizardfs_error_string(status));
-				close_master_conn(1);
-				return -1;
-			}
-
-			std::vector<ChunkWithAddressAndLabel> copies;
-			matocl::chunkInfo::deserialize(buffer, messageId, fileLength, chunkId, chunkVersion,
-			                               copies);
-
-			if (fileLength > 0) {
-				if (chunkId == 0 && chunkVersion == 0) {
-					printf("\tchunk %" PRIu32 ": empty\n", chunkIndex);
-				} else {
-					printf("\tchunk %" PRIu32 ": %016" PRIX64 "_%08" PRIX32 ""
-							" / (id:%" PRIu64 " ver:%" PRIu32 ")\n",
-							chunkIndex, chunkId, chunkVersion, chunkId, chunkVersion);
-					ChunkCopiesCalculator chunk_calculator;
-					for(const auto &part : copies) {
-						chunk_calculator.addPart(part.chunkType, MediaLabel::kWildcard);
-					}
-					chunk_calculator.evalRedundancyLevel();
-					if (copies.size() > 0) {
-						std::sort(copies.begin(), copies.end());
-						for (size_t i = 0; i < copies.size(); i++) {
-							printf("\t\tcopy %lu: %s:%s%s\n", i + 1,
-									copies[i].address.toString().c_str(),
-									copies[i].label.c_str(),
-									chunkTypeToString(copies[i].chunkType).c_str());
-						}
-					}
-					if (chunk_calculator.getFullCopiesCount() == 0) {
-						if (copies.size() == 0) {
-							printf("\t\tno valid copies !!!\n");
-						} else {
-							printf("\t\tnot enough parts available\n");
-						}
-					}
-				}
-			}
-			chunkIndex++;
-		} while (chunkIndex < ((fileLength + MFSCHUNKMASK) >> MFSCHUNKBITS));
+		if (chunks_info(fileName, fd, inode) < 0) {
+			close_master_conn(1);
+			return -1;
+		}
 	} catch (IncorrectDeserializationException &e) {
-		printf("%s [%" PRIu32 "]: master query: wrong answer (%s)\n", fileName, chunkIndex,
-		       e.what());
+		printf("%s [0]: master query: wrong answer (%s)\n", fileName, e.what());
 		close_master_conn(1);
 		return -1;
 	}

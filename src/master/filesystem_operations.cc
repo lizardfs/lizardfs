@@ -26,6 +26,7 @@
 #include "common/attributes.h"
 #include "common/event_loop.h"
 #include "master/changelog.h"
+#include "master/chunks.h"
 #include "master/filesystem.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
@@ -2897,6 +2898,56 @@ uint8_t fs_cancel_job(uint32_t job_id) {
 
 uint32_t fs_reserve_job_id() {
 	return gMetadata->task_manager.reserveJobId();
+}
+
+uint8_t fs_getchunksinfo(const FsContext& context, uint32_t current_ip, uint32_t inode,
+		uint32_t chunk_index, uint32_t chunk_count, std::vector<ChunkWithAddressAndLabel> &chunks) {
+	static constexpr int kMaxNumberOfChunkCopies = 100;
+
+	FSNode *p;
+
+	uint8_t status = verify_session(context, OperationMode::kReadOnly, SessionType::kAny);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+
+	status = fsnodes_get_node_for_operation(context, ExpectedNodeType::kFile, MODE_MASK_R,
+	                                        inode, &p);
+	if (status != LIZARDFS_STATUS_OK) {
+		return status;
+	}
+	if (chunk_index > MAX_INDEX) {
+		return LIZARDFS_ERROR_INDEXTOOBIG;
+	}
+
+	FSNodeFile *file_node = static_cast<FSNodeFile *>(p);
+
+	std::vector<ChunkPartWithAddressAndLabel> chunk_parts;
+
+	if (chunk_count == 0) {
+		chunk_count = file_node->chunks.size();
+	}
+
+	chunks.clear();
+	while(chunk_index < file_node->chunks.size() && chunk_count > 0) {
+		uint64_t chunk_id = file_node->chunks[chunk_index];
+		uint32_t chunk_version;
+
+		chunk_parts.clear();
+		chunk_version = 0;
+		if (chunk_id > 0) {
+			status = chunk_getversionandlocations(chunk_id, current_ip, chunk_version, kMaxNumberOfChunkCopies, chunk_parts);
+			if (status != LIZARDFS_STATUS_OK) {
+				return status;
+			}
+		}
+
+		chunks.emplace_back(std::move(chunk_id), std::move(chunk_version), std::move(chunk_parts));
+		chunk_index++;
+		chunk_count--;
+	}
+
+	return LIZARDFS_STATUS_OK;
 }
 
 #endif

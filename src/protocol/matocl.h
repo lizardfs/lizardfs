@@ -227,30 +227,24 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, masterVersion,
 		std::vector<MetadataserverListEntry>, shadowList)
 
-// LIZ_MATOCL_CHUNK_INFO
-LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kStatusPacketVersion, 0)
-LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kResponsePacketVersion, 1)
-LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunkInfo, kECChunks_ResponsePacketVersion, 2)
+// LIZ_MATOCL_CHUNKS_INFO
+namespace matocl {
+namespace chunksInfo {
+	static constexpr uint32_t kMaxNumberOfResultEntries = 4096;
+}
+}
+
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunksInfo, kStatusPacketVersion, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, chunksInfo, kResponsePacketVersion, 1)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kStatusPacketVersion,
-		uint32_t, messageId,
+		matocl, chunksInfo, LIZ_MATOCL_CHUNKS_INFO, kStatusPacketVersion,
+		uint32_t, message_id,
 		uint8_t, status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kResponsePacketVersion,
-		uint32_t, messageId,
-		uint64_t, fileLength,
-		uint64_t, chunkId,
-		uint32_t, chunkVersion,
-		std::vector<legacy::ChunkWithAddressAndLabel>, chunks)
-
-LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, chunkInfo, LIZ_MATOCL_CHUNK_INFO, kECChunks_ResponsePacketVersion,
-		uint32_t, messageId,
-		uint64_t, fileLength,
-		uint64_t, chunkId,
-		uint32_t, chunkVersion,
+		matocl, chunksInfo, LIZ_MATOCL_CHUNKS_INFO, kResponsePacketVersion,
+		uint32_t, message_id,
 		std::vector<ChunkWithAddressAndLabel>, chunks)
 
 // LIZ_MATOCL_HOSTNAME

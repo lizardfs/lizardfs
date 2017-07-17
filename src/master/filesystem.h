@@ -148,6 +148,8 @@ uint8_t fs_getacl(const FsContext& context, uint32_t inode, AclType type, Access
 uint8_t fs_quota_set(const FsContext &context, const std::vector<QuotaEntry>& entries);
 uint8_t fs_quota_get_info(const FsContext &context, const std::vector<QuotaEntry> &entries,
 		std::vector<std::string> &result);
+uint8_t fs_getchunksinfo(const FsContext& context, uint32_t current_ip, uint32_t inode,
+		uint32_t chunk_index, uint32_t chunk_count, std::vector<ChunkWithAddressAndLabel> &chunks);
 
 // Functions which apply changes from changelog, only for shadow master and metarestore
 uint8_t fs_apply_checksum(const std::string& version, uint64_t checksum);
