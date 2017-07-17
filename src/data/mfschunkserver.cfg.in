@@ -123,8 +123,12 @@
 
 ## Call fsync() after a chunk is modified
 ## (Default: 1), i.e. enabled.
-#PERFORM_FSYNC = 1
+# PERFORM_FSYNC = 1
 
+## Distance penalty to be added to the distance calculation used in mfstopology
+## This penalty will be added to *all* distance calculations, including local
+## clients
+# DISTANCE_PENALTY = 0
 
 ## deprecated, to be removed.
 # BACK_LOGS = 50

@@ -119,7 +119,7 @@ std::vector<ChunkserverListEntry> csdb_chunkserver_list() {
 		} else {
 			result.emplace_back(kDisconnectedChunkserverVersion, entry.first.first,
 			                    entry.first.second, 0, 0, 0, 0, 0, 0, 0,
-			                    MediaLabelManager::kWildcard);
+			                    MediaLabelManager::kWildcard, 0);
 		}
 	}
 	return result;

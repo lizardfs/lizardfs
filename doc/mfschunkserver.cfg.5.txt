@@ -122,6 +122,10 @@ in MooseFS format)
 *PERFORM_FSYNC*::
 call fsync() after a chunk is modified (default is 1, i.e. enabled)
 
+*DISTANCE_PENALTY*::
+distance penalty to be added to the distance calculation used in mfstopology. This penalty will be
+added to *all* distance calculations, including local clients
+
 == COPYRIGHT
 
 Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.

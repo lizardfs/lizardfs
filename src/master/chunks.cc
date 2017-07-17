@@ -1473,7 +1473,8 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 				chunkserverLocation.chunkType = part.type;
 				chunkserverLocation.chunkserver_version = matocsserv_get_version(part.server());
 				chunkserverLocation.distance =
-						topology_distance(chunkserverLocation.address.ip, currentIp);
+						topology_distance(chunkserverLocation.address.ip, currentIp) +
+						matocsserv_get_penalty(part.server());
 						// in the future prepare more sophisticated distance function
 				chunkserverLocation.random = rnd<uint32_t>();
 				chunkLocation.push_back(chunkserverLocation);

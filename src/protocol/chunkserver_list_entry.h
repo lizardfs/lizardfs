@@ -33,4 +33,5 @@ LIZARDFS_DEFINE_SERIALIZABLE_CLASS(ChunkserverListEntry,
 		uint64_t, todeltotalspace,
 		uint32_t, todelchunkscount,
 		uint32_t, errorcounter,
-		std::string, label);
+		std::string, label,
+		uint32_t, penalty);
