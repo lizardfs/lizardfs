@@ -97,4 +97,6 @@ int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const 
 int lizardfs_listxattr(LizardClient::Context ctx, LizardClient::Inode ino, size_t size,
 	               LizardClient::XattrReply &xattr_reply);
 int lizardfs_removexattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name);
+std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const LizardClient::Context &ctx,
+	             LizardClient::Inode ino, uint32_t chunk_index, uint32_t chunk_count);
 } // extern "C"

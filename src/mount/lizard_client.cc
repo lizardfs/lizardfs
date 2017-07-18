@@ -2970,6 +2970,24 @@ void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, ui
 	fs_statfs(totalspace, availspace, trashspace, reservedspace, inodes);
 }
 
+std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	                                  uint32_t chunk_index, uint32_t chunk_count) {
+	if (IS_SPECIAL_INODE(ino)) {
+		oplog_printf(ctx, "getchunksinfo (%lu, %u, %u): %s",
+				(unsigned long)ino, (unsigned)chunk_index, (unsigned)chunk_count, strerr(EINVAL));
+		throw RequestException(EINVAL);
+	}
+	std::vector<ChunkWithAddressAndLabel> chunks;
+	uint8_t status;
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+		fs_getchunksinfo(ctx.uid, ctx.gid, ino, chunk_index, chunk_count, chunks));
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+	return chunks;
+}
+
+
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
 		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,

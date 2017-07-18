@@ -163,6 +163,22 @@ typedef struct liz_stat {
 	uint32_t inodes;
 } liz_stat_t;
 
+/* Server location for a chunk part */
+typedef struct liz_chunk_part_info {
+	uint32_t addr;
+	uint16_t port;
+	uint16_t part_type_id;
+	char *label;
+} liz_chunk_part_info_t;
+
+/* Chunk information including id, type and all parts */
+typedef struct liz_chunk_info {
+	uint64_t chunk_id;
+	uint32_t chunk_version;
+	uint32_t parts_size;
+	liz_chunk_part_info_t *parts;
+} liz_chunk_info_t;
+
 /*!
  * \brief Create a context for LizardFS operations
  *  Flavor 1: create default context with current uid/gid/pid
@@ -586,6 +602,26 @@ int liz_listxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, size_t s
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name);
+
+/*! \brief Gather chunks information for a file
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode inode of a file
+ * \param chunk_index index of first chunk to return
+ * \param buffer preallocated buffer for chunk info
+ * \param buffer_size size of preallocated buffer in number of elements
+ * \param reply_size number of liz_chunk_info_t structures returned from master
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ * \post retrieved chunks information should be freed with liz_destroy_chunks_info call
+ */
+int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
+	                    uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
+	                    uint32_t *reply_size);
+
+/*! \brief Free data allocated in liz_get_chunks_info
+ * \param buffer buffer used in a successful liz_get_chunks_info call
+ */
+void liz_destroy_chunks_info(liz_chunk_info_t *buffer);
 
 #ifdef __cplusplus
 } // extern "C"

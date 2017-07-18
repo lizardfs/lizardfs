@@ -3038,3 +3038,38 @@ uint8_t fs_setgoal(uint32_t inode, uint32_t uid, const std::string &goal_name, u
 		return LIZARDFS_ERROR_IO;
 	}
 }
+
+uint8_t fs_getchunksinfo(uint32_t uid, uint32_t gid, uint32_t inode, uint32_t chunk_index,
+		uint32_t chunk_count, std::vector<ChunkWithAddressAndLabel> &chunks) {
+	threc *rec = fs_get_my_threc();
+
+	auto message = cltoma::chunksInfo::build(rec->packetId, uid, gid, inode, chunk_index, chunk_count);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_CHUNKS_INFO, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	try {
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::fuseSetGoal::kStatusPacketVersion) {
+			uint8_t status;
+			uint32_t message_id;
+			matocl::chunksInfo::deserialize(message, message_id, status);
+			return status;
+		} else if (packet_version == matocl::fuseSetGoal::kResponsePacketVersion) {
+			uint32_t message_id;
+			matocl::chunksInfo::deserialize(message, message_id, chunks);
+			return LIZARDFS_STATUS_OK;
+		} else {
+			return LIZARDFS_ERROR_EINVAL;
+		}
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_CHUNKS_INFO", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}

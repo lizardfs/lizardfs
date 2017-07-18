@@ -754,3 +754,78 @@ int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const 
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }
+
+int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
+	                    uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
+	                    uint32_t *reply_size) {
+	assert(instance && ctx && buffer && reply_size);
+
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+
+	if (buffer_size > 0) {
+		buffer->parts = NULL;
+	} else {
+		gLastErrorCode = LIZARDFS_ERROR_EINVAL;
+		return -1;
+	}
+
+	std::error_code ec;
+	auto chunks = client.getchunksinfo(context, inode, chunk_index, buffer_size, ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+
+	*reply_size = chunks.size();
+	if (chunks.size() > buffer_size) {
+		gLastErrorCode = LIZARDFS_ERROR_WRONGSIZE;
+		return -1;
+	}
+
+	std::size_t strings_size = 0;
+	std::size_t parts_table_size = 0;
+	for(const auto &chunk : chunks) {
+		parts_table_size = chunk.chunk_parts.size() * sizeof(liz_chunk_part_info_t);
+		for(const auto &part : chunk.chunk_parts) {
+			strings_size += part.label.size() + 1;
+		}
+	}
+
+	uint8_t *data_buffer = (uint8_t *)std::malloc(parts_table_size + strings_size);
+	if (data_buffer == NULL) {
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
+		return -1;
+	}
+
+	auto buf_part = (liz_chunk_part_info_t *)data_buffer;
+	auto buf_string = (char *)(data_buffer + parts_table_size);
+	auto buf_chunk = buffer;
+	for(const auto &chunk : chunks) {
+		buf_chunk->chunk_id = chunk.chunk_id;
+		buf_chunk->chunk_version = chunk.chunk_version;
+		buf_chunk->parts = buf_part;
+		buf_chunk->parts_size = chunk.chunk_parts.size();
+
+		for(const auto &part : chunk.chunk_parts) {
+			buf_part->addr = part.address.ip;
+			buf_part->port = part.address.port;
+			buf_part->part_type_id = part.chunkType.getId();
+			buf_part->label = buf_string;
+			std::strcpy(buf_string, part.label.c_str());
+
+			buf_string += part.label.size() + 1;
+			++buf_part;
+		}
+		++buf_chunk;
+	}
+
+	gLastErrorCode = LIZARDFS_STATUS_OK;
+	return 0;
+}
+
+void liz_destroy_chunks_info(liz_chunk_info_t *buffer) {
+	if (buffer && buffer->parts) {
+		std::free(buffer->parts);
+	}
+}

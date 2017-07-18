@@ -401,6 +401,19 @@ int lizardfs_setxattr(LizardClient::Context ctx, Inode ino, const char *name, co
 	}
 }
 
+std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const LizardClient::Context &ctx,
+	                          LizardClient::Inode ino, uint32_t chunk_index, uint32_t chunk_count) {
+	try {
+		auto chunks = LizardClient::getchunksinfo(ctx, ino, chunk_index, chunk_count);
+		return {LIZARDFS_STATUS_OK, chunks};
+	} catch (const RequestException &e) {
+		return {e.lizardfs_error_code, std::vector<ChunkWithAddressAndLabel>()};
+	} catch (...) {
+		return {LIZARDFS_ERROR_IO, std::vector<ChunkWithAddressAndLabel>()};
+	}
+}
+
+
 int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
 	              size_t size, LizardClient::XattrReply &xattr_reply) {
 	try {

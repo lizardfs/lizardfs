@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "common/chunk_with_address_and_label.h"
 #include "common/exception.h"
 #include "mount/group_cache.h"
 #include "mount/lizard_client_context.h"
@@ -395,6 +396,9 @@ std::string getgoal(const Context &ctx, Inode ino);
 void setgoal(const Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode);
 
 void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, uint64_t *reservedspace, uint32_t *inodes);
+
+std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	                                                uint32_t chunk_index, uint32_t chunk_count);
 
 void fs_init(FsInitParams &params);
 void fs_term();

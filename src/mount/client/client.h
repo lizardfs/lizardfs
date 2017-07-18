@@ -218,6 +218,12 @@ public:
 	void removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec);
 
 	static std::vector<std::string> toXattrList(const XattrBuffer &buffer);
+
+	std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	                                      uint32_t chunk_index, uint32_t chunk_count);
+	std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	                                      uint32_t chunk_index, uint32_t chunk_count,
+	                                      std::error_code &ec);
 protected:
 	/*! \brief Initialize client with parameters */
 	void init(FsInitParams &params);
@@ -261,6 +267,7 @@ protected:
 	typedef decltype(&lizardfs_getxattr) GetXattrFunction;
 	typedef decltype(&lizardfs_listxattr) ListXattrFunction;
 	typedef decltype(&lizardfs_removexattr) RemoveXattrFunction;
+	typedef decltype(&lizardfs_getchunksinfo) GetChunksInfoFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -299,6 +306,7 @@ protected:
 	GetXattrFunction lizardfs_getxattr_;
 	ListXattrFunction lizardfs_listxattr_;
 	RemoveXattrFunction lizardfs_removexattr_;
+	GetChunksInfoFunction lizardfs_getchunksinfo_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

@@ -111,6 +111,8 @@ uint8_t fs_setgoal(uint32_t inode, uint32_t uid, const std::string &goal_name, u
 uint8_t fs_custom(MessageBuffer& buffer);
 uint8_t fs_raw_sendandreceive(MessageBuffer& buffer, PacketHeader::Type expectedType);
 uint8_t fs_send_custom(MessageBuffer buffer);
+uint8_t fs_getchunksinfo(uint32_t uid, uint32_t gid, uint32_t inode, uint32_t chunk_index,
+		uint32_t chunk_count, std::vector<ChunkWithAddressAndLabel> &chunks);
 
 // called after fork
 int fs_init_master_connection(LizardClient::FsInitParams &params);

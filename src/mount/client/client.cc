@@ -136,6 +136,7 @@ void Client::init(FsInitParams &params) {
 		LIZARDFS_LINK_FUNCTION(lizardfs_getxattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_listxattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_removexattr);
+		LIZARDFS_LINK_FUNCTION(lizardfs_getchunksinfo);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -682,4 +683,21 @@ std::vector<std::string> Client::toXattrList(const XattrBuffer &buffer) {
 		length = 0;
 	}
 	return xattr_list;
+}
+
+std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(const Context &ctx, Inode ino,
+	                                          uint32_t chunk_index, uint32_t chunk_count) {
+	std::error_code ec;
+	auto ret = getchunksinfo(ctx, ino, chunk_index, chunk_count, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+	return ret;
+}
+
+std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(const Context &ctx, Inode ino,
+	                             uint32_t chunk_index, uint32_t chunk_count, std::error_code &ec) {
+	auto ret = lizardfs_getchunksinfo_(ctx, ino, chunk_index, chunk_count);
+	ec = make_error_code(ret.first);
+	return ret.second;
 }
