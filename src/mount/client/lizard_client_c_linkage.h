@@ -51,8 +51,7 @@ int lizardfs_getattr(const LizardClient::Context &ctx, LizardClient::Inode ino, 
 
 int lizardfs_releasedir(const LizardClient::Context &ctx, LizardClient::Inode ino);
 int lizardfs_setattr(const LizardClient::Context &ctx, LizardClient::Inode ino,
-	             struct stat *stbuf, int to_set, LizardClient::FileInfo* fi,
-	             LizardClient::AttrReply &attr_reply);
+	             struct stat *stbuf, int to_set, LizardClient::AttrReply &attr_reply);
 
 std::pair<int, ReadCache::Result> lizardfs_read(const LizardClient::Context &ctx, LizardClient::Inode ino,
 	                                         size_t size, off_t off, LizardClient::FileInfo* fi);

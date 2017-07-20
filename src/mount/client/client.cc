@@ -383,17 +383,17 @@ void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply,
 }
 
 void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
-	            FileInfo *fileinfo, AttrReply &attr_reply) {
+	             AttrReply &attr_reply) {
 	std::error_code ec;
-	setattr(ctx, ino, stbuf, to_set, fileinfo, attr_reply, ec);
+	setattr(ctx, ino, stbuf, to_set, attr_reply, ec);
 	if (ec) {
 		throw std::system_error(ec);
 	}
 }
 
 void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
-	            FileInfo *fileinfo, AttrReply &attr_reply, std::error_code &ec) {
-	int ret = lizardfs_setattr_(ctx, ino, stbuf, to_set, fileinfo, attr_reply);
+	             AttrReply &attr_reply, std::error_code &ec) {
+	int ret = lizardfs_setattr_(ctx, ino, stbuf, to_set, attr_reply);
 	ec = make_error_code(ret);
 }
 

@@ -131,10 +131,10 @@ int lizardfs_getgoal(const Context &ctx, LizardClient::Inode ino, std::string &g
 	}
 }
 
-int lizardfs_setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi,
+int lizardfs_setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &reply) {
 	try {
-		reply = LizardClient::setattr(ctx, ino, stbuf, to_set, fi);
+		reply = LizardClient::setattr(ctx, ino, stbuf, to_set);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

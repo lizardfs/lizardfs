@@ -310,7 +310,7 @@ AttrReply getattr(const Context &ctx, Inode ino);
 #define LIZARDFS_SET_ATTR_MTIME     (1 << 5)
 #define LIZARDFS_SET_ATTR_ATIME_NOW (1 << 7)
 #define LIZARDFS_SET_ATTR_MTIME_NOW (1 << 8)
-AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set, FileInfo* fi);
+AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set);
 
 std::string readlink(const Context &ctx, Inode ino);
 

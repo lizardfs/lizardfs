@@ -78,7 +78,7 @@ LizardClient::AttrReply special_getattr(LizardClient::Inode ino, const LizardCli
 	                                char (&attrstr)[256]);
 
 LizardClient::AttrReply special_setattr(LizardClient::Inode ino, const LizardClient::Context &ctx, struct stat *stbuf,
-	                                int to_set, LizardClient::FileInfo *fi, char modestr[11], char attrstr[256]);
+	                                int to_set, char modestr[11], char attrstr[256]);
 
 void special_open(LizardClient::Inode ino, const LizardClient::Context &ctx, LizardClient::FileInfo *fi);
 

@@ -388,12 +388,11 @@ int liz_undel(liz_t *instance, liz_context_t *ctx, liz_inode_t inode);
  * \param inode inode of a file
  * \param stbuf attributes to be set
  * \param to_set flag which attributes should be set
- * \param fileinfo descriptor of an open file
  * \param reply returned value
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf, int to_set,
-	        struct liz_fileinfo *fileinfo, struct liz_attr_reply *reply);
+int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf,
+	        int to_set, struct liz_attr_reply *reply);
 
 /*! \brief Synchronize file data
  * \param instance instance returned from liz_init

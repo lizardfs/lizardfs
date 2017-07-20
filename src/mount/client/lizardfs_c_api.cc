@@ -466,13 +466,13 @@ int liz_undel(liz_t *instance, liz_context_t *ctx, liz_inode_t inode) {
 	return ec ? -1 : 0;
 }
 
-int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf, int to_set,
-		struct liz_fileinfo *fileinfo, struct liz_attr_reply *reply) {
+int liz_setattr(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, struct stat *stbuf,
+	        int to_set, struct liz_attr_reply *reply) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	Client::AttrReply r;
 	std::error_code ec;
-	client.setattr(context, inode, stbuf, to_set, (Client::FileInfo *)fileinfo, r, ec);
+	client.setattr(context, inode, stbuf, to_set, r, ec);
 	if (!ec) {
 		to_attr_reply(r, reply);
 	}

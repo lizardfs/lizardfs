@@ -203,7 +203,7 @@ void mfs_getattr(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *) {
 }
 
 void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
-		struct fuse_file_info *fi) {
+		struct fuse_file_info *) {
 	try {
 		static_assert(LIZARDFS_SET_ATTR_MODE      == FUSE_SET_ATTR_MODE,      "incompatible");
 		static_assert(LIZARDFS_SET_ATTR_UID       == FUSE_SET_ATTR_UID,       "incompatible");
@@ -216,8 +216,7 @@ void mfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *stbuf, int to_set,
 		static_assert(LIZARDFS_SET_ATTR_MTIME_NOW == FUSE_SET_ATTR_MTIME_NOW, "incompatible");
 #endif
 
-		auto a = LizardClient::setattr(
-				get_context(req), ino, stbuf, to_set, fuse_file_info_wrapper(fi));
+		auto a = LizardClient::setattr(get_context(req), ino, stbuf, to_set);
 		fuse_reply_attr(req, &a.attr, a.attrTimeout);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

@@ -733,8 +733,7 @@ AttrReply getattr(const Context &ctx, Inode ino) {
 	return AttrReply{o_stbuf, attr_timeout};
 }
 
-AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf,
-	          int to_set, FileInfo *fi) {
+AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set) {
 	struct stat o_stbuf;
 	uint64_t maxfleng;
 	Attributes attr;
@@ -769,7 +768,7 @@ AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf,
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
-		return special_setattr(ino, ctx, stbuf, to_set, fi, modestr, attrstr);
+		return special_setattr(ino, ctx, stbuf, to_set, modestr, attrstr);
 	}
 
 	status = LIZARDFS_ERROR_EINVAL;
@@ -882,9 +881,8 @@ AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf,
 			throw RequestException(LIZARDFS_ERROR_EFBIG);
 		}
 		try {
-			bool opened = (fi != NULL);
 			RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-				write_data_truncate(ino, opened, ctx.uid, ctx.gid, stbuf->st_size, attr));
+				write_data_truncate(ino, false, ctx.uid, ctx.gid, stbuf->st_size, attr));
 			maxfleng = 0; // after the flush master server has valid length, don't use our length cache
 		} catch (Exception& ex) {
 			status = ex.status();

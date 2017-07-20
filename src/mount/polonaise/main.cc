@@ -477,15 +477,14 @@ public:
 	 * \note for more information, see the protocol definition in Polonaise sources
 	 */
 	void setattr(AttributesReply& _return, const Context& context, const Inode inode,
-			const FileStat& attributes, const int32_t toSet, const Descriptor descriptor) {
+			const FileStat& attributes, const int32_t toSet, const Descriptor) {
 		OPERATION_PROLOG
 		struct stat stats = toStructStat(attributes);
 		LizardClient::AttrReply reply = LizardClient::setattr(
 				toLizardFsContext(context),
 				toUint64(inode),
 				&stats,
-				toLizardfsAttributesSet(toSet),
-				getFileInfo(descriptor));
+				toLizardfsAttributesSet(toSet));
 		_return.attributes = toFileStat(reply.attr);
 		_return.attributesTimeout = reply.attrTimeout;
 		OPERATION_EPILOG

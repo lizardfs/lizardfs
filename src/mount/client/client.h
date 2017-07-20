@@ -134,9 +134,9 @@ public:
 
 	/*! \brief Set inode attributes */
 	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
-	             FileInfo *fileinfo, AttrReply &attr_reply);
+	             AttrReply &attr_reply);
 	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
-	             FileInfo *fileinfo, AttrReply &attr_reply, std::error_code &ec);
+	             AttrReply &attr_reply, std::error_code &ec);
 
 	/*! \brief Read bytes from open file, returns read cache result that holds cache lock */
 	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);

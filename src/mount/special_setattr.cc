@@ -42,7 +42,7 @@ static void printSetattrOplog(const Context &ctx, Inode ino, struct stat *stbuf,
 
 namespace InodeMasterInfo {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                           FileInfo */*fi*/, char modestr[11], char /*attrstr*/[256]) {
+	                 char modestr[11], char /*attrstr*/[256]) {
 	oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]): %s",
 	            (unsigned long int)inode_,
 	            to_set,
@@ -60,7 +60,7 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 
 namespace InodeStats {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                      FileInfo */*fi*/, char modestr[11], char attrstr[256]) {
+	                 char modestr[11], char attrstr[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -72,7 +72,7 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 
 namespace InodeOplog {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                      FileInfo */*fi*/, char modestr[11], char attrstr[256]) {
+	                 char modestr[11], char attrstr[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -84,7 +84,7 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 
 namespace InodeOphistory {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                          FileInfo */*fi*/, char modestr[11], char attrstr[256]) {
+	                 char modestr[11], char attrstr[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
@@ -96,16 +96,10 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 
 namespace InodeTweaks {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                       FileInfo *fi, char modestr[11], char attrstr[256]) {
+	                 char modestr[11], char attrstr[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
-	if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
-		MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
-		std::unique_lock<std::mutex> lock(file->mutex);
-		file->value.resize(stbuf->st_size);
-		o_stbuf.st_size = stbuf->st_size;
-	}
 	makeattrstr(attrstr, 256, &o_stbuf);
 	printSetattrOplog(ctx, inode_, stbuf, to_set, modestr, attrstr, "TWEAKS_FILE");
 	return AttrReply{o_stbuf, 3600.0};
@@ -114,16 +108,10 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 
 namespace InodeFileByInode {
 static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
-	                           FileInfo *fi, char modestr[11], char attrstr[256]) {
+	                 char modestr[11], char attrstr[256]) {
 	struct stat o_stbuf;
 	memset(&o_stbuf, 0, sizeof(struct stat));
 	attr_to_stat(inode_, attr, &o_stbuf);
-	if (fi != nullptr && (to_set & LIZARDFS_SET_ATTR_SIZE)) {
-		MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
-		std::unique_lock<std::mutex> lock(file->mutex);
-		file->value.resize(stbuf->st_size);
-		o_stbuf.st_size = stbuf->st_size;
-	}
 	makeattrstr(attrstr, 256, &o_stbuf);
 	printSetattrOplog(ctx, inode_, stbuf, to_set, modestr, attrstr, "FILE_BY_INODE_FILE");
 	return AttrReply{o_stbuf, 3600.0};
@@ -131,8 +119,7 @@ static AttrReply setattr(const Context &ctx, struct stat *stbuf, int to_set,
 } // InodeFileByInode
 
 static const std::array<std::function<AttrReply
-	(const Context&, struct stat*, int, FileInfo*,
-	 char[11], char[256])>, 16> funcs = {{
+	(const Context&, struct stat*, int, char[11], char[256])>, 16> funcs = {{
 	 &InodeStats::setattr,          //0x0U
 	 &InodeOplog::setattr,          //0x1U
 	 &InodeOphistory::setattr,      //0x2U
@@ -152,12 +139,12 @@ static const std::array<std::function<AttrReply
 }};
 
 AttrReply special_setattr(Inode ino, const Context &ctx, struct stat *stbuf, int to_set,
-	                  FileInfo *fi, char modestr[11], char attrstr[256]) {
+	                  char modestr[11], char attrstr[256]) {
 	auto func = funcs[ino - SPECIAL_INODE_BASE];
 	if (!func) {
 		lzfs_pretty_syslog(LOG_WARNING,
 			"Trying to call unimplemented 'setattr' function for special inode");
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
-	return func(ctx, stbuf, to_set, fi, modestr, attrstr);
+	return func(ctx, stbuf, to_set, modestr, attrstr);
 }
