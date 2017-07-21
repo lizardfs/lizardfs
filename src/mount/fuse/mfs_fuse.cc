@@ -539,7 +539,6 @@ void lzfs_getlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struc
 	}
 }
 
-
 void lzfs_setlk(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi, struct flock *lock, int sleep) {
 	std::uintptr_t interrupt_data_key = gLockInterruptData.generateKey();
 	try {

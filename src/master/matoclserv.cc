@@ -3968,53 +3968,66 @@ void matoclserv_fuse_flock(matoclserventry *eptr, const uint8_t *data, uint32_t 
 
 void matoclserv_fuse_getlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	FsContext context = FsContext::getForMaster(eventloop_time());
-	uint32_t messageId;
+	uint32_t message_id;
 	uint32_t inode;
 	uint64_t owner;
 
-	uint16_t op;
-	MessageBuffer reply;
-	PacketVersion version;
 	lzfs_locks::FlockWrapper lock_info;
 	uint8_t status;
-	decltype(lock_info.l_start) end;
+	uint64_t lock_end;
 
-	deserializePacketVersionNoHeader(data, length, version);
+	cltoma::fuseGetlk::deserialize(data, length, message_id, inode, owner, lock_info);
 
-	cltoma::fuseGetlk::deserialize(data, length, messageId, inode, owner, lock_info);
-	op = lock_info.l_type;
-	end = lock_info.l_start + lock_info.l_len;
-
-	status = fs_posixlock_probe(context, inode, lock_info.l_start, end, owner,
-			eptr->sesdata->sessionid, 0, messageId, op, lock_info);
+	if (lock_info.l_start < 0 || lock_info.l_len < 0) {
+		matoclserv_createpacket(eptr, matocl::fuseGetlk::build(message_id, LIZARDFS_ERROR_EINVAL));
+		return;
+	}
 
 	// Standard states that lock of length 0 is a lock till EOF
-	if (end == std::numeric_limits<decltype(lock_info.l_len)>::max()) {
+	if (lock_info.l_len == 0) {
+		lock_end = std::numeric_limits<uint64_t>::max();
+	} else {
+		lock_end = (uint64_t)lock_info.l_start + (uint64_t)lock_info.l_len;
+	}
+
+	status = fs_posixlock_probe(context, inode, lock_info.l_start, lock_end, owner,
+			eptr->sesdata->sessionid, 0, message_id, lock_info.l_type, lock_info);
+
+	// Standard states that lock of length 0 is a lock till EOF
+	if (lock_info.l_len == std::numeric_limits<int64_t>::max()) {
 		lock_info.l_len = 0;
 	}
 
-	matocl::fuseGetlk::serialize(reply, messageId, status);
-	matoclserv_createpacket(eptr, std::move(reply));
+	if (status == LIZARDFS_ERROR_WAITING || status == LIZARDFS_STATUS_OK) {
+		matoclserv_createpacket(eptr, matocl::fuseGetlk::build(message_id, lock_info));
+	} else {
+		matoclserv_createpacket(eptr, matocl::fuseGetlk::build(message_id, status));
+	}
 }
 
 void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	FsContext context = FsContext::getForMaster(eventloop_time());
-	uint32_t messageId;
+	uint32_t message_id;
 	uint32_t inode;
 	uint64_t owner;
 
-	uint32_t requestId;
+	uint32_t request_id;
 	uint16_t op;
-	MessageBuffer reply;
 	PacketVersion version;
 	uint8_t status;
 	lzfs_locks::FlockWrapper lock_info;
-	decltype(lock_info.l_start) end;
+	uint64_t lock_end;
 
 	bool nonblocking = false;
 	deserializePacketVersionNoHeader(data, length, version);
 
-	cltoma::fuseSetlk::deserialize(data, length, messageId, inode, owner, requestId, lock_info);
+	cltoma::fuseSetlk::deserialize(data, length, message_id, inode, owner, request_id, lock_info);
+
+	if (lock_info.l_start < 0 || lock_info.l_len < 0) {
+		matoclserv_createpacket(eptr, matocl::fuseSetlk::build(message_id, LIZARDFS_ERROR_EINVAL));
+		return;
+	}
+
 	op = lock_info.l_type;
 
 	if (op & lzfs_locks::kNonblock) {
@@ -4024,14 +4037,14 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 
 	// Standard states that lock of length 0 is a lock till EOF
 	if (lock_info.l_len == 0) {
-		end = std::numeric_limits<decltype(lock_info.l_len)>::max();
+		lock_end = std::numeric_limits<uint64_t>::max();
 	} else {
-		end = lock_info.l_start + lock_info.l_len;
+		lock_end = (uint64_t)lock_info.l_start + (uint64_t)lock_info.l_len;
 	}
 
 	std::vector<FileLocks::Owner> applied;
-	status = fs_posixlock_op(context, inode, lock_info.l_start, end,
-			owner, eptr->sesdata->sessionid, requestId, messageId, op, nonblocking, applied);
+	status = fs_posixlock_op(context, inode, lock_info.l_start, lock_end,
+			owner, eptr->sesdata->sessionid, request_id, message_id, op, nonblocking, applied);
 
 	matoclserv_lock_wake_up(applied, lzfs_locks::Type::kPosix);
 
@@ -4042,8 +4055,7 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 
 	// Do not respond only if operation is blocking and status is WAITING
 	if (nonblocking || status != LIZARDFS_ERROR_WAITING) {
-		matocl::fuseSetlk::serialize(reply, messageId, status);
-		matoclserv_createpacket(eptr, std::move(reply));
+		matoclserv_createpacket(eptr, matocl::fuseSetlk::build(message_id, status));
 	}
 }
 

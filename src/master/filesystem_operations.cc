@@ -1397,7 +1397,7 @@ int fs_posixlock_probe(const FsContext &context, uint32_t inode, uint64_t start,
 	} else {
 		info.l_type = static_cast<int>(collision->type);
 		info.l_start = collision->start;
-		info.l_len = collision->end - collision->start;
+		info.l_len = std::min<uint64_t>(collision->end - collision->start, std::numeric_limits<int64_t>::max());
 		return LIZARDFS_ERROR_WAITING;
 	}
 }

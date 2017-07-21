@@ -360,12 +360,12 @@ LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetlk, kResponsePacketVersion, 1)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetlk, LIZ_MATOCL_FUSE_GETLK, kStatusPacketVersion,
-		uint32_t, messageId,
+		uint32_t, message_id,
 		uint8_t, status)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetlk, LIZ_MATOCL_FUSE_GETLK, kResponsePacketVersion,
-		uint32_t, messageId,
+		uint32_t, message_id,
 		lzfs_locks::FlockWrapper, lock)
 
 // LIZ_MATOCL_FUSE_SETLK

@@ -271,7 +271,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		cltoma, fuseGetlk, LIZ_CLTOMA_FUSE_GETLK, 0,
-		uint32_t, messageId,
+		uint32_t, message_id,
 		uint32_t, inode,
 		uint64_t, owner,
 		lzfs_locks::FlockWrapper, lock)

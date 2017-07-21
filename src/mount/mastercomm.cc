@@ -2804,18 +2804,22 @@ uint8_t fs_getlk(uint32_t inode, uint64_t owner, lzfs_locks::FlockWrapper &lock)
 	}
 
 	try {
-		PacketVersion packetVersion;
-		deserializePacketVersionNoHeader(message, packetVersion);
-		if (packetVersion == 0) {
+		PacketVersion packet_version;
+		deserializePacketVersionNoHeader(message, packet_version);
+		if (packet_version == matocl::fuseGetlk::kStatusPacketVersion) {
 			uint8_t status;
-			uint32_t dummyMessageId;
-			matocl::fuseGetlk::deserialize(message, dummyMessageId, status);
+			uint32_t message_id;
+			matocl::fuseGetlk::deserialize(message, message_id, status);
 			return status;
+		} else if (packet_version == matocl::fuseGetlk::kResponsePacketVersion) {
+			uint32_t message_id;
+			matocl::fuseGetlk::deserialize(message, message_id, lock);
+			return LIZARDFS_STATUS_OK;
 		} else {
 			fs_got_inconsistent(
 				"LIZ_MATOCL_GETLK",
 				message.size(),
-				"unknown version " + std::to_string(packetVersion));
+				"unknown version " + std::to_string(packet_version));
 			return LIZARDFS_ERROR_IO;
 		}
 	} catch (Exception& ex) {
