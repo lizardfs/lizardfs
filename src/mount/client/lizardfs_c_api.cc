@@ -148,6 +148,7 @@ liz_context_t *liz_create_context() {
 		Client::Context *ret = new Client::Context(getuid(), getgid(), getpid(), 0);
 		return (liz_context_t *)ret;
 	} catch (...) {
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
 		return nullptr;
 	}
 }
@@ -157,6 +158,7 @@ liz_context_t *liz_create_user_context(uid_t uid, gid_t gid, pid_t pid, mode_t u
 		Client::Context *ret = new Client::Context(uid, gid, pid, umask);
 		return (liz_context_t *)ret;
 	} catch (...) {
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
 		return nullptr;
 	}
 }
@@ -474,7 +476,7 @@ static int convert_named_inodes(liz_namedinode_entry *out_entries, uint32_t *num
 	try {
 		p_namebuf = new char[total_name_size];
 	} catch (...) {
-		gLastErrorCode = ENOMEM;
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
 		return -1;
 	}
 
