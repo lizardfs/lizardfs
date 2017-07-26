@@ -63,6 +63,18 @@ int lizardfs_mknod(const Context &ctx, Inode parent, const char *name, mode_t mo
 	}
 }
 
+int lizardfs_link(Context ctx, Inode inode, Inode parent, const char *name,
+		EntryParam &param) {
+	try {
+		param = LizardClient::link(ctx, inode, parent, name);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_symlink(Context ctx, const char *link, Inode parent, const char *name,
 		EntryParam &param) {
 	try {

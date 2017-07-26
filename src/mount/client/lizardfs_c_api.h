@@ -257,6 +257,18 @@ int liz_lookup(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const ch
 int liz_mknod(liz_t *instance, liz_context_t *ctx, liz_inode_t parent, const char *path,
 	      mode_t mode, struct liz_entry *entry);
 
+/*! \brief Create a link with given parent and name
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param inode target inode
+ * \param parent parent inode
+ * \param name link name (no paths allowed)
+ * \param entry filled upon successful creation
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_link(liz_t *instance, liz_context_t *ctx, liz_inode_t inode, liz_inode_t parent,
+	      const char *name, struct liz_entry *entry);
+
 /*! \brief Create a symlink with given parent and name
  * \param instance instance returned from liz_init
  * \param ctx context returned from liz_create_context

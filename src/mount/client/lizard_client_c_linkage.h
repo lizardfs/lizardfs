@@ -39,6 +39,8 @@ int lizardfs_lookup(const LizardClient::Context &ctx, LizardClient::Inode parent
 	                                 const char *name, LizardClient::EntryParam &param);
 int lizardfs_mknod(const LizardClient::Context &ctx, LizardClient::Inode parent, const char *name,
 	           mode_t mode, dev_t rdev, LizardClient::EntryParam &param);
+int lizardfs_link(LizardClient::Context ctx, LizardClient::Inode inode, LizardClient::Inode parent,
+	             const char *name, LizardClient::EntryParam &param);
 int lizardfs_symlink(LizardClient::Context ctx, const char *link, LizardClient::Inode parent,
 	             const char *name, LizardClient::EntryParam &param);
 int lizardfs_mkdir(const LizardClient::Context &ctx, LizardClient::Inode parent,

@@ -86,6 +86,12 @@ public:
 	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	           EntryParam &param, std::error_code &ec);
 
+	/*! \brief Create a link with a given parent and name */
+	void link(const Context &ctx, Inode inode, Inode parent,
+	             const std::string &name, EntryParam &param);
+	void link(const Context &ctx, Inode inode, Inode parent,
+	             const std::string &name, EntryParam &param, std::error_code &ec);
+
 	/*! \brief Create a symbolic link with a given parent and name */
 	void symlink(const Context &ctx, const std::string &link, Inode parent,
 	             const std::string &name, EntryParam &param);
@@ -223,6 +229,7 @@ protected:
 	typedef decltype(&lizardfs_fs_term) FsTermFunction;
 	typedef decltype(&lizardfs_lookup) LookupFunction;
 	typedef decltype(&lizardfs_mknod) MknodFunction;
+	typedef decltype(&lizardfs_link) LinkFunction;
 	typedef decltype(&lizardfs_symlink) SymlinkFunction;
 	typedef decltype(&lizardfs_mkdir) MkDirFunction;
 	typedef decltype(&lizardfs_rmdir) RmDirFunction;
@@ -261,6 +268,7 @@ protected:
 	LookupFunction lizardfs_lookup_;
 	MknodFunction lizardfs_mknod_;
 	MkDirFunction lizardfs_mkdir_;
+	LinkFunction lizardfs_link_;
 	SymlinkFunction lizardfs_symlink_;
 	RmDirFunction lizardfs_rmdir_;
 	ReadDirFunction lizardfs_readdir_;

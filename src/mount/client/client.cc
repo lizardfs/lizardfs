@@ -193,6 +193,21 @@ void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mo
 	ec = make_error_code(ret);
 }
 
+void Client::link(const Context &ctx, Inode inode, Inode parent,
+		const std::string &name, EntryParam &param) {
+	std::error_code ec;
+	link(ctx, inode, parent, name, param, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::link(const Context &ctx, Inode inode, Inode parent,
+		const std::string &name, EntryParam &param, std::error_code &ec) {
+	int ret = lizardfs_link_(ctx, inode, parent, name.c_str(), param);
+	ec = make_error_code(ret);
+}
+
 void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
 		const std::string &name, EntryParam &param) {
 	std::error_code ec;
