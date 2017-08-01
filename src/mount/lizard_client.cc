@@ -1023,6 +1023,7 @@ EntryParam mknod(const Context &ctx, Inode parent, const char *name, mode_t mode
 				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
+		gDirEntryCache.lockAndInvalidateParent(ctx, parent);
 		e.ino = inode;
 		mattr = attr_get_mattr(attr);
 		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
@@ -1097,6 +1098,7 @@ void undel(const Context &ctx, Inode ino) {
 		fprintf(stderr, "undel (%lu)\n", (unsigned long)ino);
 	}
 	uint8_t status;
+	// FIXME(haze): modify undel to return parent inode and call gDirEntryCache.lockAndInvalidateParent(parent)
 	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid, fs_undel(ino));
 	if (status != LIZARDFS_STATUS_OK) {
 		throw RequestException(status);
@@ -1160,6 +1162,7 @@ EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode
 				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
+		gDirEntryCache.lockAndInvalidateParent(parent);
 		e.ino = inode;
 		mattr = attr_get_mattr(attr);
 		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
@@ -1273,6 +1276,7 @@ EntryParam symlink(const Context &ctx, const char *path, Inode parent,
 				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
+		gDirEntryCache.lockAndInvalidateParent(parent);
 		e.ino = inode;
 		mattr = attr_get_mattr(attr);
 		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
@@ -1468,6 +1472,7 @@ EntryParam link(const Context &ctx, Inode ino, Inode newparent, const char *newn
 				lizardfs_error_string(status));
 		throw RequestException(status);
 	} else {
+		gDirEntryCache.lockAndInvalidateParent(newparent);
 		e.ino = inode;
 		mattr = attr_get_mattr(attr);
 		e.attr_timeout = (mattr&MATTR_NOACACHE)?0.0:attr_cache_timeout;
