@@ -1864,6 +1864,9 @@ void open(const Context &ctx, Inode ino, FileInfo *fi) {
 	}
 
 	oflags = 0;
+	if ((fi->flags & O_CREAT) == O_CREAT) {
+		oflags |= AFTER_CREATE;
+	}
 	if ((fi->flags & O_ACCMODE) == O_RDONLY) {
 		oflags |= WANT_READ;
 	} else if ((fi->flags & O_ACCMODE) == O_WRONLY) {
