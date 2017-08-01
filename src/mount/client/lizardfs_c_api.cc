@@ -434,6 +434,14 @@ int liz_readdir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *filein
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
+
+	if (max_entries > 0) {
+		buf->name = NULL;
+	} else {
+		gLastErrorCode = LIZARDFS_ERROR_EINVAL;
+		return -1;
+	}
+
 	Client::ReadDirReply reply = client.readdir(context, (Client::FileInfo *)fileinfo,
 	                                            offset, max_entries, ec);
 	*num_entries = 0;
@@ -474,10 +482,10 @@ int liz_readdir(liz_t *instance, liz_context_t *ctx, struct liz_fileinfo *filein
 	return 0;
 }
 
-void liz_destroy_direntry(struct liz_direntry *buf, size_t num_entries) {
-	assert(num_entries > 0);
-	(void)num_entries;
-	delete[] buf->name;
+void liz_destroy_direntry(struct liz_direntry *buf, size_t /*num_entries*/) {
+	if (buf->name) {
+		delete[] buf->name;
+	}
 }
 
 int liz_releasedir(liz_t *instance, struct liz_fileinfo *fileinfo) {

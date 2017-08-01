@@ -431,14 +431,14 @@ rm -rf $RPM_BUILD_ROOT
 %{_sysconfdir}/bash_completion.d/lizardfs
 
 %files lib-client
-%if "%{distro}" != "el6"
 %{_libdir}/liblizardfsmount_shared.so
 %{_libdir}/liblizardfs-client.so
 %{_libdir}/liblizardfs-client-cpp.a
+%{_libdir}/liblizardfs-client-cpp_pic.a
 %{_libdir}/liblizardfs-client.a
+%{_libdir}/liblizardfs-client_pic.a
 %{_includedir}/lizardfs/lizardfs_c_api.h
 %{_includedir}/lizardfs/lizardfs_error_codes.h
-%endif
 
 %files cgi
 %defattr(644,root,root,755)

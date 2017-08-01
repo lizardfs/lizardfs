@@ -104,6 +104,7 @@ void Client::init(FsInitParams &params) {
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_term);
 		LIZARDFS_LINK_FUNCTION(lizardfs_lookup);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mknod);
+		LIZARDFS_LINK_FUNCTION(lizardfs_link);
 		LIZARDFS_LINK_FUNCTION(lizardfs_symlink);
 		LIZARDFS_LINK_FUNCTION(lizardfs_mkdir);
 		LIZARDFS_LINK_FUNCTION(lizardfs_rmdir);
