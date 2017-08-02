@@ -1184,7 +1184,7 @@ static fsal_status_t lzfs_fsal_link(struct fsal_obj_handle *obj_hdl,
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
 
-void lzfs_fsal_handle_ops_init(struct fsal_obj_ops *ops) {
+void lzfs_fsal_handle_ops_init(struct lzfs_fsal_export *lzfs_export, struct fsal_obj_ops *ops) {
 	ops->release = lzfs_fsal_release;
 	ops->merge = lzfs_fsal_merge;
 	ops->lookup = lzfs_fsal_lookup;
@@ -1208,4 +1208,8 @@ void lzfs_fsal_handle_ops_init(struct fsal_obj_ops *ops) {
 	ops->commit2 = lzfs_fsal_commit2;
 	ops->setattr2 = lzfs_fsal_setattr2;
 	ops->close2 = lzfs_fsal_close2;
+
+	if (lzfs_export->pnfs_mds_enabled) {
+		lzfs_fsal_handle_ops_pnfs(ops);
+	}
 }

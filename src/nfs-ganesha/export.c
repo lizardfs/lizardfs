@@ -368,4 +368,6 @@ void lzfs_fsal_export_ops_init(struct export_ops *ops) {
 	ops->fs_xattr_access_rights = lzfs_fsal_fs_xattr_access_rights;
 	ops->alloc_state = lzfs_fsal_alloc_state;
 	ops->free_state = lzfs_fsal_free_state;
+
+	lzfs_fsal_export_ops_pnfs(ops);
 }

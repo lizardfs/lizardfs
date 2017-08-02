@@ -212,3 +212,16 @@ int liz_cred_link(liz_t *instance, struct user_cred *cred, liz_inode_t inode, li
 	liz_destroy_context(ctx);
 	return rc;
 }
+
+int liz_cred_get_chunks_info(liz_t *instance, struct user_cred *cred, liz_inode_t inode,
+                             uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
+                             uint32_t *reply_size) {
+	liz_context_t *ctx = lzfs_fsal_create_context(instance, cred);
+	if (ctx == NULL) {
+		return -1;
+	}
+	int rc =
+	    liz_get_chunks_info(instance, ctx, inode, chunk_index, buffer, buffer_size, reply_size);
+	liz_destroy_context(ctx);
+	return rc;
+}

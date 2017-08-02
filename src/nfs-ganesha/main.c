@@ -23,6 +23,7 @@
 #include "fsal_types.h"
 #include "FSAL/fsal_commonlib.h"
 #include "FSAL/fsal_init.h"
+#include "pnfs_utils.h"
 
 #include "common/special_inode_defs.h"
 #include "context_wrap.h"
@@ -71,7 +72,9 @@ static struct config_item lzfs_fsal_items[] = {
     CONF_ITEM_BOOL("symlink_support", true, fsal_staticfsinfo_t, symlink_support),
     CONF_ITEM_BOOL("cansettime", true, fsal_staticfsinfo_t, cansettime),
     CONF_ITEM_BOOL("auth_xdev_export", false, fsal_staticfsinfo_t, auth_exportpath_xdev),
-    CONF_ITEM_BOOL("fsal_trace", false, fsal_staticfsinfo_t, fsal_trace),
+    CONF_ITEM_BOOL("PNFS_MDS", false, fsal_staticfsinfo_t, pnfs_mds),
+    CONF_ITEM_BOOL("PNFS_DS", false, fsal_staticfsinfo_t, pnfs_ds),
+    CONF_ITEM_BOOL("fsal_trace", true, fsal_staticfsinfo_t, fsal_trace),
     CONF_ITEM_BOOL("fsal_grace", false, fsal_staticfsinfo_t, fsal_grace),
     CONFIG_EOL};
 
@@ -147,6 +150,37 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 	lzfs_export->export.fsal = fsal_hdl;
 	lzfs_export->export.up_ops = up_ops;
 
+	lzfs_export->pnfs_ds_enabled =
+	    lzfs_export->export.exp_ops.fs_supports(&lzfs_export->export, fso_pnfs_ds_supported);
+	if (lzfs_export->pnfs_ds_enabled) {
+		struct fsal_pnfs_ds *pds = NULL;
+
+		status = fsal_hdl->m_ops.fsal_pnfs_ds(fsal_hdl, parse_node, &pds);
+		if (status.major != ERR_FSAL_NO_ERROR) {
+			goto error;
+		}
+
+		/* special case: server_id matches export_id */
+		pds->id_servers = op_ctx->ctx_export->export_id;
+		pds->mds_export = op_ctx->ctx_export;
+		pds->mds_fsal_export = &lzfs_export->export;
+
+		if (!pnfs_ds_insert(pds)) {
+			LogCrit(COMPONENT_CONFIG, "Server id %d already in use.", pds->id_servers);
+			status.major = ERR_FSAL_EXIST;
+			goto error;
+		}
+
+		LogDebug(COMPONENT_PNFS, "pnfs ds was enabled for [%s]", op_ctx->ctx_export->fullpath);
+	}
+
+	lzfs_export->pnfs_mds_enabled =
+	    lzfs_export->export.exp_ops.fs_supports(&lzfs_export->export, fso_pnfs_mds_supported);
+	if (lzfs_export->pnfs_mds_enabled) {
+		LogDebug(COMPONENT_PNFS, "pnfs mds was enabled for [%s]", op_ctx->ctx_export->fullpath);
+		lzfs_fsal_export_ops_pnfs(&lzfs_export->export.exp_ops);
+	}
+
 	// get attributes for root inode
 	liz_attr_reply_t ret;
 	rc = liz_cred_getattr(lzfs_export->lzfs_instance, op_ctx->creds, SPECIAL_INODE_ROOT, &ret);
@@ -207,9 +241,11 @@ MODULE_INIT void init(void) {
 		LogCrit(COMPONENT_FSAL, "LizardFS module failed to register.");
 	}
 
+	lzfs_module->m_ops.fsal_pnfs_ds_ops = lzfs_fsal_ds_handle_ops_init;
 	lzfs_module->m_ops.create_export = lzfs_fsal_create_export;
 	lzfs_module->m_ops.init_config = lzfs_fsal_init_config;
 	lzfs_module->m_ops.support_ex = lzfs_fsal_support_ex;
+	lzfs_fsal_ops_pnfs(&lzfs_module->m_ops);
 }
 
 MODULE_FINI void finish(void) {

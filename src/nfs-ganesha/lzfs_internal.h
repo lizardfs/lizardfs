@@ -21,6 +21,9 @@
 
 #include "mount/client/lizardfs_c_api.h"
 
+#define LIZARDFS_VERSION(major, minor, micro) (0x010000 * major + 0x0100 * minor + micro)
+#define kDisconnectedChunkserverVersion LIZARDFS_VERSION(256, 0, 0);
+
 struct lzfs_fsal_module {
 	struct fsal_module fsal;
 	fsal_staticfsinfo_t fs_info;
@@ -36,6 +39,8 @@ struct lzfs_fsal_export {
 
 	char *lzfs_hostname;
 	char *lzfs_port;
+	bool pnfs_mds_enabled;
+	bool pnfs_ds_enabled;
 };
 
 struct lzfs_fsal_fd {
@@ -56,19 +61,38 @@ struct lzfs_fsal_handle {
 	struct fsal_share share;
 };
 
+struct lzfs_fsal_ds_wire {
+	uint32_t inode;
+};
+
+struct lzfs_fsal_ds_handle {
+	struct fsal_ds_handle ds;
+	uint32_t inode;
+	liz_fileinfo_t *file_handle;
+};
+
+#define LZFS_LEASE_TIME 10
 #define LZFS_SUPPORTED_ATTRS                                                                    \
 	(ATTR_TYPE | ATTR_SIZE | ATTR_FSID | ATTR_FILEID | ATTR_MODE | ATTR_NUMLINKS | ATTR_OWNER | \
 	 ATTR_GROUP | ATTR_ATIME | ATTR_CTIME | ATTR_MTIME | ATTR_CHGTIME | ATTR_CHANGE |           \
 	 ATTR_SPACEUSED | ATTR_RAWDEV)
 
-#define LZFS_LEASE_TIME 10
+#define LZFS_BIGGEST_STRIPE_COUNT 4096
+#define LZFS_STD_CHUNK_PART_TYPE 0
+#define LZFS_EXPECTED_BACKUP_DS_COUNT 3
+#define TCP_PROTO_NUMBER 6
 
 fsal_status_t lizardfs2fsal_error(liz_err_t err);
 fsal_status_t lzfs_fsal_last_err();
 liz_context_t *lzfs_fsal_create_context(liz_t *instance, struct user_cred *cred);
 fsal_staticfsinfo_t *lzfs_fsal_staticinfo(struct fsal_module *module_hdl);
 void lzfs_fsal_export_ops_init(struct export_ops *ops);
-void lzfs_fsal_handle_ops_init(struct fsal_obj_ops *ops);
+void lzfs_fsal_handle_ops_init(struct lzfs_fsal_export *lzfs_export, struct fsal_obj_ops *ops);
+void lzfs_fsal_handle_ops_pnfs(struct fsal_obj_ops *ops);
+void lzfs_fsal_export_ops_pnfs(struct export_ops *ops);
+void lzfs_fsal_ops_pnfs(struct fsal_ops *ops);
 struct lzfs_fsal_handle *lzfs_fsal_new_handle(const struct stat *attr,
                                               struct lzfs_fsal_export *lzfs_export);
 void lzfs_fsal_delete_handle(struct lzfs_fsal_handle *obj);
+void lzfs_fsal_ds_handle_ops_init(struct fsal_pnfs_ds_ops *ops);
+nfsstat4 lzfs_nfs4_last_err();

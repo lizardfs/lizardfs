@@ -52,3 +52,6 @@ int liz_cred_readlink(liz_t *instance, struct user_cred *cred, liz_inode_t inode
                       size_t size);
 int liz_cred_link(liz_t *instance, struct user_cred *cred, liz_inode_t inode, liz_inode_t parent,
                   const char *name, struct liz_entry *entry);
+int liz_cred_get_chunks_info(liz_t *instance, struct user_cred *cred, liz_inode_t inode,
+                             uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
+                             uint32_t *reply_size);

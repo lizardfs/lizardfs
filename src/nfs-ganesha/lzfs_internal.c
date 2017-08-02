@@ -18,6 +18,7 @@
 
 #include "fsal.h"
 #include "fsal_convert.h"
+#include "pnfs_utils.h"
 
 #include "lzfs_internal.h"
 
@@ -35,12 +36,29 @@ fsal_status_t lizardfs2fsal_error(int ec) {
 	return status;
 }
 
+nfsstat4 lizardfs2nfs4_error(int ec) {
+	if (!ec) {
+		LogWarn(COMPONENT_FSAL, "appropriate errno not set");
+		ec = EINVAL;
+	}
+	return posix2nfs4_error(liz_error_conv(ec));
+}
+
 fsal_status_t lzfs_fsal_last_err() {
 	return lizardfs2fsal_error(liz_last_err());
 }
 
+nfsstat4 lzfs_nfs4_last_err() {
+	return lizardfs2nfs4_error(liz_last_err());
+}
+
 liz_context_t *lzfs_fsal_create_context(liz_t *instance, struct user_cred *cred) {
 	static const int kLocalGArraySize = 64;
+
+	if (cred == NULL) {
+		liz_context_t *ctx = liz_create_user_context(0, 0, 0, 0);
+		return ctx;
+	}
 
 	liz_context_t *ctx;
 	uid_t uid = (cred->caller_uid == op_ctx->export_perms->anonymous_uid) ? 0 : cred->caller_uid;
@@ -87,7 +105,7 @@ struct lzfs_fsal_handle *lzfs_fsal_new_handle(const struct stat *attr,
 	result->inode = attr->st_ino;
 
 	fsal_obj_handle_init(&result->handle, &lzfs_export->export, posix2fsal_type(attr->st_mode));
-	lzfs_fsal_handle_ops_init(&result->handle.obj_ops);
+	lzfs_fsal_handle_ops_init(lzfs_export, &result->handle.obj_ops);
 	result->handle.fsid = posix2fsal_fsid(attr->st_dev);
 	result->handle.fileid = attr->st_ino;
 	result->export = lzfs_export;
