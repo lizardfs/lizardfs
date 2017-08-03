@@ -76,7 +76,8 @@ enum lizardfs_error_code {
 	LIZARDFS_ERROR_EFBIG                   = 53,    // File too large
 	LIZARDFS_ERROR_EBADF                   = 54,    // Bad file number
 	LIZARDFS_ERROR_ENODATA                 = 55,    // No data available
-	LIZARDFS_ERROR_MAX                     = 56
+	LIZARDFS_ERROR_E2BIG                   = 56,    // Argument list too long
+	LIZARDFS_ERROR_MAX                     = 57
 };
 
 inline const char *lizardfs_error_string(uint8_t status) {
@@ -137,6 +138,7 @@ inline const char *lizardfs_error_string(uint8_t status) {
 		"File too large",
 		"Bad file number",
 		"No data available",
+		"Argument list too long",
 		"Unknown LizardFS error"
 	};
 

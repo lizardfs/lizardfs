@@ -73,6 +73,8 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(
 		return std::make_error_code(std::errc::no_message_available) == condition;
 	case (int)lizardfs::error::not_enough_memory:
 		return std::make_error_code(std::errc::not_enough_memory) == condition;
+	case (int)lizardfs::error::argument_list_too_long:
+		return std::make_error_code(std::errc::argument_list_too_long) == condition;
 	}
 
 	return false;
@@ -123,6 +125,8 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(const std::error_code
 		return code == std::make_error_condition(std::errc::no_message_available);
 	case (int)lizardfs::error::not_enough_memory:
 		return code == std::make_error_condition(std::errc::not_enough_memory);
+	case (int)lizardfs::error::argument_list_too_long:
+		return code == std::make_error_condition(std::errc::argument_list_too_long);
 	}
 
 	return false;

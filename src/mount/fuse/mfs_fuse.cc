@@ -48,10 +48,47 @@ void checkTypesEqual(const A& a, const B& b) {
 			"Types don't match");
 }
 
-static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
-	static_assert(sizeof(gid_t) == sizeof(LizardClient::Context::IdType), "Invalid IdType to call fuse_req_getgroups");
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#include <sys/sysctl.h>
 
-#if defined(__APPLE__) || (FUSE_VERSION < 28)
+void getBsdGroups(LizardClient::Context &ctx) {
+	int mib_path[4];
+	struct kinfo_proc kinfo;
+	size_t len;
+
+	len = 4;
+	sysctlnametomib("kern.proc.pid", mib_path, &len);
+	mib_path[3] = ctx.pid;
+
+	len = sizeof(kinfo);
+	memset(&kinfo, 0, sizeof(kinfo));
+	if (sysctl(mib_path, 4, &kinfo, &len, nullptr, 0) == 0) {
+#if defined(__APPLE__)
+		ctx.gids.resize(kinfo.kp_eproc.e_ucred.cr_ngroups + 1);
+		ctx.gids[0] = ctx.gid;
+		for (size_t i = 0; i < kinfo.kp_eproc.e_ucred.cr_ngroups; ++i) {
+			ctx.gids[i + 1] = kinfo.kp_eproc.e_ucred.cr_groups[i];
+		}
+#else
+		ctx.gids.resize(kinfo.ki_ngroups + 1);
+		ctx.gids[0] = ctx.gid;
+		for (size_t i = 0; i < kinfo.ki_ngroups; ++i) {
+			ctx.gids[i + 1] = kinfo.ki_groups[i];
+		}
+#endif
+	}
+}
+#endif
+
+static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+	static_assert(sizeof(gid_t) == sizeof(LizardClient::Context::IdType),
+	              "Invalid IdType to call fuse_req_getgroups");
+
+#if defined(__APPLE__) || defined(__FreeBSD__)
+	(void)req;
+	getBsdGroups(ctx);
+	LizardClient::updateGroups(ctx);
+#elif (FUSE_VERSION < 28)
 	(void)req, (void)ctx;
 #else
 	static const int kMaxGroups = GroupCache::kDefaultGroupsSize - 1;
@@ -83,7 +120,9 @@ LizardClient::Context get_context(fuse_req_t& req) {
 	mode_t umask = 0000;
 #endif
 	auto ret = LizardClient::Context(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, umask);
-	updateGroupsForContext(req, ret);
+	if (fuse_ctx->pid > 0) {
+		updateGroupsForContext(req, ret);
+	}
 	return ret;
 }
 

@@ -83,6 +83,8 @@ int lizardfs_error_conv(uint8_t status) {
 			return ENODATA;
 		case LIZARDFS_ERROR_OUTOFMEMORY:
 			return ENOMEM;
+		case LIZARDFS_ERROR_E2BIG:
+			return E2BIG;
 		default:
 			return EINVAL;
 	}
