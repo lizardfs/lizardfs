@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -20,11 +20,13 @@
 
 #include "common/platform.h"
 
+#include <list>
+
 #include "common/chunk_part_type.h"
+#include "common/chunk_type_with_address.h"
 #include "common/chunkserver_stats.h"
 #include "common/message_receive_buffer.h"
 #include "common/multi_buffer_writer.h"
-#include "mount/chunk_reader.h"
 
 class WriteExecutor {
 public:

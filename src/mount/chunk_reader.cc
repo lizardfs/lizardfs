@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2016 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,9 +22,9 @@
 #include <algorithm>
 #include <cstring>
 
+#include "common/exceptions.h"
 #include "common/read_plan_executor.h"
 #include "common/time_utils.h"
-#include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, double bandwidth_overuse)

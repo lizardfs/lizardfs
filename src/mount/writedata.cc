@@ -1,5 +1,5 @@
 /*
- Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013 Skytechnology sp. z o.o..
+ Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2017 Skytechnology sp. z o.o..
 
  This file was part of MooseFS and is part of LizardFS.
 
@@ -38,6 +38,7 @@
 
 #include "common/crc.h"
 #include "common/datapack.h"
+#include "common/exceptions.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/message_receive_buffer.h"
@@ -50,7 +51,6 @@
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
 #include "mount/chunk_writer.h"
-#include "mount/exceptions.h"
 #include "mount/global_chunkserver_stats.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"

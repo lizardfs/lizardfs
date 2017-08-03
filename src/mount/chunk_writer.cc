@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -24,18 +24,20 @@
 #include <cstring>
 
 #include "common/block_xor.h"
+#include "common/chunk_connector.h"
+#include "common/chunk_read_planner.h"
 #include "common/chunk_type_with_address.h"
+#include "common/exceptions.h"
 #include "common/goal.h"
 #include "common/massert.h"
 #include "common/read_operation_executor.h"
+#include "common/read_plan_executor.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
 #include "devtools/request_log.h"
-#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 #include "mount/readdata.h"
-#include "mount/write_executor.h"
 
 static uint32_t gcd(uint32_t a, uint32_t b) {
 	for (;;) {

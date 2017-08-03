@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -17,15 +17,17 @@
  */
 
 #include "common/platform.h"
-#include "mount/write_executor.h"
+#include "common/write_executor.h"
 
 #include <cstring>
 #include <iostream>
 
 #include "common/crc.h"
+#include "common/exceptions.h"
+#include "common/network_address.h"
 #include "common/lizardfs_version.h"
+#include "common/sockets.h"
 #include "devtools/request_log.h"
-#include "mount/exceptions.h"
 #include "protocol/cltocs.h"
 #include "protocol/cstocl.h"
 

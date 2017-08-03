@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,9 +22,9 @@
 #include <unistd.h>
 
 #include "protocol/MFSCommunication.h"
+#include "common/exceptions.h"
 #include "common/mfserr.h"
 #include "devtools/request_log.h"
-#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 
 void ReadChunkLocator::invalidateCache(uint32_t inode, uint32_t index) {

@@ -1,5 +1,5 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2016 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2017 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -35,7 +35,7 @@
 
 #include "common/connection_pool.h"
 #include "common/datapack.h"
-#include "protocol/MFSCommunication.h"
+#include "common/exceptions.h"
 #include "common/mfserr.h"
 #include "common/read_plan_executor.h"
 #include "common/slogger.h"
@@ -43,11 +43,11 @@
 #include "common/time_utils.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
-#include "mount/exceptions.h"
 #include "mount/mastercomm.h"
 #include "mount/readahead_adviser.h"
 #include "mount/readdata_cache.h"
 #include "mount/tweaks.h"
+#include "protocol/MFSCommunication.h"
 
 #define USECTICK 333333
 #define REFRESHTICKS 15

@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -22,10 +22,10 @@
 #include <errno.h>
 #include <algorithm>
 
+#include "common/exceptions.h"
 #include "common/mfserr.h"
 #include "common/sockets.h"
 #include "common/time_utils.h"
-#include "mount/exceptions.h"
 
 static int64_t timeoutTime(int64_t rtt, uint8_t tryCounter) {
 	return rtt * (1 << (tryCounter / 2)) * 3 / (tryCounter % 2 == 0 ? 3 : 2);

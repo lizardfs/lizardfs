@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2017 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -27,9 +27,9 @@
 #include <vector>
 
 #include "common/chunk_type_with_address.h"
+#include "common/write_executor.h"
 #include "mount/chunk_locator.h"
 #include "mount/write_cache_block.h"
-#include "mount/write_executor.h"
 
 class ChunkserverStats;
 class ChunkConnector;
