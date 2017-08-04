@@ -1170,9 +1170,23 @@ void matoclserv_cserv_list(matoclserventry *eptr, const uint8_t */*data*/, uint3
 	}
 }
 
-void matoclserv_liz_cserv_list(matoclserventry *eptr) {
+void matoclserv_liz_cserv_list(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	MessageBuffer buffer;
-	matocl::cservList::serialize(buffer, csdb_chunkserver_list());
+	PacketVersion version;
+	bool dummy;
+
+	deserializePacketVersionNoHeader(data, length, version);
+	if (version == cltoma::cservList::kStandard) {
+		matocl::cservList::serialize(buffer, csdb_chunkserver_list());
+	} else if (version == cltoma::cservList::kWithMessageId) {
+		uint32_t message_id;
+		cltoma::cservList::deserialize(data, length, message_id, dummy);
+		matocl::cservList::serialize(buffer, message_id, csdb_chunkserver_list());
+	} else {
+		lzfs_pretty_syslog(LOG_NOTICE,"LIZ_CSERV_LIST - wrong packet version %u", version);
+		eptr->mode = KILL;
+		return;
+	}
 	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
@@ -4622,7 +4636,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_cserv_list(eptr,data,length);
 					break;
 				case LIZ_CLTOMA_CSERV_LIST:
-					matoclserv_liz_cserv_list(eptr);
+					matoclserv_liz_cserv_list(eptr, data, length);
 					break;
 				case CLTOMA_SESSION_LIST:
 					matoclserv_session_list(eptr,data,length);
@@ -4954,6 +4968,9 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					break;
 				case LIZ_CLTOMA_WHOLE_PATH_LOOKUP:
 					matoclserv_liz_whole_path_lookup(eptr, data, length);
+					break;
+				case LIZ_CLTOMA_CSERV_LIST:
+					matoclserv_liz_cserv_list(eptr, data, length);
 					break;
 				default:
 					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);

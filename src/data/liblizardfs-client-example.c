@@ -15,9 +15,10 @@
 int main() {
 	int err;
 	liz_err_t liz_err = LIZARDFS_STATUS_OK;
-	int r;
+	int i, r;
 	liz_t *liz;
 	liz_context_t *ctx;
+	liz_chunkserver_info_t servers[65536];
 	struct liz_fileinfo *fi;
 	struct liz_entry entry, entry2;
 	char buf[1024] = {0};
@@ -61,10 +62,23 @@ int main() {
 		liz_err = liz_last_err();
 		goto release_fileinfo;
 	}
-	printf("Read %.3s from inode %lld\n", buf, entry.ino);
+	printf("Read %.3s from inode %u\n", buf, entry.ino);
+
+	uint32_t reply_size;
+	r = liz_get_chunkservers_info(liz, servers, 65536, &reply_size);
+	if (r < 0) {
+		fprintf(stderr, "Chunkserver info failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	for (i = 0; i < reply_size; ++i) {
+		printf("* Chunkserver %u:%u with label %s\n",
+	               servers[i].ip, servers[i].port, servers[i].label);
+	}
+	liz_destroy_chunkservers_info(servers);
 
 release_fileinfo:
-	liz_release(liz, ctx, fi);
+	liz_release(liz, fi);
 destroy_connection:
 	liz_destroy(liz);
 destroy_context:

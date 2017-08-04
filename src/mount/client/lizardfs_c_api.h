@@ -179,6 +179,17 @@ typedef struct liz_chunk_info {
 	liz_chunk_part_info_t *parts;
 } liz_chunk_info_t;
 
+typedef struct liz_chunkserver_info {
+	uint32_t version;
+	uint32_t ip;
+	uint16_t port;
+	uint64_t used_space;
+	uint64_t total_space;
+	uint32_t chunks_count;
+	uint32_t error_counter;
+	char *label;
+} liz_chunkserver_info_t;
+
 /*!
  * \brief Create a context for LizardFS operations
  *  Flavor 1: create default context with current uid/gid/pid
@@ -622,6 +633,22 @@ int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
  * \param buffer buffer used in a successful liz_get_chunks_info call
  */
 void liz_destroy_chunks_info(liz_chunk_info_t *buffer);
+
+/*! \brief Gather information on chunkservers present in the cluster
+ * \param instance instance returned from liz_init
+ * \param servers buffer to be filled with server info
+ * \param size buffer size in the number of elements
+ * \param reply_size number of server entries returned from master
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ * \post retrieved chunkservers information should be freed with liz_destroy_chunkservers_info call
+ */
+int liz_get_chunkservers_info(liz_t *instance, liz_chunkserver_info_t *servers, uint32_t size,
+	                 uint32_t *reply_size);
+
+/*! \brief Free data allocated in liz_get_chunkservers_info
+ * \param buffer buffer used in a successful liz_get_chunkservers_info call
+ */
+void liz_destroy_chunkservers_info(liz_chunkserver_info_t *buffer);
 
 #ifdef __cplusplus
 } // extern "C"

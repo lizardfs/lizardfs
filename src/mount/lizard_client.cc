@@ -2992,6 +2992,14 @@ std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode in
 	return chunks;
 }
 
+std::vector<ChunkserverListEntry> getchunkservers() {
+	std::vector<ChunkserverListEntry> chunkservers;
+	uint8_t status = fs_getchunkservers(chunkservers);
+	if (status != LIZARDFS_STATUS_OK) {
+		throw RequestException(status);
+	}
+	return chunkservers;
+}
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,

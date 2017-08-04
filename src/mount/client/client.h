@@ -224,6 +224,9 @@ public:
 	std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
 	                                      uint32_t chunk_index, uint32_t chunk_count,
 	                                      std::error_code &ec);
+
+	std::vector<ChunkserverListEntry> getchunkservers();
+	std::vector<ChunkserverListEntry> getchunkservers(std::error_code &ec);
 protected:
 	/*! \brief Initialize client with parameters */
 	void init(FsInitParams &params);
@@ -268,6 +271,7 @@ protected:
 	typedef decltype(&lizardfs_listxattr) ListXattrFunction;
 	typedef decltype(&lizardfs_removexattr) RemoveXattrFunction;
 	typedef decltype(&lizardfs_getchunksinfo) GetChunksInfoFunction;
+	typedef decltype(&lizardfs_getchunkservers) GetChunkserversFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -307,6 +311,7 @@ protected:
 	ListXattrFunction lizardfs_listxattr_;
 	RemoveXattrFunction lizardfs_removexattr_;
 	GetChunksInfoFunction lizardfs_getchunksinfo_;
+	GetChunkserversFunction lizardfs_getchunkservers_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

@@ -34,6 +34,7 @@
 #include "mount/lizard_client_context.h"
 #include "mount/readdata_cache.h"
 #include "mount/stat_defs.h"
+#include "protocol/chunkserver_list_entry.h"
 #include "protocol/lock_info.h"
 #include "protocol/named_inode_entry.h"
 
@@ -399,6 +400,8 @@ void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, ui
 
 std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
 	                                                uint32_t chunk_index, uint32_t chunk_count);
+
+std::vector<ChunkserverListEntry> getchunkservers();
 
 void fs_init(FsInitParams &params);
 void fs_term();

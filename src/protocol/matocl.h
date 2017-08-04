@@ -217,8 +217,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		ChunksReplicationState, replication)
 
 // LIZ_MATOCL_CSERV_LIST
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, cservList, kStandard, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, cservList, kWithMessageId, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, cservList, LIZ_MATOCL_CSERV_LIST, 0,
+		matocl, cservList, LIZ_MATOCL_CSERV_LIST, kStandard,
+		std::vector<ChunkserverListEntry>, cservList)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, cservList, LIZ_MATOCL_CSERV_LIST, kWithMessageId,
+		uint32_t, message_id,
 		std::vector<ChunkserverListEntry>, cservList)
 
 // LIZ_MATOCL_METADATASERVERS_LIST

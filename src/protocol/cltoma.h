@@ -180,8 +180,14 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		bool, regularChunksOnly)
 
 // LIZ_CLTOMA_CSERV_LIST
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, cservList, kStandard, 0)
+LIZARDFS_DEFINE_PACKET_VERSION(cltoma, cservList, kWithMessageId, 1)
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		cltoma, cservList, LIZ_CLTOMA_CSERV_LIST, 0,
+		cltoma, cservList, LIZ_CLTOMA_CSERV_LIST, kStandard,
+		bool, dummy)
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		cltoma, cservList, LIZ_CLTOMA_CSERV_LIST, kWithMessageId,
+		uint32_t, message_id,
 		bool, dummy)
 
 // LIZ_CLTOMA_CHUNK_INFO

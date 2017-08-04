@@ -413,6 +413,16 @@ std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(cons
 	}
 }
 
+std::pair<int, std::vector<ChunkserverListEntry>> lizardfs_getchunkservers() {
+	try {
+		auto chunkservers = LizardClient::getchunkservers();
+		return {LIZARDFS_STATUS_OK, chunkservers};
+	} catch (const RequestException &e) {
+		return {e.lizardfs_error_code, std::vector<ChunkserverListEntry>()};
+	} catch (...) {
+		return {LIZARDFS_ERROR_IO, std::vector<ChunkserverListEntry>()};
+	}
+}
 
 int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
 	              size_t size, LizardClient::XattrReply &xattr_reply) {

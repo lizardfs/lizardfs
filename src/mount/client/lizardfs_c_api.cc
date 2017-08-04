@@ -824,6 +824,59 @@ int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	return 0;
 }
 
+int liz_get_chunkservers_info(liz_t *instance, liz_chunkserver_info_t *servers, uint32_t size,
+	                 uint32_t *reply_size) {
+	Client &client = *(Client *)instance;
+	std::error_code ec;
+
+	if (size > 0) {
+		servers->label = nullptr;
+	} else {
+		gLastErrorCode = LIZARDFS_ERROR_EINVAL;
+		return -1;
+	}
+
+	std::vector<ChunkserverListEntry> entries = client.getchunkservers(ec);
+	gLastErrorCode = ec.value();
+	if (ec) {
+		return -1;
+	}
+	*reply_size = entries.size();
+	if (entries.size() > size) {
+		gLastErrorCode = LIZARDFS_ERROR_WRONGSIZE;
+		return -1;
+	}
+	size_t total_str_size = 0;
+	for (const ChunkserverListEntry &entry : entries) {
+		total_str_size += entry.label.size() + 1;
+	}
+
+	char *str_buf = (char *)malloc(total_str_size);
+	if (str_buf == nullptr) {
+		gLastErrorCode = LIZARDFS_ERROR_OUTOFMEMORY;
+		return -1;
+	}
+	for (const ChunkserverListEntry &entry : entries) {
+		servers->version = entry.version;
+		servers->ip = entry.servip;
+		servers->port = entry.servport;
+		servers->used_space = entry.usedspace;
+		servers->total_space = entry.totalspace;
+		servers->error_counter = entry.errorcounter;
+		servers->label = strcpy(str_buf, entry.label.c_str());
+		str_buf += entry.label.size() + 1;
+		servers++;
+	}
+	gLastErrorCode = LIZARDFS_STATUS_OK;
+	return 0;
+}
+
+void liz_destroy_chunkservers_info(liz_chunkserver_info_t *servers) {
+	if (servers) {
+		free(servers->label);
+	}
+}
+
 void liz_destroy_chunks_info(liz_chunk_info_t *buffer) {
 	if (buffer && buffer->parts) {
 		std::free(buffer->parts);

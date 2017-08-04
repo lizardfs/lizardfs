@@ -3073,3 +3073,22 @@ uint8_t fs_getchunksinfo(uint32_t uid, uint32_t gid, uint32_t inode, uint32_t ch
 		return LIZARDFS_ERROR_IO;
 	}
 }
+
+uint8_t fs_getchunkservers(std::vector<ChunkserverListEntry> &chunkservers) {
+	threc *rec = fs_get_my_threc();
+	uint32_t message_id;
+
+	auto message = cltoma::cservList::build(rec->packetId, true);
+
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_CSERV_LIST, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+
+	chunkservers.clear();
+	matocl::cservList::deserialize(message, message_id, chunkservers);
+	return LIZARDFS_STATUS_OK;
+}
