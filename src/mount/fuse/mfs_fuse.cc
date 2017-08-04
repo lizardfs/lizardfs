@@ -66,13 +66,13 @@ void getBsdGroups(LizardClient::Context &ctx) {
 #if defined(__APPLE__)
 		ctx.gids.resize(kinfo.kp_eproc.e_ucred.cr_ngroups + 1);
 		ctx.gids[0] = ctx.gid;
-		for (size_t i = 0; i < kinfo.kp_eproc.e_ucred.cr_ngroups; ++i) {
+		for (int i = 0; i < kinfo.kp_eproc.e_ucred.cr_ngroups; ++i) {
 			ctx.gids[i + 1] = kinfo.kp_eproc.e_ucred.cr_groups[i];
 		}
 #else
 		ctx.gids.resize(kinfo.ki_ngroups + 1);
 		ctx.gids[0] = ctx.gid;
-		for (size_t i = 0; i < kinfo.ki_ngroups; ++i) {
+		for (int i = 0; i < kinfo.ki_ngroups; ++i) {
 			ctx.gids[i + 1] = kinfo.ki_groups[i];
 		}
 #endif

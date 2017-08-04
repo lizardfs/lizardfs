@@ -67,6 +67,10 @@
 #include "protocol/MFSCommunication.h"
 #include "protocol/matocl.h"
 
+#ifdef __APPLE__
+#include "mount/osx_acl_converter.h"
+#endif
+
 #include "mount/stat_defs.h" // !!! This must be last include. Do not move !!!
 
 namespace LizardClient {
@@ -2524,12 +2528,83 @@ private:
 	SteadyClock clock_;
 };
 
+#ifdef __APPLE__
+class OsxAclXattrHandler : public XattrHandler {
+public:
+	OsxAclXattrHandler() {}
+
+	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, const char *value, size_t size, int) override {
+		static constexpr size_t kEmptyAclSize = 4;
+		if (size <= kEmptyAclSize) {
+			return LIZARDFS_ERROR_EINVAL;
+		}
+		RichACL result;
+		try {
+			AclCacheEntry cache_entry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid);
+			result = osxAclConverter::extractAclObject((const uint8_t*)value, size);
+		} catch (RequestException &e) {
+			return e.lizardfs_error_code;
+		} catch (Exception&) {
+			return LIZARDFS_ERROR_EINVAL;
+		}
+		uint8_t status = LIZARDFS_STATUS_OK;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_setacl(ino, ctx.uid, ctx.gid, result));
+		eraseAclCache(ino);
+		gDirEntryCache.lockAndInvalidateInode(ino);
+		return status;
+	}
+
+	uint8_t getxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) override {
+		try {
+			auto ts = clock_.now();
+			AclCacheEntry cache_entry = acl_cache->get(ts, ino, ctx.uid, ctx.gid);
+			if (cache_entry) {
+				value = osxAclConverter::objectToOsxXattr(cache_entry->acl);
+				valueLength = value.size();
+				return LIZARDFS_STATUS_OK;
+			} else {
+				return LIZARDFS_ERROR_ENOATTR;
+			}
+		} catch (AclAcquisitionException& e) {
+			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
+			return e.status();
+		} catch (RequestException &e) {
+			return e.lizardfs_error_code;
+		} catch (Exception&) {
+			lzfs_pretty_syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			return LIZARDFS_ERROR_IO;
+		}
+		valueLength = 0;
+	}
+
+	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
+			uint32_t) override {
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_deletacl(ino, ctx.uid, ctx.gid, AclType::kRichACL));
+		eraseAclCache(ino);
+		return status;
+	}
+
+private:
+	SteadyClock clock_;
+};
+
+#endif
+
 } // anonymous namespace
 
 static PosixAclXattrHandler accessAclXattrHandler(AclType::kAccess);
 static PosixAclXattrHandler defaultAclXattrHandler(AclType::kDefault);
 static NFSAclXattrHandler nfsAclXattrHandler;
 static RichAclXattrHandler richAclXattrHandler;
+#ifdef __APPLE__
+static OsxAclXattrHandler osxAclXattrHandler;
+#endif
+
 static ErrorXattrHandler enotsupXattrHandler(LIZARDFS_ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 
@@ -2539,6 +2614,9 @@ static std::map<std::string, XattrHandler*> xattr_handlers = {
 	{"system.nfs4_acl", &nfsAclXattrHandler},
 	{"system.richacl", &richAclXattrHandler},
 	{"security.capability", &enotsupXattrHandler},
+#ifdef __APPLE__
+	{"com.apple.system.Security", &osxAclXattrHandler},
+#endif
 };
 
 static XattrHandler* choose_xattr_handler(const char *name) {
