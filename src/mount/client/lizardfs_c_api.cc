@@ -786,7 +786,7 @@ int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	std::size_t strings_size = 0;
 	std::size_t parts_table_size = 0;
 	for(const auto &chunk : chunks) {
-		parts_table_size = chunk.chunk_parts.size() * sizeof(liz_chunk_part_info_t);
+		parts_table_size += chunk.chunk_parts.size() * sizeof(liz_chunk_part_info_t);
 		for(const auto &part : chunk.chunk_parts) {
 			strings_size += part.label.size() + 1;
 		}
