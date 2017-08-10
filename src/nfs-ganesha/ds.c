@@ -28,6 +28,24 @@
 #include "context_wrap.h"
 #include "lzfs_internal.h"
 
+static void lzfs_int_clear_fileinfo_cache(struct lzfs_fsal_export *lzfs_export, int count) {
+	assert(lzfs_export->fileinfo_cache);
+
+	for (int i = 0; i < count; ++i) {
+		liz_fileinfo_entry_t *cache_handle;
+		liz_fileinfo_t *file_handle;
+
+		cache_handle = liz_fileinfo_cache_pop_expired(lzfs_export->fileinfo_cache);
+		if (cache_handle == NULL) {
+			break;
+		}
+
+		file_handle = liz_extract_fileinfo(cache_handle);
+		liz_release(lzfs_export->lzfs_instance, file_handle);
+		liz_fileinfo_entry_free(cache_handle);
+	}
+}
+
 /*! \brief Clean up a DS handle
  *
  * \see fsal_api.h for more information
@@ -39,25 +57,46 @@ static void lzfs_fsal_ds_handle_release(struct fsal_ds_handle *const ds_pub) {
 	lzfs_export = container_of(ds_pub->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_pub, struct lzfs_fsal_ds_handle, ds);
 
-	if (lzfs_ds->file_handle != NULL) {
-		liz_release(lzfs_export->lzfs_instance, lzfs_ds->file_handle);
+	assert(lzfs_export->fileinfo_cache);
+
+	if (lzfs_ds->cache_handle != NULL) {
+		liz_fileinfo_cache_release(lzfs_export->fileinfo_cache, lzfs_ds->cache_handle);
 	}
 
 	fsal_ds_handle_fini(&lzfs_ds->ds);
 	gsh_free(lzfs_ds);
+
+	lzfs_int_clear_fileinfo_cache(lzfs_export, 5);
 }
 
 static nfsstat4 lzfs_int_openfile(struct lzfs_fsal_export *lzfs_export,
                                   struct lzfs_fsal_ds_handle *lzfs_ds) {
-	if (lzfs_ds->file_handle != NULL) {
+	assert(lzfs_export->fileinfo_cache);
+
+	if (lzfs_ds->cache_handle != NULL) {
 		return NFS4_OK;
 	}
 
-	lzfs_ds->file_handle = liz_cred_open(lzfs_export->lzfs_instance, NULL, lzfs_ds->inode, O_RDWR);
+	lzfs_int_clear_fileinfo_cache(lzfs_export, 2);
 
-	if (!lzfs_ds->file_handle) {
+	lzfs_ds->cache_handle = liz_fileinfo_cache_acquire(lzfs_export->fileinfo_cache, lzfs_ds->inode);
+	if (lzfs_ds->cache_handle == NULL) {
 		return NFS4ERR_IO;
 	}
+
+	liz_fileinfo_t *file_handle = liz_extract_fileinfo(lzfs_ds->cache_handle);
+	if (file_handle != NULL) {
+		return NFS4_OK;
+	}
+
+	file_handle = liz_cred_open(lzfs_export->lzfs_instance, NULL, lzfs_ds->inode, O_RDWR);
+	if (file_handle == NULL) {
+		liz_fileinfo_cache_erase(lzfs_export->fileinfo_cache, lzfs_ds->cache_handle);
+		lzfs_ds->cache_handle = NULL;
+		return NFS4ERR_IO;
+	}
+
+	liz_attach_fileinfo(lzfs_ds->cache_handle, file_handle);
 
 	return NFS4_OK;
 }
@@ -73,6 +112,7 @@ static nfsstat4 lzfs_fsal_ds_handle_read(struct fsal_ds_handle *const ds_hdl,
                                          count4 *const supplied_length, bool *const end_of_file) {
 	struct lzfs_fsal_export *lzfs_export;
 	struct lzfs_fsal_ds_handle *lzfs_ds;
+	liz_fileinfo_t *file_handle;
 	ssize_t nb_read;
 	nfsstat4 nfs_status;
 
@@ -84,8 +124,9 @@ static nfsstat4 lzfs_fsal_ds_handle_read(struct fsal_ds_handle *const ds_hdl,
 		return nfs_status;
 	}
 
-	nb_read = liz_cred_read(lzfs_export->lzfs_instance, NULL, lzfs_ds->file_handle, offset,
-	                        requested_length, buffer);
+	file_handle = liz_extract_fileinfo(lzfs_ds->cache_handle);
+	nb_read = liz_cred_read(lzfs_export->lzfs_instance, NULL, file_handle, offset, requested_length,
+	                        buffer);
 
 	if (nb_read < 0) {
 		return lzfs_nfs4_last_err();
@@ -110,6 +151,7 @@ static nfsstat4 lzfs_fsal_ds_handle_write(struct fsal_ds_handle *const ds_hdl,
                                           stable_how4 *const stability_got) {
 	struct lzfs_fsal_export *lzfs_export;
 	struct lzfs_fsal_ds_handle *lzfs_ds;
+	liz_fileinfo_t *file_handle;
 	ssize_t nb_write;
 	nfsstat4 nfs_status;
 
@@ -121,8 +163,9 @@ static nfsstat4 lzfs_fsal_ds_handle_write(struct fsal_ds_handle *const ds_hdl,
 		return nfs_status;
 	}
 
-	nb_write = liz_cred_write(lzfs_export->lzfs_instance, NULL, lzfs_ds->file_handle, offset,
-	                          write_length, buffer);
+	file_handle = liz_extract_fileinfo(lzfs_ds->cache_handle);
+	nb_write =
+	    liz_cred_write(lzfs_export->lzfs_instance, NULL, file_handle, offset, write_length, buffer);
 
 	if (nb_write < 0) {
 		return lzfs_nfs4_last_err();

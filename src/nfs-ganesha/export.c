@@ -36,11 +36,32 @@ static void lzfs_fsal_release(struct fsal_export *export_hdl) {
 	lzfs_export = container_of(export_hdl, struct lzfs_fsal_export, export);
 
 	lzfs_fsal_delete_handle(lzfs_export->root);
+	lzfs_export->root = NULL;
 
 	fsal_detach_export(lzfs_export->export.fsal, &lzfs_export->export.exports);
 	free_export_ops(&lzfs_export->export);
 
+	if (lzfs_export->fileinfo_cache) {
+		liz_reset_fileinfo_cache_params(lzfs_export->fileinfo_cache, 0, 0);
+
+		while (1) {
+			liz_fileinfo_entry_t *cache_handle;
+			liz_fileinfo_t *file_handle;
+			cache_handle = liz_fileinfo_cache_pop_expired(lzfs_export->fileinfo_cache);
+			if (!cache_handle) {
+				break;
+			}
+			file_handle = liz_extract_fileinfo(cache_handle);
+			liz_release(lzfs_export->lzfs_instance, file_handle);
+			liz_fileinfo_entry_free(cache_handle);
+		}
+
+		liz_destroy_fileinfo_cache(lzfs_export->fileinfo_cache);
+		lzfs_export->fileinfo_cache = NULL;
+	}
+
 	liz_destroy(lzfs_export->lzfs_instance);
+	lzfs_export->lzfs_instance = NULL;
 	gsh_free(lzfs_export);
 }
 

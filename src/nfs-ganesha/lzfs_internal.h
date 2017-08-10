@@ -19,6 +19,7 @@
 #include "fsal_api.h"
 #include "FSAL/fsal_commonlib.h"
 
+#include "fileinfo_cache.h"
 #include "mount/client/lizardfs_c_api.h"
 
 #define LIZARDFS_VERSION(major, minor, micro) (0x010000 * major + 0x0100 * minor + micro)
@@ -37,10 +38,14 @@ struct lzfs_fsal_export {
 	liz_t *lzfs_instance;
 	struct lzfs_fsal_handle *root; /*< The root handle */
 
+	liz_fileinfo_cache_t *fileinfo_cache;
+
 	char *lzfs_hostname;
 	char *lzfs_port;
 	bool pnfs_mds_enabled;
 	bool pnfs_ds_enabled;
+	uint32_t fileinfo_cache_timeout;
+	uint32_t fileinfo_cache_max_size;
 };
 
 struct lzfs_fsal_fd {
@@ -68,7 +73,7 @@ struct lzfs_fsal_ds_wire {
 struct lzfs_fsal_ds_handle {
 	struct fsal_ds_handle ds;
 	uint32_t inode;
-	liz_fileinfo_t *file_handle;
+	liz_fileinfo_entry_t *cache_handle;
 };
 
 #define LZFS_LEASE_TIME 10

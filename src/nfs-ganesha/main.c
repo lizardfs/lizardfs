@@ -89,7 +89,11 @@ static struct config_block lzfs_fsal_param_block = {
 static struct config_item lzfs_fsal_export_params[] = {
     CONF_ITEM_NOOP("name"),
     CONF_MAND_STR("hostname", 1, MAXPATHLEN, NULL, lzfs_fsal_export, lzfs_hostname),
-    CONF_ITEM_STR("port", 1, MAXPATHLEN, "9421", lzfs_fsal_export, lzfs_port), CONFIG_EOL};
+    CONF_ITEM_STR("port", 1, MAXPATHLEN, "9421", lzfs_fsal_export, lzfs_port),
+    CONF_ITEM_UI32("fileinfo_cache_timeout", 1, 3600, 60, lzfs_fsal_export, fileinfo_cache_timeout),
+    CONF_ITEM_UI32("fileinfo_cache_max_size", 100, 1000000, 1000, lzfs_fsal_export,
+                   fileinfo_cache_max_size),
+    CONFIG_EOL};
 
 static struct config_block lzfs_fsal_export_param_block = {
     .dbus_interface_name = "org.ganesha.nfsd.config.fsal.lizardfs-export%d",
@@ -130,9 +134,10 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	// connect to LizardFS
-	lzfs_export->lzfs_instance =
-	    liz_init(lzfs_export->lzfs_hostname, lzfs_export->lzfs_port, op_ctx->ctx_export->fullpath);
+	liz_init_params_t params;
+	liz_set_default_init_params(&params, lzfs_export->lzfs_hostname, lzfs_export->lzfs_port,
+	                            op_ctx->ctx_export->fullpath);
+	lzfs_export->lzfs_instance = liz_init_with_params(&params);
 
 	if (lzfs_export->lzfs_instance == NULL) {
 		LogCrit(COMPONENT_FSAL, "Unable to mount LizardFS cluster for %s.",
@@ -153,6 +158,15 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 	lzfs_export->pnfs_ds_enabled =
 	    lzfs_export->export.exp_ops.fs_supports(&lzfs_export->export, fso_pnfs_ds_supported);
 	if (lzfs_export->pnfs_ds_enabled) {
+		lzfs_export->fileinfo_cache = liz_create_fileinfo_cache(
+		    lzfs_export->fileinfo_cache_max_size, lzfs_export->fileinfo_cache_timeout * 1000);
+		if (lzfs_export->fileinfo_cache == NULL) {
+			LogCrit(COMPONENT_FSAL, "Unable to create fileinfo cache for %s.",
+			        op_ctx->ctx_export->fullpath);
+			status = fsalstat(ERR_FSAL_SERVERFAULT, 0);
+			goto error;
+		}
+
 		struct fsal_pnfs_ds *pds = NULL;
 
 		status = fsal_hdl->m_ops.fsal_pnfs_ds(fsal_hdl, parse_node, &pds);
@@ -199,6 +213,9 @@ error:
 	if (lzfs_export) {
 		if (lzfs_export->lzfs_instance) {
 			liz_destroy(lzfs_export->lzfs_instance);
+		}
+		if (lzfs_export->fileinfo_cache) {
+			liz_destroy_fileinfo_cache(lzfs_export->fileinfo_cache);
 		}
 		gsh_free(lzfs_export);
 	}
