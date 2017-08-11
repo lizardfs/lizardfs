@@ -40,12 +40,11 @@ struct lzfs_fsal_export {
 
 	liz_fileinfo_cache_t *fileinfo_cache;
 
-	char *lzfs_hostname;
-	char *lzfs_port;
 	bool pnfs_mds_enabled;
 	bool pnfs_ds_enabled;
 	uint32_t fileinfo_cache_timeout;
 	uint32_t fileinfo_cache_max_size;
+	liz_init_params_t lzfs_params;
 };
 
 struct lzfs_fsal_fd {

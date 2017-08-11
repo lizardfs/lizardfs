@@ -88,11 +88,48 @@ static struct config_block lzfs_fsal_param_block = {
 
 static struct config_item lzfs_fsal_export_params[] = {
     CONF_ITEM_NOOP("name"),
-    CONF_MAND_STR("hostname", 1, MAXPATHLEN, NULL, lzfs_fsal_export, lzfs_hostname),
-    CONF_ITEM_STR("port", 1, MAXPATHLEN, "9421", lzfs_fsal_export, lzfs_port),
+    CONF_MAND_STR("hostname", 1, MAXPATHLEN, NULL, lzfs_fsal_export, lzfs_params.host),
+    CONF_ITEM_STR("port", 1, MAXPATHLEN, "9421", lzfs_fsal_export, lzfs_params.port),
+    CONF_ITEM_STR("mountpoint", 1, MAXPATHLEN, "nfs-ganesha", lzfs_fsal_export,
+                  lzfs_params.mountpoint),
+    CONF_ITEM_STR("subfolder", 1, MAXPATHLEN, "/", lzfs_fsal_export, lzfs_params.subfolder),
+
+    CONF_ITEM_BOOL("delayed_init", false, lzfs_fsal_export, lzfs_params.delayed_init),
+
+    CONF_ITEM_UI32("io_retries", 0, 1024, 30, lzfs_fsal_export, lzfs_params.io_retries),
+    CONF_ITEM_UI32("chunkserver_round_time_ms", 0, 65536, 200, lzfs_fsal_export,
+                   lzfs_params.chunkserver_round_time_ms),
+    CONF_ITEM_UI32("chunkserver_connect_timeout_ms", 0, 65536, 2000, lzfs_fsal_export,
+                   lzfs_params.chunkserver_connect_timeout_ms),
+    CONF_ITEM_UI32("chunkserver_wave_read_timeout_ms", 0, 65536, 500, lzfs_fsal_export,
+                   lzfs_params.chunkserver_wave_read_timeout_ms),
+    CONF_ITEM_UI32("total_read_timeout_ms", 0, 65536, 2000, lzfs_fsal_export,
+                   lzfs_params.total_read_timeout_ms),
+    CONF_ITEM_UI32("cache_expiration_time_ms", 0, 65536, 1000, lzfs_fsal_export,
+                   lzfs_params.cache_expiration_time_ms),
+    CONF_ITEM_UI32("readahead_max_window_size_kB", 0, 65536, 16384, lzfs_fsal_export,
+                   lzfs_params.readahead_max_window_size_kB),
+
+    CONF_ITEM_UI32("write_cache_size", 0, 1024, 64, lzfs_fsal_export, lzfs_params.write_cache_size),
+    CONF_ITEM_UI32("write_workers", 0, 32, 10, lzfs_fsal_export, lzfs_params.write_workers),
+    CONF_ITEM_UI32("write_window_size", 0, 256, 32, lzfs_fsal_export,
+                   lzfs_params.write_window_size),
+    CONF_ITEM_UI32("chunkserver_write_timeout_ms", 0, 60000, 5000, lzfs_fsal_export,
+                   lzfs_params.chunkserver_write_timeout_ms),
+    CONF_ITEM_UI32("cache_per_inode_percentage", 0, 80, 25, lzfs_fsal_export,
+                   lzfs_params.cache_per_inode_percentage),
+    CONF_ITEM_UI32("symlink_cache_timeout_s", 0, 60000, 3600, lzfs_fsal_export,
+                   lzfs_params.symlink_cache_timeout_s),
+
+    CONF_ITEM_BOOL("debug_mode", false, lzfs_fsal_export, lzfs_params.debug_mode),
+    CONF_ITEM_I32("keep_cache", 0, 2, 0, lzfs_fsal_export, lzfs_params.keep_cache),
+    CONF_ITEM_BOOL("verbose", false, lzfs_fsal_export, lzfs_params.verbose),
+
     CONF_ITEM_UI32("fileinfo_cache_timeout", 1, 3600, 60, lzfs_fsal_export, fileinfo_cache_timeout),
     CONF_ITEM_UI32("fileinfo_cache_max_size", 100, 1000000, 1000, lzfs_fsal_export,
                    fileinfo_cache_max_size),
+    CONF_ITEM_STR("password", 1, 128, NULL, lzfs_fsal_export, lzfs_params.password),
+    CONF_ITEM_STR("md5_pass", 32, 32, NULL, lzfs_fsal_export, lzfs_params.md5_pass),
     CONFIG_EOL};
 
 static struct config_block lzfs_fsal_export_param_block = {
@@ -116,6 +153,7 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 	lzfs_fsal_export_ops_init(&lzfs_export->export.exp_ops);
 
 	// parse params for this export
+	liz_set_default_init_params(&lzfs_export->lzfs_params, "", "", "");
 	if (parse_node) {
 		rc = load_config_from_node(parse_node, &lzfs_fsal_export_param_block, lzfs_export, true,
 		                           err_type);
@@ -134,10 +172,7 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 		return fsalstat(ERR_FSAL_INVAL, 0);
 	}
 
-	liz_init_params_t params;
-	liz_set_default_init_params(&params, lzfs_export->lzfs_hostname, lzfs_export->lzfs_port,
-	                            op_ctx->ctx_export->fullpath);
-	lzfs_export->lzfs_instance = liz_init_with_params(&params);
+	lzfs_export->lzfs_instance = liz_init_with_params(&lzfs_export->lzfs_params);
 
 	if (lzfs_export->lzfs_instance == NULL) {
 		LogCrit(COMPONENT_FSAL, "Unable to mount LizardFS cluster for %s.",
