@@ -72,6 +72,12 @@ Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: LizardFS client C/C++ library
  LizardFS client library for C/C++ bindings.
 
+Package: lizardfs-nfs-ganesha
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-lib-client
+Description: LizardFS plugin for nfs-ganesha
+ LizardFS fsal plugin for nfs-ganesha.
+
 Package: lizardfs-adm
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}

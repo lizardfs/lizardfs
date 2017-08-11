@@ -88,6 +88,14 @@ Group:          Development/Libraries
 %description lib-client
 LizardFS client library for C/C++ bindings.
 
+%package nfs-ganesha
+Summary:        LizardFS plugin for nfs-ganesha
+Group:          System Environment/Libraries
+Requires:       lizardfs-lib-client
+
+%description nfs-ganesha
+LizardFS fsal plugin for nfs-ganesha.
+
 %package cgi
 Summary:        LizardFS CGI Monitor
 Group:          System Environment/Daemons
@@ -439,6 +447,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/liblizardfs-client_pic.a
 %{_includedir}/lizardfs/lizardfs_c_api.h
 %{_includedir}/lizardfs/lizardfs_error_codes.h
+
+%files nfs-ganesha
+%{_libdir}/ganesha/libfsallizardfs.so
+%{_libdir}/ganesha/libfsallizardfs.so.4
+%{_libdir}/ganesha/libfsallizardfs.so.4.2.0
 
 %files cgi
 %defattr(644,root,root,755)
