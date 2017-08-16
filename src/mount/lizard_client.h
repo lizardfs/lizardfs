@@ -374,10 +374,6 @@ EntryParam create(const Context &ctx, Inode parent, const char *name,
 		mode_t mode, FileInfo* fi);
 
 void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
-void setlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock, int sleep);
-void flock_interrupt(uint32_t reqid);
-void setlk_interrupt(uint32_t reqid);
-void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
 uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
 void setlk_recv();
 uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op);

@@ -254,6 +254,26 @@ typedef struct liz_acl_ace {
 	uint32_t id;
 } liz_acl_ace_t;
 
+typedef struct liz_lock_info {
+	int16_t l_type;   // Type of lock: F_RDLCK, F_WRLCK, or F_UNLCK.
+	int64_t l_start;  // Offset where the lock begins.
+	int64_t l_len;    // Size of the locked area; zero means until EOF.
+	int32_t l_pid;    // Process holding the lock.
+} liz_lock_info_t;
+
+typedef struct liz_lock_interrupt_info {
+	uint64_t owner;
+	uint32_t ino;
+	uint32_t reqid;
+} liz_lock_interrupt_info_t;
+
+/*!
+ * \brief Function that registers lock interrupt data.
+ * \param info lock info to be remembered somewhere
+ * \param priv private data potentially needed by caller
+ */
+typedef int (*liz_lock_register_interrupt_t)(struct liz_lock_interrupt_info *info, void *priv);
+
 /*!
  * \brief Create a context for LizardFS operations
  *  Flavor 1: create default context with current uid/gid/pid
@@ -784,6 +804,35 @@ int liz_get_chunkservers_info(liz_t *instance, liz_chunkserver_info_t *servers, 
  */
 void liz_destroy_chunkservers_info(liz_chunkserver_info_t *buffer);
 
+/*! \brief Put a lock on a file (semantics based on POSIX setlk)
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param fileinfo descriptor of an open file
+ * \param lock lock information
+ * \param handler function used to register lock interrupt data, can be NULL
+ * \param priv private user data passed to handler
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ * \post interrupt data registered by handler can be later passed to liz_setlk_interrupt
+ *       in order to cancel a lock request
+ */
+int liz_setlk(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
+	      const liz_lock_info_t *lock, liz_lock_register_interrupt_t handler, void *priv);
+
+/*! \brief Get lock information from a file (semantics based on POSIX getlk)
+ * \param instance instance returned from liz_init
+ * \param ctx context returned from liz_create_context
+ * \param fileinfo descriptor of an open file
+ * \param lock lock buffer to be filled with lock information
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_getlk(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo, liz_lock_info_t *lock);
+
+/*! \brief Cancel a lock request
+ * \param instance instance returned from liz_init
+ * \param interrupt_info interrupt data saved by a function passed to setlk
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_setlk_interrupt(liz_t *instance, const liz_lock_interrupt_info_t *interrupt_info);
 #ifdef __cplusplus
 } // extern "C"
 #endif

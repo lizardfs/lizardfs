@@ -50,6 +50,7 @@ public:
 	typedef ReadCache::Result ReadResult;
 	typedef std::vector<NamedInodeEntry> ReadReservedReply;
 	typedef std::vector<NamedInodeEntry> ReadTrashReply;
+	typedef lzfs_locks::FlockWrapper FlockWrapper;
 
 	struct Stats {
 		uint64_t total_space;
@@ -233,6 +234,18 @@ public:
 
 	std::vector<ChunkserverListEntry> getchunkservers();
 	std::vector<ChunkserverListEntry> getchunkservers(std::error_code &ec);
+
+	void getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock);
+	void getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	           std::error_code &ec);
+	void setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	               std::function<int(const lzfs_locks::InterruptData &)> handler);
+	void setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	               std::function<int(const lzfs_locks::InterruptData &)> handler,
+	               std::error_code &ec);
+	void setlk_interrupt(const lzfs_locks::InterruptData &data);
+	void setlk_interrupt(const lzfs_locks::InterruptData &data, std::error_code &ec);
+
 protected:
 	/*! \brief Initialize client with parameters */
 	void init(FsInitParams &params);
@@ -278,6 +291,10 @@ protected:
 	typedef decltype(&lizardfs_removexattr) RemoveXattrFunction;
 	typedef decltype(&lizardfs_getchunksinfo) GetChunksInfoFunction;
 	typedef decltype(&lizardfs_getchunkservers) GetChunkserversFunction;
+	typedef decltype(&lizardfs_getlk) GetlkFunction;
+	typedef decltype(&lizardfs_setlk_send) SetlkSendFunction;
+	typedef decltype(&lizardfs_setlk_recv) SetlkRecvFunction;
+	typedef decltype(&lizardfs_setlk_interrupt) SetlkInterruptFunction;
 
 	DisablePrintfFunction lzfs_disable_printf_;
 	FsInitFunction lizardfs_fs_init_;
@@ -318,6 +335,10 @@ protected:
 	RemoveXattrFunction lizardfs_removexattr_;
 	GetChunksInfoFunction lizardfs_getchunksinfo_;
 	GetChunkserversFunction lizardfs_getchunkservers_;
+	GetlkFunction lizardfs_getlk_;
+	SetlkSendFunction lizardfs_setlk_send_;
+	SetlkRecvFunction lizardfs_setlk_recv_;
+	SetlkInterruptFunction lizardfs_setlk_interrupt_;
 
 	void *dl_handle_;
 	FileInfoList fileinfos_;

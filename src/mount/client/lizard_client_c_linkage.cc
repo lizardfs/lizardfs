@@ -424,6 +424,53 @@ std::pair<int, std::vector<ChunkserverListEntry>> lizardfs_getchunkservers() {
 	}
 }
 
+
+int lizardfs_getlk(const LizardClient::Context &ctx, LizardClient::Inode ino,
+	           LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
+	try {
+		LizardClient::getlk(ctx, ino, fi, lock);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+std::pair<int, uint32_t> lizardfs_setlk_send(const LizardClient::Context &ctx, LizardClient::Inode ino,
+	                            LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
+	try {
+		uint32_t reqid = LizardClient::setlk_send(ctx, ino, fi, lock);
+		return {LIZARDFS_STATUS_OK, reqid};
+	} catch (const RequestException &e) {
+		return {e.lizardfs_error_code, 0};
+	} catch (...) {
+		return {LIZARDFS_ERROR_IO, 0};
+	}
+}
+
+int lizardfs_setlk_recv() {
+	try {
+		LizardClient::setlk_recv();
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+int lizardfs_setlk_interrupt(const lzfs_locks::InterruptData &data) {
+	try {
+		LizardClient::setlk_interrupt(data);
+		return LIZARDFS_STATUS_OK;
+	} catch (const RequestException &e) {
+		return e.lizardfs_error_code;
+	} catch (...) {
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
 int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
 	              size_t size, LizardClient::XattrReply &xattr_reply) {
 	try {

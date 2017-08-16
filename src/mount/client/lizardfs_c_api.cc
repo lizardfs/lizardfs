@@ -988,3 +988,73 @@ void liz_destroy_chunks_info(liz_chunk_info_t *buffer) {
 		std::free(buffer->parts);
 	}
 }
+
+int liz_setlk(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo,
+	      const liz_lock_info *lock, liz_lock_register_interrupt_t handler, void *priv) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	Client::FileInfo *fi = (Client::FileInfo *)fileinfo;
+	gLastErrorCode = 0;
+
+	lzfs_locks::FlockWrapper flock_wrapper;
+	flock_wrapper.l_type = lock->l_type;
+	flock_wrapper.l_start = lock->l_start;
+	flock_wrapper.l_len = lock->l_len;
+	flock_wrapper.l_pid = lock->l_pid;
+	std::error_code ec;
+	liz_lock_interrupt_info_t interrupt_info;
+	std::function<int(const lzfs_locks::InterruptData &)> lambda;
+	if (handler) {
+		lambda = [&handler, &interrupt_info, priv](const lzfs_locks::InterruptData &data) {
+			interrupt_info.owner = data.owner;
+			interrupt_info.ino = data.ino;
+			interrupt_info.reqid = data.reqid;
+			return handler(&interrupt_info, priv);
+		};
+	}
+	client.setlk(context, fi->inode, fi, flock_wrapper, lambda, ec);
+	gLastErrorCode = ec.value();
+	return ec ? -1 : 0;
+}
+
+int liz_getlk(liz_t *instance, liz_context_t *ctx, liz_fileinfo_t *fileinfo, liz_lock_info *lock) {
+	Client &client = *(Client *)instance;
+	Client::Context &context = *(Client::Context *)ctx;
+	Client::FileInfo *fi = (Client::FileInfo *)fileinfo;
+	gLastErrorCode = 0;
+
+	lzfs_locks::FlockWrapper flock_wrapper;
+	flock_wrapper.l_type = lock->l_type;
+	flock_wrapper.l_start = lock->l_start;
+	flock_wrapper.l_len = lock->l_len;
+	flock_wrapper.l_pid = lock->l_pid;
+	std::error_code ec;
+	client.getlk(context, fi->inode, fi, flock_wrapper, ec);
+	if (ec) {
+		gLastErrorCode = ec.value();
+		return -1;
+	}
+	lock->l_type = flock_wrapper.l_type;
+	lock->l_start = flock_wrapper.l_start;
+	lock->l_len = flock_wrapper.l_len;
+	lock->l_pid = flock_wrapper.l_pid;
+	return 0;
+}
+
+int liz_setlk_interrupt(liz_t *instance, const liz_lock_interrupt_info_t *interrupt_info) {
+	if (interrupt_info == nullptr) {
+		return 0;
+	}
+	Client &client = *(Client *)instance;
+	lzfs_locks::InterruptData interrupt_data;
+	interrupt_data.owner = interrupt_info->owner;
+	interrupt_data.ino = interrupt_info->ino;
+	interrupt_data.reqid = interrupt_info->reqid;
+	std::error_code ec;
+	client.setlk_interrupt(interrupt_data, ec);
+	if (ec) {
+		gLastErrorCode = ec.value();
+		return -1;
+	}
+	return 0;
+}

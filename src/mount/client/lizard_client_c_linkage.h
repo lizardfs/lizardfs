@@ -22,6 +22,7 @@
 
 #include <utility>
 #include "mount/lizard_client.h"
+#include "protocol/lock_info.h"
 
 /*
  * This file exists in order to provide unmangled names that can be easily
@@ -100,4 +101,12 @@ int lizardfs_removexattr(LizardClient::Context ctx, LizardClient::Inode ino, con
 std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const LizardClient::Context &ctx,
 	             LizardClient::Inode ino, uint32_t chunk_index, uint32_t chunk_count);
 std::pair<int,std::vector<ChunkserverListEntry>> lizardfs_getchunkservers();
+
+int lizardfs_getlk(const LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo *fi,
+	  lzfs_locks::FlockWrapper &lock);
+std::pair<int, uint32_t> lizardfs_setlk_send(const LizardClient::Context &ctx, LizardClient::Inode ino,
+	                            LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock);
+int lizardfs_setlk_recv();
+int lizardfs_setlk_interrupt(const lzfs_locks::InterruptData &data);
+
 } // extern "C"

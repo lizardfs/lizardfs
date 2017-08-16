@@ -13,6 +13,11 @@
 #include <lizardfs/lizardfs_c_api.h>
 #include <lizardfs/lizardfs_error_codes.h>
 
+/* Function that copies lizardfs lock interrupt data to provided buffer */
+int register_interrupt(liz_lock_interrupt_info_t *info, void *priv) {
+	memcpy(priv, info, sizeof(*info));
+}
+
 int main() {
 	int err;
 	liz_err_t liz_err = LIZARDFS_STATUS_OK;
@@ -21,8 +26,10 @@ int main() {
 	liz_context_t *ctx;
 	liz_init_params_t params;
 	liz_chunkserver_info_t servers[65536];
+	struct liz_lock_info lock_info;
 	struct liz_fileinfo *fi;
 	struct liz_entry entry, entry2;
+	struct liz_lock_interrupt_info lock_interrupt_info;
 	char buf[1024] = {0};
 
 	/* Create a connection */
@@ -132,6 +139,56 @@ int main() {
 	}
 	printf("[%d %lu] ACL extracted: %s\n", r, acl_reply_size, acl_buf);
 	liz_destroy_acl(acl);
+
+	lock_info.l_type = F_WRLCK;
+	lock_info.l_start = 0;
+	lock_info.l_len = 3;
+	lock_info.l_pid = 19;
+
+	r = liz_setlk(liz, ctx, fi, &lock_info, NULL, NULL);
+	if (r < 0) {
+		fprintf(stderr, "Setlk failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("Lock info 1: %d %ld %ld %d\n", lock_info.l_type, lock_info.l_start, lock_info.l_len, lock_info.l_pid);
+
+	r = liz_getlk(liz, ctx, fi, &lock_info);
+	if (r < 0) {
+		fprintf(stderr, "Getlk failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("Lock info 2: %d %ld %ld %d\n", lock_info.l_type, lock_info.l_start, lock_info.l_len, lock_info.l_pid);
+
+	lock_info.l_type = F_UNLCK;
+	lock_info.l_len = 1;
+	r = liz_setlk(liz, ctx, fi, &lock_info, NULL, NULL);
+	if (r < 0) {
+		fprintf(stderr, "Setlk failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	lock_info.l_type = F_WRLCK;
+	lock_info.l_len = 2;
+	r = liz_getlk(liz, ctx, fi, &lock_info);
+	if (r < 0) {
+		fprintf(stderr, "Getlk2 failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("Lock info 3: %d %ld %ld %d\n", lock_info.l_type, lock_info.l_start, lock_info.l_len, lock_info.l_pid);
+
+	lock_info.l_type = F_WRLCK;
+	lock_info.l_len = 3;
+	r = liz_setlk(liz, ctx, fi, &lock_info, &register_interrupt, &lock_interrupt_info);
+	if (r < 0) {
+		fprintf(stderr, "Setlk failed\n");
+		liz_err = liz_last_err();
+		goto release_fileinfo;
+	}
+	printf("Filled interrupt info: %lx %u %u\n", lock_interrupt_info.owner,
+	       lock_interrupt_info.ino, lock_interrupt_info.reqid);
 
 release_fileinfo:
 	liz_release(liz, fi);

@@ -141,6 +141,10 @@ void Client::init(FsInitParams &params) {
 		LIZARDFS_LINK_FUNCTION(lizardfs_removexattr);
 		LIZARDFS_LINK_FUNCTION(lizardfs_getchunksinfo);
 		LIZARDFS_LINK_FUNCTION(lizardfs_getchunkservers);
+		LIZARDFS_LINK_FUNCTION(lizardfs_getlk);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setlk_send);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setlk_recv);
+		LIZARDFS_LINK_FUNCTION(lizardfs_setlk_interrupt);
 	} catch (const std::runtime_error &e) {
 		dlclose(dl_handle_);
 		instance_count_--;
@@ -757,4 +761,61 @@ std::vector<ChunkserverListEntry> Client::getchunkservers(std::error_code &ec) {
 	auto ret = lizardfs_getchunkservers_();
 	ec = make_error_code(ret.first);
 	return ret.second;
+}
+
+
+void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock) {
+	std::error_code ec;
+	getlk(ctx, ino, fileinfo, lock, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+		std::error_code &ec) {
+	int ret = lizardfs_getlk_(ctx, ino, fileinfo, lock);
+	ec = make_error_code(ret);
+}
+
+void Client::setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	           std::function<int(const lzfs_locks::InterruptData &)> handler) {
+	std::error_code ec;
+	setlk(ctx, ino, fileinfo, lock, handler, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	                    std::function<int(const lzfs_locks::InterruptData &)> handler,
+	                    std::error_code &ec) {
+	auto ret = lizardfs_setlk_send_(ctx, ino, fileinfo, lock);
+	ec = make_error_code(ret.first);
+	if (ec) {
+		return;
+	}
+	lzfs_locks::InterruptData interrupt_data(fileinfo->lock_owner, ino, ret.second);
+	if (handler) {
+		int err = handler(interrupt_data);
+		if (err != LIZARDFS_STATUS_OK) {
+			ec = make_error_code(err);
+			return;
+		}
+	}
+	int err = lizardfs_setlk_recv_();
+	ec = make_error_code(err);
+}
+
+void Client::setlk_interrupt(const lzfs_locks::InterruptData &data) {
+	std::error_code ec;
+	setlk_interrupt(data, ec);
+	if (ec) {
+		throw std::system_error(ec);
+	}
+}
+
+void Client::setlk_interrupt(const lzfs_locks::InterruptData &data, std::error_code &ec) {
+	int ret = lizardfs_setlk_interrupt_(data);
+	ec = make_error_code(ret);
 }
