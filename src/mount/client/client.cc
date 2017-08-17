@@ -763,7 +763,6 @@ std::vector<ChunkserverListEntry> Client::getchunkservers(std::error_code &ec) {
 	return ret.second;
 }
 
-
 void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock) {
 	std::error_code ec;
 	getlk(ctx, ino, fileinfo, lock, ec);

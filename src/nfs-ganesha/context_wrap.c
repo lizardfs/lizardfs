@@ -246,3 +246,24 @@ int liz_cred_getacl(liz_t *instance, struct user_cred *cred, liz_inode_t inode, 
 	liz_destroy_context(ctx);
 	return rc;
 }
+
+int liz_cred_setlk(liz_t *instance, struct user_cred *cred, liz_fileinfo_t *fileinfo,
+	           const liz_lock_info_t *lock) {
+	liz_context_t *ctx = lzfs_fsal_create_context(instance, cred);
+	if (ctx == NULL) {
+		return -1;
+	}
+	int rc = liz_setlk(instance, ctx, fileinfo, lock, NULL, NULL);
+	liz_destroy_context(ctx);
+	return rc;
+}
+
+int liz_cred_getlk(liz_t *instance, struct user_cred *cred, liz_fileinfo_t *fileinfo,
+	           liz_lock_info_t *lock) {
+	liz_context_t *ctx = lzfs_fsal_create_context(instance, cred);
+	if (ctx == NULL) {
+		return -1;
+	}
+	int rc = liz_getlk(instance, ctx, fileinfo, lock);
+	return rc;
+}

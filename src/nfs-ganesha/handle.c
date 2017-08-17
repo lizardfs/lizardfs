@@ -1170,6 +1170,128 @@ static fsal_status_t lzfs_fsal_close2(struct fsal_obj_handle *obj_hdl, struct st
 	return lzfs_int_close_fd(lzfs_obj, &lzfs_obj->fd);
 }
 
+fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
+			    struct state_t *state,
+			    void *owner,
+			    fsal_lock_op_t lock_op,
+			    fsal_lock_param_t *request_lock,
+			    fsal_lock_param_t *conflicting_lock)
+{
+	struct lzfs_fsal_export *lzfs_export;
+
+	liz_err_t last_err;
+	liz_fileinfo_t *fileinfo;
+	liz_lock_info_t lock_info;
+	fsal_status_t status = {0, 0};
+	int retval = 0;
+	struct lzfs_fsal_fd liz_fd;
+	bool has_lock = false;
+	bool closefd = false;
+	bool bypass = false;
+	fsal_openflags_t openflags = FSAL_O_RDWR;
+
+	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
+
+	LogFullDebug(COMPONENT_FSAL,
+		     "op:%d type:%d start:%" PRIu64 " length:%"
+		     PRIu64 " ",
+		     lock_op, request_lock->lock_type, request_lock->lock_start,
+		     request_lock->lock_length);
+
+	if (lock_op == FSAL_OP_LOCKT) {
+		// We may end up using global fd, don't fail on a deny mode
+		bypass = true;
+		openflags = FSAL_O_ANY;
+	} else if (lock_op == FSAL_OP_LOCK) {
+		if (request_lock->lock_type == FSAL_LOCK_R) {
+			openflags = FSAL_O_READ;
+		} else if (request_lock->lock_type == FSAL_LOCK_W) {
+			openflags = FSAL_O_WRITE;
+		}
+	} else if (lock_op == FSAL_OP_UNLOCK) {
+		openflags = FSAL_O_ANY;
+	} else {
+		LogFullDebug(COMPONENT_FSAL,
+			 "ERROR: Lock operation requested was not TEST, READ, or WRITE.");
+		return fsalstat(ERR_FSAL_NOTSUPP, 0);
+	}
+
+	if (lock_op != FSAL_OP_LOCKT && state == NULL) {
+		LogCrit(COMPONENT_FSAL, "Non TEST operation with NULL state");
+		return posix2fsal_status(EINVAL);
+	}
+
+	if (request_lock->lock_type == FSAL_LOCK_R) {
+		lock_info.l_type = F_RDLCK;
+	} else if (request_lock->lock_type == FSAL_LOCK_W) {
+		lock_info.l_type = F_WRLCK;
+	} else {
+		LogFullDebug(COMPONENT_FSAL,
+			 "ERROR: The requested lock type was not read or write.");
+		return fsalstat(ERR_FSAL_NOTSUPP, 0);
+	}
+
+	if (lock_op == FSAL_OP_UNLOCK) {
+		lock_info.l_type = F_UNLCK;
+	}
+
+	lock_info.l_pid = 0;
+	lock_info.l_len = request_lock->lock_length;
+	lock_info.l_start = request_lock->lock_start;
+
+	status = lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
+	// IF lzfs_int_find_fd returned DELAY, then fd caching in mdcache is turned off, which means
+	// that the consecutive attempt is very likely to succeed immediately.
+	if (status.major == ERR_FSAL_DELAY) {
+		status = lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
+	}
+	if (FSAL_IS_ERROR(status)) {
+		LogCrit(COMPONENT_FSAL, "Unable to find fd for lock operation");
+		return status;
+	}
+
+	fileinfo = liz_fd.fd;
+	liz_set_lock_owner(fileinfo, (uint64_t)owner);
+	if (lock_op == FSAL_OP_LOCKT) {
+		retval = liz_cred_getlk(lzfs_export->lzfs_instance, op_ctx->creds, fileinfo, &lock_info);
+	} else {
+		retval = liz_cred_setlk(lzfs_export->lzfs_instance, op_ctx->creds, fileinfo, &lock_info);
+	}
+
+	if (retval < 0) {
+		goto err;
+	}
+
+	/* F_UNLCK is returned then the tested operation would be possible. */
+	if (conflicting_lock != NULL) {
+		if (lock_op == FSAL_OP_LOCKT && lock_info.l_type != F_UNLCK) {
+			conflicting_lock->lock_length = lock_info.l_len;
+			conflicting_lock->lock_start = lock_info.l_start;
+			conflicting_lock->lock_type = lock_info.l_type;
+		} else {
+			conflicting_lock->lock_length = 0;
+			conflicting_lock->lock_start = 0;
+			conflicting_lock->lock_type = FSAL_NO_LOCK;
+		}
+	}
+
+ err:
+	last_err = liz_last_err();
+	if (closefd) {
+		liz_release(lzfs_export->lzfs_instance, fileinfo);
+	}
+
+	if (has_lock) {
+		PTHREAD_RWLOCK_unlock(&obj_hdl->obj_lock);
+	}
+
+	if (retval < 0) {
+		LogFullDebug(COMPONENT_FSAL, "Returning error %d", last_err);
+		return lizardfs2fsal_error(last_err);
+	}
+	return fsalstat(ERR_FSAL_NO_ERROR, 0);
+}
+
 /*! \brief Create a new link
  *
  * \see fsal_api.h for more information
@@ -1220,6 +1342,7 @@ void lzfs_fsal_handle_ops_init(struct lzfs_fsal_export *lzfs_export, struct fsal
 	ops->commit2 = lzfs_fsal_commit2;
 	ops->setattr2 = lzfs_fsal_setattr2;
 	ops->close2 = lzfs_fsal_close2;
+	ops->lock_op2 = lzfs_fsal_lock_op2;
 
 	if (lzfs_export->pnfs_mds_enabled) {
 		lzfs_fsal_handle_ops_pnfs(ops);

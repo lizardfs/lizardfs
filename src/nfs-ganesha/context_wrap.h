@@ -58,3 +58,7 @@ int liz_cred_get_chunks_info(liz_t *instance, struct user_cred *cred, liz_inode_
 int liz_cred_setacl(liz_t *instance, struct user_cred *cred, liz_inode_t inode,
                     const liz_acl_t *acl);
 int liz_cred_getacl(liz_t *instance, struct user_cred *cred, liz_inode_t inode, liz_acl_t **acl);
+int liz_cred_setlk(liz_t *instance, struct user_cred *cred, liz_fileinfo_t *fileinfo,
+                   const liz_lock_info_t *lock);
+int liz_cred_getlk(liz_t *instance, struct user_cred *cred, liz_fileinfo_t *fileinfo,
+                   liz_lock_info_t *lock);
