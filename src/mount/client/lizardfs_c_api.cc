@@ -169,6 +169,11 @@ void liz_destroy_context(liz_context_t *ctx) {
 	delete client_ctx;
 }
 
+void liz_set_lock_owner(liz_fileinfo_t *fileinfo, uint64_t lock_owner) {
+	Client::FileInfo *fi = (Client::FileInfo *)fileinfo;
+	fi->lock_owner = lock_owner;
+}
+
 liz_t *liz_init(const char *host, const char *port, const char *mountpoint) {
 	try {
 		Client *ret = new Client(host, port, mountpoint);

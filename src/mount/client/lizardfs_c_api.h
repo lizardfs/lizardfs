@@ -289,6 +289,13 @@ liz_context_t *liz_create_context();
 liz_context_t *liz_create_user_context(uid_t uid, gid_t gid, pid_t pid, mode_t umask);
 
 /*!
+ * \brief Set lock owner inside a fileinfo structure
+ * \param fileinfo descriptor to an open file
+ * \param lock_owner lock owner token
+ */
+void liz_set_lock_owner(liz_fileinfo_t *fileinfo, uint64_t lock_owner);
+
+/*!
  * \brief Returns last error code set by specific calls (see below)
  */
 liz_err_t liz_last_err();
