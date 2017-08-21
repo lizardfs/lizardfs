@@ -23,7 +23,10 @@
 #include <sys/stat.h>
 #include <algorithm>
 #include <cstdint>
+#include <string>
+#include <tuple>
 #include <vector>
+#include "common/exception.h"
 
 class RichACL {
 public:
@@ -33,6 +36,8 @@ public:
 	static constexpr uint16_t DEFAULTED = 0x04;
 	static constexpr uint16_t WRITE_THROUGH = 0x40;
 	static constexpr uint16_t MASKED = 0x80;
+
+	LIZARDFS_CREATE_EXCEPTION_CLASS(FormatException, Exception);
 
 	struct Ace {
 		/* type values */
@@ -104,6 +109,22 @@ public:
 		    : type(type), flags(flags), mask(mask), id(id) {
 		}
 
+		bool operator==(const Ace &other) const {
+			return std::make_tuple(type, flags, mask, id) ==
+				std::make_tuple(other.type, other.flags, other.mask, other.id);
+		}
+
+		bool operator!=(const Ace &other) const {
+			return !(*this == other);
+		}
+
+		bool operator<(const Ace &other) const {
+			return std::make_tuple(type, flags, mask, id) <
+				std::make_tuple(other.type, other.flags, other.mask, other.id);
+		}
+
+		std::string toString() const;
+
 		bool isAllow() const {
 			return type == ACCESS_ALLOWED_ACE_TYPE;
 		}
@@ -167,6 +188,34 @@ public:
 
 	RichACL() : owner_mask_(), group_mask_(), other_mask_(), flags_() {
 	}
+
+	bool operator==(const RichACL &other) const {
+		return std::make_tuple(owner_mask_, group_mask_, other_mask_, flags_) ==
+			std::make_tuple(other.owner_mask_, other.group_mask_, other.other_mask_, other.flags_)
+			&& ace_list_ == other.ace_list_;
+	}
+
+	bool operator!=(const RichACL &other) const {
+		return !(*this == other);
+	}
+
+	std::string toString() const;
+
+	/*!
+	 * \brief Load RichACL from string format.
+	 * RichACL is encoded as follows:
+	 *  FLAGS|OWNER_MASK|GROUP_MASK|EVERYONE_MASK|ACE[/ACE/...]
+	 * while every ACE is encoded as:
+	 *  MASK:FLAGS:TYPE:IDENTIFIER
+	 *
+	 * Example:
+	 * Parsing "|rwxcC|rwxcC|rwxcC|r::D:u1000/wxC::A:g1000/rwxcC::A:E/"
+	 * will result in
+	 *  user:1000:r------------::deny
+	 *  group:1000:rw-x-----C---::allow
+	 *  EVERYONE@:rw-x-----C---::allow
+	 */
+	static RichACL fromString(const std::string &str);
 
 	void insert(const Ace &ace) {
 		ace_list_.push_back(ace);

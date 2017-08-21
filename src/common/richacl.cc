@@ -17,6 +17,7 @@
  */
 
 #include "common/platform.h"
+
 #include "common/richacl.h"
 
 #include <cassert>
