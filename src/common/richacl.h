@@ -27,6 +27,7 @@
 #include <tuple>
 #include <vector>
 #include "common/exception.h"
+#include "common/serialization_macros.h"
 
 class RichACL {
 public:
@@ -173,6 +174,24 @@ public:
 				return true;
 			}
 			return false;
+		}
+
+		uint32_t serializedSize() const {
+			return ::serializedSize(uint8_t(), uint16_t(), uint32_t(), uint32_t());
+		}
+
+		void serialize(uint8_t** destination) const {
+			::serialize(destination, (uint8_t)type, (uint16_t)flags, (uint32_t)mask, id);
+		}
+
+		void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer) {
+			uint8_t tmp_type;
+			uint16_t tmp_flags;
+			uint32_t tmp_mask;
+			::deserialize(source, bytesLeftInBuffer, tmp_type, tmp_flags, tmp_mask, id);
+			type = tmp_type;
+			flags = tmp_flags;
+			mask = tmp_mask;
 		}
 
 		uint32_t type : 2;
@@ -337,6 +356,8 @@ public:
 	 * \return File mode.
 	 */
 	static uint16_t convertMask2Mode(uint32_t mask);
+
+	LIZARDFS_DEFINE_SERIALIZE_METHODS(owner_mask_, group_mask_, other_mask_, flags_, ace_list_)
 
 protected:
 	iterator changeMask(iterator ace, uint32_t mask);

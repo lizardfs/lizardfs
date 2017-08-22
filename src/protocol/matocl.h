@@ -32,6 +32,7 @@
 #include "common/metadataserver_list_entry.h"
 #include "common/moosefs_string.h"
 #include "common/moosefs_vector.h"
+#include "common/richacl.h"
 #include "common/serialization_macros.h"
 #include "common/serialized_goal.h"
 #include "common/tape_copy_location_info.h"
@@ -87,6 +88,7 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kStatusPacketVersion, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kLegacyResponsePacketVersion, 1)
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kResponsePacketVersion, 2)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetAcl, kRichACLResponsePacketVersion, 3)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kStatusPacketVersion,
@@ -102,6 +104,12 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kResponsePacketVersion,
 		uint32_t, messageId,
 		AccessControlList, acl)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetAcl, LIZ_MATOCL_FUSE_GET_ACL, kRichACLResponsePacketVersion,
+		uint32_t, messageId,
+		uint32_t, owner,
+		RichACL, acl)
 
 // LIZ_MATOCL_FUSE_SET_ACL
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
