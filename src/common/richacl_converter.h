@@ -35,4 +35,8 @@ namespace richAclConverter {
 	RichACL extractObjectFromNFS(const uint8_t* buffer, uint32_t bufferSize);
 
 	RichACL extractObjectFromRichACL(const uint8_t* buffer, uint32_t bufferSize);
+
+	std::vector<uint8_t> objectToRichACLXattr(const RichACL& acl);
+
+	std::vector<uint8_t> objectToNFSXattr(const RichACL& acl, uint32_t owner_id);
 }
