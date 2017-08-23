@@ -91,7 +91,7 @@ RichACL RichACL::createFromMode(uint16_t mode, bool is_dir) {
 	return acl;
 }
 
-uint32_t RichACL::allowedToWho(const Ace &who) {
+uint32_t RichACL::allowedToWho(const Ace &who) const {
 	uint32_t allowed = 0;
 
 	for (auto ace = ace_list_.crbegin(); ace != ace_list_.crend(); ++ace) {

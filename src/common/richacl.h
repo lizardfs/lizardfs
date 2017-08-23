@@ -27,6 +27,7 @@
 #include <tuple>
 #include <vector>
 #include "common/exception.h"
+#include "common/access_control_list.h"
 #include "common/serialization_macros.h"
 
 class RichACL {
@@ -335,6 +336,37 @@ public:
 	 */
 	void applyMasks(uint32_t owner);
 
+	/*! \brief Append Aces to RichACL that give the same permissions as \param posix_acl.
+	 *
+	 * \param posix_acl Posix ACL that should be converted to RichACL.
+	 * \param is_dir True if node with RichACL is directory.
+	 */
+	void appendPosixACL(const AccessControlList &posix_acl, bool is_dir);
+
+	/*! \brief Append inheritable only Aces to richacl that give the same permissions as \param posix_acl.
+	 *
+	 * \param posix_acl Posix ACL that should be converted to RichACL.
+	 */
+	void appendDefaultPosixACL(const AccessControlList &posix_acl);
+
+	/*! \brief Convert RichACL to PosixACL.
+	 *
+	 * Note: It's not always possible to exactly convert RichACL to Posix ACL.
+	 *
+	 * \return Pair consisting of bool value set to true if posix acl is non-empty
+	 *         and converted posix acl.
+	 */
+	std::pair<bool, AccessControlList> convertToPosixACL() const;
+
+	/*! \brief Convert RichACL to default PosixACL (only inheritable Aces).
+	 *
+	 * Note: It's not always possible to exactly convert RichACL to Posix ACL.
+	 *
+	 * \return Pair consisting of bool value set to true if posix acl is non-empty
+	 *         and converted posix acl.
+	 */
+	std::pair<bool, AccessControlList> convertToDefaultPosixACL() const;
+
 	/*! \brief Create an acl which corresponds to \param mode
 	 *
 	 * The resulting acl doesn't have the MASKED flag set.
@@ -373,8 +405,9 @@ protected:
 	void applyMasks2AceList(uint32_t owner);
 	void computeMaxMasks();
 
-	uint32_t allowedToWho(const Ace &who);
+	uint32_t allowedToWho(const Ace &who) const;
 	uint32_t groupClassAllowed();
+	bool hasGroupEntry() const;
 
 	uint32_t owner_mask_;
 	uint32_t group_mask_;
