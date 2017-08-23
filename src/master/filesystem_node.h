@@ -189,8 +189,9 @@ void fsnodes_seteattr_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t
 	uint32_t *nsinodes);
 uint8_t fsnodes_deleteacl(FSNode *p, AclType type, uint32_t ts);
 
-uint8_t fsnodes_setacl(FSNode *p, AclType type, AccessControlList acl, uint32_t ts);
-uint8_t fsnodes_getacl(FSNode *p, AclType type, AccessControlList &acl);
+uint8_t fsnodes_setacl(FSNode *p, const RichACL &acl, uint32_t ts);
+uint8_t fsnodes_setacl(FSNode *p, AclType type, const AccessControlList &acl, uint32_t ts);
+uint8_t fsnodes_getacl(FSNode *p, RichACL &acl);
 
 uint32_t fsnodes_getpath_size(FSNodeDirectory *parent, FSNode *child);
 void fsnodes_getpath_data(FSNodeDirectory *parent, FSNode *child, uint8_t *path, uint32_t size);

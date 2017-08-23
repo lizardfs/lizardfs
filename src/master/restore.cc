@@ -625,6 +625,8 @@ int do_deleteacl(const char *filename, uint64_t lv, uint32_t ts, const char *ptr
 		aclType = AclType::kDefault;
 	} else if (aclTypeRaw == 'a') {
 		aclType = AclType::kAccess;
+	} else if (aclTypeRaw == 'r') {
+		aclType = AclType::kRichACL;
 	} else {
 		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": corrupted ACL type", filename, lv);
 		return -1;
@@ -647,6 +649,20 @@ int do_setacl(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
 	EAT(ptr, filename, lv, ')');
 
 	return fs_apply_setacl(ts, inode, aclType, reinterpret_cast<const char*>(aclString));
+}
+
+int do_setrichacl(const char *filename, uint64_t lv, uint32_t ts, const char *ptr) {
+	uint32_t inode;
+	static uint8_t *acl_string = NULL;
+	static uint32_t acl_size = 0;
+
+	EAT(ptr, filename, lv, '(');
+	GETU32(inode, ptr);
+	EAT(ptr, filename, lv, ',');
+	GETPATH(acl_string, acl_size, ptr, filename, lv, ')');
+	EAT(ptr, filename, lv, ')');
+
+	return fs_apply_setrichacl(ts, inode, reinterpret_cast<const char*>(acl_string));
 }
 
 int do_setquota(const char *filename, uint64_t lv, uint32_t, const char *ptr) {
@@ -915,6 +931,8 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 				status = do_snapshot(filename,lv,ts,ptr+8);
 			} else if (strncmp(ptr,"SYMLINK",7)==0) {
 				status = do_symlink(filename,lv,ts,ptr+7);
+			} else if (strncmp(ptr,"SETRICHACL",10)==0) {
+				status = do_setrichacl(filename,lv,ts,ptr+10);
 			}
 			break;
 		case 'T':

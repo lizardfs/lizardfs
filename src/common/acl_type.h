@@ -25,7 +25,7 @@
 #include "common/hashfn.h"
 #include "common/serialization.h"
 
-enum class AclType : uint8_t { kAccess, kDefault };
+enum class AclType : uint8_t { kAccess, kDefault, kRichACL };
 
 static inline void hashCombineRaw(uint64_t& seed, AclType hash) {
 	return hashCombineRaw(seed, uint64_t(hash));
@@ -52,6 +52,9 @@ inline void deserialize(const uint8_t** source, uint32_t& bytesLeftInBuffer, Acl
 			break;
 	case static_cast<uint8_t>(AclType::kAccess):
 			val = AclType::kAccess;
+			break;
+	case static_cast<uint8_t>(AclType::kRichACL):
+			val = AclType::kRichACL;
 			break;
 	default: throw IncorrectDeserializationException(
 			"Deserialized malformed value of AclType: " + std::to_string(deserializedValue));

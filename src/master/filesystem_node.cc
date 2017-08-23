@@ -558,17 +558,15 @@ FSNode *fsnodes_create_node(uint32_t ts, FSNodeDirectory *parent, const HString 
 		node->mode = (mode & 07777) | (parent->mode & (0xF000 & (~(EATTR_NOECACHE << 12))));
 	}
 	// If desired, node inherits permissions from parent's default ACL
-	if (inheritacl == AclInheritance::kInheritAcl && parent->defaultAcl) {
-		if (node->type == FSNode::kDirectory) {
-			static_cast<FSNodeDirectory*>(node)->defaultAcl.reset(new AccessControlList(*parent->defaultAcl));
+	if (inheritacl == AclInheritance::kInheritAcl && parent->acl) {
+		RichACL acl;
+		uint16_t mode = node->mode;
+		if (RichACL::inheritInode(*parent->acl, mode, acl, umask, type == FSNode::kDirectory)) {
+			node->acl.reset(new RichACL(std::move(acl)));
 		}
-		// Join ACL's access mask without cleaning sticky bits etc.
-		node->mode = (node->mode & ~0777) | parent->defaultAcl->getMode();
-		node->extendedAcl.reset(new AccessControlList(*parent->defaultAcl));
 
 		// Set effective permissions as the intersection of mode and ACL
 		node->mode &= mode | ~0777;
-		node->extendedAcl->setMode(node->mode);
 	} else {
 		// Apply umask
 		node->mode &= ~(umask & 0777);  // umask must be applied manually
@@ -1570,8 +1568,8 @@ void fsnodes_seteattr_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t
 		}
 		if (neweattr != (node->mode >> 12)) {
 			node->mode = (node->mode & 0xFFF) | (((uint16_t)neweattr) << 12);
-			if (node->extendedAcl) {
-				node->extendedAcl->setMode(node->mode);
+			if (node->acl) {
+				node->acl->setMode(node->mode, node->type == FSNode::kDirectory);
 			}
 			(*sinodes)++;
 			fsnodes_update_ctime(node, ts);
@@ -1590,13 +1588,30 @@ void fsnodes_seteattr_recursive(FSNode *node, uint32_t ts, uint32_t uid, uint8_t
 }
 
 uint8_t fsnodes_deleteacl(FSNode *p, AclType type, uint32_t ts) {
-	if (type == AclType::kDefault) {
+	if (type == AclType::kRichACL) {
+		p->acl.reset();
+	} else if (type == AclType::kDefault) {
 		if (p->type != FSNode::kDirectory) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
-		static_cast<FSNodeDirectory*>(p)->defaultAcl.reset();
+
+		if (p->acl) {
+			p->acl->createExplicitInheritance();
+			p->acl->removeInheritOnly(true);
+			if (p->acl->size() == 0) {
+				p->acl.reset();
+			}
+		}
+	} else if (type == AclType::kAccess) {
+		if (p->acl) {
+			p->acl->createExplicitInheritance();
+			p->acl->removeInheritOnly(false);
+			if (p->acl->size() == 0) {
+				p->acl.reset();
+			}
+		}
 	} else {
-		p->extendedAcl.reset();
+		return LIZARDFS_ERROR_EINVAL;
 	}
 	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
@@ -1604,33 +1619,64 @@ uint8_t fsnodes_deleteacl(FSNode *p, AclType type, uint32_t ts) {
 }
 
 #ifndef METARESTORE
-uint8_t fsnodes_getacl(FSNode *p, AclType type, AccessControlList &acl) {
-	if (type == AclType::kDefault) {
-		if (p->type != FSNode::kDirectory || !static_cast<FSNodeDirectory*>(p)->defaultAcl) {
-			return LIZARDFS_ERROR_ENOATTR;
-		}
-		acl = *(static_cast<FSNodeDirectory*>(p)->defaultAcl);
-	} else {
-		if (!p->extendedAcl) {
-			return LIZARDFS_ERROR_ENOATTR;
-		}
-		acl = *p->extendedAcl;
-		assert((p->mode & 0777) == p->extendedAcl->getMode());
+uint8_t fsnodes_getacl(FSNode *p, RichACL &acl) {
+	if (!p->acl) {
+		return LIZARDFS_ERROR_ENOATTR;
 	}
+	acl = *p->acl;
+	assert((p->mode & 0777) == p->acl->getMode());
 	return LIZARDFS_STATUS_OK;
 }
 #endif
 
-uint8_t fsnodes_setacl(FSNode *p, AclType type, AccessControlList acl, uint32_t ts) {
-	if (type == AclType::kDefault) {
-		if (p->type != FSNode::kDirectory) {
-			return LIZARDFS_ERROR_ENOTSUP;
-		}
-		static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList(std::move(acl)));
-	} else {
-		p->mode = (p->mode & ~0777) | (acl.getMode() & 0777);
-		p->extendedAcl.reset(new AccessControlList(std::move(acl)));
+uint8_t fsnodes_setacl(FSNode *p, const RichACL &acl, uint32_t ts) {
+	if (!acl.checkInheritFlags(p->type == FSNode::kDirectory)) {
+		return LIZARDFS_ERROR_ENOTSUP;
 	}
+
+	uint16_t mode = p->mode;
+	if (RichACL::equivMode(acl, mode, p->type == FSNode::kDirectory)) {
+		p->mode = (p->mode & ~0777) | (mode & 0777);
+		p->acl.reset();
+	} else {
+		if (!acl.isAutoSetMode()) {
+			p->mode = (p->mode & ~0777) | (acl.getMode() & 0777);
+		}
+		p->acl.reset(new RichACL(acl));
+		if (acl.isAutoSetMode()) {
+			p->acl->setFlags(p->acl->getFlags() & ~RichACL::AUTO_SET_MODE);
+			p->acl->setMode(p->mode, p->type == FSNode::kDirectory);
+		}
+	}
+
+	fsnodes_update_ctime(p, ts);
+	fsnodes_update_checksum(p);
+	return LIZARDFS_STATUS_OK;
+}
+
+uint8_t fsnodes_setacl(FSNode *p, AclType type, const AccessControlList &acl, uint32_t ts) {
+	if (type != AclType::kDefault && type != AclType::kAccess) {
+		return LIZARDFS_ERROR_EINVAL;
+	}
+
+	if (type == AclType::kDefault && p->type != FSNode::kDirectory) {
+		return LIZARDFS_ERROR_ENOTSUP;
+	}
+
+	if (p->acl) {
+		p->acl->createExplicitInheritance();
+		p->acl->removeInheritOnly(type == AclType::kDefault);
+	} else {
+		p->acl.reset(new RichACL());
+	}
+
+	if (type == AclType::kDefault) {
+		p->acl->appendDefaultPosixACL(acl);
+	} else {
+		p->acl->appendPosixACL(acl, p->type == FSNode::kDirectory);
+		p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
+	}
+
 	fsnodes_update_ctime(p, ts);
 	fsnodes_update_checksum(p);
 	return LIZARDFS_STATUS_OK;
@@ -1662,14 +1708,11 @@ int fsnodes_access(const FsContext &context, FSNode *node, uint8_t modemask) {
 	if ((context.sesflags() & SESFLAG_NOMASTERPERMCHECK) || context.uid() == 0) {
 		return 1;
 	}
-	if (node->extendedAcl) {
-		assert((node->mode & 0777) == node->extendedAcl->getMode());
+	if (node->acl) {
+		assert((node->mode & 0777) == node->acl->getMode());
 
-		if (context.uid() == node->uid && (node->mode & (EATTR_NOOWNER << 12))) {
-			nodemode = node->extendedAcl->getEntry(AccessControlList::kUser, 0).access_rights;
-		} else {
-			nodemode = node->extendedAcl->getEffectiveRights(node->uid, node->gid, context.uid(), context.groups());
-		}
+		uint32_t mask = RichACL::convertMode2Mask(modemask);
+		return node->acl->checkPermission(mask, node->uid, node->gid, context.uid(), context.groups());
 	} else {
 		if (context.uid() == node->uid || (node->mode & (EATTR_NOOWNER << 12))) {
 			nodemode = ((node->mode) >> 6) & 7;

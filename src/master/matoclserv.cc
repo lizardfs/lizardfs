@@ -3862,21 +3862,39 @@ void matoclserv_fuse_getacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	DEBUG_LOG("master.cltoma_fuse_getacl") << inode;
 
 	MessageBuffer reply;
-	AccessControlList acl;
+	RichACL acl;
 
 	uint8_t status = matoclserv_check_group_cache(eptr, gid);
 	if (status == LIZARDFS_STATUS_OK) {
 		FsContext context = matoclserv_get_context(eptr, uid, gid);
-		status = fs_getacl(context, inode, type, acl);
+		status = fs_getacl(context, inode, acl);
 	}
 	if (status == LIZARDFS_STATUS_OK) {
-		if (eptr->version >= kACL11Version) {
-			matocl::fuseGetAcl::serialize(reply, messageId, acl);
+		if (eptr->version >= kRichACLVersion) {
+			FSNode *node = fsnodes_id_to_node(inode);
+			uint32_t owner_id = node ? node->uid : RichACL::Ace::kInvalidId;
+			matocl::fuseGetAcl::serialize(reply, messageId, owner_id, acl);
 		} else {
-			legacy::AccessControlList legacy_acl = acl;
-			matocl::fuseGetAcl::serialize(reply, messageId, legacy_acl);
+			std::pair<bool, AccessControlList> posix_acl;
+			if (type == AclType::kDefault) {
+				posix_acl = acl.convertToDefaultPosixACL();
+			} else {
+				// default behavior for unknown acl type.
+				posix_acl = acl.convertToPosixACL();
+			}
+			if (posix_acl.first) {
+				if (eptr->version >= kACL11Version) {
+					matocl::fuseGetAcl::serialize(reply, messageId, posix_acl.second);
+				} else {
+					legacy::AccessControlList legacy_acl = posix_acl.second;
+					matocl::fuseGetAcl::serialize(reply, messageId, legacy_acl);
+				}
+			} else {
+				status = LIZARDFS_ERROR_ENOATTR;
+			}
 		}
-	} else {
+	}
+	if (status != LIZARDFS_STATUS_OK) {
 		matocl::fuseGetAcl::serialize(reply, messageId, status);
 	}
 	matoclserv_createpacket(eptr, std::move(reply));
@@ -4225,8 +4243,10 @@ void matoclserv_update_credentials(matoclserventry *eptr, const uint8_t *data, u
 
 void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t messageId, inode, uid, gid;
-	AclType type;
-	AccessControlList acl;
+	AclType type = AclType::kRichACL;
+	RichACL rich_acl;
+	AccessControlList posix_acl;
+	bool use_posix = false;
 
 	PacketVersion version;
 	deserializePacketVersionNoHeader(data, length, version);
@@ -4234,19 +4254,28 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	if (version == cltoma::fuseSetAcl::kLegacyACL) {
 		legacy::AccessControlList legacy_acl;
 		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, legacy_acl);
-		acl = (AccessControlList)legacy_acl;
+		use_posix = true;
+		posix_acl = (AccessControlList)legacy_acl;
+	} else if (version == cltoma::fuseSetAcl::kPosixACL) {
+		use_posix = true;
+		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, posix_acl);
+	} else if (version == cltoma::fuseSetAcl::kRichACL) {
+		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, rich_acl);
 	} else {
-		cltoma::fuseSetAcl::deserialize(data, length, messageId, inode, uid, gid, type, acl);
+		lzfs_pretty_syslog(LOG_WARNING, "LIZ_CLTOMA_FUSE_SET_ACL: unknown packet version");
+		eptr->mode = KILL;
 	}
 
-	MessageBuffer reply;
 	uint8_t status = matoclserv_check_group_cache(eptr, gid);
 	if (status == LIZARDFS_STATUS_OK) {
 		FsContext context = matoclserv_get_context(eptr, uid, gid);
-		status = fs_setacl(context, inode, type, std::move(acl));
+		if (use_posix) {
+			status = fs_setacl(context, inode, type, posix_acl);
+		} else {
+			status = fs_setacl(context, inode, rich_acl);
+		}
 	}
-	matocl::fuseSetAcl::serialize(reply, messageId, status);
-	matoclserv_createpacket(eptr, std::move(reply));
+	matoclserv_createpacket(eptr, matocl::fuseSetAcl::build(messageId, status));
 }
 
 void matoclserv_fuse_setquota(matoclserventry *eptr, const uint8_t *data, uint32_t length) {

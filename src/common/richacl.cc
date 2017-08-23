@@ -17,10 +17,10 @@
  */
 
 #include "common/platform.h"
-
 #include "common/richacl.h"
 
 #include <cassert>
+#include <numeric>
 
 bool RichACL::isSameMode(uint16_t mode, bool is_dir) const {
 	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
@@ -187,4 +187,229 @@ void RichACL::computeMaxMasks() {
 	}
 
 	flags_ &= ~(WRITE_THROUGH | MASKED);
+}
+
+void RichACL::removeInheritOnly(bool remove_with_flag_set) {
+	auto it =
+	    std::remove_if(ace_list_.begin(), ace_list_.end(), [remove_with_flag_set](const Ace &ace) {
+		    return (remove_with_flag_set && ace.isInheritOnly()) ||
+		           (!remove_with_flag_set && !ace.isInheritOnly());
+		});
+	ace_list_.erase(it, ace_list_.end());
+}
+
+bool RichACL::checkInheritFlags(bool is_directory) const {
+	for (const auto &ace : ace_list_) {
+		if (ace.isInheritOnly() && !ace.isInheritable()) {
+			return false;
+		}
+	}
+
+	if (is_directory) {
+		return true;
+	}
+
+	for (const auto &ace : ace_list_) {
+		if (ace.isInheritOnly() || ace.isInheritable()) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+RichACL RichACL::inherit(const RichACL &dir_acl, bool is_dir) {
+	RichACL acl;
+
+	if (is_dir) {
+		int count = std::accumulate(dir_acl.begin(), dir_acl.end(), 0,
+		                            [](int sum, const RichACL::Ace &dir_ace) {
+			                            return sum + (int)dir_ace.inheritsToDirectory();
+			                        });
+		acl.ace_list_.reserve(count);
+		for (const auto &dir_ace : dir_acl) {
+			if (!dir_ace.inheritsToDirectory()) {
+				continue;
+			}
+
+			Ace ace = dir_ace;
+			if (dir_ace.flags & Ace::NO_PROPAGATE_INHERIT_ACE) {
+				ace.flags &= ~Ace::INHERITANCE_FLAGS;
+			} else if (dir_ace.flags & Ace::DIRECTORY_INHERIT_ACE) {
+				ace.flags &= ~Ace::INHERIT_ONLY_ACE;
+			} else {
+				ace.flags |= Ace::INHERIT_ONLY_ACE;
+			}
+
+			acl.insert(ace);
+		}
+	} else {
+		int count = std::accumulate(dir_acl.begin(), dir_acl.end(), 0,
+		                            [](int sum, const RichACL::Ace &dir_ace) {
+			                            return sum + ((dir_ace.flags & Ace::FILE_INHERIT_ACE) ? 1 : 0);
+			                        });
+		acl.ace_list_.reserve(count);
+		for (const auto &dir_ace : dir_acl) {
+			if (!(dir_ace.flags & Ace::FILE_INHERIT_ACE)) {
+				continue;
+			}
+
+			Ace ace = dir_ace;
+
+			ace.flags &= ~Ace::INHERITANCE_FLAGS;
+			ace.mask &= ~Ace::DELETE_CHILD;
+
+			acl.insert(ace);
+		}
+	}
+
+	if (dir_acl.isAutoInherit()) {
+		acl.flags_ = AUTO_INHERIT;
+		for (auto &ace : acl) {
+			ace.flags |= Ace::INHERITED_ACE;
+		}
+	} else {
+		for (auto &ace : acl) {
+			ace.flags &= ~Ace::INHERITED_ACE;
+		}
+	}
+
+	return acl;
+}
+
+bool RichACL::equivMode(const RichACL &acl, uint16_t &mode_out, bool is_dir) {
+	uint16_t mode = mode_out;
+
+	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
+	uint32_t owner_allowed = 0,
+	         owner_defined = Ace::POSIX_ALWAYS_ALLOWED | Ace::POSIX_OWNER_ALLOWED | x;
+	uint32_t group_allowed = 0, group_defined = Ace::POSIX_ALWAYS_ALLOWED | x;
+	uint32_t everyone_allowed = 0, everyone_defined = Ace::POSIX_ALWAYS_ALLOWED | x;
+
+	if (acl.flags_ & ~(WRITE_THROUGH | MASKED)) {
+		return false;
+	}
+	if (acl.isAutoSetMode() && acl.ace_list_.empty()) {
+		return true;
+	}
+
+	for (const auto &ace : acl) {
+		if (ace.flags & ~Ace::SPECIAL_WHO) {
+			return false;
+		}
+
+		if (ace.isOwner() || ace.isEveryone()) {
+			x = ace.mask & ~owner_defined;
+			if (ace.isAllow()) {
+				uint32_t group_denied = group_defined & ~group_allowed;
+				if (x & group_denied) {
+					return false;
+				}
+				owner_allowed |= x;
+			} else {
+				if (x & group_allowed) {
+					return false;
+				}
+			}
+			owner_defined |= x;
+
+			if (ace.isEveryone()) {
+				x = ace.mask;
+				if (ace.isAllow()) {
+					group_allowed |= x & ~group_defined;
+					everyone_allowed |= x & ~everyone_defined;
+				}
+				group_defined |= x;
+				everyone_defined |= x;
+			}
+		} else if (ace.isGroup()) {
+			x = ace.mask & ~group_defined;
+			if (ace.isAllow()) {
+				group_allowed |= x;
+			}
+			group_defined |= x;
+		} else {
+			return false;
+		}
+	}
+
+	if (group_allowed & ~owner_defined) {
+		return false;
+	}
+
+	if (acl.flags_ & MASKED) {
+		if (acl.flags_ & WRITE_THROUGH) {
+			owner_allowed = acl.owner_mask_;
+			everyone_allowed = acl.other_mask_;
+		} else {
+			owner_allowed &= acl.owner_mask_;
+			everyone_allowed &= acl.other_mask_;
+		}
+		group_allowed &= acl.group_mask_;
+	}
+
+	mode = (mode & ~0777) | (convertMask2Mode(owner_allowed) << 6) |
+	       (convertMask2Mode(group_allowed) << 3) | convertMask2Mode(everyone_allowed);
+
+	x = is_dir ? 0 : Ace::DELETE_CHILD;
+
+	if (((convertMode2Mask(mode >> 6) ^ owner_allowed) & ~x) ||
+	    ((convertMode2Mask(mode >> 3) ^ group_allowed) & ~x) ||
+	    ((convertMode2Mask(mode) ^ everyone_allowed) & ~x)) {
+		return false;
+	}
+
+	mode_out = mode;
+	return true;
+}
+
+bool RichACL::inheritInode(const RichACL &dir_acl, uint16_t &mode_out, RichACL &acl, uint16_t umask,
+		bool is_dir) {
+	uint16_t mode = mode_out;
+
+	acl = inherit(dir_acl, is_dir);
+	if (acl.size() == 0) {
+		mode_out &= ~umask;
+		return false;
+	}
+
+	if (equivMode(acl, mode, is_dir)) {
+		mode_out &= mode;
+		return false;
+	} else {
+		if (acl.isAutoInherit()) {
+			acl.flags_ |= PROTECTED;
+		}
+
+		acl.computeMaxMasks();
+
+		acl.flags_ |= MASKED;
+		acl.owner_mask_ &= convertMode2Mask(mode >> 6);
+		acl.group_mask_ &= convertMode2Mask(mode >> 3);
+		acl.other_mask_ &= convertMode2Mask(mode);
+
+		mode_out = acl.getMode();
+	}
+
+	return true;
+}
+
+
+
+void RichACL::createExplicitInheritance() {
+	int n = ace_list_.size();
+	for (int i = 0; i < n; ++i) {
+		Ace &ace = ace_list_[i];
+
+		if (ace.isInheritOnly() || !ace.isInheritable()) {
+			continue;
+		}
+
+		Ace ace_copy = ace;
+		ace.flags &= ~(Ace::INHERIT_ONLY_ACE | Ace::FILE_INHERIT_ACE | Ace::DIRECTORY_INHERIT_ACE);
+
+		ace_copy.flags |= Ace::INHERIT_ONLY_ACE;
+
+		ace_list_.push_back(ace_copy);
+	}
 }

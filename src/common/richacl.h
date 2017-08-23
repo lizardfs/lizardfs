@@ -38,10 +38,13 @@ public:
 	static constexpr uint16_t DEFAULTED = 0x04;
 	static constexpr uint16_t WRITE_THROUGH = 0x40;
 	static constexpr uint16_t MASKED = 0x80;
+	static constexpr uint16_t AUTO_SET_MODE = 0x20;
 
 	LIZARDFS_CREATE_EXCEPTION_CLASS(FormatException, Exception);
 
 	struct Ace {
+		static constexpr uint32_t kInvalidId = 0xFFFFFFFF;
+
 		/* type values */
 		static constexpr uint32_t ACCESS_ALLOWED_ACE_TYPE = 0x0000;
 		static constexpr uint32_t ACCESS_DENIED_ACE_TYPE = 0x0001;
@@ -305,6 +308,10 @@ public:
 		return flags_ & MASKED;
 	}
 
+	bool isAutoSetMode() const {
+		return flags_ & AUTO_SET_MODE;
+	}
+
 	bool isSameMode(uint16_t mode, bool is_dir) const;
 	void setMode(uint16_t mode, bool is_dir);
 	uint16_t getMode() const;
@@ -367,6 +374,36 @@ public:
 	 */
 	std::pair<bool, AccessControlList> convertToDefaultPosixACL() const;
 
+	/*! \brief Convert inheritable Aces to double entries - permission Ace and inheritable only Ace.
+	 */
+	void createExplicitInheritance();
+
+
+	/*! \brief Remove Aces with inherit only flag.
+	 *
+	 * \param remove_with_flag_set When true remove Aces with flag set. On false remove Aces
+	 *                             without inherit only flag.
+	 */
+	void removeInheritOnly(bool remove_with_flag_set = true);
+
+	/*! \brief Checks if inherit flags are conforming to NFS 4.1 RFC.
+	 *
+	 * \return true if inherit flags are properly set.
+	 */
+	bool checkInheritFlags(bool is_directory) const;
+
+	/*! \brief Creates RichACL with permission inhertited from \param dir_acl.
+	 *
+	 * \param dir_acl RichACL to inherit from.
+	 * \param mode Inheriting inode mode field.
+	 * \param acl Inherited RichACL.
+	 * \param umask File system umask.
+	 * \param is_dir True if inheriting inode is directory.
+	 * \return True if inherited RichACL is valid.
+	 */
+	static bool inheritInode(const RichACL &dir_acl, uint16_t &mode, RichACL &acl,
+	                         uint16_t umask, bool is_dir);
+
 	/*! \brief Create an acl which corresponds to \param mode
 	 *
 	 * The resulting acl doesn't have the MASKED flag set.
@@ -389,6 +426,15 @@ public:
 	 */
 	static uint16_t convertMask2Mode(uint32_t mask);
 
+	/*! \brief Check if \param acl is equivalent to \param mode file mask
+	 *
+	 * \param acl RichACL to check.
+	 * \param mode File mode mask to check
+	 * \param is_dir True if inode that acl belongs to is a directory.
+	 * \return True is acl is equivalent to mode.
+	 */
+	static bool equivMode(const RichACL &acl, uint16_t &mode, bool is_dir);
+
 	LIZARDFS_DEFINE_SERIALIZE_METHODS(owner_mask_, group_mask_, other_mask_, flags_, ace_list_)
 
 protected:
@@ -408,6 +454,8 @@ protected:
 	uint32_t allowedToWho(const Ace &who) const;
 	uint32_t groupClassAllowed();
 	bool hasGroupEntry() const;
+
+	static RichACL inherit(const RichACL &dir_acl, bool is_dir);
 
 	uint32_t owner_mask_;
 	uint32_t group_mask_;

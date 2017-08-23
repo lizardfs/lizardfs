@@ -29,6 +29,7 @@
 #include "common/acl_type.h"
 #include "common/exception.h"
 #include "common/goal.h"
+#include "common/richacl.h"
 #include "common/tape_key.h"
 #include "common/tape_copy_location_info.h"
 #include "master/checksum.h"
@@ -84,7 +85,8 @@ uint8_t fs_rename(const FsContext& context,
 		uint32_t parent_dst, const HString &name_dst,
 		uint32_t *inode, Attributes* attr);
 uint8_t fs_release(const FsContext& context, uint32_t inode, uint32_t sessionid);
-uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList acl);
+uint8_t fs_setacl(const FsContext& context, uint32_t inode, AclType type, const AccessControlList &acl);
+uint8_t fs_setacl(const FsContext& context, uint32_t inode, const RichACL &acl);
 uint8_t fs_seteattr(const FsContext&
 		context, uint32_t inode, uint8_t eattr, uint8_t smode,
 		uint32_t *sinodes, uint32_t *ncinodes, uint32_t *nsinodes);
@@ -144,7 +146,7 @@ uint8_t fs_quota_get_all(const FsContext &context, std::vector<QuotaEntry> &resu
 uint8_t fs_quota_get(const FsContext &context, const std::vector<QuotaOwner> &owners,
 					 std::vector<QuotaEntry> &results);
 uint8_t fs_unlink(const FsContext &context,uint32_t parent,const HString &name);
-uint8_t fs_getacl(const FsContext& context, uint32_t inode, AclType type, AccessControlList& acl);
+uint8_t fs_getacl(const FsContext& context, uint32_t inode, RichACL &acl);
 uint8_t fs_quota_set(const FsContext &context, const std::vector<QuotaEntry>& entries);
 uint8_t fs_quota_get_info(const FsContext &context, const std::vector<QuotaEntry> &entries,
 		std::vector<std::string> &result);
@@ -165,6 +167,7 @@ uint8_t fs_apply_length(uint32_t ts,uint32_t inode,uint64_t length);
 uint8_t fs_apply_repair(uint32_t ts,uint32_t inode,uint32_t indx,uint32_t nversion);
 uint8_t fs_apply_setxattr(uint32_t ts,uint32_t inode,uint32_t anleng,const uint8_t *attrname,uint32_t avleng,const uint8_t *attrvalue,uint32_t mode);
 uint8_t fs_apply_setacl(uint32_t ts, uint32_t inode, char aclType, const char *aclString);
+uint8_t fs_apply_setrichacl(uint32_t ts, uint32_t inode, const std::string &acl_string);
 uint8_t fs_apply_setquota(char rigor, char resource, char ownerType, uint32_t ownerId, uint64_t limit);
 uint8_t fs_apply_unlink(uint32_t ts,uint32_t parent,const HString &name,uint32_t inode);
 uint8_t fs_apply_unlock(uint64_t chunkid);

@@ -56,7 +56,7 @@ static void fs_store_marker(FILE *fd) {
 	}
 }
 
-
+/* FIXME(haze): Will be fixed in next commit
 static void fs_store_acl(uint32_t id, const AccessControlList &acl, FILE *fd) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
@@ -67,23 +67,28 @@ static void fs_store_acl(uint32_t id, const AccessControlList &acl, FILE *fd) {
 		return;
 	}
 }
+*/
 
 void fs_store_acls(FILE *fd) {
 	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
 		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
-			if (p->extendedAcl) {
+			/* FIXME(haze): Will be fixed in next commit
+			if (p->acl) {
 				fs_store_acl(p->id, *p->extendedAcl, fd);
 			}
+			*/
 		}
 	}
 	fs_store_marker(fd);
 
 	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
 		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
+			/* FIXME(haze): Will be fixed in next commit
 			FSNodeDirectory *dir_node = static_cast<FSNodeDirectory*>(p);
 			if (p->type == FSNode::kDirectory && dir_node->defaultAcl) {
 				fs_store_acl(dir_node->id, *dir_node->defaultAcl, fd);
 			}
+			*/
 		}
 	}
 	fs_store_marker(fd);
@@ -134,12 +139,14 @@ static int fs_load_legacy_acl(FILE *fd, int ignoreflag) {
 
 		deserialize(buffer, inode, extended_acl, default_acl);
 
+		/* FIXME(haze): Will be fixed in next commit
 		if (extended_acl) {
 			p->extendedAcl.reset(new AccessControlList((AccessControlList)*extended_acl));
 		}
 		if (p->type == FSNode::kDirectory && default_acl) {
 			static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList((AccessControlList)*default_acl));
 		}
+		*/
 		return 0;
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
@@ -163,7 +170,7 @@ int fs_load_legacy_acls(FILE *fd, int ignoreflag) {
 	return 0;
 }
 
-static int fs_load_acl(FILE *fd, int ignoreflag, bool default_acl) {
+static int fs_load_acl(FILE *fd, int ignoreflag, bool /*default_acl*/) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
 
@@ -202,6 +209,7 @@ static int fs_load_acl(FILE *fd, int ignoreflag, bool default_acl) {
 
 		deserialize(buffer, inode, acl);
 
+		/* FIXME(haze): Will be fixed in next commit
 		if (default_acl) {
 			if (p->type == FSNode::kDirectory) {
 				static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList(std::move(acl)));
@@ -209,6 +217,7 @@ static int fs_load_acl(FILE *fd, int ignoreflag, bool default_acl) {
 		} else {
 			p->extendedAcl.reset(new AccessControlList(std::move(acl)));
 		}
+		*/
 
 		return 0;
 	} catch (Exception &ex) {

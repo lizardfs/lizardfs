@@ -112,7 +112,7 @@ struct FSNode {
 	uint32_t gid; /*!< Group id. */
 	uint32_t trashtime; /*!< Trash time. */
 
-	std::unique_ptr<AccessControlList> extendedAcl; /*!< Access control list. */
+	std::unique_ptr<RichACL> acl; /*!< Access control list. */
 	compact_vector<uint32_t, uint32_t> parent; /*!< Parent nodes ids. To reduce memory usage ids
 	                                                are stored instead of pointers to FSNode. */
 
@@ -208,7 +208,6 @@ struct FSNodeDirectory : public FSNode {
 	typedef EntriesContainer::iterator iterator;
 	typedef EntriesContainer::const_iterator const_iterator;
 
-	std::unique_ptr<AccessControlList> defaultAcl; /*!< Default access control list for directory. */
 	EntriesContainer entries; /*!< Directory entries (entry: name + pointer to child node). */
 	statsrecord stats; /*!< Directory statistics (including subdirectories). */
 	uint32_t nlink; /*!< Number of directories linking to this directory. */
