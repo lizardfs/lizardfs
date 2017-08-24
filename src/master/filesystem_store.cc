@@ -968,7 +968,7 @@ void fs_store(FILE *fd, uint8_t fver) {
 			return;
 		}
 		fs_store_acls(fd);
-		if (process_section("ACLS 1.1", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
+		if (process_section("ACLS 1.2", hdr, ptr, offbegin, offend, fd) != LIZARDFS_STATUS_OK) {
 			return;
 		}
 		fs_storequotas(fd);
@@ -1143,6 +1143,17 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 					return -1;
 				}
 			} else if (memcmp(hdr, "ACLS 1.1", 8) == 0) {
+				lzfs_pretty_syslog_attempt(
+				        LOG_INFO,
+				        "loading access control lists from the metadata file");
+				fflush(stderr);
+				if (fs_load_posix_acls(fd, ignoreflag) < 0) {
+#ifndef METARESTORE
+					lzfs_pretty_syslog(LOG_ERR, "error reading access control lists");
+#endif
+					return -1;
+				}
+			} else if (memcmp(hdr, "ACLS 1.2", 8) == 0) {
 				lzfs_pretty_syslog_attempt(
 				        LOG_INFO,
 				        "loading access control lists from the metadata file");

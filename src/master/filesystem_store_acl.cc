@@ -56,8 +56,7 @@ static void fs_store_marker(FILE *fd) {
 	}
 }
 
-/* FIXME(haze): Will be fixed in next commit
-static void fs_store_acl(uint32_t id, const AccessControlList &acl, FILE *fd) {
+static void fs_store_acl(uint32_t id, const RichACL &acl, FILE *fd) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
 	uint32_t size = serializedSize(id, acl);
@@ -67,28 +66,13 @@ static void fs_store_acl(uint32_t id, const AccessControlList &acl, FILE *fd) {
 		return;
 	}
 }
-*/
 
 void fs_store_acls(FILE *fd) {
 	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
 		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
-			/* FIXME(haze): Will be fixed in next commit
 			if (p->acl) {
-				fs_store_acl(p->id, *p->extendedAcl, fd);
+				fs_store_acl(p->id, *p->acl, fd);
 			}
-			*/
-		}
-	}
-	fs_store_marker(fd);
-
-	for (uint32_t i = 0; i < NODEHASHSIZE; ++i) {
-		for (FSNode *p = gMetadata->nodehash[i]; p; p = p->next) {
-			/* FIXME(haze): Will be fixed in next commit
-			FSNodeDirectory *dir_node = static_cast<FSNodeDirectory*>(p);
-			if (p->type == FSNode::kDirectory && dir_node->defaultAcl) {
-				fs_store_acl(dir_node->id, *dir_node->defaultAcl, fd);
-			}
-			*/
 		}
 	}
 	fs_store_marker(fd);
@@ -139,14 +123,19 @@ static int fs_load_legacy_acl(FILE *fd, int ignoreflag) {
 
 		deserialize(buffer, inode, extended_acl, default_acl);
 
-		/* FIXME(haze): Will be fixed in next commit
 		if (extended_acl) {
-			p->extendedAcl.reset(new AccessControlList((AccessControlList)*extended_acl));
+			AccessControlList posix_acl = (AccessControlList)*extended_acl;
+			p->acl.reset(new RichACL());
+			p->acl->appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
+			p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
 		}
-		if (p->type == FSNode::kDirectory && default_acl) {
-			static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList((AccessControlList)*default_acl));
+		if (default_acl && p->type == FSNode::kDirectory) {
+			AccessControlList posix_acl = (AccessControlList)*default_acl;
+			if (!p->acl) {
+				p->acl.reset(new RichACL());
+			}
+			p->acl->appendDefaultPosixACL(posix_acl);
 		}
-		*/
 		return 0;
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
@@ -170,7 +159,7 @@ int fs_load_legacy_acls(FILE *fd, int ignoreflag) {
 	return 0;
 }
 
-static int fs_load_acl(FILE *fd, int ignoreflag, bool /*default_acl*/) {
+static int fs_load_posix_acl(FILE *fd, int ignoreflag, bool default_acl) {
 	static std::vector<uint8_t> buffer;
 	buffer.clear();
 
@@ -205,20 +194,94 @@ static int fs_load_acl(FILE *fd, int ignoreflag, bool /*default_acl*/) {
 		}
 
 		// Deserialize ACL
-		AccessControlList acl;
+		AccessControlList posix_acl;
 
-		deserialize(buffer, inode, acl);
+		deserialize(buffer, inode, posix_acl);
 
-		/* FIXME(haze): Will be fixed in next commit
 		if (default_acl) {
-			if (p->type == FSNode::kDirectory) {
-				static_cast<FSNodeDirectory*>(p)->defaultAcl.reset(new AccessControlList(std::move(acl)));
+			if (p->type != FSNode::kDirectory) {
+				throw Exception("Trying to set default acl for non-directory inode: " + std::to_string(inode));
 			}
+			if (!p->acl) {
+				p->acl.reset(new RichACL());
+			}
+			p->acl->appendDefaultPosixACL(posix_acl);
 		} else {
-			p->extendedAcl.reset(new AccessControlList(std::move(acl)));
+			if (!p->acl) {
+				p->acl.reset(new RichACL());
+			}
+			p->acl->appendPosixACL(posix_acl, p->type == FSNode::kDirectory);
+			p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
 		}
-		*/
+		return 0;
+	} catch (Exception &ex) {
+		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
+		if (!ignoreflag || ex.status() != LIZARDFS_STATUS_OK) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+}
 
+int fs_load_posix_acls(FILE *fd, int ignoreflag) {
+	int s;
+
+	do {
+		s = fs_load_posix_acl(fd, ignoreflag, false);
+		if (s < 0) {
+			return -1;
+		}
+	} while (s == 0);
+
+	do {
+		s = fs_load_posix_acl(fd, ignoreflag, true);
+		if (s < 0) {
+			return -1;
+		}
+	} while (s == 0);
+
+	return 0;
+}
+
+static int fs_load_acl(FILE *fd, int ignoreflag) {
+	static std::vector<uint8_t> buffer;
+	buffer.clear();
+
+	try {
+		// Read size of the entry
+		uint32_t size = 0;
+		buffer.resize(serializedSize(size));
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
+		}
+		deserialize(buffer, size);
+		if (size == 0) {
+			// this is end marker
+			return 1;
+		} else if (size > 10000000) {
+			throw Exception("strange size of entry: " + std::to_string(size),
+				LIZARDFS_ERROR_ERANGE);
+		}
+
+		// Read the entry
+		buffer.resize(size);
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
+		}
+
+		// Deserialize inode
+		uint32_t inode;
+		deserialize(buffer, inode);
+		FSNode *p = fsnodes_id_to_node(inode);
+		if (!p) {
+			throw Exception("unknown inode: " + std::to_string(inode));
+		}
+
+		// Deserialize ACL
+		RichACL acl;
+		deserialize(buffer, inode, acl);
+		p->acl.reset(new RichACL(std::move(acl)));
 		return 0;
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "loading acl: %s", ex.what());
@@ -234,14 +297,7 @@ int fs_load_acls(FILE *fd, int ignoreflag) {
 	int s;
 
 	do {
-		s = fs_load_acl(fd, ignoreflag, false);
-		if (s < 0) {
-			return -1;
-		}
-	} while (s == 0);
-
-	do {
-		s = fs_load_acl(fd, ignoreflag, true);
+		s = fs_load_acl(fd, ignoreflag);
 		if (s < 0) {
 			return -1;
 		}

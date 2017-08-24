@@ -26,6 +26,7 @@
 #include "master/metadata_dumper.h"
 
 int fs_load_legacy_acls(FILE *fd, int ignoreflag);
+int fs_load_posix_acls(FILE *fd, int ignoreflag);
 int fs_load_acls(FILE *fd, int ignoreflag);
 int fs_store_acls(FILE *fd);
 
