@@ -43,6 +43,8 @@
 
 std::array<uint32_t, FsStats::Size> gFsStatsArray = {{}};
 
+static const char kAclXattrs[] = "system.posix_acl_access\0system.posix_acl_default\0system.richacl\0system.nfs4_acl";
+
 void fs_retrieve_stats(std::array<uint32_t, FsStats::Size> &output_stats) {
 	output_stats = gFsStatsArray;
 	gFsStatsArray.fill(0);
@@ -2517,12 +2519,13 @@ uint8_t fs_listxattr_leng(const FsContext &context, uint32_t inode, uint8_t open
 		return status;
 	}
 
-	*xasize = 0;
+	*xasize = sizeof(kAclXattrs);
 	return xattr_listattr_leng(p->id, xanode, xasize);
 }
 
 void fs_listxattr_data(void *xanode, uint8_t *xabuff) {
-	xattr_listattr_data(xanode, xabuff);
+	memcpy(xabuff, kAclXattrs, sizeof(kAclXattrs));
+	xattr_listattr_data(xanode, xabuff + sizeof(kAclXattrs));
 }
 
 uint8_t fs_setxattr(const FsContext &context, uint32_t inode, uint8_t opened,

@@ -242,7 +242,6 @@ uint8_t xattr_listattr_leng(uint32_t inode, void **xanode, uint32_t *xasize) {
 	xattr_inode_entry *ih;
 	xattr_data_entry *xa;
 
-	*xasize = 0;
 	for (ih = gMetadata->xattr_inode_hash[xattr_inode_hash_fn(inode)]; ih; ih = ih->next) {
 		if (ih->inode == inode) {
 			*xanode = ih;
