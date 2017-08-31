@@ -42,6 +42,7 @@
 #include "common/errno_defs.h"
 #include "common/lru_cache.h"
 #include "common/mfserr.h"
+#include "common/richacl_converter.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
 #include "common/special_inode_defs.h"
@@ -2368,7 +2369,7 @@ public:
 		if (!acl_enabled) {
 			return LIZARDFS_ERROR_ENOTSUP;
 		}
-		AccessControlList acl;
+		AccessControlList posix_acl;
 		try {
 			if (size <= kEmptyAclSize) {
 				uint8_t status;
@@ -2376,13 +2377,13 @@ public:
 					fs_deletacl(ino, ctx.uid, ctx.gid, type_));
 				return status;
 			}
-			acl = aclConverter::extractAclObject((const uint8_t*)value, size);
+			posix_acl = aclConverter::extractAclObject((const uint8_t*)value, size);
 		} catch (Exception&) {
 			return LIZARDFS_ERROR_EINVAL;
 		}
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
-			fs_setacl(ino, ctx.uid, ctx.gid, type_, acl));
+			fs_setacl(ino, ctx.uid, ctx.gid, type_, posix_acl));
 		eraseAclCache(ino);
 		gDirEntryCache.lockAndInvalidateInode(ino);
 		return status;
@@ -2434,16 +2435,119 @@ private:
 	SteadyClock clock_;
 };
 
+class NFSAclXattrHandler : public XattrHandler {
+public:
+	NFSAclXattrHandler() { }
+
+	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, const char *value, size_t size, int) override {
+		uint8_t status = LIZARDFS_STATUS_OK;
+		RichACL acl = richAclConverter::extractObjectFromNFS((uint8_t *)value, size);
+
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_setacl(ino, ctx.uid, ctx.gid, acl));
+		eraseAclCache(ino);
+		gDirEntryCache.lockAndInvalidateInode(ino);
+		return status;
+	}
+
+	uint8_t getxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, int, uint32_t& valueLength, std::vector<uint8_t>& value) override {
+		try {
+			AclCacheEntry cache_entry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid);
+			if (cache_entry) {
+				value = richAclConverter::objectToNFSXattr(cache_entry->acl, cache_entry->owner_id);
+				valueLength = value.size();
+				return LIZARDFS_STATUS_OK;
+			} else {
+				return LIZARDFS_ERROR_ENOATTR;
+			}
+		} catch (AclAcquisitionException& e) {
+			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
+			return e.status();
+		} catch (Exception&) {
+			lzfs_pretty_syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			return LIZARDFS_ERROR_IO;
+		}
+	}
+
+	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
+			uint32_t) override {
+		if (!acl_enabled) {
+			return LIZARDFS_ERROR_ENOTSUP;
+		}
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_deletacl(ino, ctx.uid, ctx.gid, AclType::kRichACL));
+		eraseAclCache(ino);
+		return status;
+	}
+private:
+	SteadyClock clock_;
+};
+
+class RichAclXattrHandler : public XattrHandler {
+public:
+	RichAclXattrHandler() { }
+
+	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, const char *value, size_t size, int) override {
+		uint8_t status = LIZARDFS_STATUS_OK;
+		RichACL acl = richAclConverter::extractObjectFromRichACL((uint8_t *)value, size);
+
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_setacl(ino, ctx.uid, ctx.gid, acl));
+		eraseAclCache(ino);
+		gDirEntryCache.lockAndInvalidateInode(ino);
+		return status;
+	}
+
+	uint8_t getxattr(const Context& ctx, Inode ino, const char *,
+			uint32_t, int, uint32_t& valueLength, std::vector<uint8_t>& value) override {
+		try {
+			AclCacheEntry cache_entry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid);
+			if (cache_entry) {
+				value = richAclConverter::objectToRichACLXattr(cache_entry->acl);
+				valueLength = value.size();
+				return LIZARDFS_STATUS_OK;
+			} else {
+				return LIZARDFS_ERROR_ENOATTR;
+			}
+		} catch (AclAcquisitionException& e) {
+			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
+			return e.status();
+		} catch (Exception&) {
+			lzfs_pretty_syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
+			return LIZARDFS_ERROR_IO;
+		}
+	}
+
+	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
+			uint32_t) override {
+		uint8_t status;
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
+			fs_deletacl(ino, ctx.uid, ctx.gid, AclType::kRichACL));
+		eraseAclCache(ino);
+		return status;
+	}
+private:
+	SteadyClock clock_;
+};
+
 } // anonymous namespace
 
 static PosixAclXattrHandler accessAclXattrHandler(AclType::kAccess);
 static PosixAclXattrHandler defaultAclXattrHandler(AclType::kDefault);
+static NFSAclXattrHandler nfsAclXattrHandler;
+static RichAclXattrHandler richAclXattrHandler;
 static ErrorXattrHandler enotsupXattrHandler(LIZARDFS_ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 
 static std::map<std::string, XattrHandler*> xattr_handlers = {
 	{"system.posix_acl_access", &accessAclXattrHandler},
 	{"system.posix_acl_default", &defaultAclXattrHandler},
+	{"system.nfs4_acl", &nfsAclXattrHandler},
+	{"system.richacl", &richAclXattrHandler},
 	{"security.capability", &enotsupXattrHandler},
 };
 
