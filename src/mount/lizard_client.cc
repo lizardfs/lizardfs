@@ -194,8 +194,8 @@ static std::unique_ptr<AclCache> acl_cache;
 
 inline void eraseAclCache(Inode inode) {
 	acl_cache->erase(
-			inode    , 0, 0, (AclType)0,
-			inode + 1, 0, 0, (AclType)0);
+			inode    , 0, 0,
+			inode + 1, 0, 0);
 }
 
 // TODO consider making oplog_printf asynchronous
@@ -2358,9 +2358,9 @@ private:
 	uint8_t error_;
 };
 
-class AclXattrHandler : public XattrHandler {
+class PosixAclXattrHandler : public XattrHandler {
 public:
-	AclXattrHandler(AclType type) : type_(type) { }
+	PosixAclXattrHandler(AclType type) : type_(type) { }
 
 	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, const char *value, size_t size, int) override {
@@ -2390,23 +2390,28 @@ public:
 
 	uint8_t getxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, int /*mode*/, uint32_t& valueLength, std::vector<uint8_t>& value) override {
-		if (!acl_enabled) {
-			return LIZARDFS_ERROR_ENOTSUP;
-		}
-
 		try {
-			AclCacheEntry cacheEntry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid, type_);
+			AclCacheEntry cacheEntry = acl_cache->get(clock_.now(), ino, ctx.uid, ctx.gid);
 			if (cacheEntry) {
-				value = aclConverter::aclObjectToXattr(*cacheEntry);
+				std::pair<bool, AccessControlList> posix_acl;
+				if (type_ == AclType::kAccess) {
+					posix_acl = cacheEntry->acl.convertToPosixACL();
+				} else {
+					posix_acl = cacheEntry->acl.convertToDefaultPosixACL();
+				}
+				if (!posix_acl.first) {
+					return LIZARDFS_ERROR_ENOATTR;
+				}
+				value = aclConverter::aclObjectToXattr(posix_acl.second);
 				valueLength = value.size();
 				return LIZARDFS_STATUS_OK;
 			} else {
 				return LIZARDFS_ERROR_ENOATTR;
 			}
-		} catch (AclAcquisitionException& e) {
+		} catch (AclAcquisitionException &e) {
 			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
 			return e.status();
-		} catch (Exception&) {
+		} catch (Exception &) {
 			lzfs_pretty_syslog(LOG_WARNING, "Failed to convert ACL to xattr, looks like a bug");
 			return LIZARDFS_ERROR_IO;
 		}
@@ -2431,8 +2436,8 @@ private:
 
 } // anonymous namespace
 
-static AclXattrHandler accessAclXattrHandler(AclType::kAccess);
-static AclXattrHandler defaultAclXattrHandler(AclType::kDefault);
+static PosixAclXattrHandler accessAclXattrHandler(AclType::kAccess);
+static PosixAclXattrHandler defaultAclXattrHandler(AclType::kDefault);
 static ErrorXattrHandler enotsupXattrHandler(LIZARDFS_ERROR_ENOTSUP);
 static PlainXattrHandler plainXattrHandler;
 

@@ -27,19 +27,24 @@
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(AclAcquisitionException, Exception, "ACL acquiring");
 
-typedef std::shared_ptr<AccessControlList> AclCacheEntry;
+struct RichACLWithOwner {
+	RichACL acl;
+	uint32_t owner_id;
+};
+
+typedef std::shared_ptr<RichACLWithOwner> AclCacheEntry;
 
 typedef LruCache<
 		LruCacheOption::UseTreeMap,
 		LruCacheOption::Reentrant,
 		AclCacheEntry,
-		uint32_t, uint32_t, uint32_t, AclType> AclCache;
+		uint32_t, uint32_t, uint32_t> AclCache;
 
-inline AclCacheEntry getAcl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
-	AclCacheEntry acl(new AccessControlList());
-	uint8_t status = fs_getacl(inode, uid, gid, type, *acl);
+inline AclCacheEntry getAcl(uint32_t inode, uint32_t uid, uint32_t gid) {
+	AclCacheEntry entry(new RichACLWithOwner());
+	uint8_t status = fs_getacl(inode, uid, gid, entry->acl, entry->owner_id);
 	if (status == LIZARDFS_STATUS_OK) {
-		return acl;
+		return entry;
 	} else if (status == LIZARDFS_ERROR_ENOATTR) {
 		return AclCacheEntry();
 	} else {

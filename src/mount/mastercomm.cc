@@ -2623,9 +2623,9 @@ uint8_t fs_deletacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type) {
 	}
 }
 
-uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, AccessControlList& acl) {
+uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, RichACL& acl, uint32_t &owner_id) {
 	threc* rec = fs_get_my_threc();
-	auto message = cltoma::fuseGetAcl::build(rec->packetId, inode, uid, gid, type);
+	auto message = cltoma::fuseGetAcl::build(rec->packetId, inode, uid, gid, AclType::kRichACL);
 	if (!fs_lizcreatepacket(rec, message)) {
 		return LIZARDFS_ERROR_IO;
 	}
@@ -2637,8 +2637,8 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 		deserializePacketVersionNoHeader(message, packetVersion);
 		if (packetVersion == matocl::fuseGetAcl::kStatusPacketVersion) {
 			uint8_t status;
-			uint32_t dummyMessageId;
-			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId,
+			uint32_t dummy_msg_id;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummy_msg_id,
 					status);
 			if (status == LIZARDFS_STATUS_OK) {
 				fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
@@ -2646,9 +2646,9 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 				return LIZARDFS_ERROR_IO;
 			}
 			return status;
-		} else if (packetVersion == matocl::fuseGetAcl::kResponsePacketVersion) {
-			uint32_t dummyMessageId;
-			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummyMessageId, acl);
+		} else if (packetVersion == matocl::fuseGetAcl::kRichACLResponsePacketVersion) {
+			uint32_t dummy_msg_id;
+			matocl::fuseGetAcl::deserialize(message.data(), message.size(), dummy_msg_id, owner_id, acl);
 			return LIZARDFS_STATUS_OK;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(),
@@ -2657,6 +2657,26 @@ uint8_t fs_getacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, Acce
 		}
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_GET_ACL", message.size(), ex.what());
+		return LIZARDFS_ERROR_IO;
+	}
+}
+
+uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, const RichACL& acl) {
+	threc* rec = fs_get_my_threc();
+	auto message = cltoma::fuseSetAcl::build(rec->packetId, inode, uid, gid, acl);
+	if (!fs_lizcreatepacket(rec, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	if (!fs_lizsendandreceive(rec, LIZ_MATOCL_FUSE_SET_ACL, message)) {
+		return LIZARDFS_ERROR_IO;
+	}
+	try {
+		uint8_t status;
+		uint32_t dummy_msg_id;
+		matocl::fuseSetAcl::deserialize(message.data(), message.size(), dummy_msg_id, status);
+		return status;
+	} catch (Exception& ex) {
+		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());
 		return LIZARDFS_ERROR_IO;
 	}
 }
@@ -2672,8 +2692,8 @@ uint8_t fs_setacl(uint32_t inode, uint32_t uid, uint32_t gid, AclType type, cons
 	}
 	try {
 		uint8_t status;
-		uint32_t dummyMessageId;
-		matocl::fuseSetAcl::deserialize(message.data(), message.size(), dummyMessageId, status);
+		uint32_t dummy_msg_id;
+		matocl::fuseSetAcl::deserialize(message.data(), message.size(), dummy_msg_id, status);
 		return status;
 	} catch (Exception& ex) {
 		fs_got_inconsistent("LIZ_MATOCL_SET_ACL", message.size(), ex.what());

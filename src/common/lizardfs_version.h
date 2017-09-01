@@ -43,4 +43,4 @@ constexpr uint32_t kStdVersion = lizardfsVersion(2, 6, 0);
 constexpr uint32_t kFirstXorVersion = lizardfsVersion(2, 9, 0);
 constexpr uint32_t kFirstECVersion = lizardfsVersion(3, 9, 5);
 constexpr uint32_t kACL11Version = lizardfsVersion(3, 11, 0);
-constexpr uint32_t kRichACLVersion = lizardfsVersion(3, 12, 1);
+constexpr uint32_t kRichACLVersion = lizardfsVersion(3, 12, 0);
