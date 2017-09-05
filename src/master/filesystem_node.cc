@@ -1672,6 +1672,7 @@ uint8_t fsnodes_setacl(FSNode *p, AclType type, const AccessControlList &acl, ui
 
 	if (type == AclType::kDefault) {
 		p->acl->appendDefaultPosixACL(acl);
+		p->acl->setMode(p->mode, true);
 	} else {
 		p->acl->appendPosixACL(acl, p->type == FSNode::kDirectory);
 		p->mode = (p->mode & ~0777) | (p->acl->getMode() & 0777);
