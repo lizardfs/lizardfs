@@ -379,6 +379,13 @@ static fsal_status_t lzfs_fsal_getattrs(struct fsal_obj_handle *obj_hdl, struct 
 	}
 
 	posix2fsal_attributes_all(&lzfs_attrs.attr, attrs);
+	if (attrs->request_mask & ATTR_ACL) {
+		fsal_status_t status =
+		    lzfs_int_getacl(lzfs_export, lzfs_obj->inode, lzfs_attrs.attr.st_uid, &attrs->acl);
+		if (!FSAL_IS_ERROR(status)) {
+			attrs->valid_mask |= ATTR_ACL;
+		}
+	}
 
 	return fsalstat(ERR_FSAL_NO_ERROR, 0);
 }
@@ -1125,6 +1132,11 @@ static fsal_status_t lzfs_fsal_setattr2(struct fsal_obj_handle *obj_hdl, bool by
 		LogFullDebug(COMPONENT_FSAL, "liz_setattr returned %s (%d)",
 		             liz_error_string(liz_last_err()), liz_last_err());
 		status = lzfs_fsal_last_err();
+		goto out;
+	}
+
+	if (FSAL_TEST_MASK(attrib_set->valid_mask, ATTR_ACL)) {
+		status = lzfs_int_setacl(lzfs_export, lzfs_obj->inode, attrib_set->acl);
 	}
 
 out:

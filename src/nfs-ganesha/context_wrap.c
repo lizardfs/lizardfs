@@ -225,3 +225,24 @@ int liz_cred_get_chunks_info(liz_t *instance, struct user_cred *cred, liz_inode_
 	liz_destroy_context(ctx);
 	return rc;
 }
+
+int liz_cred_setacl(liz_t *instance, struct user_cred *cred, liz_inode_t inode,
+                    const liz_acl_t *acl) {
+	liz_context_t *ctx = lzfs_fsal_create_context(instance, cred);
+	if (ctx == NULL) {
+		return -1;
+	}
+	int rc = liz_setacl(instance, ctx, inode, acl);
+	liz_destroy_context(ctx);
+	return rc;
+}
+
+int liz_cred_getacl(liz_t *instance, struct user_cred *cred, liz_inode_t inode, liz_acl_t **acl) {
+	liz_context_t *ctx = lzfs_fsal_create_context(instance, cred);
+	if (ctx == NULL) {
+		return -1;
+	}
+	int rc = liz_getacl(instance, ctx, inode, acl);
+	liz_destroy_context(ctx);
+	return rc;
+}

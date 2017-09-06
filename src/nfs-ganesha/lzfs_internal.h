@@ -79,7 +79,7 @@ struct lzfs_fsal_ds_handle {
 #define LZFS_SUPPORTED_ATTRS                                                                    \
 	(ATTR_TYPE | ATTR_SIZE | ATTR_FSID | ATTR_FILEID | ATTR_MODE | ATTR_NUMLINKS | ATTR_OWNER | \
 	 ATTR_GROUP | ATTR_ATIME | ATTR_CTIME | ATTR_MTIME | ATTR_CHGTIME | ATTR_CHANGE |           \
-	 ATTR_SPACEUSED | ATTR_RAWDEV)
+	 ATTR_SPACEUSED | ATTR_RAWDEV | ATTR_ACL)
 
 #define LZFS_BIGGEST_STRIPE_COUNT 4096
 #define LZFS_STD_CHUNK_PART_TYPE 0
@@ -100,3 +100,7 @@ struct lzfs_fsal_handle *lzfs_fsal_new_handle(const struct stat *attr,
 void lzfs_fsal_delete_handle(struct lzfs_fsal_handle *obj);
 void lzfs_fsal_ds_handle_ops_init(struct fsal_pnfs_ds_ops *ops);
 nfsstat4 lzfs_nfs4_last_err();
+fsal_status_t lzfs_int_getacl(struct lzfs_fsal_export *lzfs_export, uint32_t inode, uint32_t owner,
+                              fsal_acl_t **fsal_acl);
+fsal_status_t lzfs_int_setacl(struct lzfs_fsal_export *lzfs_export, uint32_t inode,
+                              const fsal_acl_t *fsal_acl);
