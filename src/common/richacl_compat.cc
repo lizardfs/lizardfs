@@ -23,18 +23,18 @@
 
 RichACL::iterator RichACL::changeMask(iterator ace, uint32_t mask) {
 	if (mask && ace->mask == mask) {
-		ace->flags &= ~Ace::INHERIT_ONLY_ACE;
-	} else if (mask & ~Ace::POSIX_ALWAYS_ALLOWED) {
+		ace->flags &= ~Ace::kInheritOnlyAce;
+	} else if (mask & ~Ace::kPosixAlwaysAllowed) {
 		if (ace->isInheritable()) {
 			ace = ace_list_.insert(ace, *ace);
-			ace->flags |= Ace::INHERIT_ONLY_ACE;
+			ace->flags |= Ace::kInheritOnlyAce;
 			++ace;
-			ace->flags &= ~Ace::INHERITANCE_FLAGS | Ace::INHERITED_ACE;
+			ace->flags &= ~Ace::kInheritanceFlags | Ace::kInheritedAce;
 		}
 		ace->mask = mask;
 	} else {
 		if (ace->isInheritable()) {
-			ace->flags |= Ace::INHERIT_ONLY_ACE;
+			ace->flags |= Ace::kInheritOnlyAce;
 		} else {
 			return ace_list_.erase(ace);
 		}
@@ -71,17 +71,17 @@ void RichACL::moveEveryoneAcesDown() {
 		}
 	}
 
-	if (allowed & ~Ace::POSIX_ALWAYS_ALLOWED) {
+	if (allowed & ~Ace::kPosixAlwaysAllowed) {
 		if (!ace_list_.empty()) {
 			Ace &last_ace(ace_list_.back());
 			if (last_ace.isEveryone() && last_ace.isAllow() && last_ace.isInheritOnly() &&
 			    last_ace.mask == allowed) {
-				last_ace.mask &= ~Ace::INHERIT_ONLY_ACE;
+				last_ace.mask &= ~Ace::kInheritOnlyAce;
 				return;
 			}
 		}
 		ace_list_.push_back(
-		    Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO, allowed, Ace::EVERYONE_SPECIAL_ID));
+		    Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho, allowed, Ace::kEveryoneSpecialId));
 	}
 }
 
@@ -120,7 +120,7 @@ void RichACL::propagateEveryone(const Ace &who, uint32_t allow) {
 			return;
 		}
 
-		ace_list_.insert(ace, Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, who.flags & ~Ace::INHERITANCE_FLAGS,
+		ace_list_.insert(ace, Ace(Ace::kAccessAllowedAceType, who.flags & ~Ace::kInheritanceFlags,
 		                          allow, who.id));
 	}
 }
@@ -136,17 +136,17 @@ void RichACL::propagateEveryone() {
 		return;
 	}
 
-	Ace who(0, Ace::SPECIAL_WHO, 0, 0);
+	Ace who(0, Ace::kSpecialWho, 0, 0);
 	uint32_t owner_allow = ace->mask & owner_mask_;
 	uint32_t group_allow = ace->mask & group_mask_;
 
 	if (owner_allow & ~(group_mask_ & other_mask_)) {
-		who.id = Ace::OWNER_SPECIAL_ID;
+		who.id = Ace::kOwnerSpecialId;
 		propagateEveryone(who, owner_allow);
 	}
 
 	if (group_allow & ~other_mask_) {
-		who.id = Ace::GROUP_SPECIAL_ID;
+		who.id = Ace::kGroupSpecialId;
 		propagateEveryone(who, group_allow);
 
 		for (int i = (int)ace_list_.size() - 2; i >= 0; --i) {
@@ -160,10 +160,10 @@ void RichACL::propagateEveryone() {
 }
 
 void RichACL::setOwnerPermissions() {
-	uint32_t owner_mask = owner_mask_ & ~Ace::POSIX_ALWAYS_ALLOWED;
+	uint32_t owner_mask = owner_mask_ & ~Ace::kPosixAlwaysAllowed;
 	uint32_t denied = 0;
 
-	if (!(flags_ & WRITE_THROUGH)) {
+	if (!(flags_ & kWriteThrough)) {
 		return;
 	}
 
@@ -184,23 +184,23 @@ void RichACL::setOwnerPermissions() {
 	}
 
 	if (owner_mask & (denied | ~other_mask_ | ~group_mask_)) {
-		ace_list_.insert(ace_list_.begin(), Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO,
-		                                        owner_mask, Ace::OWNER_SPECIAL_ID));
+		ace_list_.insert(ace_list_.begin(), Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho,
+		                                        owner_mask, Ace::kOwnerSpecialId));
 	}
 }
 
 void RichACL::setOtherPermissions(uint32_t &added) {
-	uint32_t other_mask = other_mask_ & ~Ace::POSIX_ALWAYS_ALLOWED;
+	uint32_t other_mask = other_mask_ & ~Ace::kPosixAlwaysAllowed;
 
-	if (!(other_mask && (flags_ & WRITE_THROUGH))) {
+	if (!(other_mask && (flags_ & kWriteThrough))) {
 		return;
 	}
 
 	added = other_mask;
 
 	if (ace_list_.empty() || !ace_list_.back().isEveryone() || ace_list_.back().isInheritOnly()) {
-		ace_list_.push_back(Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO, other_mask,
-		                        Ace::EVERYONE_SPECIAL_ID));
+		ace_list_.push_back(Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho, other_mask,
+		                        Ace::kEveryoneSpecialId));
 	} else {
 		iterator ace = ace_list_.begin() + (ace_list_.size() - 1);
 		added &= ~ace->mask;
@@ -244,8 +244,8 @@ void RichACL::isolateOwnerClass() {
 		}
 	}
 
-	ace_list_.insert(ace_list_.begin(), Ace(Ace::ACCESS_DENIED_ACE_TYPE, Ace::SPECIAL_WHO, deny,
-	                                        Ace::OWNER_SPECIAL_ID));
+	ace_list_.insert(ace_list_.begin(), Ace(Ace::kAccessDeniedAceType, Ace::kSpecialWho, deny,
+	                                        Ace::kOwnerSpecialId));
 }
 
 void RichACL::isolateWho(const Ace &who, uint32_t deny) {
@@ -279,11 +279,11 @@ void RichACL::isolateWho(const Ace &who, uint32_t deny) {
 
 	auto ace = ace_list_.begin() + (ace_list_.size() - 1);
 	ace_list_.insert(
-	    ace, Ace(Ace::ACCESS_DENIED_ACE_TYPE, who.flags & ~Ace::INHERITANCE_FLAGS, deny, who.id));
+	    ace, Ace(Ace::kAccessDeniedAceType, who.flags & ~Ace::kInheritanceFlags, deny, who.id));
 }
 
 void RichACL::isolateGroupClass(uint32_t deny) {
-	Ace who(0, Ace::SPECIAL_WHO, 0, Ace::GROUP_SPECIAL_ID);
+	Ace who(0, Ace::kSpecialWho, 0, Ace::kGroupSpecialId);
 
 	if (ace_list_.empty()) {
 		return;
@@ -332,7 +332,7 @@ void RichACL::applyMasks2AceList(uint32_t owner) {
 }
 
 void RichACL::applyMasks(uint32_t owner) {
-	if (!(flags_ & MASKED)) {
+	if (!(flags_ & kMasked)) {
 		return;
 	}
 
@@ -346,7 +346,7 @@ void RichACL::applyMasks(uint32_t owner) {
 	setOwnerPermissions();
 	isolateOwnerClass();
 
-	flags_ &= ~(WRITE_THROUGH | MASKED);
+	flags_ &= ~(kWriteThrough | kMasked);
 
 	ace_list_.shrink_to_fit();
 }

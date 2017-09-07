@@ -1644,7 +1644,7 @@ uint8_t fsnodes_setacl(FSNode *p, const RichACL &acl, uint32_t ts) {
 		}
 		p->acl.reset(new RichACL(acl));
 		if (acl.isAutoSetMode()) {
-			p->acl->setFlags(p->acl->getFlags() & ~RichACL::AUTO_SET_MODE);
+			p->acl->setFlags(p->acl->getFlags() & ~RichACL::kAutoSetMode);
 			p->acl->setMode(p->mode, p->type == FSNode::kDirectory);
 		}
 	}

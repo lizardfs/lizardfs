@@ -54,25 +54,25 @@ struct richacl_mask_flag {
 };
 
 static const std::array<richacl_flag_bit, 5> kAclFlagBits = {{
-	{ 'm', RichACL::MASKED, "masked" },
-	{ 'w', RichACL::WRITE_THROUGH, "write_through" },
-	{ 'a', RichACL::AUTO_INHERIT, "auto_inherit" },
-	{ 'p', RichACL::PROTECTED, "protected" },
-	{ 'd', RichACL::DEFAULTED, "defaulted" },
+	{ 'm', RichACL::kMasked, "masked" },
+	{ 'w', RichACL::kWriteThrough, "write_through" },
+	{ 'a', RichACL::kAutoInherit, "auto_inherit" },
+	{ 'p', RichACL::kProtected, "protected" },
+	{ 'd', RichACL::kDefaulted, "defaulted" },
 }};
 
 static const std::array<richacl_type_value, 2> kTypeValues = {{
-	{ RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE, "A" },
-	{ RichACL::Ace::ACCESS_DENIED_ACE_TYPE,  "D" },
+	{ RichACL::Ace::kAccessAllowedAceType, "A" },
+	{ RichACL::Ace::kAccessDeniedAceType,  "D" },
 }};
 
 const std::array<richace_flag_bit, 6> kAceFlagBits = {{
-	{RichACL::Ace::FILE_INHERIT_ACE, 'f', "file_inherit"},
-	{RichACL::Ace::DIRECTORY_INHERIT_ACE, 'd', "dir_inherit"},
-	{RichACL::Ace::NO_PROPAGATE_INHERIT_ACE, 'n', "no_propagate"},
-	{RichACL::Ace::INHERIT_ONLY_ACE, 'i', "inherit_only"},
-	{RichACL::Ace::INHERITED_ACE, 'a', "inherited"},
-	{RichACL::Ace::SPECIAL_WHO, 'S', "special_who"},
+	{RichACL::Ace::kFileInheritAce, 'f', "file_inherit"},
+	{RichACL::Ace::kDirectoryInheritAce, 'd', "dir_inherit"},
+	{RichACL::Ace::kNoPropagateInheritAce, 'n', "no_propagate"},
+	{RichACL::Ace::kInheritOnlyAce, 'i', "inherit_only"},
+	{RichACL::Ace::kInheritedAce, 'a', "inherited"},
+	{RichACL::Ace::kSpecialWho, 'S', "special_who"},
 }};
 
 #define MASK_BIT(c, name, str) \
@@ -87,27 +87,27 @@ const std::array<richace_flag_bit, 6> kAceFlagBits = {{
 #define RICHACL_TEXT_DIRECTORY_CONTEXT  4
 
 const std::array<richacl_mask_flag, 19> kMaskFlags = {{
-	FILE_MASK_BIT('r', READ_DATA, "read_data"),
-	DIRECTORY_MASK_BIT('r', LIST_DIRECTORY, "list_directory"),
-	FILE_MASK_BIT('w', WRITE_DATA, "write_data"),
-	DIRECTORY_MASK_BIT('w', ADD_FILE, "add_file"),
-	FILE_MASK_BIT('p', APPEND_DATA, "append_data"),
-	DIRECTORY_MASK_BIT('p', ADD_SUBDIRECTORY, "add_subdirectory"),
-	MASK_BIT('x', EXECUTE, "execute"),
+	FILE_MASK_BIT('r', kReadData, "read_data"),
+	DIRECTORY_MASK_BIT('r', kListDirectory, "list_directory"),
+	FILE_MASK_BIT('w', kWriteData, "write_data"),
+	DIRECTORY_MASK_BIT('w', kAddFile, "add_file"),
+	FILE_MASK_BIT('p', kAppendData, "append_data"),
+	DIRECTORY_MASK_BIT('p', kAddSubdirectory, "add_subdirectory"),
+	MASK_BIT('x', kExecute, "execute"),
 	/* DELETE_CHILD is only meaningful for directories but it might also
 	   be set in an ACE of a file, so print it in file context as well.  */
-	MASK_BIT('d', DELETE_CHILD, "delete_child"),
-	MASK_BIT('D', DELETE, "delete"),
-	MASK_BIT('a', READ_ATTRIBUTES, "read_attributes"),
-	MASK_BIT('A', WRITE_ATTRIBUTES, "write_attributes"),
-	MASK_BIT('R', READ_NAMED_ATTRS, "read_named_attrs"),
-	MASK_BIT('W', WRITE_NAMED_ATTRS, "write_named_attrs"),
-	MASK_BIT('c', READ_ACL, "read_acl"),
-	MASK_BIT('C', WRITE_ACL, "write_acl"),
-	MASK_BIT('o', WRITE_OWNER, "write_owner"),
-	MASK_BIT('S', SYNCHRONIZE, "synchronize"),
-	MASK_BIT('e', WRITE_RETENTION, "write_retention"),
-	MASK_BIT('E', WRITE_RETENTION_HOLD, "write_retention_hold"),
+	MASK_BIT('d', kDeleteChild, "delete_child"),
+	MASK_BIT('D', kDelete, "delete"),
+	MASK_BIT('a', kReadAttributes, "read_attributes"),
+	MASK_BIT('A', kWriteAttributes, "write_attributes"),
+	MASK_BIT('R', kReadNamedAttrs, "read_named_attrs"),
+	MASK_BIT('W', kWriteNamedAttrs, "write_named_attrs"),
+	MASK_BIT('c', kReadAcl, "read_acl"),
+	MASK_BIT('C', kWriteAcl, "write_acl"),
+	MASK_BIT('o', kWriteOwner, "write_owner"),
+	MASK_BIT('S', kSynchronize, "synchronize"),
+	MASK_BIT('e', kWriteRetention, "write_retention"),
+	MASK_BIT('E', kWriteRetentionHold, "write_retention_hold"),
 }};
 
 #undef MASK_BIT
@@ -147,7 +147,7 @@ static std::string writeType(unsigned short type) {
 
 static std::string writeAceFlags(unsigned short flags) {
 	std::string str;
-	flags &= ~(RichACL::Ace::IDENTIFIER_GROUP | RichACL::Ace::SPECIAL_WHO);
+	flags &= ~(RichACL::Ace::kIdentifierGroup | RichACL::Ace::kSpecialWho);
 	for (const richace_flag_bit &flag_bit : kAceFlagBits) {
 		if (flags & flag_bit.e_flag) {
 			flags &= ~flag_bit.e_flag;
@@ -171,19 +171,19 @@ static std::string writeMask(unsigned int mask) {
 
 static std::string writeIdentifier(const RichACL::Ace &ace) {
 	std::string str;
-	if (ace.flags & RichACL::Ace::SPECIAL_WHO) {
+	if (ace.flags & RichACL::Ace::kSpecialWho) {
 		switch (ace.id) {
-		case RichACL::Ace::OWNER_SPECIAL_ID:
+		case RichACL::Ace::kOwnerSpecialId:
 		    str += 'O';
 		    break;
-		case RichACL::Ace::GROUP_SPECIAL_ID:
+		case RichACL::Ace::kGroupSpecialId:
 		    str += 'G';
 		    break;
-		case RichACL::Ace::EVERYONE_SPECIAL_ID:
+		case RichACL::Ace::kEveryoneSpecialId:
 		    str += 'E';
 		    break;
 		}
-	} else if (ace.flags & RichACL::Ace::IDENTIFIER_GROUP) {
+	} else if (ace.flags & RichACL::Ace::kIdentifierGroup) {
 		str += 'g' + std::to_string(ace.id);
 	} else {
 		str += 'u' + std::to_string(ace.id);
@@ -243,16 +243,16 @@ uint16_t getAclFlags(const std::string &str, size_t start, size_t delim) {
 void setAceIdentifier(RichACL::Ace &ace, const std::string &str, size_t start, size_t delim) {
 	switch (str[start]) {
 	case 'O':
-		ace.id = RichACL::Ace::OWNER_SPECIAL_ID;
-		ace.flags |= RichACL::Ace::SPECIAL_WHO;
+		ace.id = RichACL::Ace::kOwnerSpecialId;
+		ace.flags |= RichACL::Ace::kSpecialWho;
 		break;
 	case 'G':
-		ace.id = RichACL::Ace::GROUP_SPECIAL_ID;
-		ace.flags |= RichACL::Ace::SPECIAL_WHO;
+		ace.id = RichACL::Ace::kGroupSpecialId;
+		ace.flags |= RichACL::Ace::kSpecialWho;
 		break;
 	case 'E':
-		ace.id = RichACL::Ace::EVERYONE_SPECIAL_ID;
-		ace.flags |= RichACL::Ace::SPECIAL_WHO;
+		ace.id = RichACL::Ace::kEveryoneSpecialId;
+		ace.flags |= RichACL::Ace::kSpecialWho;
 		break;
 	case 'u':
 		start++;
@@ -269,7 +269,7 @@ void setAceIdentifier(RichACL::Ace &ace, const std::string &str, size_t start, s
 		} catch (...) {
 			ace.id = std::numeric_limits<uint32_t>::max();
 		}
-		ace.flags |= RichACL::Ace::IDENTIFIER_GROUP;
+		ace.flags |= RichACL::Ace::kIdentifierGroup;
 		break;
 	default:
 		throw RichACL::FormatException("unsupported ace identifier " + str.substr(start, 1));
@@ -332,10 +332,10 @@ uint32_t getAceFlags(const std::string &str, size_t start, size_t delim) {
 
 uint32_t getAceType(const std::string &str, size_t start, size_t /*delim*/) {
 	if (str[start] == 'A') {
-		return RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE;
+		return RichACL::Ace::kAccessAllowedAceType;
 	}
 	if (str[start] == 'D') {
-		return RichACL::Ace::ACCESS_DENIED_ACE_TYPE;
+		return RichACL::Ace::kAccessDeniedAceType;
 	}
 	throw RichACL::FormatException("unsupported ace type " + str.substr(start, 1));
 }

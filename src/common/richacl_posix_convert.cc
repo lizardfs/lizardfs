@@ -22,7 +22,7 @@
 void RichACL::appendPosixACL(const AccessControlList &posix_acl, bool is_dir) {
 	AccessControlList::Entry posix_ace;
 	uint32_t mask;
-	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
+	uint32_t x = is_dir ? 0 : Ace::kDeleteChild;
 
 	flags_ = 0;
 	owner_mask_ = 0;
@@ -38,47 +38,47 @@ void RichACL::appendPosixACL(const AccessControlList &posix_acl, bool is_dir) {
 		posix_ace = posix_acl.getEntry(AccessControlList::kOther, 0);
 		other_mask_ = RichACL::convertMode2Mask(posix_ace.access_rights) & ~x;
 
-		flags_ |= MASKED | WRITE_THROUGH;
+		flags_ |= kMasked | kWriteThrough;
 		return;
 	}
 
 	// add all Aces from Posix ACL
 	posix_ace = posix_acl.getEntry(AccessControlList::kUser, 0);
 	mask = RichACL::convertMode2Mask(posix_ace.access_rights) & ~x;
-	insert(RichACL::Ace(RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE, RichACL::Ace::SPECIAL_WHO, mask,
-	                    RichACL::Ace::OWNER_SPECIAL_ID));
+	insert(RichACL::Ace(RichACL::Ace::kAccessAllowedAceType, RichACL::Ace::kSpecialWho, mask,
+	                    RichACL::Ace::kOwnerSpecialId));
 
 	posix_ace = posix_acl.getEntry(AccessControlList::kGroup, 0);
 	mask = RichACL::convertMode2Mask(posix_ace.access_rights) & ~x;
-	insert(RichACL::Ace(RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE, RichACL::Ace::SPECIAL_WHO, mask,
-	                    RichACL::Ace::GROUP_SPECIAL_ID));
+	insert(RichACL::Ace(RichACL::Ace::kAccessAllowedAceType, RichACL::Ace::kSpecialWho, mask,
+	                    RichACL::Ace::kGroupSpecialId));
 
 	for (const auto &ace : posix_acl) {
 		uint32_t mask = RichACL::convertMode2Mask(ace.access_rights) & ~x;
 
 		if (ace.type == AccessControlList::kNamedUser) {
-			insert(RichACL::Ace(RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE, 0, mask, ace.id));
+			insert(RichACL::Ace(RichACL::Ace::kAccessAllowedAceType, 0, mask, ace.id));
 		}
 		if (ace.type == AccessControlList::kNamedGroup) {
-			insert(RichACL::Ace(RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE,
-			                    RichACL::Ace::IDENTIFIER_GROUP, mask, ace.id));
+			insert(RichACL::Ace(RichACL::Ace::kAccessAllowedAceType,
+			                    RichACL::Ace::kIdentifierGroup, mask, ace.id));
 		}
 	}
 
 	posix_ace = posix_acl.getEntry(AccessControlList::kOther, 0);
 	mask = RichACL::convertMode2Mask(posix_ace.access_rights) & ~x;
-	insert(RichACL::Ace(RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE, RichACL::Ace::SPECIAL_WHO, mask,
-	                    RichACL::Ace::EVERYONE_SPECIAL_ID));
+	insert(RichACL::Ace(RichACL::Ace::kAccessAllowedAceType, RichACL::Ace::kSpecialWho, mask,
+	                    RichACL::Ace::kEveryoneSpecialId));
 
 	// Isolate owner, groups and users (deny unneeded permissions from Everyone so it behaves
 	// like Posix Other entry).
-	isolateWho(Ace(0, Ace::SPECIAL_WHO, 0, Ace::OWNER_SPECIAL_ID), mask);
+	isolateWho(Ace(0, Ace::kSpecialWho, 0, Ace::kOwnerSpecialId), mask);
 	isolateGroupClass(mask);
 
 	// Calculate owner, owning group and other masks (required by getMode())
-	owner_mask_ = allowedToWho(Ace(0, Ace::SPECIAL_WHO, 0, Ace::OWNER_SPECIAL_ID));
-	group_mask_ = allowedToWho(Ace(0, Ace::SPECIAL_WHO, 0, Ace::GROUP_SPECIAL_ID));
-	other_mask_ = allowedToWho(Ace(0, Ace::SPECIAL_WHO, 0, Ace::EVERYONE_SPECIAL_ID));
+	owner_mask_ = allowedToWho(Ace(0, Ace::kSpecialWho, 0, Ace::kOwnerSpecialId));
+	group_mask_ = allowedToWho(Ace(0, Ace::kSpecialWho, 0, Ace::kGroupSpecialId));
+	other_mask_ = allowedToWho(Ace(0, Ace::kSpecialWho, 0, Ace::kEveryoneSpecialId));
 
 	// Posix mask ace is simulated with group mask and Group Ace in RichACL.
 	// Ace Group entry stores Owning Group permissions and group_mask_
@@ -87,14 +87,14 @@ void RichACL::appendPosixACL(const AccessControlList &posix_acl, bool is_dir) {
 	if (posix_ace.type != AccessControlList::kInvalid) {
 		mask = RichACL::convertMode2Mask(posix_ace.access_rights) & ~x;
 		group_mask_ = mask;
-		flags_ |= MASKED;
+		flags_ |= kMasked;
 	}
 }
 
 void RichACL::appendDefaultPosixACL(const AccessControlList &posix_acl) {
 	RichACL dir_acl;
 	uint32_t default_mask =
-	    Ace::FILE_INHERIT_ACE | Ace::DIRECTORY_INHERIT_ACE | Ace::INHERIT_ONLY_ACE;
+	    Ace::kFileInheritAce | Ace::kDirectoryInheritAce | Ace::kInheritOnlyAce;
 
 	dir_acl.appendPosixACL(posix_acl, true);
 	for (const auto &dir_ace : dir_acl) {
@@ -120,33 +120,33 @@ bool RichACL::hasGroupEntry() const {
 std::pair<bool, AccessControlList> RichACL::convertToPosixACL() const {
 	AccessControlList posix_acl;
 
-	if (!(flags_ & MASKED) && ace_list_.empty()) {
+	if (!(flags_ & kMasked) && ace_list_.empty()) {
 		return std::make_pair(false, AccessControlList());
 	}
 
 	uint32_t mask, mode;
 	// set owner mode flags
-	mask = !(flags_ & WRITE_THROUGH) ? allowedToWho(RichACL::Ace(0, RichACL::Ace::SPECIAL_WHO, 0,
-	                                                             RichACL::Ace::OWNER_SPECIAL_ID))
+	mask = !(flags_ & kWriteThrough) ? allowedToWho(RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0,
+	                                                             RichACL::Ace::kOwnerSpecialId))
 	                                 : owner_mask_;
-	if (flags_ & MASKED) {
+	if (flags_ & kMasked) {
 		mask &= owner_mask_;
 	}
 	mode = convertMask2Mode(mask) << 6;
 
 	// set owning group mode flags
 	mask =
-	    allowedToWho(RichACL::Ace(0, RichACL::Ace::SPECIAL_WHO, 0, RichACL::Ace::GROUP_SPECIAL_ID));
-	if ((flags_ & WRITE_THROUGH) && !hasGroupEntry()) {
+	    allowedToWho(RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0, RichACL::Ace::kGroupSpecialId));
+	if ((flags_ & kWriteThrough) && !hasGroupEntry()) {
 		mask = group_mask_;
 	}
 	mode |= (RichACL::convertMask2Mode(mask) << 3);
 
 	// set other mode flags
-	mask = !(flags_ & WRITE_THROUGH) ? allowedToWho(RichACL::Ace(0, RichACL::Ace::SPECIAL_WHO, 0,
-	                                                             RichACL::Ace::EVERYONE_SPECIAL_ID))
+	mask = !(flags_ & kWriteThrough) ? allowedToWho(RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0,
+	                                                             RichACL::Ace::kEveryoneSpecialId))
 	                                 : other_mask_;
-	if (flags_ & MASKED) {
+	if (flags_ & kMasked) {
 		mask &= other_mask_;
 	}
 	mode |= RichACL::convertMask2Mode(mask);
@@ -181,7 +181,7 @@ std::pair<bool, AccessControlList> RichACL::convertToPosixACL() const {
 		}
 	}
 
-	if ((flags_ & MASKED) && hasGroupEntry()) {
+	if ((flags_ & kMasked) && hasGroupEntry()) {
 		// Posix mask ace is simulated with group mask and Group Ace in RichACL.
 		// Ace Group entry stores Owning Group permissions and group_mask_
 		// keeps permissions for Mask entry.
@@ -200,7 +200,7 @@ std::pair<bool, AccessControlList> RichACL::convertToDefaultPosixACL() const {
 		}
 
 		RichACL::Ace ace = dir_ace;
-		ace.flags &= ~RichACL::Ace::INHERIT_ONLY_ACE;
+		ace.flags &= ~RichACL::Ace::kInheritOnlyAce;
 		rich_acl.insert(ace);
 	}
 

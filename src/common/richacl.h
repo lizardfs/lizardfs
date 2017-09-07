@@ -33,12 +33,12 @@
 class RichACL {
 public:
 	/* acl mode flags */
-	static constexpr uint16_t AUTO_INHERIT = 0x01;
-	static constexpr uint16_t PROTECTED = 0x02;
-	static constexpr uint16_t DEFAULTED = 0x04;
-	static constexpr uint16_t WRITE_THROUGH = 0x40;
-	static constexpr uint16_t MASKED = 0x80;
-	static constexpr uint16_t AUTO_SET_MODE = 0x20;
+	static constexpr uint16_t kAutoInherit = 0x01;
+	static constexpr uint16_t kProtected = 0x02;
+	static constexpr uint16_t kDefaulted = 0x04;
+	static constexpr uint16_t kWriteThrough = 0x40;
+	static constexpr uint16_t kMasked = 0x80;
+	static constexpr uint16_t kAutoSetMode = 0x20;
 
 	LIZARDFS_CREATE_EXCEPTION_CLASS(FormatException, Exception);
 
@@ -46,66 +46,66 @@ public:
 		static constexpr uint32_t kInvalidId = 0xFFFFFFFF;
 
 		/* type values */
-		static constexpr uint32_t ACCESS_ALLOWED_ACE_TYPE = 0x0000;
-		static constexpr uint32_t ACCESS_DENIED_ACE_TYPE = 0x0001;
+		static constexpr uint32_t kAccessAllowedAceType = 0x0000;
+		static constexpr uint32_t kAccessDeniedAceType = 0x0001;
 
 		/* flags bitflags */
-		static constexpr uint32_t FILE_INHERIT_ACE = 0x0001;
-		static constexpr uint32_t DIRECTORY_INHERIT_ACE = 0x0002;
-		static constexpr uint32_t NO_PROPAGATE_INHERIT_ACE = 0x0004;
-		static constexpr uint32_t INHERIT_ONLY_ACE = 0x0008;
-		static constexpr uint32_t SUCCESSFUL_ACCESS_ACE_FLAG = 0x00000010;
-		static constexpr uint32_t FAILED_ACCESS_ACE_FLAG = 0x00000020;
-		static constexpr uint32_t IDENTIFIER_GROUP = 0x0040;
-		static constexpr uint32_t INHERITED_ACE = 0x0080;  // non nfs4
-		static constexpr uint32_t SPECIAL_WHO = 0x0100;    // lizardfs
+		static constexpr uint32_t kFileInheritAce = 0x0001;
+		static constexpr uint32_t kDirectoryInheritAce = 0x0002;
+		static constexpr uint32_t kNoPropagateInheritAce = 0x0004;
+		static constexpr uint32_t kInheritOnlyAce = 0x0008;
+		static constexpr uint32_t kSuccessfulAccessAceFlag = 0x00000010;
+		static constexpr uint32_t kFailedAccessAceFlag = 0x00000020;
+		static constexpr uint32_t kIdentifierGroup = 0x0040;
+		static constexpr uint32_t kInheritedAce = 0x0080;  // non nfs4
+		static constexpr uint32_t kSpecialWho = 0x0100;    // lizardfs
 
 		/* mask bitflags */
-		static constexpr uint32_t READ_DATA = 0x00000001;
-		static constexpr uint32_t LIST_DIRECTORY = 0x00000001;
-		static constexpr uint32_t WRITE_DATA = 0x00000002;
-		static constexpr uint32_t ADD_FILE = 0x00000002;
-		static constexpr uint32_t APPEND_DATA = 0x00000004;
-		static constexpr uint32_t ADD_SUBDIRECTORY = 0x00000004;
-		static constexpr uint32_t READ_NAMED_ATTRS = 0x00000008;
-		static constexpr uint32_t WRITE_NAMED_ATTRS = 0x00000010;
-		static constexpr uint32_t EXECUTE = 0x00000020;
-		static constexpr uint32_t DELETE_CHILD = 0x00000040;
-		static constexpr uint32_t READ_ATTRIBUTES = 0x00000080;
-		static constexpr uint32_t WRITE_ATTRIBUTES = 0x00000100;
-		static constexpr uint32_t WRITE_RETENTION = 0x00000200;
-		static constexpr uint32_t WRITE_RETENTION_HOLD = 0x00000400;
-		static constexpr uint32_t DELETE = 0x00010000;
-		static constexpr uint32_t READ_ACL = 0x00020000;
-		static constexpr uint32_t WRITE_ACL = 0x00040000;
-		static constexpr uint32_t WRITE_OWNER = 0x00080000;
-		static constexpr uint32_t SYNCHRONIZE = 0x00100000;
+		static constexpr uint32_t kReadData = 0x00000001;
+		static constexpr uint32_t kListDirectory = 0x00000001;
+		static constexpr uint32_t kWriteData = 0x00000002;
+		static constexpr uint32_t kAddFile = 0x00000002;
+		static constexpr uint32_t kAppendData = 0x00000004;
+		static constexpr uint32_t kAddSubdirectory = 0x00000004;
+		static constexpr uint32_t kReadNamedAttrs = 0x00000008;
+		static constexpr uint32_t kWriteNamedAttrs = 0x00000010;
+		static constexpr uint32_t kExecute = 0x00000020;
+		static constexpr uint32_t kDeleteChild = 0x00000040;
+		static constexpr uint32_t kReadAttributes = 0x00000080;
+		static constexpr uint32_t kWriteAttributes = 0x00000100;
+		static constexpr uint32_t kWriteRetention = 0x00000200;
+		static constexpr uint32_t kWriteRetentionHold = 0x00000400;
+		static constexpr uint32_t kDelete = 0x00010000;
+		static constexpr uint32_t kReadAcl = 0x00020000;
+		static constexpr uint32_t kWriteAcl = 0x00040000;
+		static constexpr uint32_t kWriteOwner = 0x00080000;
+		static constexpr uint32_t kSynchronize = 0x00100000;
 
 		/* special id values */
-		static constexpr uint32_t OWNER_SPECIAL_ID = 0;
-		static constexpr uint32_t GROUP_SPECIAL_ID = 1;
-		static constexpr uint32_t EVERYONE_SPECIAL_ID = 2;
+		static constexpr uint32_t kOwnerSpecialId = 0;
+		static constexpr uint32_t kGroupSpecialId = 1;
+		static constexpr uint32_t kEveryoneSpecialId = 2;
 
-		static constexpr uint32_t POSIX_MODE_READ = READ_DATA | LIST_DIRECTORY;
-		static constexpr uint32_t POSIX_MODE_WRITE =
-		    WRITE_DATA | ADD_FILE | APPEND_DATA | ADD_SUBDIRECTORY | DELETE_CHILD;
-		static constexpr uint32_t POSIX_MODE_EXEC = EXECUTE;
-		static constexpr uint32_t POSIX_MODE_ALL =
-		    POSIX_MODE_READ | POSIX_MODE_WRITE | POSIX_MODE_EXEC;
+		static constexpr uint32_t kPosixModeRead = kReadData | kListDirectory;
+		static constexpr uint32_t kPosixModeWrite =
+		    kWriteData | kAddFile | kAppendData | kAddSubdirectory | kDeleteChild;
+		static constexpr uint32_t kPosixModeExec = kExecute;
+		static constexpr uint32_t kPosixModeAll =
+		    kPosixModeRead | kPosixModeWrite | kPosixModeExec;
 
-		static constexpr uint32_t POSIX_ALWAYS_ALLOWED = SYNCHRONIZE | READ_ATTRIBUTES | READ_ACL;
+		static constexpr uint32_t kPosixAlwaysAllowed = kSynchronize | kReadAttributes | kReadAcl;
 
-		static constexpr uint32_t POSIX_OWNER_ALLOWED = WRITE_ATTRIBUTES | WRITE_OWNER | WRITE_ACL;
+		static constexpr uint32_t kPosixOwnerAllowed = kWriteAttributes | kWriteOwner | kWriteAcl;
 
-		static constexpr uint32_t INHERITANCE_FLAGS = FILE_INHERIT_ACE | DIRECTORY_INHERIT_ACE |
-		                                              NO_PROPAGATE_INHERIT_ACE | INHERIT_ONLY_ACE |
-		                                              INHERITED_ACE;
+		static constexpr uint32_t kInheritanceFlags = kFileInheritAce | kDirectoryInheritAce |
+		                                              kNoPropagateInheritAce | kInheritOnlyAce |
+		                                              kInheritedAce;
 
-		static constexpr uint32_t VALID_MASK =
-		    READ_DATA | LIST_DIRECTORY | WRITE_DATA | ADD_FILE | APPEND_DATA | ADD_SUBDIRECTORY |
-		    READ_NAMED_ATTRS | WRITE_NAMED_ATTRS | EXECUTE | DELETE_CHILD | READ_ATTRIBUTES |
-		    WRITE_ATTRIBUTES | WRITE_RETENTION | WRITE_RETENTION_HOLD | DELETE | READ_ACL |
-		    WRITE_ACL | WRITE_OWNER | SYNCHRONIZE;
+		static constexpr uint32_t kValidMask =
+		    kReadData | kListDirectory | kWriteData | kAddFile | kAppendData | kAddSubdirectory |
+		    kReadNamedAttrs | kWriteNamedAttrs | kExecute | kDeleteChild | kReadAttributes |
+		    kWriteAttributes | kWriteRetention | kWriteRetentionHold | kDelete | kReadAcl |
+		    kWriteAcl | kWriteOwner | kSynchronize;
 
 		Ace() : type(), flags(), mask(), id() {
 		}
@@ -131,50 +131,50 @@ public:
 		std::string toString() const;
 
 		bool isAllow() const {
-			return type == ACCESS_ALLOWED_ACE_TYPE;
+			return type == kAccessAllowedAceType;
 		}
 
 		bool isDeny() const {
-			return type == ACCESS_DENIED_ACE_TYPE;
+			return type == kAccessDeniedAceType;
 		}
 
 		bool isOwner() const {
-			return (flags & SPECIAL_WHO) && id == OWNER_SPECIAL_ID;
+			return (flags & kSpecialWho) && id == kOwnerSpecialId;
 		}
 
 		bool isGroup() const {
-			return (flags & SPECIAL_WHO) && id == GROUP_SPECIAL_ID;
+			return (flags & kSpecialWho) && id == kGroupSpecialId;
 		}
 
 		bool isEveryone() const {
-			return (flags & SPECIAL_WHO) && id == EVERYONE_SPECIAL_ID;
+			return (flags & kSpecialWho) && id == kEveryoneSpecialId;
 		}
 
 		bool isUnixUser() const {
-			return !(flags & SPECIAL_WHO) && !(flags & IDENTIFIER_GROUP);
+			return !(flags & kSpecialWho) && !(flags & kIdentifierGroup);
 		}
 
 		bool isUnixGroup() const {
-			return !(flags & SPECIAL_WHO) && (flags & IDENTIFIER_GROUP);
+			return !(flags & kSpecialWho) && (flags & kIdentifierGroup);
 		}
 
 		bool isInheritable() const {
-			return flags & (FILE_INHERIT_ACE | DIRECTORY_INHERIT_ACE);
+			return flags & (kFileInheritAce | kDirectoryInheritAce);
 		}
 
 		bool isInheritOnly() const {
-			return flags & INHERIT_ONLY_ACE;
+			return flags & kInheritOnlyAce;
 		}
 
 		bool isSameIdentifier(const Ace &ace) const {
-			return !(((flags ^ ace.flags) & (SPECIAL_WHO | IDENTIFIER_GROUP)) || id != ace.id);
+			return !(((flags ^ ace.flags) & (kSpecialWho | kIdentifierGroup)) || id != ace.id);
 		}
 
 		bool inheritsToDirectory() const {
-			if (flags & DIRECTORY_INHERIT_ACE) {
+			if (flags & kDirectoryInheritAce) {
 				return true;
 			}
-			if ((flags & FILE_INHERIT_ACE) && !(flags & NO_PROPAGATE_INHERIT_ACE)) {
+			if ((flags & kFileInheritAce) && !(flags & kNoPropagateInheritAce)) {
 				return true;
 			}
 			return false;
@@ -297,19 +297,19 @@ public:
 	}
 
 	bool isAutoInherit() const {
-		return flags_ & AUTO_INHERIT;
+		return flags_ & kAutoInherit;
 	}
 
 	bool isProtected() const {
-		return flags_ & PROTECTED;
+		return flags_ & kProtected;
 	}
 
 	bool isMasked() const {
-		return flags_ & MASKED;
+		return flags_ & kMasked;
 	}
 
 	bool isAutoSetMode() const {
-		return flags_ & AUTO_SET_MODE;
+		return flags_ & kAutoSetMode;
 	}
 
 	bool isSameMode(uint16_t mode, bool is_dir) const;
@@ -473,8 +473,8 @@ bool RichACL::checkPermission(uint32_t requested, uint32_t owner_uid, uint32_t o
 	uint32_t denied = 0;
 	uint32_t mask = requested;
 
-	if (flags_ & MASKED) {
-		if (flags_ & WRITE_THROUGH && owner_uid == uid) {
+	if (flags_ & kMasked) {
+		if (flags_ & kWriteThrough && owner_uid == uid) {
 			return !(requested & ~owner_mask_);
 		}
 	} else {
@@ -513,7 +513,7 @@ bool RichACL::checkPermission(uint32_t requested, uint32_t owner_uid, uint32_t o
 			goto entry_matches_everyone;
 		}
 
-		if ((flags_ & MASKED) && ace.isAllow()) {
+		if ((flags_ & kMasked) && ace.isAllow()) {
 			ace_mask &= group_mask_;
 		}
 
@@ -532,13 +532,13 @@ bool RichACL::checkPermission(uint32_t requested, uint32_t owner_uid, uint32_t o
 	}
 	denied |= mask;
 
-	if (flags_ & MASKED) {
+	if (flags_ & kMasked) {
 		if (uid == owner_uid) {
 			denied |= requested & ~owner_mask_;
 		} else if (in_owner_or_group_class) {
 			denied |= requested & ~group_mask_;
 		} else {
-			if (flags_ & WRITE_THROUGH) {
+			if (flags_ & kWriteThrough) {
 				denied = requested & ~other_mask_;
 			} else {
 				denied |= requested & ~other_mask_;
@@ -553,13 +553,13 @@ inline uint32_t RichACL::convertMode2Mask(uint16_t mode) {
 	uint32_t mask = 0;
 
 	if (mode & S_IROTH) {
-		mask |= Ace::POSIX_MODE_READ;
+		mask |= Ace::kPosixModeRead;
 	}
 	if (mode & S_IWOTH) {
-		mask |= Ace::POSIX_MODE_WRITE;
+		mask |= Ace::kPosixModeWrite;
 	}
 	if (mode & S_IXOTH) {
-		mask |= Ace::POSIX_MODE_EXEC;
+		mask |= Ace::kPosixModeExec;
 	}
 
 	return mask;
@@ -568,13 +568,13 @@ inline uint32_t RichACL::convertMode2Mask(uint16_t mode) {
 inline uint16_t RichACL::convertMask2Mode(uint32_t mask) {
 	uint16_t mode = 0;
 
-	if (mask & Ace::POSIX_MODE_READ) {
+	if (mask & Ace::kPosixModeRead) {
 		mode |= S_IROTH;
 	}
-	if (mask & Ace::POSIX_MODE_WRITE) {
+	if (mask & Ace::kPosixModeWrite) {
 		mode |= S_IWOTH;
 	}
-	if (mask & Ace::POSIX_MODE_EXEC) {
+	if (mask & Ace::kPosixModeExec) {
 		mode |= S_IXOTH;
 	}
 

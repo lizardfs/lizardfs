@@ -23,7 +23,7 @@
 #include <numeric>
 
 bool RichACL::isSameMode(uint16_t mode, bool is_dir) const {
-	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
+	uint32_t x = is_dir ? 0 : Ace::kDeleteChild;
 	uint32_t owner_mask, group_mask, other_mask;
 
 	owner_mask = convertMode2Mask(mode >> 6) & ~x;
@@ -31,13 +31,13 @@ bool RichACL::isSameMode(uint16_t mode, bool is_dir) const {
 	other_mask = convertMode2Mask(mode) & ~x;
 
 	return owner_mask == owner_mask_ && group_mask == group_mask_ && other_mask == other_mask_ &&
-	       (flags_ & MASKED) && (flags_ & WRITE_THROUGH) && (!isAutoInherit() || !isProtected());
+	       (flags_ & kMasked) && (flags_ & kWriteThrough) && (!isAutoInherit() || !isProtected());
 }
 
 void RichACL::setMode(uint16_t mode, bool is_dir) {
-	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
+	uint32_t x = is_dir ? 0 : Ace::kDeleteChild;
 
-	flags_ |= MASKED | WRITE_THROUGH;
+	flags_ |= kMasked | kWriteThrough;
 	owner_mask_ = convertMode2Mask(mode >> 6) & ~x;
 	group_mask_ = convertMode2Mask(mode >> 3) & ~x;
 	other_mask_ = convertMode2Mask(mode) & ~x;
@@ -56,9 +56,9 @@ RichACL RichACL::createFromMode(uint16_t mode, bool is_dir) {
 	RichACL acl;
 
 	if (!is_dir) {
-		owner_mask &= ~Ace::DELETE_CHILD;
-		group_mask &= ~Ace::DELETE_CHILD;
-		other_mask &= ~Ace::DELETE_CHILD;
+		owner_mask &= ~Ace::kDeleteChild;
+		group_mask &= ~Ace::kDeleteChild;
+		other_mask &= ~Ace::kDeleteChild;
 	}
 
 	acl.owner_mask_ = owner_mask;
@@ -68,24 +68,24 @@ RichACL RichACL::createFromMode(uint16_t mode, bool is_dir) {
 	denied = ~owner_mask & (group_mask | other_mask);
 	if (denied) {
 		acl.insert(
-		    Ace(Ace::ACCESS_DENIED_ACE_TYPE, Ace::SPECIAL_WHO, denied, Ace::OWNER_SPECIAL_ID));
+		    Ace(Ace::kAccessDeniedAceType, Ace::kSpecialWho, denied, Ace::kOwnerSpecialId));
 	}
 	if (owner_mask & ~(group_mask & other_mask)) {
 		acl.insert(
-		    Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO, owner_mask, Ace::OWNER_SPECIAL_ID));
+		    Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho, owner_mask, Ace::kOwnerSpecialId));
 	}
 	denied = ~group_mask & other_mask;
 	if (denied) {
 		acl.insert(
-		    Ace(Ace::ACCESS_DENIED_ACE_TYPE, Ace::SPECIAL_WHO, denied, Ace::GROUP_SPECIAL_ID));
+		    Ace(Ace::kAccessDeniedAceType, Ace::kSpecialWho, denied, Ace::kGroupSpecialId));
 	}
 	if (group_mask & ~other_mask) {
 		acl.insert(
-		    Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO, group_mask, Ace::GROUP_SPECIAL_ID));
+		    Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho, group_mask, Ace::kGroupSpecialId));
 	}
 	if (other_mask) {
-		acl.insert(Ace(Ace::ACCESS_ALLOWED_ACE_TYPE, Ace::SPECIAL_WHO, other_mask,
-		               Ace::EVERYONE_SPECIAL_ID));
+		acl.insert(Ace(Ace::kAccessAllowedAceType, Ace::kSpecialWho, other_mask,
+		               Ace::kEveryoneSpecialId));
 	}
 
 	return acl;
@@ -186,7 +186,7 @@ void RichACL::computeMaxMasks() {
 		}
 	}
 
-	flags_ &= ~(WRITE_THROUGH | MASKED);
+	flags_ &= ~(kWriteThrough | kMasked);
 }
 
 void RichACL::removeInheritOnly(bool remove_with_flag_set) {
@@ -233,12 +233,12 @@ RichACL RichACL::inherit(const RichACL &dir_acl, bool is_dir) {
 			}
 
 			Ace ace = dir_ace;
-			if (dir_ace.flags & Ace::NO_PROPAGATE_INHERIT_ACE) {
-				ace.flags &= ~Ace::INHERITANCE_FLAGS;
-			} else if (dir_ace.flags & Ace::DIRECTORY_INHERIT_ACE) {
-				ace.flags &= ~Ace::INHERIT_ONLY_ACE;
+			if (dir_ace.flags & Ace::kNoPropagateInheritAce) {
+				ace.flags &= ~Ace::kInheritanceFlags;
+			} else if (dir_ace.flags & Ace::kDirectoryInheritAce) {
+				ace.flags &= ~Ace::kInheritOnlyAce;
 			} else {
-				ace.flags |= Ace::INHERIT_ONLY_ACE;
+				ace.flags |= Ace::kInheritOnlyAce;
 			}
 
 			acl.insert(ace);
@@ -246,31 +246,31 @@ RichACL RichACL::inherit(const RichACL &dir_acl, bool is_dir) {
 	} else {
 		int count = std::accumulate(dir_acl.begin(), dir_acl.end(), 0,
 		                            [](int sum, const RichACL::Ace &dir_ace) {
-			                            return sum + ((dir_ace.flags & Ace::FILE_INHERIT_ACE) ? 1 : 0);
+			                            return sum + ((dir_ace.flags & Ace::kFileInheritAce) ? 1 : 0);
 			                        });
 		acl.ace_list_.reserve(count);
 		for (const auto &dir_ace : dir_acl) {
-			if (!(dir_ace.flags & Ace::FILE_INHERIT_ACE)) {
+			if (!(dir_ace.flags & Ace::kFileInheritAce)) {
 				continue;
 			}
 
 			Ace ace = dir_ace;
 
-			ace.flags &= ~Ace::INHERITANCE_FLAGS;
-			ace.mask &= ~Ace::DELETE_CHILD;
+			ace.flags &= ~Ace::kInheritanceFlags;
+			ace.mask &= ~Ace::kDeleteChild;
 
 			acl.insert(ace);
 		}
 	}
 
 	if (dir_acl.isAutoInherit()) {
-		acl.flags_ = AUTO_INHERIT;
+		acl.flags_ = kAutoInherit;
 		for (auto &ace : acl) {
-			ace.flags |= Ace::INHERITED_ACE;
+			ace.flags |= Ace::kInheritedAce;
 		}
 	} else {
 		for (auto &ace : acl) {
-			ace.flags &= ~Ace::INHERITED_ACE;
+			ace.flags &= ~Ace::kInheritedAce;
 		}
 	}
 
@@ -280,13 +280,13 @@ RichACL RichACL::inherit(const RichACL &dir_acl, bool is_dir) {
 bool RichACL::equivMode(const RichACL &acl, uint16_t &mode_out, bool is_dir) {
 	uint16_t mode = mode_out;
 
-	uint32_t x = is_dir ? 0 : Ace::DELETE_CHILD;
+	uint32_t x = is_dir ? 0 : Ace::kDeleteChild;
 	uint32_t owner_allowed = 0,
-	         owner_defined = Ace::POSIX_ALWAYS_ALLOWED | Ace::POSIX_OWNER_ALLOWED | x;
-	uint32_t group_allowed = 0, group_defined = Ace::POSIX_ALWAYS_ALLOWED | x;
-	uint32_t everyone_allowed = 0, everyone_defined = Ace::POSIX_ALWAYS_ALLOWED | x;
+	         owner_defined = Ace::kPosixAlwaysAllowed | Ace::kPosixOwnerAllowed | x;
+	uint32_t group_allowed = 0, group_defined = Ace::kPosixAlwaysAllowed | x;
+	uint32_t everyone_allowed = 0, everyone_defined = Ace::kPosixAlwaysAllowed | x;
 
-	if (acl.flags_ & ~(WRITE_THROUGH | MASKED)) {
+	if (acl.flags_ & ~(kWriteThrough | kMasked)) {
 		return false;
 	}
 	if (acl.isAutoSetMode() && acl.ace_list_.empty()) {
@@ -294,7 +294,7 @@ bool RichACL::equivMode(const RichACL &acl, uint16_t &mode_out, bool is_dir) {
 	}
 
 	for (const auto &ace : acl) {
-		if (ace.flags & ~Ace::SPECIAL_WHO) {
+		if (ace.flags & ~Ace::kSpecialWho) {
 			return false;
 		}
 
@@ -337,8 +337,8 @@ bool RichACL::equivMode(const RichACL &acl, uint16_t &mode_out, bool is_dir) {
 		return false;
 	}
 
-	if (acl.flags_ & MASKED) {
-		if (acl.flags_ & WRITE_THROUGH) {
+	if (acl.flags_ & kMasked) {
+		if (acl.flags_ & kWriteThrough) {
 			owner_allowed = acl.owner_mask_;
 			everyone_allowed = acl.other_mask_;
 		} else {
@@ -351,7 +351,7 @@ bool RichACL::equivMode(const RichACL &acl, uint16_t &mode_out, bool is_dir) {
 	mode = (mode & ~0777) | (convertMask2Mode(owner_allowed) << 6) |
 	       (convertMask2Mode(group_allowed) << 3) | convertMask2Mode(everyone_allowed);
 
-	x = is_dir ? 0 : Ace::DELETE_CHILD;
+	x = is_dir ? 0 : Ace::kDeleteChild;
 
 	if (((convertMode2Mask(mode >> 6) ^ owner_allowed) & ~x) ||
 	    ((convertMode2Mask(mode >> 3) ^ group_allowed) & ~x) ||
@@ -378,12 +378,12 @@ bool RichACL::inheritInode(const RichACL &dir_acl, uint16_t &mode_out, RichACL &
 		return false;
 	} else {
 		if (acl.isAutoInherit()) {
-			acl.flags_ |= PROTECTED;
+			acl.flags_ |= kProtected;
 		}
 
 		acl.computeMaxMasks();
 
-		acl.flags_ |= MASKED;
+		acl.flags_ |= kMasked;
 		acl.owner_mask_ &= convertMode2Mask(mode >> 6);
 		acl.group_mask_ &= convertMode2Mask(mode >> 3);
 		acl.other_mask_ &= convertMode2Mask(mode);
@@ -406,9 +406,9 @@ void RichACL::createExplicitInheritance() {
 		}
 
 		Ace ace_copy = ace;
-		ace.flags &= ~(Ace::INHERIT_ONLY_ACE | Ace::FILE_INHERIT_ACE | Ace::DIRECTORY_INHERIT_ACE);
+		ace.flags &= ~(Ace::kInheritOnlyAce | Ace::kFileInheritAce | Ace::kDirectoryInheritAce);
 
-		ace_copy.flags |= Ace::INHERIT_ONLY_ACE;
+		ace_copy.flags |= Ace::kInheritOnlyAce;
 
 		ace_list_.push_back(ace_copy);
 	}

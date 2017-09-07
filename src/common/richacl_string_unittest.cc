@@ -21,36 +21,36 @@
 
 #include <gtest/gtest.h>
 
-#define RICHACL_FULL_MASK (RichACL::Ace::READ_DATA | RichACL::Ace::WRITE_DATA \
-	| RichACL::Ace::APPEND_DATA | RichACL::Ace::READ_NAMED_ATTRS \
-	| RichACL::Ace::WRITE_NAMED_ATTRS |  RichACL::Ace::EXECUTE | RichACL::Ace::DELETE_CHILD \
-	| RichACL::Ace::READ_ATTRIBUTES | RichACL::Ace::WRITE_ATTRIBUTES \
-	| RichACL::Ace::WRITE_RETENTION | RichACL::Ace::WRITE_RETENTION_HOLD \
-	| RichACL::Ace::DELETE | RichACL::Ace::READ_ACL | RichACL::Ace::WRITE_ACL \
-	| RichACL::Ace::WRITE_OWNER | RichACL::Ace::SYNCHRONIZE)
+#define RICHACL_FULL_MASK (RichACL::Ace::kReadData | RichACL::Ace::kWriteData \
+	| RichACL::Ace::kAppendData | RichACL::Ace::kReadNamedAttrs \
+	| RichACL::Ace::kWriteNamedAttrs |  RichACL::Ace::kExecute | RichACL::Ace::kDeleteChild \
+	| RichACL::Ace::kReadAttributes | RichACL::Ace::kWriteAttributes \
+	| RichACL::Ace::kWriteRetention | RichACL::Ace::kWriteRetentionHold \
+	| RichACL::Ace::kDelete | RichACL::Ace::kReadAcl | RichACL::Ace::kWriteAcl \
+	| RichACL::Ace::kWriteOwner | RichACL::Ace::kSynchronize)
 
 TEST(RichACL, CorrectString) {
 	RichACL acl;
 
-	acl.setFlags(RichACL::AUTO_INHERIT);
-	acl.setOwnerMask(RichACL::Ace::DELETE_CHILD | RichACL::Ace::LIST_DIRECTORY);
+	acl.setFlags(RichACL::kAutoInherit);
+	acl.setOwnerMask(RichACL::Ace::kDeleteChild | RichACL::Ace::kListDirectory);
 	acl.setGroupMask(0);
 	acl.setOtherMask(RICHACL_FULL_MASK);
 
 	RichACL::Ace ace(
-		RichACL::Ace::ACCESS_ALLOWED_ACE_TYPE,
+		RichACL::Ace::kAccessAllowedAceType,
 		0,
-		RichACL::Ace::APPEND_DATA | RichACL::Ace::WRITE_ACL,
+		RichACL::Ace::kAppendData | RichACL::Ace::kWriteAcl,
 		17
 	);
 	acl.insert(ace);
-	ace.mask |= RichACL::Ace::EXECUTE;
-	ace.flags |= RichACL::Ace::IDENTIFIER_GROUP;
+	ace.mask |= RichACL::Ace::kExecute;
+	ace.flags |= RichACL::Ace::kIdentifierGroup;
 	acl.insert(ace);
-	ace.flags |= RichACL::Ace::SPECIAL_WHO;
-	ace.flags &= ~RichACL::Ace::IDENTIFIER_GROUP;
-	ace.id = RichACL::Ace::EVERYONE_SPECIAL_ID;
-	ace.type = RichACL::Ace::ACCESS_DENIED_ACE_TYPE;
+	ace.flags |= RichACL::Ace::kSpecialWho;
+	ace.flags &= ~RichACL::Ace::kIdentifierGroup;
+	ace.id = RichACL::Ace::kEveryoneSpecialId;
+	ace.type = RichACL::Ace::kAccessDeniedAceType;
 	acl.insert(ace);
 
 	std::string repr = acl.toString();
@@ -61,7 +61,7 @@ TEST(RichACL, CorrectString) {
 	ASSERT_EQ(acl, converted);
 	ASSERT_EQ(acl.toString(), converted.toString());
 
-	ace.id = RichACL::Ace::GROUP_SPECIAL_ID;
+	ace.id = RichACL::Ace::kGroupSpecialId;
 	converted.insert(ace);
 	std::string model_unsorted = "a|rd||eWpxdDaARwcCoSrE|Cp::A:u17/pxC::A:g17/Cxp::D:E/pxC::D:G/";
 	model = "a|rd||rwpxdDaARWcCoSeE|pC::A:u17/pxC::A:g17/pxC::D:E/pxC::D:G/";
