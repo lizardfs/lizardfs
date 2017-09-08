@@ -20,8 +20,10 @@
 #include "common/richacl_converter.h"
 #include "common/portable_endian.h"
 #include "common/datapack.h"
+#ifndef _WIN32
 #include <pwd.h>
 #include <grp.h>
+#endif
 
 #include <bitset>
 
@@ -50,6 +52,7 @@ static uint32_t padLength(size_t length, size_t pad) {
 }
 
 static uint32_t nameToUid(const std::string &name) {
+#ifndef _WIN32
 	struct passwd *pwd = getpwnam(name.c_str());
 	if (pwd) {
 		return pwd->pw_uid;
@@ -63,9 +66,19 @@ static uint32_t nameToUid(const std::string &name) {
 		}
 	}
 	return kInvalidId;
+#else
+	if (name.size() > 2 && name[0] == 'u' && name[1] == ':') {
+		try {
+			return std::stoull(name.substr(2));
+		} catch (...) {
+		}
+	}
+	return kInvalidId;
+#endif
 }
 
 static uint32_t nameToGid(const std::string &name) {
+#ifndef _WIN32
 	struct group *grp = getgrnam(name.c_str());
 	if (grp) {
 		return grp->gr_gid;
@@ -79,6 +92,15 @@ static uint32_t nameToGid(const std::string &name) {
 		}
 	}
 	return kInvalidId;
+#else
+	if (name.size() > 2 && name[0] == 'g' && name[1] == ':') {
+		try {
+			return std::stoull(name.substr(2));
+		} catch (...) {
+		}
+	}
+	return kInvalidId;
+#endif
 }
 
 static std::string idToName(const RichACL::Ace &ace) {
@@ -94,6 +116,7 @@ static std::string idToName(const RichACL::Ace &ace) {
 			throw ConversionException("Incorrect special id: " + std::to_string(ace.id));
 		}
 	}
+#ifndef _WIN32
 	if (ace.flags & RichACL::Ace::kIdentifierGroup) {
 		struct group *grp = getgrgid(ace.id);
 		if (grp) {
@@ -109,6 +132,13 @@ static std::string idToName(const RichACL::Ace &ace) {
 			return "u:" + std::to_string(ace.id);
 		}
 	}
+#else
+	if (ace.flags & RichACL::Ace::kIdentifierGroup) {
+		return "g:" + std::to_string(ace.id);
+	} else {
+		return "u:" + std::to_string(ace.id);
+	}
+#endif
 }
 
 static RichACL::Ace extractAceFromNFS(const uint8_t *&buffer, uint32_t &bytes_left) {
