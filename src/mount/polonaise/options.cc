@@ -139,8 +139,8 @@ void parse_command_line(int argc, char** argv, Setup& setup) {
 				po::bool_switch(&setup.make_daemon)->default_value(false),
 				"work in daemon mode")
 			("enable-acl",
-				po::bool_switch(&setup.enable_acl)->default_value((bool)LizardClient::FsInitParams::kDefaultAclEnabled),
-				"enable acl support")
+				po::bool_switch(&setup.enable_acl)->default_value(false),
+				"DEPRECATED, used to enable/disable ACL support, ignored now")
 #ifdef _WIN32
 			("pipe-name,N",
 			        po::value<std::string>(&setup.pipe_name)->default_value("polonaise-server-1"),

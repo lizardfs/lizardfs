@@ -269,7 +269,6 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	params.attr_cache_timeout = gMountOptions.attrcacheto;
 	params.mkdir_copy_sgid = gMountOptions.mkdircopysgid;
 	params.sugid_clear_mode = gMountOptions.sugidclearmode;
-	params.acl_enabled = gMountOptions.acl;
 	params.use_rw_lock = gMountOptions.rwlock;
 	params.acl_cache_timeout = gMountOptions.aclcacheto;
 	params.acl_cache_size = gMountOptions.aclcachesize;

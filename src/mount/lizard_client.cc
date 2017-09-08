@@ -182,7 +182,6 @@ static double entry_cache_timeout = 0.0;
 static double attr_cache_timeout = 0.1;
 static int mkdir_copy_sgid = 0;
 static int sugid_clear_mode = 0;
-static bool acl_enabled = 0;
 bool use_rwlock = 0;
 static std::atomic<bool> gDirectIo(false);
 
@@ -2366,9 +2365,6 @@ public:
 	uint8_t setxattr(const Context& ctx, Inode ino, const char *,
 			uint32_t, const char *value, size_t size, int) override {
 		static constexpr size_t kEmptyAclSize = 4;
-		if (!acl_enabled) {
-			return LIZARDFS_ERROR_ENOTSUP;
-		}
 		AccessControlList posix_acl;
 		try {
 			if (size <= kEmptyAclSize) {
@@ -2420,9 +2416,6 @@ public:
 
 	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
 			uint32_t) override {
-		if (!acl_enabled) {
-			return LIZARDFS_ERROR_ENOTSUP;
-		}
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 			fs_deletacl(ino, ctx.uid, ctx.gid, type_));
@@ -2473,9 +2466,6 @@ public:
 
 	uint8_t removexattr(const Context& ctx, Inode ino, const char *,
 			uint32_t) override {
-		if (!acl_enabled) {
-			return LIZARDFS_ERROR_ENOTSUP;
-		}
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx.gid,
 			fs_deletacl(ino, ctx.uid, ctx.gid, AclType::kRichACL));
@@ -3112,7 +3102,7 @@ std::vector<ChunkserverListEntry> getchunkservers() {
 
 void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsigned direntry_cache_size_,
 		double entry_cache_timeout_, double attr_cache_timeout_, int mkdir_copy_sgid_,
-		SugidClearMode sugid_clear_mode_, bool acl_enabled_, bool use_rwlock_,
+		SugidClearMode sugid_clear_mode_, bool use_rwlock_,
 		double acl_cache_timeout_, unsigned acl_cache_size_) {
 	debug_mode = debug_mode_;
 	keep_cache = keep_cache_;
@@ -3121,7 +3111,6 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 	attr_cache_timeout = attr_cache_timeout_;
 	mkdir_copy_sgid = mkdir_copy_sgid_;
 	sugid_clear_mode = static_cast<decltype (sugid_clear_mode)>(sugid_clear_mode_);
-	acl_enabled = acl_enabled_;
 	use_rwlock = use_rwlock_;
 	uint64_t timeout = (uint64_t)(direntry_cache_timeout * 1000000);
 	gDirEntryCache.setTimeout(timeout);
@@ -3129,7 +3118,6 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 	if (debug_mode) {
 		std::fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
 		std::fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,sugidClearModeString(sugid_clear_mode_));
-		std::fprintf(stderr, "ACL support %s\n", acl_enabled ? "enabled" : "disabled");
 		std::fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
 		std::fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
 				acl_cache_timeout_, acl_cache_size_);
@@ -3192,7 +3180,7 @@ void fs_init(FsInitParams &params) {
 
 	init(params.debug_mode, params.keep_cache, params.direntry_cache_timeout, params.direntry_cache_size,
 		params.entry_cache_timeout, params.attr_cache_timeout, params.mkdir_copy_sgid,
-		params.sugid_clear_mode, params.acl_enabled, params.use_rw_lock,
+		params.sugid_clear_mode, params.use_rw_lock,
 		params.acl_cache_timeout, params.acl_cache_size);
 }
 

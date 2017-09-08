@@ -28,7 +28,6 @@ int main() {
 	/* Create a connection */
 	ctx = liz_create_context();
 	liz_set_default_init_params(&params, "localhost", "9421", "test123");
-	params.acl_enabled = true;
 	liz = liz_init_with_params(&params);
 	if (!liz) {
 		fprintf(stderr, "Connection failed\n");

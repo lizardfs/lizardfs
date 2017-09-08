@@ -1091,7 +1091,6 @@ int main (int argc, char **argv) {
 	params.attr_cache_timeout = gSetup.attr_cache_timeout;
 	params.mkdir_copy_sgid = !gSetup.no_mkdir_copy_sgid;
 	params.sugid_clear_mode = gSetup.sugid_clear_mode;
-	params.acl_enabled = gSetup.enable_acl;
 	params.use_rw_lock = userwlock;
 
 	params.debug_mode = gSetup.debug;

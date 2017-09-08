@@ -72,7 +72,6 @@ typedef struct liz_init_params {
 	double attr_cache_timeout;
 	bool mkdir_copy_sgid;
 	enum liz_sugid_clear_mode sugid_clear_mode;
-	bool acl_enabled;
 	bool use_rw_lock;
 	double acl_cache_timeout;
 	unsigned acl_cache_size;

@@ -129,7 +129,7 @@ struct mfsopts_ {
 			meta(0),
 			debug(LizardClient::FsInitParams::kDefaultDebugMode),
 			delayedinit(LizardClient::FsInitParams::kDefaultDelayedInit),
-			acl(LizardClient::FsInitParams::kDefaultAclEnabled),
+			acl(), // deprecated
 			aclcacheto(LizardClient::FsInitParams::kDefaultAclCacheTimeout),
 			aclcachesize(LizardClient::FsInitParams::kDefaultAclCacheSize),
 			rwlock(LizardClient::FsInitParams::kDefaultUseRwLock),

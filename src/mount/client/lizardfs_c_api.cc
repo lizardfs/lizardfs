@@ -69,7 +69,6 @@ void liz_set_default_init_params(struct liz_init_params *params,
 	params->attr_cache_timeout = LizardClient::FsInitParams::kDefaultAttrCacheTimeout;
 	params->mkdir_copy_sgid = LizardClient::FsInitParams::kDefaultMkdirCopySgid;
 	params->sugid_clear_mode = (liz_sugid_clear_mode)LizardClient::FsInitParams::kDefaultSugidClearMode;
-	params->acl_enabled = LizardClient::FsInitParams::kDefaultAclEnabled;
 	params->use_rw_lock = LizardClient::FsInitParams::kDefaultUseRwLock;
 	params->acl_cache_timeout = LizardClient::FsInitParams::kDefaultAclCacheTimeout;
 	params->acl_cache_size = LizardClient::FsInitParams::kDefaultAclCacheSize;
@@ -230,7 +229,6 @@ liz_t *liz_init_with_params(struct liz_init_params *params) {
 		COPY_PARAM(attr_cache_timeout);
 		COPY_PARAM(mkdir_copy_sgid);
 		init_params.sugid_clear_mode = (SugidClearMode)params->sugid_clear_mode;
-		COPY_PARAM(acl_enabled);
 		COPY_PARAM(use_rw_lock);
 		COPY_PARAM(acl_cache_timeout);
 		COPY_PARAM(acl_cache_size);

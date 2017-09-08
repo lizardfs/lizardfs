@@ -129,7 +129,7 @@ void usage(const char *progname) {
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"
 "    -o mfsdelayedinit           connection with master is done in background - with this option mount can be run without network (good for being run from fstab / init scripts etc.)\n"
-"    -o mfsacl                   enable ACL support (%s by default)\n"
+"    -o mfsacl                   DEPRECATED, used to enable/disable ACL support, ignored now\n"
 "    -o mfsrwlock=0|1            when set to 1, parallel reads from the same descriptor are"
 		" performed (default: %d)\n"
 "    -o mfsmkdircopysgid=N       sgid bit should be copied during mkdir operation (default: %d)\n"
@@ -175,7 +175,6 @@ void usage(const char *progname) {
 "    -o enablefilelocks=0|1      enables/disables global file locking (disabled by default)\n"
 #endif
 "\n",
-		(LizardClient::FsInitParams::kDefaultAclEnabled ? "enabled" : "disabled"),
 		LizardClient::FsInitParams::kDefaultUseRwLock,
 		LizardClient::FsInitParams::kDefaultMkdirCopySgid,
 		sugidClearModeString(LizardClient::FsInitParams::kDefaultSugidClearMode),
