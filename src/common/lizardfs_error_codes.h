@@ -19,6 +19,8 @@
 #ifndef __LIZARDFS_ERROR_CODES_H
 #define __LIZARDFS_ERROR_CODES_H
 
+#include <stdint.h>
+
 enum lizardfs_error_code {
 	LIZARDFS_STATUS_OK                     =  0,    // OK
 	LIZARDFS_ERROR_EPERM                   =  1,    // Operation not permitted
@@ -80,70 +82,6 @@ enum lizardfs_error_code {
 	LIZARDFS_ERROR_MAX                     = 57
 };
 
-inline const char *lizardfs_error_string(uint8_t status) {
-	static const char * const error_strings[LIZARDFS_ERROR_MAX + 1] = {
-		"OK",
-		"Operation not permitted",
-		"Not a directory",
-		"No such file or directory",
-		"Permission denied",
-		"File exists",
-		"Invalid argument",
-		"Directory not empty",
-		"Chunk lost",
-		"Out of memory",
-		"Index too big",
-		"Chunk locked",
-		"No chunk servers",
-		"No such chunk",
-		"Chunk is busy",
-		"Incorrect register BLOB",
-		"Requested operation not completed",
-		"Group info is not registered in master server",
-		"Write not started",
-		"Wrong chunk version",
-		"Chunk already exists",
-		"No space left",
-		"IO error",
-		"Incorrect block number",
-		"Incorrect size",
-		"Incorrect offset",
-		"Can't connect",
-		"Incorrect chunk id",
-		"Disconnected",
-		"CRC error",
-		"Operation delayed",
-		"Can't create path",
-		"Data mismatch",
-		"Read-only file system",
-		"Quota exceeded",
-		"Bad session id",
-		"Password is needed",
-		"Incorrect password",
-		"Attribute not found",
-		"Operation not supported",
-		"Result too large",
-		"Timeout",
-		"Metadata checksum not matching",
-		"Changelog inconsistent",
-		"Parsing unsuccessful",
-		"Metadata version mismatch",
-		"No such lock",
-		"Wrong lock id",
-		"Operation not possible",
-		"Operation temporarily not possible",
-		"Waiting for operation completion",
-		"Unknown LizardFS error",
-		"Name too long",
-		"File too large",
-		"Bad file number",
-		"No data available",
-		"Argument list too long",
-		"Unknown LizardFS error"
-	};
-
-	status = (status <= LIZARDFS_ERROR_MAX) ? status : (uint8_t)LIZARDFS_ERROR_MAX;
-	return error_strings[status];
-}
+const char *lizardfs_error_string(uint8_t status);
 
 #endif
