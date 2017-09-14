@@ -56,7 +56,11 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(
 	case (int)lizardfs::error::read_only_file_system:
 		return std::make_error_code(std::errc::read_only_file_system) == condition;
 	case (int)lizardfs::error::attribute_not_found:
+#if defined(__APPLE__) || defined(__FreeBSD__)
+		return std::make_error_code(std::errc::no_message) == condition;
+#else
 		return std::make_error_code(std::errc::no_message_available) == condition;
+#endif
 	case (int)lizardfs::error::not_supported:
 		return std::make_error_code(std::errc::not_supported) == condition;
 	case (int)lizardfs::error::result_out_of_range:
@@ -69,8 +73,13 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(
 		return std::make_error_code(std::errc::file_too_large) == condition;
 	case (int)lizardfs::error::bad_file_descriptor:
 		return std::make_error_code(std::errc::bad_file_descriptor) == condition;
+#if defined(__APPLE__) || defined(__FreeBSD__)
+	case (int)lizardfs::error::no_message:
+		return std::make_error_code(std::errc::no_message) == condition;
+#else
 	case (int)lizardfs::error::no_message_available:
 		return std::make_error_code(std::errc::no_message_available) == condition;
+#endif
 	case (int)lizardfs::error::not_enough_memory:
 		return std::make_error_code(std::errc::not_enough_memory) == condition;
 	case (int)lizardfs::error::argument_list_too_long:
@@ -108,7 +117,11 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(const std::error_code
 	case (int)lizardfs::error::read_only_file_system:
 		return code == std::make_error_condition(std::errc::read_only_file_system);
 	case (int)lizardfs::error::attribute_not_found:
+#if defined(__APPLE__) || defined(__FreeBSD__)
+		return code == std::make_error_condition(std::errc::no_message);
+#else
 		return code == std::make_error_condition(std::errc::no_message_available);
+#endif
 	case (int)lizardfs::error::not_supported:
 		return code == std::make_error_condition(std::errc::not_supported);
 	case (int)lizardfs::error::result_out_of_range:
@@ -121,8 +134,13 @@ bool lizardfs::detail::lizardfs_error_category::equivalent(const std::error_code
 		return code == std::make_error_condition(std::errc::file_too_large);
 	case (int)lizardfs::error::bad_file_descriptor:
 		return code == std::make_error_condition(std::errc::bad_file_descriptor);
+#if defined(__APPLE__) || defined(__FreeBSD__)
+	case (int)lizardfs::error::no_message:
+		return code == std::make_error_condition(std::errc::no_message);
+#else
 	case (int)lizardfs::error::no_message_available:
 		return code == std::make_error_condition(std::errc::no_message_available);
+#endif
 	case (int)lizardfs::error::not_enough_memory:
 		return code == std::make_error_condition(std::errc::not_enough_memory);
 	case (int)lizardfs::error::argument_list_too_long:
