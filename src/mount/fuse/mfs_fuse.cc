@@ -48,6 +48,10 @@ void checkTypesEqual(const A& a, const B& b) {
 			"Types don't match");
 }
 
+#if defined(__FreeBSD__)
+#include <sys/user.h>
+#endif
+
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/sysctl.h>
 
