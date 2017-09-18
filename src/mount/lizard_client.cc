@@ -2455,10 +2455,11 @@ public:
 			if (cache_entry) {
 				value = richAclConverter::objectToNFSXattr(cache_entry->acl, cache_entry->owner_id);
 				valueLength = value.size();
-				return LIZARDFS_STATUS_OK;
 			} else {
-				return LIZARDFS_ERROR_ENOATTR;
+				valueLength = 4;
+				value.assign(valueLength, 0);
 			}
+			return LIZARDFS_STATUS_OK;
 		} catch (AclAcquisitionException& e) {
 			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
 			return e.status();
