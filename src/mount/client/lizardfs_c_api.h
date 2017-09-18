@@ -43,6 +43,7 @@ typedef struct liz_init_params {
 	const char *mountpoint;
 	const char *subfolder;
 	const char *password;
+	const char *md5_pass;
 	bool do_not_remember_password;
 	bool delayed_init;
 	unsigned report_reserved_period;

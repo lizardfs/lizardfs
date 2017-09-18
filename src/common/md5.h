@@ -23,6 +23,7 @@
 #include <inttypes.h>
 #include <array>
 #include <string>
+#include <vector>
 
 typedef struct _md5ctx {
 	uint32_t state[4];
@@ -35,3 +36,5 @@ void md5_update(md5ctx *ctx,const uint8_t *buff,uint32_t leng);
 void md5_final(uint8_t digest[16],md5ctx *ctx);
 std::array<uint8_t, 16> md5_challenge_response(const std::array<uint8_t, 32>& challenge,
 		std::string data);
+
+int md5_parse(std::vector<uint8_t> &password_digest, const char *in_md5_data);

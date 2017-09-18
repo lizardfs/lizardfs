@@ -234,3 +234,34 @@ std::array<uint8_t, 16> md5_challenge_response(const std::array<uint8_t, 32>& ch
 	md5_final(digest.data(), &ctx);
 	return digest;
 }
+
+int md5_parse(std::vector<uint8_t> &password_digest, const char *in_md5_data) {
+	password_digest.resize(16);
+	const uint8_t *p = (const uint8_t *)in_md5_data;
+	for (int i = 0; i < 16; ++i) {
+		if (*p >= '0' && *p <= '9') {
+			password_digest[i] = (*p - '0') << 4;
+		} else if (*p >= 'a' && *p <= 'f') {
+			password_digest[i] = (*p - 'a' + 10) << 4;
+		} else if (*p >= 'A' && *p <= 'F') {
+			password_digest[i] = (*p - 'A' + 10) << 4;
+		} else {
+			return -1;
+		}
+		p++;
+		if (*p >= '0' && *p <= '9') {
+			password_digest[i] += (*p - '0');
+		} else if (*p >= 'a' && *p <= 'f') {
+			password_digest[i] += (*p - 'a' + 10);
+		} else if (* p>= 'A' && *p <= 'F') {
+			password_digest[i] += (*p - 'A' + 10);
+		} else {
+			return -1;
+		}
+		p++;
+	}
+	if (*p) {
+		return -1;
+	}
+	return 0;
+}

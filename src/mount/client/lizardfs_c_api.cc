@@ -23,6 +23,7 @@
 
 #include "lizardfs_c_api.h"
 #include "common/lizardfs_error_codes.h"
+#include "common/md5.h"
 #include "common/small_vector.h"
 #include "mount/client/iovec_traits.h"
 
@@ -40,6 +41,7 @@ void liz_set_default_init_params(struct liz_init_params *params,
 	params->mountpoint = mountpoint;
 	params->subfolder = LizardClient::FsInitParams::kDefaultSubfolder;
 	params->password = nullptr;
+	params->md5_pass = nullptr;
 	params->do_not_remember_password = LizardClient::FsInitParams::kDefaultDoNotRememberPassword;
 	params->delayed_init = LizardClient::FsInitParams::kDefaultDelayedInit;
 	params->report_reserved_period = LizardClient::FsInitParams::kDefaultReportReservedPeriod;
@@ -194,8 +196,17 @@ liz_t *liz_init_with_params(struct liz_init_params *params) {
 		init_params.subfolder = params->subfolder;
 	}
 	if (params->password != nullptr) {
-		init_params.password_digest.assign(params->password,
-				params->password + strlen(params->password));
+		md5ctx md5_ctx;
+		init_params.password_digest.resize(16);
+		md5_init(&md5_ctx);
+		md5_update(&md5_ctx,(uint8_t *)(params->password), strlen(params->password));
+		md5_final(init_params.password_digest.data(), &md5_ctx);
+	} else if (params->md5_pass) {
+		int ret = md5_parse(init_params.password_digest, params->md5_pass);
+		if (ret < 0) {
+			gLastErrorCode = LIZARDFS_ERROR_EINVAL;
+			return nullptr;
+		}
 	}
 
 	#define COPY_PARAM(PARAM) do { \

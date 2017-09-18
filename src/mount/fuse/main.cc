@@ -144,33 +144,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		md5_final(md5pass.data(),&ctx);
 		memset(gMountOptions.password,0,strlen(gMountOptions.password));
 	} else if (gMountOptions.md5pass) {
-		md5pass.resize(16);
-		uint8_t *p = (uint8_t*)(gMountOptions.md5pass);
-		for (i=0 ; i<16 ; i++) {
-			if (*p>='0' && *p<='9') {
-				md5pass[i]=(*p-'0')<<4;
-			} else if (*p>='a' && *p<='f') {
-				md5pass[i]=(*p-'a'+10)<<4;
-			} else if (*p>='A' && *p<='F') {
-				md5pass[i]=(*p-'A'+10)<<4;
-			} else {
-				fprintf(stderr,"bad md5 definition (md5 should be given as 32 hex digits)\n");
-				return 1;
-			}
-			p++;
-			if (*p>='0' && *p<='9') {
-				md5pass[i]+=(*p-'0');
-			} else if (*p>='a' && *p<='f') {
-				md5pass[i]+=(*p-'a'+10);
-			} else if (*p>='A' && *p<='F') {
-				md5pass[i]+=(*p-'A'+10);
-			} else {
-				fprintf(stderr,"bad md5 definition (md5 should be given as 32 hex digits)\n");
-				return 1;
-			}
-			p++;
-		}
-		if (*p) {
+		int ret = md5_parse(md5pass, gMountOptions.md5pass);
+		if (ret < 0) {
 			fprintf(stderr,"bad md5 definition (md5 should be given as 32 hex digits)\n");
 			return 1;
 		}
