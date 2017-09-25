@@ -189,7 +189,7 @@ case "$release" in
 		yum install libboost-filesystem libboost-iostreams
 		yum install pam-devel libdb-devel
 		;;
-	CentOS/7)
+	CentOS/7*)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams

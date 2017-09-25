@@ -1,3 +1,8 @@
+test_function_exists() {
+	declare -f -F $1 > /dev/null
+	return $?
+}
+
 # Call this in a test case to mark test as failed, but continue running
 test_add_failure() {
 	if test_frozen; then
@@ -154,6 +159,11 @@ test_cleanup() {
 }
 
 catch_error_() {
+	# Call test cleanup function
+	if test_function_exists test_error_cleanup ; then
+		test_error_cleanup || true
+	fi
+
 	local file=$1
 	local line=$2
 	local funcname=$3
