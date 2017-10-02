@@ -72,22 +72,45 @@ static void lzfs_fsal_release(struct fsal_export *export_hdl) {
 static fsal_status_t lzfs_fsal_lookup_path(struct fsal_export *export_hdl, const char *path,
                                            struct fsal_obj_handle **pub_handle,
                                            struct attrlist *attrs_out) {
+	static const char *root_dir_path = "/";
+
 	struct lzfs_fsal_export *lzfs_export;
 	struct lzfs_fsal_handle *lzfs_handle = NULL;
-	const char *realpath;
+	const char *real_path;
 	int rc;
-
-	// FIXME(haze): Only "/" mount path is supported
-
-	lzfs_export = container_of(export_hdl, struct lzfs_fsal_export, export);
 
 	LogFullDebug(COMPONENT_FSAL, "export_id=%" PRIu16 " path=%s", export_hdl->export_id, path);
 
+	lzfs_export = container_of(export_hdl, struct lzfs_fsal_export, export);
+
 	*pub_handle = NULL;
-	realpath = path;
+
+	// set the real_path to the path without the prefix from ctx_export->fullpath
+	if (*path != '/') {
+		real_path = strchr(path, ':');
+		if (real_path == NULL) {
+			return fsalstat(ERR_FSAL_INVAL, 0);
+		}
+		++real_path;
+		if (*real_path != '/') {
+			return fsalstat(ERR_FSAL_INVAL, 0);
+		}
+	} else {
+		real_path = path;
+	}
+	if (strstr(real_path, op_ctx->ctx_export->fullpath) != real_path) {
+		LogFullDebug(COMPONENT_FSAL, "no fullpath match");
+		return fsalstat(ERR_FSAL_SERVERFAULT, 0);
+	}
+	real_path += strlen(op_ctx->ctx_export->fullpath);
+	if (*real_path == '\0') {
+		real_path = root_dir_path;
+	}
+
+	LogFullDebug(COMPONENT_FSAL, "real_path=%s", real_path);
 
 	// special case the root
-	if (strcmp(realpath, "/") == 0) {
+	if (strcmp(real_path, "/") == 0) {
 		assert(lzfs_export->root);
 		*pub_handle = &lzfs_export->root->handle;
 		if (attrs_out == NULL) {
@@ -96,7 +119,7 @@ static fsal_status_t lzfs_fsal_lookup_path(struct fsal_export *export_hdl, const
 	}
 
 	liz_entry_t result;
-	rc = liz_cred_lookup(lzfs_export->lzfs_instance, op_ctx->creds, SPECIAL_INODE_ROOT, realpath,
+	rc = liz_cred_lookup(lzfs_export->lzfs_instance, op_ctx->creds, SPECIAL_INODE_ROOT, real_path,
 	                     &result);
 
 	if (rc < 0) {

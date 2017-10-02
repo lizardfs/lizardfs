@@ -169,12 +169,7 @@ static fsal_status_t lzfs_fsal_create_export(struct fsal_module *fsal_hdl, void 
 		}
 	}
 
-	// FIXME(haze): Add support for all paths.
-	if (strcmp(op_ctx->ctx_export->fullpath, "/") != 0) {
-		LogCrit(COMPONENT_FSAL, "Only '/' export path is supported");
-		return fsalstat(ERR_FSAL_INVAL, 0);
-	}
-
+	lzfs_export->lzfs_params.subfolder = op_ctx->ctx_export->fullpath;
 	lzfs_export->lzfs_instance = liz_init_with_params(&lzfs_export->lzfs_params);
 
 	if (lzfs_export->lzfs_instance == NULL) {
