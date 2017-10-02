@@ -119,6 +119,9 @@ static nfsstat4 lzfs_fsal_ds_handle_read(struct fsal_ds_handle *const ds_hdl,
 	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
 
+	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_ds->inode, offset, requested_length);
+
 	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
 	if (nfs_status != NFS4_OK) {
 		return nfs_status;
@@ -158,6 +161,9 @@ static nfsstat4 lzfs_fsal_ds_handle_write(struct fsal_ds_handle *const ds_hdl,
 	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
 
+	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_ds->inode, offset, write_length);
+
 	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
 	if (nfs_status != NFS4_OK) {
 		return nfs_status;
@@ -171,8 +177,13 @@ static nfsstat4 lzfs_fsal_ds_handle_write(struct fsal_ds_handle *const ds_hdl,
 		return lzfs_nfs4_last_err();
 	}
 
+	int rc = 0;
+	if (stability_wanted != UNSTABLE4) {
+		rc = liz_cred_flush(lzfs_export->lzfs_instance, NULL, file_handle);
+	}
+
 	*written_length = nb_write;
-	*stability_got = stability_wanted;
+	*stability_got = (rc < 0) ? UNSTABLE4 : stability_wanted;
 
 	return NFS4_OK;
 }
@@ -185,9 +196,36 @@ static nfsstat4 lzfs_fsal_ds_handle_commit(struct fsal_ds_handle *const ds_hdl,
                                            struct req_op_context *const req_ctx,
                                            const offset4 offset, const count4 count,
                                            verifier4 *const writeverf) {
+	struct lzfs_fsal_export *lzfs_export;
+	struct lzfs_fsal_ds_handle *lzfs_ds;
+	liz_fileinfo_t *file_handle;
+	nfsstat4 nfs_status;
+	int rc;
+
 	memset(*writeverf, 0, NFS4_VERIFIER_SIZE);
 
-	LogCrit(COMPONENT_PNFS, "Commits should go to MDS\n");
+	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
+	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
+
+	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_ds->inode, offset, count);
+
+	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
+	if (nfs_status != NFS4_OK) {
+		// If we failed here then there is no opened
+		// LizardFS file descriptor, which implies that we don't need
+		// to flush anything.
+		return NFS4_OK;
+	}
+
+	file_handle = liz_extract_fileinfo(lzfs_ds->cache_handle);
+
+	rc = liz_cred_flush(lzfs_export->lzfs_instance, NULL, file_handle);
+	if (rc < 0) {
+		LogMajor(COMPONENT_PNFS, "ds_commit() failed  '%s'", liz_error_string(liz_last_err()));
+		return NFS4ERR_INVAL;
+	}
+
 	return NFS4_OK;
 }
 
