@@ -474,7 +474,7 @@ uint8_t fs_whole_path_lookup(const FsContext &context, uint32_t parent, const st
 
 	*found_inode = tmp_inode;
 	if (tmp_inode == context.rootinode()) {
-		return fs_getattr(context, tmp_inode, attr);
+		return fs_getattr(context, SPECIAL_INODE_ROOT, attr);
 	}
 	return LIZARDFS_STATUS_OK;
 }
