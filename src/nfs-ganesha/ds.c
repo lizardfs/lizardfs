@@ -295,11 +295,19 @@ static nfsstat4 lzfs_fsal_make_ds_handle(struct fsal_pnfs_ds *const pds,
 	*handle = &lzfs_ds->ds;
 	fsal_ds_handle_init(*handle, pds);
 
+	if (flags & FH_FSAL_BIG_ENDIAN) {
 #if (BYTE_ORDER != BIG_ENDIAN)
-	lzfs_ds->inode = bswap_32(dsw->inode);
+		lzfs_ds->inode = bswap_32(dsw->inode);
 #else
-	lzfs_ds->inode = dsw->inode;
+		lzfs_ds->inode = dsw->inode;
 #endif
+	} else {
+#if (BYTE_ORDER == BIG_ENDIAN)
+		lzfs_ds->inode = bswap_32(dsw->inode);
+#else
+		lzfs_ds->inode = dsw->inode;
+#endif
+	}
 
 	return NFS4_OK;
 }

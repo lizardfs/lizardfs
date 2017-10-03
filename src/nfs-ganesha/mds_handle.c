@@ -53,11 +53,7 @@ static nfsstat4 lzfs_fsal_layoutget(struct fsal_obj_handle *obj_pub, struct req_
 	         res->segment.offset, res->segment.length);
 
 	deviceid.devid = lzfs_hdl->inode;
-#if (BYTE_ORDER != BIG_ENDIAN)
-	ds_wire.inode = bswap_32(lzfs_hdl->inode);
-#else
 	ds_wire.inode = lzfs_hdl->inode;
-#endif
 	layout_util = MFSCHUNKSIZE;
 
 	nfs_status = FSAL_encode_file_layout(loc_body, &deviceid, layout_util, 0, 0,

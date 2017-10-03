@@ -150,11 +150,17 @@ static fsal_status_t lzfs_fsal_wire_to_host(struct fsal_export *exp_hdl, fsal_di
 		return fsalstat(ERR_FSAL_FAULT, 0);
 
 	inode = (liz_inode_t *)fh_desc->addr;
-
+	if (flags & FH_FSAL_BIG_ENDIAN) {
 #if (BYTE_ORDER != BIG_ENDIAN)
-	assert(sizeof(liz_inode_t) == 4);
-	*inode = bswap_32(*inode);
+		assert(sizeof(liz_inode_t) == 4);
+		*inode = bswap_32(*inode);
 #endif
+	} else {
+#if (BYTE_ORDER == BIG_ENDIAN)
+		assert(sizeof(liz_inode_t) == 4);
+		*inode = bswap_32(*inode);
+#endif
+	}
 
 	if (fh_desc->len != sizeof(liz_inode_t)) {
 		LogMajor(COMPONENT_FSAL, "Size mismatch for handle. Should be %zu, got %zu",

@@ -459,13 +459,7 @@ static fsal_status_t lzfs_fsal_handle_to_wire(const struct fsal_obj_handle *obj_
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
 	liz_inode_t inode;
-
-#if (BYTE_ORDER != BIG_ENDIAN)
-	assert(sizeof(liz_inode_t) == 4);
-	inode = bswap_32(lzfs_obj->inode);
-#else
 	inode = lzfs_obj->inode;
-#endif
 
 	if (fh_desc->len < sizeof(liz_inode_t)) {
 		LogMajor(COMPONENT_FSAL, "Space too small for handle. Need %zu, have %zu",
