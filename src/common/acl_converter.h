@@ -16,6 +16,8 @@
    along with LizardFS. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+
 #include "common/platform.h"
 
 #include "common/access_control_list.h"
