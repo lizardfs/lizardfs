@@ -43,7 +43,7 @@
 
 std::array<uint32_t, FsStats::Size> gFsStatsArray = {{}};
 
-static const char kAclXattrs[] = "system.posix_acl_access\0system.posix_acl_default\0system.richacl\0system.nfs4_acl";
+static const char kAclXattrs[] = "system.richacl";
 
 void fs_retrieve_stats(std::array<uint32_t, FsStats::Size> &output_stats) {
 	output_stats = gFsStatsArray;
