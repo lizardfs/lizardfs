@@ -32,7 +32,7 @@ option(ENABLE_DEBUG_LOG     "Enable prefix based debug logs"                    
 option(ENABLE_VERBOSE_ASCIIDOC  "Enable verbose output of asciidoc"                   OFF)
 option(ENABLE_TCMALLOC      "Enable use of tcmalloc-minimal library"                  OFF)
 option(ENABLE_POLONAISE     "Enable polonaise"                                        ON)
-option(ENABLE_CLIENT_LIB    "Enable dynamic client library (liblizardfs-client)"      ON)
+option(ENABLE_CLIENT_LIB    "Enable dynamic client library (liblizardfs-client)"      OFF)
 option(ENABLE_OFFICIAL_BUILD "Make the build official"                                OFF)
 # end of LizardFS options
 option(ENABLE_TRACES        "Enable traces"                                           OFF)

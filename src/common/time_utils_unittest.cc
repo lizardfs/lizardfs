@@ -20,6 +20,8 @@
 #include "common/time_utils.h"
 
 #include <chrono>
+#include <thread>
+
 #include <gtest/gtest.h>
 
 // without at least millisecond precision a timesource is pretty much useless for us
@@ -41,7 +43,7 @@ TEST(TimeUtilsTests, TimerAndTimeout) {
 	long long accuracy = 10;
 #endif
 
-	usleep(50* 1000 - timer.elapsed_us());
+	std::this_thread::sleep_for(std::chrono::microseconds(50 * 1000 - timer.elapsed_us()));
 
 	EXPECT_EQ(0, timer.elapsed_s());
 	EXPECT_NEAR(timer.elapsed_ms(), 50, accuracy);
@@ -54,7 +56,7 @@ TEST(TimeUtilsTests, TimerAndTimeout) {
 	EXPECT_NEAR(timeout.remaining_ns(), 150 * 1000 * 1000, accuracy * 1000 * 1000);
 	EXPECT_FALSE(timeout.expired());
 
-	usleep(210 * 1000 - timer.elapsed_us());
+	std::this_thread::sleep_for(std::chrono::microseconds(210 * 1000 - timer.elapsed_us()));
 
 	EXPECT_EQ(0, timer.elapsed_s());
 	EXPECT_NEAR(timer.elapsed_ms(), 210, accuracy);

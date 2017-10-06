@@ -32,23 +32,23 @@ TEST(SharedMutex, LockTest) {
 
 	for(int i = 0; i < 100; ++i) {
 		threads.emplace_back([&m, &shared_count, &exclusive_count]() {
-			usleep(rand() % 100000);
+			std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100000));
 			shared_lock<shared_mutex> guard(m);
 			shared_count++;
 			EXPECT_TRUE(shared_count > 0);
 			EXPECT_EQ(exclusive_count, 0);
-			usleep(rand() % 100000);
+			std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100000));
 			shared_count--;
 		});
 	}
 	for(int i = 0; i < 10; ++i) {
 		threads.emplace_back([&m, &shared_count, &exclusive_count]() {
-			usleep(rand() % 100000);
+			std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100000));
 			std::unique_lock<shared_mutex> guard(m);
 			exclusive_count++;
 			EXPECT_EQ(shared_count, 0);
 			EXPECT_EQ(exclusive_count, 1);
-			usleep(rand() % 100000);
+			std::this_thread::sleep_for(std::chrono::microseconds(rand() % 100000));
 			exclusive_count--;
 		});
 	}

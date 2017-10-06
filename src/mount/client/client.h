@@ -25,7 +25,6 @@
 
 #include <boost/intrusive/list.hpp>
 #include <mutex>
-#include <sys/uio.h>
 
 namespace lizardfs {
 

@@ -24,7 +24,17 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <sys/uio.h>
+
+#ifndef _WIN32
+	#include <sys/uio.h>
+#else // if defined(_WIN32)
+	#include <unistd.h>
+
+	struct iovec {
+		void *iov_base;
+		size_t iov_len;
+	};
+#endif
 
 /*!
  * \brief Copy contiguous memory to io-vector
