@@ -1713,6 +1713,9 @@ int fsnodes_access(const FsContext &context, FSNode *node, uint8_t modemask) {
 		assert((node->mode & 0777) == node->acl->getMode());
 
 		uint32_t mask = RichACL::convertMode2Mask(modemask);
+		if (node->type != FSNode::kDirectory) {
+			mask &= ~RichACL::Ace::kDeleteChild;
+		}
 		return node->acl->checkPermission(mask, node->uid, node->gid, context.uid(), context.groups());
 	} else {
 		if (context.uid() == node->uid || (node->mode & (EATTR_NOOWNER << 12))) {
