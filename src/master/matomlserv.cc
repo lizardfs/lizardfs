@@ -577,7 +577,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	int32_t secondsSinceLastRequest = eventloop_time() - gLastMetadataSaveRequestTimestamp;
 	if (secondsSinceLastRequest >= int32_t(gMinMetadataSaveRequestPeriod_s)) {
 		gLastMetadataSaveRequestTimestamp = eventloop_time();
-		DEBUG_LOG("master.mltoma_changelog_apply_error") << "do";
+		lzfs_silent_syslog(LOG_DEBUG, "master.mltoma_changelog_apply_error: do");
 		syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
 				lizardfs_error_string(recvStatus));
@@ -587,7 +587,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 			fs_start_checksum_recalculation();
 		}
 	} else {
-		DEBUG_LOG("master.mltoma_changelog_apply_error") << "delay";
+		lzfs_silent_syslog(LOG_DEBUG, "master.mltoma_changelog_apply_error: delay");
 		syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - "
 				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "

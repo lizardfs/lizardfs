@@ -1,5 +1,5 @@
 USE_RAMDISK="YES" \
-	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG=main.reload:${TEMP_DIR}/reloads" \
+	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG=${TEMP_DIR}/reloads|LOG_FLUSH_ON=DEBUG" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 

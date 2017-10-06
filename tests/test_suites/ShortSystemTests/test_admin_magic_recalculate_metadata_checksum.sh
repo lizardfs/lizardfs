@@ -1,6 +1,6 @@
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 master_cfg+="|METADATA_CHECKSUM_RECALCULATION_SPEED = 1"
-master_cfg+="|MAGIC_DEBUG_LOG = master.fs.checksum.updater:$TEMP_DIR/log"
+master_cfg+="|MAGIC_DEBUG_LOG = $TEMP_DIR/log|LOG_FLUSH_ON=DEBUG"
 touch "$TEMP_DIR/log"
 
 CHUNKSERVERS=1 \
@@ -21,6 +21,7 @@ fi
 
 # Verify if wrong password doesn't work
 assert_failure lizardfs-admin magic-recalculate-metadata-checksum localhost "$port" <<< "no-pass"
+
 assert_equals 0 $(grep updater_end "$TEMP_DIR/log" | wc -l)
 assert_equals 0 $(grep updater_start "$TEMP_DIR/log" | wc -l)
 

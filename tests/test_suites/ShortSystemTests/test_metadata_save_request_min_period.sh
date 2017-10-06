@@ -1,7 +1,7 @@
 timeout_set '1 minute'
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
-master_cfg+="|MAGIC_DEBUG_LOG = master:${TEMP_DIR}/log"
+master_cfg+="|MAGIC_DEBUG_LOG = ${TEMP_DIR}/log|LOG_FLUSH_ON=DEBUG"
 master_cfg+="|METADATA_SAVE_REQUEST_MIN_PERIOD = $(timeout_rescale_seconds 10)"
 
 CHUNKSERVERS=1 \
@@ -26,9 +26,9 @@ assert_eventually "lizardfs_shadow_synchronized 1"
 # Verify that it worked the way we expected, not due to bugs or a blind luck.
 log=$(cat "${TEMP_DIR}/log")
 truncate -s0 "${TEMP_DIR}/log"
-assert_awk_finds '/^master.mismatch/' "$log"
-assert_awk_finds '/^master.mltoma_changelog_apply_error: do/' "$log"
-assert_awk_finds_no '/^master.mltoma_changelog_apply_error: delay/' "$log"
+assert_awk_finds '/master.mismatch/' "$log"
+assert_awk_finds '/master.mltoma_changelog_apply_error: do/' "$log"
+assert_awk_finds_no '/master.mltoma_changelog_apply_error: delay/' "$log"
 
 # Stop the shadow master, generate new changes, break them.
 lizardfs_master_n 1 stop
@@ -44,6 +44,6 @@ assert_eventually "lizardfs_shadow_synchronized 1" "15 seconds"
 
 # Verify if the METADATA_SAVE_REQUEST_MIN_PERIOD mechanism was used
 log=$(cat "${TEMP_DIR}/log")
-assert_awk_finds '/^master.mismatch/' "$log"
-assert_awk_finds '/^master.mltoma_changelog_apply_error: delay/' "$log"
-assert_awk_finds '/^master.mltoma_changelog_apply_error: do/' "$log"
+assert_awk_finds '/master.mismatch/' "$log"
+assert_awk_finds '/master.mltoma_changelog_apply_error: delay/' "$log"
+assert_awk_finds '/master.mltoma_changelog_apply_error: do/' "$log"

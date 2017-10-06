@@ -1,7 +1,7 @@
 CHUNKSERVERS=1 \
 	USE_RAMDISK="YES" \
 	MASTER_EXTRA_CONFIG="MAGIC_AUTO_FILE_REPAIR = 1"`
-			`"|MAGIC_DEBUG_LOG = master.fs.file_auto_repaired:$TEMP_DIR/log" \
+			`"|MAGIC_DEBUG_LOG = $TEMP_DIR/log|LOG_FLUSH_ON=DEBUG" \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 

@@ -39,6 +39,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
+#include <fstream>
 #include <list>
 #include <memory>
 
@@ -171,32 +172,45 @@ const std::string& set_syslog_ident() {
 	closelog();
 	if (gRunAsDaemon) {
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_DAEMON);
-		lzfs_disable_printf();
 	} else {
 #if defined(LOG_PERROR)
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
-		lzfs_disable_printf();
 #else
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_USER);
+		lzfs_add_log_stderr();
 #endif
 	}
 	return logIdent;
 }
 
 static void main_configure_debug_log() {
-	std::string debugLogConfiguration;
+	std::string flush_on_str = cfg_getstring("LOG_FLUSH_ON", "CRITICAL");
+	int priority = LOG_CRIT;
+	if (flush_on_str == "ERROR") {
+		priority = LOG_ERR;
+	} else if (flush_on_str == "WARNING") {
+		priority = LOG_WARNING;
+	} else if (flush_on_str == "INFO") {
+		priority = LOG_INFO;
+	} else if (flush_on_str == "DEBUG") {
+		priority = LOG_DEBUG;
+	}
+	lzfs_drop_all_logs();
+	lzfs_add_log_syslog();
+#ifndef LOG_PERROR
+	if (!gRunAsDaemon) {
+		lzfs_add_log_stderr();
+	}
+#endif
 	for (std::string suffix : {"", "_A", "_B", "_C"}) {
 		std::string configEntryName = "MAGIC_DEBUG_LOG" + suffix;
 		std::string value = cfg_get(configEntryName.c_str(), "");
 		if (value.empty()) {
 			continue;
 		}
-		if (!debugLogConfiguration.empty()) {
-			debugLogConfiguration += ',';
-		}
-		debugLogConfiguration += value;
+		lzfs_add_log_file(value.c_str(), LOG_DEBUG, 16*1024*1024, 8);
 	}
-	DebugLog::setConfiguration(std::move(debugLogConfiguration));
+	lzfs_set_log_flush_on(priority);
 }
 
 void main_reload() {
@@ -207,6 +221,7 @@ void main_reload() {
 
 	// Reload MAGIC_DEBUG_LOG
 	main_configure_debug_log();
+	lzfs_silent_syslog(LOG_DEBUG, "main.reload");
 }
 
 /* signals */

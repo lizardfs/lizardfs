@@ -102,7 +102,6 @@ Client::~Client() {
 void Client::init(FsInitParams &params) {
 	dl_handle_ = linkLibrary();
 	try {
-		LIZARDFS_LINK_FUNCTION(lzfs_disable_printf);
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_init);
 		LIZARDFS_LINK_FUNCTION(lizardfs_fs_term);
 		LIZARDFS_LINK_FUNCTION(lizardfs_lookup);
@@ -151,7 +150,6 @@ void Client::init(FsInitParams &params) {
 		throw e;
 	}
 
-	lzfs_disable_printf_();
 	if (lizardfs_fs_init_(params) != 0) {
 		assert(dl_handle_);
 		dlclose(dl_handle_);

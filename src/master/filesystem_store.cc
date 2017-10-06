@@ -21,6 +21,7 @@
 #include "master/filesystem_store.h"
 
 #include <cstdio>
+#include <fstream>
 #include <vector>
 
 #include "common/cwrap.h"
@@ -1520,7 +1521,7 @@ bool fs_commit_metadata_dump() {
 	rotateFiles(kMetadataFilename, gStoredPreviousBackMetaCopies);
 	try {
 		fs::rename(kMetadataTmpFilename, kMetadataFilename);
-		DEBUG_LOG("master.fs.stored");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.stored");
 		return true;
 	} catch (Exception& ex) {
 		lzfs_pretty_syslog(LOG_ERR, "renaming %s to %s failed: %s",

@@ -7,6 +7,10 @@ if(ENABLE_TESTS)
                     "ef5e700c8a0f3ee123e2e0209b8b4961")
 endif()
 
+download_external(SPDLOG "spdlog-0.14.0"
+                  "https://github.com/gabime/spdlog/archive/v0.14.0.zip"
+                  "f213d83c466aa7044a132e2488d71b11")
+
 # Find standard libraries
 find_package(Socket REQUIRED)
 find_package(Threads REQUIRED)

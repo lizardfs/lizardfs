@@ -323,7 +323,6 @@ void eventloop_run() {
 				}
 			}
 			gReloadRequested = false;
-			DEBUG_LOG("main.reload");
 		}
 		if (gExitingStatus == ExitingStatus::kWantExit) {
 			for (const FunctionEntry &fun : gWantExitEntries) {

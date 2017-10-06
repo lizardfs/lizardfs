@@ -32,7 +32,7 @@ ChecksumBackgroundUpdater::ChecksumBackgroundUpdater()
 }
 
 bool ChecksumBackgroundUpdater::start() {
-	DEBUG_LOG("master.fs.checksum.updater_start");
+	lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.updater_start");
 	if (step_ == ChecksumRecalculatingStep::kNone) {
 		++step_;
 		return true;
@@ -44,7 +44,7 @@ bool ChecksumBackgroundUpdater::start() {
 void ChecksumBackgroundUpdater::end() {
 	updateChecksum();
 	reset();
-	DEBUG_LOG("master.fs.checksum.updater_end");
+	lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.updater_end");
 }
 
 bool ChecksumBackgroundUpdater::inProgress() {
@@ -77,9 +77,9 @@ bool ChecksumBackgroundUpdater::isNodeIncluded(FSNode *node) {
 		ret = true;
 	}
 	if (ret) {
-		DEBUG_LOG("master.fs.checksum.changing_recalculated_node");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_recalculated_node");
 	} else {
-		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_node");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_not_recalculated_node");
 	}
 	return ret;
 }
@@ -94,9 +94,9 @@ bool ChecksumBackgroundUpdater::isXattrIncluded(xattr_data_entry *xde) {
 		ret = true;
 	}
 	if (ret) {
-		DEBUG_LOG("master.fs.checksum.changing_recalculated_xattr");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_recalculated_xattr");
 	} else {
-		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_xattr");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_not_recalculated_xattr");
 	}
 	return ret;
 }
@@ -113,12 +113,12 @@ void ChecksumBackgroundUpdater::updateChecksum() {
 	if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
 		syslog(LOG_WARNING, "FsNodes checksum mismatch found, replacing with a new value.");
 		gMetadata->fsNodesChecksum = fsNodesChecksum;
-		DEBUG_LOG("master.fs.checksum.mismatch");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.mismatch");
 	}
 	if (xattrChecksum != gMetadata->xattrChecksum) {
 		syslog(LOG_WARNING, "Xattr checksum mismatch found, replacing with a new value.");
 		gMetadata->xattrChecksum = xattrChecksum;
-		DEBUG_LOG("master.fs.checksum.mismatch");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.mismatch");
 	}
 }
 

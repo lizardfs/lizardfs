@@ -6,7 +6,7 @@ CHUNKSERVERS=3 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	FUSE_EXTRA_CONFIG="max_read=65536" \
 	MOUNT_1_EXTRA_CONFIG="mfsprefetchxorstripes" \
-	CHUNKSERVER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = chunkserver.hdd_prefetch_blocks:$TEMP_DIR/log" \
+	CHUNKSERVER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = $TEMP_DIR/log|LOG_FLUSH_ON=DEBUG" \
 	setup_local_empty_lizardfs info
 
 cd "${info[mount0]}"
@@ -16,7 +16,6 @@ lizardfs setgoal xor2 .
 FILE_SIZE=129M BLOCK_SIZE=12345 file-generate file
 
 file-validate file
-assert_file_not_exists $TEMP_DIR/log
 
 cd "${info[mount1]}"/dir
 file-validate file

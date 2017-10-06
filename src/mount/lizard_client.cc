@@ -28,6 +28,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <cstdint>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <new>

@@ -39,6 +39,8 @@
 #include "master/metadata_dumper.h"
 #include "master/restore.h"
 
+#include <fstream>
+
 FilesystemMetadata* gMetadata = nullptr;
 
 #ifndef METARESTORE

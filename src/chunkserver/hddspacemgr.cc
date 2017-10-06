@@ -73,7 +73,6 @@
 #include "common/crc.h"
 #include "common/cwrap.h"
 #include "common/datapack.h"
-#include "common/debug_log.h"
 #include "common/disk_info.h"
 #include "common/exceptions.h"
 #include "common/event_loop.h"
@@ -1535,9 +1534,9 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunk_type, uint32_t fir
 
 	hdd_prefetch(*c, first_block, block_count);
 
-	DEBUG_LOG("chunkserver.hdd_prefetch_blocks")
-			<< "chunk:" << chunkid << " status:" << (uint16_t)status
-			<< " firstBlock:" << first_block << " nrOfBlocks:" << block_count;
+	lzfs_silent_syslog(LOG_DEBUG, "chunkserver.hdd_prefetch_blocks chunk: %lu"
+	                   "status: %u firstBlock: %u nrOfBlocks: %u",
+	                   chunkid, status, first_block, block_count);
 
 	status = hdd_close(c);
 	if (status != LIZARDFS_STATUS_OK) {

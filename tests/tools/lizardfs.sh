@@ -215,17 +215,7 @@ create_magic_debug_log_entry_() {
 	# By default, fail on all prefixes passed in DEBUG_LOG_FAIL_ON
 	local prefixes=${DEBUG_LOG_FAIL_ON:-}
 
-	# This is a list of other entries, which are added to each test (but can be disabled)
-	# Add all these entries to the 'prefixes' list if not disabled using DEBUG_LOG_DISABLE_FAIL_ON
-	local auto_prefixes=("fatal.assert" "fatal.abort" "master.mismatch")
-	local disable_regex=${DEBUG_LOG_DISABLE_FAIL_ON:-$^} # default value matches nothing
 	local prefix
-	for prefix in "${auto_prefixes[@]}"; do
-		if ! [[ $prefix =~ $disable_regex ]]; then
-			prefixes+=" $prefix"
-		fi
-	done
-
 	# Create MAGIC_DEBUG_LOG_C config entry from all requested prefixes
 	if [[ $prefixes ]]; then
 		echo -n "MAGIC_DEBUG_LOG_C = "

@@ -23,14 +23,19 @@
 #include "common/syslog_defs.h"
 
 extern "C" {
-/// Returns true iff lzfs_*log functions print messages to stderr.
-bool lzfs_is_printf_enabled();
 
-/// Enables printing into stderr in lzfs_*log functions.
-void lzfs_disable_printf();
+/// Adds custom logging file
+bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int max_file_count);
 
-/// Disables printing into stderr in lzfs_*log functions.
-void lzfs_enable_printf();
+/// Sets which level triggers immediate log flush (default: CRITICAL)
+void lzfs_set_log_flush_on(int priority);
+
+/// Removes all log files
+void lzfs_drop_all_logs();
+
+bool lzfs_add_log_syslog();
+
+bool lzfs_add_log_stderr();
 
 /*
  * function names may contain following words:

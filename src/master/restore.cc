@@ -30,10 +30,6 @@
 #include "master/filesystem_snapshot.h"
 #include "master/filesystem_operations.h"
 
-#ifndef METARESTORE
-# include "common/debug_log.h"
-#endif
-
 #define EAT(clptr,fn,vno,c) { \
 	if (*(clptr)!=(c)) { \
 		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": '%c' expected", (fn), (vno), (c)); \
@@ -960,16 +956,17 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 
 	if (status == LIZARDFS_ERROR_MAX) {
 #ifndef METARESTORE
-		DEBUG_LOG("master.mismatch")
-				<< "File " << filename << ", " << lv << line << " -- unknown entry ";
+		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %lu, %s -- unknown entry",
+			   filename, lv, line);
 #endif
-		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'",filename,lv,ptr);
+		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'", filename, lv, ptr);
 	} else if (status != LIZARDFS_STATUS_OK) {
 #ifndef METARESTORE
-		DEBUG_LOG("master.mismatch")
-				<< "File " << filename << ", " << lv << line << " -- " << lizardfs_error_string(status);
+		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %lu, %s -- %s",
+			   filename, lv, line, lizardfs_error_string(status));
 #endif
-		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)",filename,lv,status,lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)", filename, lv, status,
+			lizardfs_error_string(status));
 	}
 	return status;
 }

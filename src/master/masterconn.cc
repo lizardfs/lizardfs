@@ -709,7 +709,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uint32_t length) {
 	uint8_t status;
 	matoml::changelogApplyError::deserialize(data, length, status);
-	DEBUG_LOG("master.matoml_changelog_apply_error") << "status: " << int(status);
+	lzfs_silent_syslog(LOG_DEBUG, "master.matoml_changelog_apply_error status: %u", status);
 	if (status == LIZARDFS_STATUS_OK) {
 		masterconn_force_metadata_download(eptr);
 	} else if (status == LIZARDFS_ERROR_DELAYED) {

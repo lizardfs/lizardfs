@@ -20,6 +20,7 @@
 #include "mount/write_cache_block.h"
 
 #include <cstring>
+#include <utility>
 
 #include "common/massert.h"
 #include "protocol/MFSCommunication.h"

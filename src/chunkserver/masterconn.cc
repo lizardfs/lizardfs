@@ -416,7 +416,7 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::replicateChunk::serialize(outputPacket->packet,
 			chunkId, chunkType, LIZARDFS_STATUS_OK, chunkVersion);
-	DEBUG_LOG("cs.matocs.replicate") << chunkId;
+	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %lu", chunkId);
 	if (hdd_scans_in_progress()) {
 		// Folder scan in progress - replication is not possible
 		masterconn_lizjobfinished(LIZARDFS_ERROR_WAITING, outputPacket);
@@ -442,7 +442,7 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	DEBUG_LOG("cs.matocs.replicate") << chunkid;
+	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %lu", chunkid);
 	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);
@@ -459,74 +459,6 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 		job_legacy_replicate(jpool,masterconn_replicationfinished,packet,chunkid,version,(length-12)/18,data);
 	}
 }
-
-/*
-void masterconn_structure_log(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	if (length<5) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%" PRIu32 "/4+data)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	if (data[0]==0xFF && length<10) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - wrong size (%" PRIu32 "/9+data)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	if (data[length-1]!='\0') {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG - invalid string");
-		eptr->mode = KILL;
-		return;
-	}
-
-	if (logfd==NULL) {
-		logfd = fopen("changelog_csback.0.mfs","a");
-	}
-
-	if (data[0]==0xFF) {    // new version
-		uint64_t version;
-		data++;
-		version = get64bit(&data);
-		if (logfd) {
-			fprintf(logfd,"%" PRIu64 ": %s\n",version,data);
-		} else {
-			syslog(LOG_NOTICE,"lost MFS change %" PRIu64 ": %s",version,data);
-		}
-	} else {        // old version
-		uint32_t version;
-		version = get32bit(&data);
-		if (logfd) {
-			fprintf(logfd,"%" PRIu32 ": %s\n",version,data);
-		} else {
-			syslog(LOG_NOTICE,"lost MFS change %" PRIu32 ": %s",version,data);
-		}
-	}
-
-}
-
-void masterconn_structure_log_rotate(masterconn *eptr,const uint8_t *data,uint32_t length) {
-	char logname1[100],logname2[100];
-	uint32_t i;
-	(void)data;
-	if (length!=0) {
-		syslog(LOG_NOTICE,"MATOCS_STRUCTURE_LOG_ROTATE - wrong size (%" PRIu32 "/0)",length);
-		eptr->mode = KILL;
-		return;
-	}
-	if (logfd!=NULL) {
-		fclose(logfd);
-		logfd=NULL;
-	}
-	if (BackLogsNumber>0) {
-		for (i=BackLogsNumber ; i>0 ; i--) {
-			snprintf(logname1,100,"changelog_csback.%" PRIu32 ".mfs",i);
-			snprintf(logname2,100,"changelog_csback.%" PRIu32 ".mfs",i-1);
-			rename(logname2,logname1);
-		}
-	} else {
-		unlink("changelog_csback.0.mfs");
-	}
-}
-*/
 
 void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBuffer& message) try {
 	switch (header.type) {

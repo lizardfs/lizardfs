@@ -1861,7 +1861,7 @@ uint8_t fs_auto_repair_if_needed(FSNodeFile *p, uint32_t chunkIndex) {
 		       ": "
 		       "not changed: %" PRIu32 ", erased: %" PRIu32 ", repaired: %" PRIu32,
 		       p->id, chunkId, notchanged, erased, repaired);
-		DEBUG_LOG("master.fs.file_auto_repaired") << p->id << " " << repaired;
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.file_auto_repaired: %u %u", p->id, repaired);
 	}
 	return LIZARDFS_STATUS_OK;
 }

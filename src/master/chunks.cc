@@ -667,10 +667,10 @@ static void chunk_update_checksum(Chunk *ch) {
 	removeFromChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 	ch->checksum = chunk_checksum(ch);
 	if (HASHPOS(ch->chunkid) < gChunksMetadata->checksumRecalculationPosition) {
-		DEBUG_LOG("master.fs.checksum.changing_recalculated_chunk");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_recalculated_chunk");
 		addToChecksum(gChunksMetadata->chunksChecksumRecalculated, ch->checksum);
 	} else {
-		DEBUG_LOG("master.fs.checksum.changing_not_recalculated_chunk");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.changing_not_recalculated_chunk");
 	}
 	addToChecksum(gChunksMetadata->chunksChecksum, ch->checksum);
 }
@@ -701,7 +701,7 @@ ChecksumRecalculationStatus chunks_update_checksum_a_bit(uint32_t speedLimit) {
 	gChunksMetadata->checksumRecalculationPosition = 0;
 	if (gChunksMetadata->chunksChecksum != gChunksMetadata->chunksChecksumRecalculated) {
 		syslog(LOG_WARNING,"Chunks metadata checksum mismatch found, replacing with a new value.");
-		DEBUG_LOG("master.fs.checksum.mismatch");
+		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.mismatch");
 		gChunksMetadata->chunksChecksum = gChunksMetadata->chunksChecksumRecalculated;
 	}
 	return ChecksumRecalculationStatus::kDone;
