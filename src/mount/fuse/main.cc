@@ -263,6 +263,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 	} else {
 		masterproxy_init();
+		symlink_cache_init();
 		if (gMountOptions.delayedinit) {
 			fs_init_master_connection(params);
 		} else {
@@ -316,13 +317,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
-		if (gMountOptions.meta==0) {
-			write_data_term();
-			read_data_term();
+		if (gMountOptions.meta == 0) {
+			LizardClient::fs_term();
+		} else {
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
 		}
-		masterproxy_term();
-		fs_term();
-		symlink_cache_term();
 		return 1;
 	}
 
@@ -339,13 +340,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 			}
 			close(piped[1]);
 		}
-		if (gMountOptions.meta==0) {
-			write_data_term();
-			read_data_term();
+		if (gMountOptions.meta == 0) {
+			LizardClient::fs_term();
+		} else {
+			masterproxy_term();
+			fs_term();
+			symlink_cache_term();
 		}
-		masterproxy_term();
-		fs_term();
-		symlink_cache_term();
 		return 1;
 	}
 
@@ -377,13 +378,13 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 	fuse_session_remove_chan(ch);
 	fuse_session_destroy(se);
 	fuse_unmount(mp,ch);
-	if (gMountOptions.meta==0) {
-		write_data_term();
-		read_data_term();
+	if (gMountOptions.meta == 0) {
+		LizardClient::fs_term();
+	} else {
+		masterproxy_term();
+		fs_term();
+		symlink_cache_term();
 	}
-	masterproxy_term();
-	fs_term();
-	symlink_cache_term();
 	return err ? 1 : 0;
 }
 

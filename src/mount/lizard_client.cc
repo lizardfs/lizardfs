@@ -3240,7 +3240,7 @@ void fs_init(FsInitParams &params) {
 	} catch (Exception &ex) {
 		lzfs_pretty_syslog(LOG_ERR, "Can't initialize I/O limiting: %s", ex.what());
 		masterproxy_term();
-		fs_term();
+		::fs_term();
 		symlink_cache_term();
 		socketrelease();
 		throw std::runtime_error("Can't initialize I/O limiting");

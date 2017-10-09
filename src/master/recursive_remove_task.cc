@@ -74,9 +74,9 @@ int RemoveTask::execute(uint32_t ts, intrusive_list<Task> &work_queue) {
 			return LIZARDFS_ERROR_ENOTEMPTY;
 		}
 	} else {
-		doUnlink(ts, wd, child);
 		++gFsStatsArray[child->type == FSNode::kDirectory ?
 		                FsStats::Rmdir : FsStats::Unlink];
+		doUnlink(ts, wd, child);
 		++current_subtask_;
 		repeat_counter_ = 0;
 	}
