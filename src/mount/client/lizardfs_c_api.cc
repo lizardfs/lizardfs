@@ -98,11 +98,7 @@ void liz_set_default_init_params(struct liz_init_params *params,
 	}
 }
 
-#ifdef LIZARDFS_HAVE_THREAD_LOCAL
 static thread_local liz_err_t gLastErrorCode(LIZARDFS_STATUS_OK);
-#else
-static __thread liz_err_t gLastErrorCode(LIZARDFS_STATUS_OK);
-#endif
 
 static void to_entry(const Client::EntryParam &param, liz_entry *entry) {
 	assert(entry);

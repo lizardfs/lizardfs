@@ -67,3 +67,8 @@ inline unsigned long long stoull(const std::string& s, std::size_t* pos = 0, int
 #if defined(LIZARDFS_HAVE_JUDY) && (__WORDSIZE == 64 || _WIN64 || __x86_64__)
 #  define LIZARDFS_HAVE_64BIT_JUDY
 #endif
+
+// thread_local hack for old GCC
+#ifndef LIZARDFS_HAVE_THREAD_LOCAL
+#define thread_local __thread
+#endif
