@@ -136,7 +136,7 @@ uint8_t xattr_setattr(uint32_t inode, uint8_t anleng, const uint8_t *attrname, u
 				xattr_removeentry(xa);
 				if (ih->data_head == NULL) {
 					if (ih->anleng != 0 || ih->avleng != 0) {
-						syslog(LOG_WARNING,
+						lzfs_pretty_syslog(LOG_WARNING,
 						       "xattr non zero lengths on remove "
 						       "(inode:%" PRIu32 ",anleng:%" PRIu32
 						       ",avleng:%" PRIu32 ")",

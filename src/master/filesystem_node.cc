@@ -179,7 +179,7 @@ static uint64_t file_realsize(FSNodeFile *node, uint32_t nonzero_chunks, uint64_
 			}
 			full_size += size;
 		} else {
-			syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id,
+			lzfs_pretty_syslog(LOG_ERR, "file_realsize: inode %" PRIu32 " has unknown goal 0x%" PRIx8, node->id,
 			       node->goal);
 			return 0;
 		}
@@ -655,7 +655,7 @@ void fsnodes_getpath(FSNodeDirectory *parent, FSNode *child, std::string &path) 
 	uint32_t size = fsnodes_getpath_size(parent, child);
 
 	if (size > 65535) {
-		syslog(LOG_WARNING, "path too long !!! - truncate");
+		lzfs_pretty_syslog(LOG_WARNING, "path too long !!! - truncate");
 		size = 65535;
 	}
 
@@ -990,7 +990,7 @@ uint8_t fsnodes_appendchunks(uint32_t ts, FSNodeFile *dst, FSNodeFile *src) {
 		auto chunkid = src->chunks[i];
 		if (chunkid > 0) {
 			if (chunk_add_file(chunkid, dst->goal) != LIZARDFS_STATUS_OK) {
-				syslog(LOG_ERR, "structure error - chunk %016" PRIX64 " not found (inode: %" PRIu32
+				lzfs_pretty_syslog(LOG_ERR, "structure error - chunk %016" PRIX64 " not found (inode: %" PRIu32
 				                " ; index: %" PRIu32 ")",
 				       chunkid, src->id, i);
 			}
@@ -1061,7 +1061,7 @@ void fsnodes_setlength(FSNodeFile *obj, uint64_t length) {
 		uint64_t chunkid = obj->chunks[i];
 		if (chunkid > 0) {
 			if (chunk_delete_file(chunkid, obj->goal) != LIZARDFS_STATUS_OK) {
-				syslog(LOG_ERR, "structure error - chunk %016" PRIX64 " not found (inode: %" PRIu32
+				lzfs_pretty_syslog(LOG_ERR, "structure error - chunk %016" PRIX64 " not found (inode: %" PRIu32
 				                " ; index: %" PRIu32 ")",
 				       chunkid, obj->id, i);
 			}
@@ -1127,7 +1127,7 @@ static inline void fsnodes_remove_node(uint32_t ts, FSNode *toremove) {
 			uint64_t chunkid = static_cast<FSNodeFile*>(toremove)->chunks[i];
 			if (chunkid > 0) {
 				if (chunk_delete_file(chunkid, toremove->goal) != LIZARDFS_STATUS_OK) {
-					syslog(LOG_ERR, "structure error - chunk %016" PRIX64
+					lzfs_pretty_syslog(LOG_ERR, "structure error - chunk %016" PRIX64
 					                " not found (inode: %" PRIu32
 					                " ; index: %" PRIu32 ")",
 					       chunkid, toremove->id, i);
@@ -1356,14 +1356,14 @@ void fsnodes_getgoal_recursive(FSNode *node, uint8_t gmode, GoalStatistics &fgta
 		GoalStatistics &dgtab) {
 	if (node->type == FSNode::kFile || node->type == FSNode::kTrash || node->type == FSNode::kReserved) {
 		if (!GoalId::isValid(node->goal)) {
-			syslog(LOG_WARNING, "file inode %" PRIu32 ": unknown goal !!! - fixing",
+			lzfs_pretty_syslog(LOG_WARNING, "file inode %" PRIu32 ": unknown goal !!! - fixing",
 			       node->id);
 			fsnodes_changefilegoal(static_cast<FSNodeFile*>(node), DEFAULT_GOAL);
 		}
 		fgtab[node->goal]++;
 	} else if (node->type == FSNode::kDirectory) {
 		if (!GoalId::isValid(node->goal)) {
-			syslog(LOG_WARNING,
+			lzfs_pretty_syslog(LOG_WARNING,
 			       "directory inode %" PRIu32 ": unknown goal !!! - fixing", node->id);
 			node->goal = DEFAULT_GOAL;
 		}

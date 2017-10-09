@@ -380,7 +380,7 @@ void masterconn_chunkop(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	void *packet;
 
 	if (length!=8+4+8+4+4+4) {
-		syslog(LOG_NOTICE,"MATOCS_CHUNKOP - wrong size (%" PRIu32 "/32)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOCS_CHUNKOP - wrong size (%" PRIu32 "/32)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -436,7 +436,7 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	void *packet;
 
 	if (length!=8+4+4+2 && (length<12+18 || length>12+18*100 || (length-12)%18!=0)) {
-		syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%" PRIu32 "/18|12+n*18[n:1..100])",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOCS_REPLICATE - wrong size (%" PRIu32 "/18|12+n*18[n:1..100])",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -502,11 +502,11 @@ void masterconn_gotpacket(masterconn *eptr, PacketHeader header, const MessageBu
 //                      masterconn_structure_log_rotate(eptr, message.data(), message.size());
 //                      break;
 		default:
-			syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")", header.type);
+			lzfs_pretty_syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")", header.type);
 			eptr->mode = KILL;
 	}
 } catch (IncorrectDeserializationException& e) {
-	syslog(LOG_NOTICE,
+	lzfs_pretty_syslog(LOG_NOTICE,
 			"chunkserver <-> master module: got inconsistent message "
 			"(type:%" PRIu32 ", length:%" PRIu32"), %s",
 			header.type, uint32_t(message.size()), e.what());
@@ -614,7 +614,7 @@ void masterconn_connecttest(masterconn *eptr) {
 		eptr->mode = FREE;
 		eptr->masteraddrvalid = 0;
 	} else {
-		syslog(LOG_NOTICE,"connected to Master");
+		lzfs_pretty_syslog(LOG_NOTICE,"connected to Master");
 		masterconn_connected(eptr);
 	}
 }

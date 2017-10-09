@@ -1011,7 +1011,7 @@ void exports_reload(void) {
 	try {
 		exports_load();
 	} catch (Exception& ex) {
-		syslog(LOG_WARNING, "exports not changed because %s", ex.what());
+		lzfs_pretty_syslog(LOG_WARNING, "exports not changed because %s", ex.what());
 	}
 }
 

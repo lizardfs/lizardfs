@@ -94,7 +94,7 @@ static int rep_read(repsrc *rs) {
 	while (rs->bytesleft>0) {
 		i=read(rs->sock,rs->startptr,rs->bytesleft);
 		if (i==0) {
-			syslog(LOG_NOTICE,"replicator: connection lost");
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: connection lost");
 			return -1;
 		}
 		if (i<0) {
@@ -120,7 +120,7 @@ static int rep_read(repsrc *rs) {
 			}
 			if (size>0) {
 				if (size>MAX_RECV_PACKET_SIZE) {
-					syslog(LOG_WARNING,"replicator: packet too long (%" PRIu32 "/%u)",size,MAX_RECV_PACKET_SIZE);
+					lzfs_pretty_syslog(LOG_WARNING,"replicator: packet too long (%" PRIu32 "/%u)",size,MAX_RECV_PACKET_SIZE);
 					return -1;
 				}
 				rs->packet = (uint8_t*) malloc(size);
@@ -163,7 +163,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 		tv.tv_usec-=tvb.tv_usec;
 		msec = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 		if (msec>=msecto) {
-			syslog(LOG_NOTICE,"replicator: receive timed out");
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: receive timed out");
 			return -1; // timed out
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
@@ -175,7 +175,7 @@ static int rep_receive_all_packets(replication *r,uint32_t msecto) {
 		}
 		for (i=0 ; i<r->srccnt ; i++) {
 			if (r->fds[i].revents & POLLHUP) {
-				syslog(LOG_NOTICE,"replicator: connection lost");
+				lzfs_pretty_syslog(LOG_NOTICE,"replicator: connection lost");
 				return -1;
 			}
 			if (r->fds[i].revents & POLLIN) {
@@ -215,7 +215,7 @@ static int rep_write(repsrc *rs) {
 	int i;
 	i = write(rs->sock,rs->startptr,rs->bytesleft);
 	if (i==0) {
-		syslog(LOG_NOTICE,"replicator: connection lost");
+		lzfs_pretty_syslog(LOG_NOTICE,"replicator: connection lost");
 		return -1;
 	}
 	if (i<0) {
@@ -257,7 +257,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 		tv.tv_usec-=tvb.tv_usec;
 		msec = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 		if (msec>=msecto) {
-			syslog(LOG_NOTICE,"replicator: send timed out");
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: send timed out");
 			return -1; // timed out
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
@@ -269,7 +269,7 @@ static int rep_send_all_packets(replication *r,uint32_t msecto) {
 		}
 		for (i=0 ; i<r->srccnt ; i++) {
 			if (r->fds[i].revents & POLLHUP) {
-				syslog(LOG_NOTICE,"replicator: connection lost");
+				lzfs_pretty_syslog(LOG_NOTICE,"replicator: connection lost");
 				return -1;
 			}
 			if (r->fds[i].revents & POLLOUT) {
@@ -308,7 +308,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		tv.tv_usec-=tvb.tv_usec;
 		msec = tv.tv_sec * 1000 + tv.tv_usec / 1000;
 		if (msec>=msecto) {
-			syslog(LOG_NOTICE,"replicator: connect timed out");
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: connect timed out");
 			return -1; // timed out
 		}
 		if (poll(r->fds,r->srccnt,msecto-msec)<0) {
@@ -320,7 +320,7 @@ static int rep_wait_for_connection(replication *r,uint32_t msecto) {
 		}
 		for (i=0 ; i<r->srccnt ; i++) {
 			if (r->fds[i].revents & POLLHUP) {
-				syslog(LOG_NOTICE,"replicator: connection lost");
+				lzfs_pretty_syslog(LOG_NOTICE,"replicator: connection lost");
 				return -1;
 			}
 			if (r->fds[i].revents & POLLOUT) {
@@ -399,7 +399,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // create chunk
 	status = hdd_create(chunkid, 0, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_create status: %s",lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE,"replicator: hdd_create status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -448,7 +448,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // open chunk
 	status = hdd_open(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_open status: %s",lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE,"replicator: hdd_open status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
@@ -457,7 +457,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 	for (i=0 ; i<srccnt ; i++) {
 		wptr = rep_create_packet(r.repsources+i,CSTOCS_GET_CHUNK_BLOCKS,8+4);
 		if (wptr==NULL) {
-			syslog(LOG_NOTICE,"replicator: out of memory");
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: out of memory");
 			rep_cleanup(&r);
 			return LIZARDFS_ERROR_OUTOFMEMORY;
 		}
@@ -492,7 +492,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		size = get32bit(&rptr);
 		rptr = r.repsources[i].packet;
 		if (rptr==NULL || type!=CSTOCS_GET_CHUNK_BLOCKS_STATUS || size!=15) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
+			lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return LIZARDFS_ERROR_DISCONNECTED;
 		}
@@ -501,17 +501,17 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 		pblocks = get16bit(&rptr);
 		pstatus = get8bit(&rptr);
 		if (pchid!=r.repsources[i].chunkid) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+			lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return LIZARDFS_ERROR_WRONGCHUNKID;
 		}
 		if (pver!=r.repsources[i].version) {
-			syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:version:%" PRIX32 "/%" PRIX32 ") from (%08" PRIX32 ":%04" PRIX16 ")",pver,r.repsources[i].version,r.repsources[i].ip,r.repsources[i].port);
+			lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (chunk_status:version:%" PRIX32 "/%" PRIX32 ") from (%08" PRIX32 ":%04" PRIX16 ")",pver,r.repsources[i].version,r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return LIZARDFS_ERROR_WRONGVERSION;
 		}
 		if (pstatus!=LIZARDFS_STATUS_OK) {
-			syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+			lzfs_pretty_syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
 			       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 			rep_cleanup(&r);
 			return pstatus;
@@ -528,7 +528,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 			uint32_t leng;
 			wptr = rep_create_packet(r.repsources+i,CLTOCS_READ,8+4+4+4);
 			if (wptr==NULL) {
-				syslog(LOG_NOTICE,"replicator: out of memory");
+				lzfs_pretty_syslog(LOG_NOTICE,"replicator: out of memory");
 				rep_cleanup(&r);
 				return LIZARDFS_ERROR_OUTOFMEMORY;
 			}
@@ -545,7 +545,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // wait for replication bandwidth limit to be assigned
 	status = replicationBandwidthLimiter().wait(requestsSummaryLength, std::chrono::seconds(60));
 	if (status != LIZARDFS_STATUS_OK) {
-		syslog(LOG_WARNING, "Replication bandwidth limit error: %s", lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_WARNING, "Replication bandwidth limit error: %s", lizardfs_error_string(status));
 		return status;
 	}
 // send read request
@@ -594,16 +594,16 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 					pchid = get64bit(&rptr);
 					pstatus = get8bit(&rptr);
 					if (pchid!=r.repsources[i].chunkid) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_WRONGCHUNKID;
 					}
 					if (pstatus==LIZARDFS_STATUS_OK) {       // got status too early or got incorrect packet
-						syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got unexpected ok status from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_DISCONNECTED;
 					}
-					syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+					lzfs_pretty_syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
 					       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 					rep_cleanup(&r);
 					return pstatus;
@@ -614,27 +614,27 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 					psize = get32bit(&rptr);
 					crc = get32bit(&rptr);
 					if (pchid!=r.repsources[i].chunkid) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_data:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_WRONGCHUNKID;
 					}
 					if (pblocknum!=b) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:blocknum:%" PRIu16 "/%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",pblocknum,b,r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_data:blocknum:%" PRIu16 "/%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",pblocknum,b,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_DISCONNECTED;
 					}
 					if (poffset!=0) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:offset:%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",poffset,r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_data:offset:%" PRIu16 ") from (%08" PRIX32 ":%04" PRIX16 ")",poffset,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_WRONGOFFSET;
 					}
 					if (psize!=MFSBLOCKSIZE) {
-						syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%" PRIu32 ") from (%08" PRIX32 ":%04" PRIX16 ")",psize,r.repsources[i].ip,r.repsources[i].port);
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_data:size:%" PRIu32 ") from (%08" PRIX32 ":%04" PRIX16 ")",psize,r.repsources[i].ip,r.repsources[i].port);
 						rep_cleanup(&r);
 						return LIZARDFS_ERROR_WRONGSIZE;
 					}
 				} else {
-					syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
+					lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 					rep_cleanup(&r);
 					return LIZARDFS_ERROR_DISCONNECTED;
 				}
@@ -644,7 +644,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // write data
 		sassert(vbuffs <= 1); // xor not needed, so just find block and write it
 		if (vbuffs==0) {        // no buffers ? - it should never happen
-			syslog(LOG_WARNING,"replicator: no data received for block: %" PRIu16,b);
+			lzfs_pretty_syslog(LOG_WARNING,"replicator: no data received for block: %" PRIu16,b);
 			rep_cleanup(&r);
 			return LIZARDFS_ERROR_DISCONNECTED;
 		} else {
@@ -654,7 +654,7 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 					status = hdd_write(chunkid, 0, slice_traits::standard::ChunkPartType(),
 							b, 0, MFSBLOCKSIZE, crc, rptr + 20);
 					if (status!=LIZARDFS_STATUS_OK) {
-						syslog(LOG_WARNING,"replicator: write status: %s",lizardfs_error_string(status));
+						lzfs_pretty_syslog(LOG_WARNING,"replicator: write status: %s",lizardfs_error_string(status));
 						rep_cleanup(&r);
 						return status;
 					}
@@ -687,19 +687,19 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 			size = get32bit(&rptr);
 			rptr = r.repsources[i].packet;
 			if (rptr==NULL || type!=CSTOCL_READ_STATUS || size!=9) {
-				syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
+				lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (type/size) from (%08" PRIX32 ":%04" PRIX16 ")",r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return LIZARDFS_ERROR_DISCONNECTED;
 			}
 			pchid = get64bit(&rptr);
 			pstatus = get8bit(&rptr);
 			if (pchid!=r.repsources[i].chunkid) {
-				syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
+				lzfs_pretty_syslog(LOG_WARNING,"replicator: got wrong answer (read_status:chunkid:%" PRIX64 "/%" PRIX64 ") from (%08" PRIX32 ":%04" PRIX16 ")",pchid,r.repsources[i].chunkid,r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return LIZARDFS_ERROR_WRONGCHUNKID;
 			}
 			if (pstatus!=LIZARDFS_STATUS_OK) {
-				syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
+				lzfs_pretty_syslog(LOG_NOTICE,"replicator: got status: %s from (%08" PRIX32 ":%04" PRIX16 ")",
 				       lizardfs_error_string(pstatus),r.repsources[i].ip,r.repsources[i].port);
 				rep_cleanup(&r);
 				return pstatus;
@@ -709,14 +709,14 @@ uint8_t legacy_replicate(uint64_t chunkid,uint32_t version,uint8_t srccnt,const 
 // close chunk and change version
 	status = hdd_close(chunkid, slice_traits::standard::ChunkPartType());
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_close status: %s",lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE,"replicator: hdd_close status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}
 	r.opened = 0;
 	status = hdd_version(chunkid, 0, slice_traits::standard::ChunkPartType(), version);
 	if (status!=LIZARDFS_STATUS_OK) {
-		syslog(LOG_NOTICE,"replicator: hdd_version status: %s",lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE,"replicator: hdd_version status: %s",lizardfs_error_string(status));
 		rep_cleanup(&r);
 		return status;
 	}

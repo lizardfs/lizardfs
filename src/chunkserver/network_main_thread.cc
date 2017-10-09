@@ -166,7 +166,7 @@ void mainNetworkThreadDesc(std::vector<pollfd> &pdesc) {
 
 void mainNetworkThreadTerm(void) {
 	TRACETHIS();
-	syslog(LOG_NOTICE, "closing %s:%s", ListenHost, ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE, "closing %s:%s", ListenHost, ListenPort);
 	tcpclose(lsock);
 
 	free(ListenHost);
@@ -194,7 +194,7 @@ void mainNetworkThreadServe(const std::vector<pollfd> &pdesc) {
 			}
 			if (job_pool_jobs_count(nextNetworkThread->bgJobPool())
 					>= (gBgjobsCountPerNetworkWorker * 9) / 10) {
-				syslog(LOG_WARNING, "jobs queue is full !!!");
+				lzfs_pretty_syslog(LOG_WARNING, "jobs queue is full !!!");
 				tcpclose(newSocketFD);
 			} else {
 				nextNetworkThread->addConnection(newSocketFD);

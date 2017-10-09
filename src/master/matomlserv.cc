@@ -265,7 +265,7 @@ void matomlserv_status(void) {
 			return;
 		}
 	}
-	syslog(LOG_WARNING,"no meta loggers connected !!!");
+	lzfs_pretty_syslog(LOG_WARNING,"no meta loggers connected !!!");
 }
 
 char* matomlserv_makestrip(uint32_t ip) {
@@ -333,11 +333,10 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 	uint8_t start=0;
 	uint32_t i;
 	if (old_changes_head==NULL) {
-		// syslog(LOG_WARNING,"meta logger wants old changes, but storage is disabled");
 		return;
 	}
 	if (old_changes_head->minversion>version) {
-		syslog(LOG_WARNING,"meta logger wants changes since version: %" PRIu64 ", but minimal version in storage is: %" PRIu64,version,old_changes_head->minversion);
+		lzfs_pretty_syslog(LOG_WARNING,"meta logger wants changes since version: %" PRIu64 ", but minimal version in storage is: %" PRIu64,version,old_changes_head->minversion);
 		// TODO(msulikowski) send a special message which will cause the shadow master to unload fs
 	}
 	for (oc=old_changes_head ; oc ; oc=oc->next) {
@@ -362,24 +361,24 @@ void matomlserv_send_old_changes(matomlserventry *eptr,uint64_t version) {
 
 void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (eptr->version>0) {
-		syslog(LOG_WARNING,"got register message from registered metalogger !!!");
+		lzfs_pretty_syslog(LOG_WARNING,"got register message from registered metalogger !!!");
 		eptr->mode=KILL;
 		return;
 	}
 	if (length<1) {
-		syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong size (%" PRIu32 ")",length);
 		eptr->mode=KILL;
 		return;
 	} else {
 		uint8_t rversion = get8bit(&data);
 		if (rversion < 1 || rversion > 4) {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 ")",rversion);
+			lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_REGISTER - wrong version (%" PRIu8 ")",rversion);
 			eptr->mode=KILL;
 			return;
 		}
 		static const uint32_t expected_length[] = {0, 7, 7+8, 7, 7+8};
 		if (length != expected_length[rversion]) {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver %" PRIu8 ") - wrong size (%" PRIu32
+			lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_REGISTER (ver %" PRIu8 ") - wrong size (%" PRIu32
 					"/%" PRIu32 ")", rversion, length, expected_length[rversion]);
 			eptr->mode=KILL;
 			return;
@@ -389,7 +388,7 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 		eptr->shadow = (rversion == 3 || rversion == 4);
 		if (eptr->shadow) {
 		// supported shadow master servers register using LIZ_MLTOMA_REGISTER_SHADOW packet
-			syslog(LOG_NOTICE,
+			lzfs_pretty_syslog(LOG_NOTICE,
 					"MLTOMA_REGISTER (ver %" PRIu8 ") - rejected old shadow master (v%s) from %s",
 					rversion, lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
 			eptr->mode=KILL;
@@ -400,7 +399,7 @@ void matomlserv_register(matomlserventry *eptr,const uint8_t *data,uint32_t leng
 			matomlserv_send_old_changes(eptr,minversion);
 		}
 		if (eptr->timeout<10) {
-			syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
+			lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_REGISTER communication timeout too small (%" PRIu16 " seconds - should be at least 10 seconds)",eptr->timeout);
 			if (eptr->timeout<3) {
 				eptr->timeout=3;
 			}
@@ -416,7 +415,7 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 	eptr->version = version;
 	eptr->shadow = true;
 	if (eptr->timeout < 10) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"MLTOMA_REGISTER_SHADOW communication timeout too small (%" PRIu32 " milliseconds)"
 				" - should be at least 10 seconds; increasing to 10 seconds", timeout_ms);
 		if (eptr->timeout < 10) {
@@ -424,7 +423,7 @@ void matomlserv_register_shadow(matomlserventry *eptr, const uint8_t *data, uint
 		}
 	}
 	if (eptr->version < LIZARDFS_VERSHEX) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"MLTOMA_REGISTER_SHADOW - rejected old client (v%s) from %s",
 				lizardfsVersionToString(eptr->version).c_str(), eptr->servstrip);
 		matomlserv_createpacket(eptr, matoml::registerShadow::build(uint8_t(LIZARDFS_ERROR_REGISTER)));
@@ -454,12 +453,12 @@ void matomlserv_matoclport(matomlserventry *eptr, const uint8_t *data, uint32_t 
 
 void matomlserv_download_start(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	if (length!=1) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%" PRIu32 "/1)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - wrong size (%" PRIu32 "/1)",length);
 		eptr->mode=KILL;
 		return;
 	}
 	if (gExiting) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - ignoring in the exit phase");
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_START - ignoring in the exit phase");
 		return;
 	}
 	uint8_t filenum = get8bit(&data);
@@ -525,16 +524,16 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 	ssize_t ret;
 
 	if (length!=12) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - wrong size (%" PRIu32 "/12)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - wrong size (%" PRIu32 "/12)",length);
 		eptr->mode=KILL;
 		return;
 	}
 	if (gExiting) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - ignoring in the exit phase");
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - ignoring in the exit phase");
 		return;
 	}
 	if (eptr->metafd<0) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - file not opened");
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_DATA - file not opened");
 		eptr->mode=KILL;
 		return;
 	}
@@ -556,7 +555,7 @@ void matomlserv_download_data(matomlserventry *eptr,const uint8_t *data,uint32_t
 void matomlserv_download_end(matomlserventry *eptr,const uint8_t *data,uint32_t length) {
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_END - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MLTOMA_DOWNLOAD_END - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode=KILL;
 		return;
 	}
@@ -570,7 +569,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	uint8_t recvStatus;
 	mltoma::changelogApplyError::deserialize(data, length, recvStatus);
 	if (gExiting) {
-		syslog(LOG_NOTICE,"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR - ignoring in the exit phase");
+		lzfs_pretty_syslog(LOG_NOTICE,"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR - ignoring in the exit phase");
 		return;
 	}
 
@@ -578,7 +577,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 	if (secondsSinceLastRequest >= int32_t(gMinMetadataSaveRequestPeriod_s)) {
 		gLastMetadataSaveRequestTimestamp = eventloop_time();
 		lzfs_silent_syslog(LOG_DEBUG, "master.mltoma_changelog_apply_error: do");
-		syslog(LOG_INFO,
+		lzfs_pretty_syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - storing metadata",
 				lizardfs_error_string(recvStatus));
 		gShadowQueue.addRequest(eptr);
@@ -588,7 +587,7 @@ void matomlserv_changelog_apply_error(matomlserventry *eptr, const uint8_t *data
 		}
 	} else {
 		lzfs_silent_syslog(LOG_DEBUG, "master.mltoma_changelog_apply_error: delay");
-		syslog(LOG_INFO,
+		lzfs_pretty_syslog(LOG_INFO,
 				"LIZ_MLTOMA_CHANGELOG_APPLY_ERROR, status: %s - "
 				"refusing to store metadata because only %" PRIi32 " seconds elapsed since the "
 				"previous request and METADATA_SAVE_REQUEST_MIN_PERIOD=%" PRIu32,
@@ -672,11 +671,11 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 				matomlserv_matoclport(eptr, data, length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
+				lzfs_pretty_syslog(LOG_NOTICE,"master <-> metaloggers module: got unknown message (type:%" PRIu32 ")",type);
 				eptr->mode=KILL;
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
+		lzfs_pretty_syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
 		eptr->mode = KILL;
 	}
 }
@@ -684,7 +683,7 @@ void matomlserv_gotpacket(matomlserventry *eptr,uint32_t type,const uint8_t *dat
 void matomlserv_term(void) {
 	matomlserventry *eptr,*eaptr;
 	packetstruct *pptr,*paptr;
-	syslog(LOG_INFO,"master <-> metaloggers module: closing %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_INFO,"master <-> metaloggers module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
 	eptr = matomlservhead;
@@ -725,7 +724,7 @@ void matomlserv_read(matomlserventry *eptr) {
 	while (eptr->mode != KILL) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_NOTICE,"connection with ML(%s) has been closed by peer",eptr->servstrip);
+			lzfs_pretty_syslog(LOG_NOTICE,"connection with ML(%s) has been closed by peer",eptr->servstrip);
 			eptr->mode = KILL;
 			return;
 		}
@@ -749,7 +748,7 @@ void matomlserv_read(matomlserventry *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"ML(%s) packet too long (%" PRIu32 "/%u)",eptr->servstrip,size,MaxPacketSize);
+					lzfs_pretty_syslog(LOG_WARNING,"ML(%s) packet too long (%" PRIu32 "/%u)",eptr->servstrip,size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -1008,7 +1007,7 @@ void matomlserv_reload(void) {
 
 	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
 	if (ChangelogSecondsToRemember>3600) {
-		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		lzfs_pretty_syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
 }
@@ -1039,7 +1038,7 @@ int matomlserv_init(void) {
 	matomlservhead = NULL;
 	ChangelogSecondsToRemember = cfg_getuint16("MATOML_LOG_PRESERVE_SECONDS",600);
 	if (ChangelogSecondsToRemember>3600) {
-		syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
+		lzfs_pretty_syslog(LOG_WARNING,"Number of seconds of change logs to be preserved in master is too big (%" PRIu16 ") - decreasing to 3600 seconds",ChangelogSecondsToRemember);
 		ChangelogSecondsToRemember=3600;
 	}
 	eventloop_wantexitregister(matomlserv_wantexit);

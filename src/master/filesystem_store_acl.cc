@@ -51,7 +51,7 @@ static void fs_store_marker(FILE *fd) {
 	uint32_t marker = 0;
 	serialize(buffer, marker);
 	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 }
@@ -62,7 +62,7 @@ static void fs_store_acl(uint32_t id, const RichACL &acl, FILE *fd) {
 	uint32_t size = serializedSize(id, acl);
 	serialize(buffer, size, id, acl);
 	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 }

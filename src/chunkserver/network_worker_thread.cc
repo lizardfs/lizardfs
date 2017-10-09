@@ -436,7 +436,7 @@ void worker_read_init(csserventry *eptr, const uint8_t *data,
 		}
 		eptr->messageSerializer = MessageSerializer::getSerializer(type);
 	} catch (IncorrectDeserializationException&) {
-		syslog(LOG_NOTICE, "read_init: Cannot deserialize READ message (type:%"
+		lzfs_pretty_syslog(LOG_NOTICE, "read_init: Cannot deserialize READ message (type:%"
 				PRIX32 ", length:%" PRIu32 ")", type, length);
 		eptr->state = CLOSE;
 		return;
@@ -489,7 +489,7 @@ void worker_prefetch(csserventry *eptr, const uint8_t *data, PacketHeader::Type 
 			eptr->chunkType = legacy_type;
 		}
 	} catch (IncorrectDeserializationException&) {
-		syslog(LOG_NOTICE, "prefetch: Cannot deserialize PREFETCH message (type:%"
+		lzfs_pretty_syslog(LOG_NOTICE, "prefetch: Cannot deserialize PREFETCH message (type:%"
 				PRIX32 ", length:%" PRIu32 ")", type, length);
 		eptr->state = CLOSE;
 		return;
@@ -605,7 +605,7 @@ void worker_write_init(csserventry *eptr,
 		}
 		eptr->messageSerializer = MessageSerializer::getSerializer(type);
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE, "Received malformed WRITE_INIT message (length: %" PRIu32 ")", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "Received malformed WRITE_INIT message (length: %" PRIu32 ")", length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -652,7 +652,7 @@ void worker_write_data(csserventry *eptr,
 	try {
 		const MessageSerializer *serializer = MessageSerializer::getSerializer(type);
 		if (eptr->messageSerializer != serializer) {
-			syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
+			lzfs_pretty_syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -668,7 +668,7 @@ void worker_write_data(csserventry *eptr,
 			sassert(eptr->chunkType == slice_traits::standard::ChunkPartType());
 		}
 	} catch (IncorrectDeserializationException&) {
-		syslog(LOG_NOTICE, "Received malformed WRITE_DATA message (length: %" PRIu32 ")", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "Received malformed WRITE_DATA message (length: %" PRIu32 ")", length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -710,7 +710,7 @@ void worker_write_status(csserventry *eptr,
 	try {
 		const MessageSerializer *serializer = MessageSerializer::getSerializer(type);
 		if (eptr->messageSerializer != serializer) {
-			syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
+			lzfs_pretty_syslog(LOG_NOTICE, "Received WRITE_DATA message incompatible with WRITE_INIT");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -722,7 +722,7 @@ void worker_write_status(csserventry *eptr,
 			sassert(eptr->chunkType == slice_traits::standard::ChunkPartType());
 		}
 	} catch (IncorrectDeserializationException&) {
-		syslog(LOG_NOTICE, "Received malformed WRITE_STATUS message (length: %" PRIu32 ")", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "Received malformed WRITE_STATUS message (length: %" PRIu32 ")", length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -758,12 +758,12 @@ void worker_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
 	try {
 		cltocs::writeEnd::deserialize(data, length, chunkId);
 	} catch (IncorrectDeserializationException&) {
-		syslog(LOG_NOTICE,"Received malformed WRITE_END message (length: %" PRIu32 ")", length);
+		lzfs_pretty_syslog(LOG_NOTICE,"Received malformed WRITE_END message (length: %" PRIu32 ")", length);
 		eptr->state = WRITEFINISH;
 		return;
 	}
 	if (chunkId != eptr->chunkid) {
-		syslog(LOG_NOTICE,"Received malformed WRITE_END message "
+		lzfs_pretty_syslog(LOG_NOTICE,"Received malformed WRITE_END message "
 				"(got chunkId=%016" PRIX64 ", expected %016" PRIX64 ")",
 				chunkId, eptr->chunkid);
 		eptr->state = WRITEFINISH;
@@ -778,7 +778,7 @@ void worker_write_end(csserventry *eptr, const uint8_t* data, uint32_t length) {
 		 * eptr->outputhead != NULL -- there is a status being send
 		 */
 		// TODO(msulikowski) temporary syslog message. May be useful until this code is fully tested
-		syslog(LOG_NOTICE, "Received WRITE_END message too early");
+		lzfs_pretty_syslog(LOG_NOTICE, "Received WRITE_END message too early");
 		eptr->state = WRITEFINISH;
 		return;
 	}
@@ -872,7 +872,7 @@ void worker_hdd_list_v1(csserventry *eptr, const uint8_t *data,
 
 	(void) data;
 	if (length != 0) {
-		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOCS_HDD_LIST(1) - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -889,7 +889,7 @@ void worker_hdd_list_v2(csserventry *eptr, const uint8_t *data,
 
 	(void) data;
 	if (length != 0) {
-		syslog(LOG_NOTICE,"CLTOCS_HDD_LIST_V2 - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOCS_HDD_LIST_V2 - wrong size (%" PRIu32 "/0)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -905,7 +905,7 @@ void worker_chart(csserventry *eptr, const uint8_t *data, uint32_t length) {
 	uint32_t l;
 
 	if (length != 4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -932,7 +932,7 @@ void worker_chart_data(csserventry *eptr, const uint8_t *data, uint32_t length) 
 	uint32_t l;
 
 	if (length != 4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
 		eptr->state = CLOSE;
 		return;
 	}
@@ -958,7 +958,7 @@ void worker_test_chunk(csserventry *eptr, const uint8_t *data, uint32_t length) 
 		}
 		hdd_test_chunk(chunk);
 	} catch (IncorrectDeserializationException &e) {
-		syslog(LOG_NOTICE, "LIZ_CLTOCS_TEST_CHUNK - bad packet: %s (length: %" PRIu32 ")",
+		lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOCS_TEST_CHUNK - bad packet: %s (length: %" PRIu32 ")",
 				e.what(), length);
 		eptr->state = CLOSE;
 		return;
@@ -1046,7 +1046,7 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			worker_test_chunk(eptr, data, length);
 			break;
 		default:
-			syslog(LOG_NOTICE, "Got invalid message in IDLE state (type:%" PRIu32 ")",type);
+			lzfs_pretty_syslog(LOG_NOTICE, "Got invalid message in IDLE state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
@@ -1060,7 +1060,7 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			worker_write_end(eptr, data, length);
 			break;
 		default:
-			syslog(LOG_NOTICE, "Got invalid message in WRITELAST state (type:%" PRIu32 ")",type);
+			lzfs_pretty_syslog(LOG_NOTICE, "Got invalid message in WRITELAST state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
@@ -1078,7 +1078,7 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 			worker_write_end(eptr, data, length);
 			break;
 		default:
-			syslog(LOG_NOTICE, "Got invalid message in WRITEFWD state (type:%" PRIu32 ")",type);
+			lzfs_pretty_syslog(LOG_NOTICE, "Got invalid message in WRITEFWD state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 			break;
 		}
@@ -1089,11 +1089,11 @@ void worker_gotpacket(csserventry *eptr, uint32_t type, const uint8_t *data, uin
 		case LIZ_CLTOCS_WRITE_END:
 			return;
 		default:
-			syslog(LOG_NOTICE, "Got invalid message in WRITEFINISH state (type:%" PRIu32 ")",type);
+			lzfs_pretty_syslog(LOG_NOTICE, "Got invalid message in WRITEFINISH state (type:%" PRIu32 ")",type);
 			eptr->state = CLOSE;
 		}
 	} else {
-		syslog(LOG_NOTICE, "Got invalid message (type:%" PRIu32 ")",type);
+		lzfs_pretty_syslog(LOG_NOTICE, "Got invalid message (type:%" PRIu32 ")",type);
 		eptr->state = CLOSE;
 	}
 }
@@ -1181,7 +1181,7 @@ void worker_fwdread(csserventry *eptr) {
 		ptr = eptr->fwdhdrbuff + 4;
 		size = get32bit(&ptr);
 		if (size > MaxPacketSize) {
-			syslog(LOG_WARNING,"(fwdread) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+			lzfs_pretty_syslog(LOG_WARNING,"(fwdread) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 			worker_fwderror(eptr);
 			return;
 		}
@@ -1291,12 +1291,12 @@ void worker_forward(csserventry *eptr) {
 		try {
 			deserializePacketHeader(eptr->hdrbuff, sizeof(eptr->hdrbuff), header);
 		} catch (IncorrectDeserializationException&) {
-			syslog(LOG_WARNING, "(forward) Received malformed network packet");
+			lzfs_pretty_syslog(LOG_WARNING, "(forward) Received malformed network packet");
 			eptr->state = CLOSE;
 			return;
 		}
 		if (header.length > MaxPacketSize) {
-			syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",
+			lzfs_pretty_syslog(LOG_WARNING,"(forward) packet too long (%" PRIu32 "/%u)",
 					header.length, MaxPacketSize);
 			eptr->state = CLOSE;
 			return;
@@ -1361,7 +1361,7 @@ void worker_forward(csserventry *eptr) {
 		try {
 			deserializePacketHeader(eptr->hdrbuff, sizeof(eptr->hdrbuff), header);
 		} catch (IncorrectDeserializationException&) {
-			syslog(LOG_WARNING, "(forward) Received malformed network packet");
+			lzfs_pretty_syslog(LOG_WARNING, "(forward) Received malformed network packet");
 			eptr->state = CLOSE;
 			return;
 		}
@@ -1414,7 +1414,7 @@ void worker_read(csserventry *eptr) {
 
 		if (size > 0) {
 			if (size > MaxPacketSize) {
-				syslog(LOG_WARNING,"(read) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+				lzfs_pretty_syslog(LOG_WARNING,"(read) packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 				eptr->state = CLOSE;
 				return;
 			}
@@ -1543,12 +1543,12 @@ void NetworkWorkerThread::operator()() {
 		int i = poll(pdesc.data(), pdesc.size(), 50);
 		if (i < 0) {
 			if (errno == EAGAIN) {
-				syslog(LOG_WARNING, "poll returned EAGAIN");
+				lzfs_pretty_syslog(LOG_WARNING, "poll returned EAGAIN");
 				usleep(100000);
 				continue;
 			}
 			if (errno != EINTR) {
-				syslog(LOG_WARNING, "poll error: %s", strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING, "poll error: %s", strerr(errno));
 				break;
 			}
 		} else {

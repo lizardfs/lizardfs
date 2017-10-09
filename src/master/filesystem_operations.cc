@@ -1826,7 +1826,7 @@ uint8_t fs_release(const FsContext &context, uint32_t inode, uint32_t sessionid)
 		return LIZARDFS_STATUS_OK;
 	}
 #ifndef METARESTORE
-	syslog(LOG_WARNING, "release: session not found");
+	lzfs_pretty_syslog(LOG_WARNING, "release: session not found");
 #endif
 	return LIZARDFS_ERROR_EINVAL;
 }
@@ -1856,7 +1856,7 @@ uint8_t fs_auto_repair_if_needed(FSNodeFile *p, uint32_t chunkIndex) {
 		uint32_t notchanged, erased, repaired;
 		FsContext context = FsContext::getForMasterWithSession(0, SPECIAL_INODE_ROOT, 0, 0, 0, 0, 0);
 		fs_repair(context, p->id, 0, &notchanged, &erased, &repaired);
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 		       "auto repair inode %" PRIu32 ", chunk %016" PRIX64
 		       ": "
 		       "not changed: %" PRIu32 ", erased: %" PRIu32 ", repaired: %" PRIu32,

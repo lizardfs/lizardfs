@@ -61,7 +61,7 @@ void changelog(uint64_t version, const char* entry) {
 	if (fd==NULL) {
 		fd = fopen(gChangelogFilename.c_str(), "a");
 		if (!fd) {
-			syslog(LOG_NOTICE, "lost metadata change %" PRIu64 ": %s", version, entry);
+			lzfs_pretty_syslog(LOG_NOTICE, "lost metadata change %" PRIu64 ": %s", version, entry);
 		}
 	}
 

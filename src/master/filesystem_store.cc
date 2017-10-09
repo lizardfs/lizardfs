@@ -68,17 +68,17 @@ void xattr_store(FILE *fd) {
 			put8bit(&ptr, xa->anleng);
 			put32bit(&ptr, xa->avleng);
 			if (fwrite(hdrbuff, 1, 4 + 1 + 4, fd) != (size_t)(4 + 1 + 4)) {
-				syslog(LOG_NOTICE, "fwrite error");
+				lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 				return;
 			}
 			if (fwrite(xa->attrname, 1, xa->anleng, fd) != (size_t)(xa->anleng)) {
-				syslog(LOG_NOTICE, "fwrite error");
+				lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 				return;
 			}
 			if (xa->avleng > 0) {
 				if (fwrite(xa->attrvalue, 1, xa->avleng, fd) !=
 				    (size_t)(xa->avleng)) {
-					syslog(LOG_NOTICE, "fwrite error");
+					lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 					return;
 				}
 			}
@@ -86,7 +86,7 @@ void xattr_store(FILE *fd) {
 	}
 	memset(hdrbuff, 0, 4 + 1 + 4);
 	if (fwrite(hdrbuff, 1, 4 + 1 + 4, fd) != (size_t)(4 + 1 + 4)) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 }
@@ -212,7 +212,7 @@ static void fs_store_generic(FILE *fd, Args &&... args) {
 	const uint32_t size = serializedSize(std::forward<Args>(args)...);
 	serialize(buffer, size, std::forward<Args>(args)...);
 	if (fwrite(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 }
@@ -244,7 +244,7 @@ void fs_storeedge(FSNodeDirectory* parent, FSNode* child, const std::string &nam
 	if (child == nullptr) {  // last edge
 		memset(uedgebuff, 0, 4 + 4 + 2);
 		if (fwrite(uedgebuff, 1, 4 + 4 + 2, fd) != (size_t)(4 + 4 + 2)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 		return;
@@ -259,7 +259,7 @@ void fs_storeedge(FSNodeDirectory* parent, FSNode* child, const std::string &nam
 	put16bit(&ptr, name.length());
 	memcpy(ptr, name.c_str(), name.length());
 	if (fwrite(uedgebuff, 1, 4 + 4 + 2 + name.length(), fd) != (size_t)(4 + 4 + 2 + name.length())) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 }
@@ -393,7 +393,7 @@ int fs_loadedge(FILE *fd, int ignoreflag) {
 		}
 		if (current_parent_id != parent_id) {
 			if (parent->entries.size() > 0) {
-				syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
+				lzfs_pretty_syslog(LOG_ERR, "loading edge: %" PRIu32 ",%s->%" PRIu32
 				                " error: parent node sequence error",
 				       parent_id, fsnodes_escape_name(name).c_str(), child_id);
 				return -1;
@@ -448,7 +448,7 @@ void fs_storenode(FSNode *f, FILE *fd) {
 	case FSNode::kFifo:
 		if (fwrite(unodebuff, 1, 1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4, fd) !=
 		    (size_t)(1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 		break;
@@ -457,7 +457,7 @@ void fs_storenode(FSNode *f, FILE *fd) {
 		put32bit(&ptr, static_cast<FSNodeDevice*>(f)->rdev);
 		if (fwrite(unodebuff, 1, 1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4, fd) !=
 		    (size_t)(1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 		break;
@@ -466,12 +466,12 @@ void fs_storenode(FSNode *f, FILE *fd) {
 		put32bit(&ptr, name.length());
 		if (fwrite(unodebuff, 1, 1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4, fd) !=
 		    (size_t)(1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 4)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 		if (fwrite(name.c_str(), 1, name.length(), fd) !=
 		    (size_t)(static_cast<FSNodeSymlink*>(f)->path_length)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 		break;
@@ -486,7 +486,7 @@ void fs_storenode(FSNode *f, FILE *fd) {
 
 		if (fwrite(unodebuff, 1, 1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 8 + 4 + 2, fd) !=
 		    (size_t)(1 + 4 + 1 + 2 + 4 + 4 + 4 + 4 + 4 + 4 + 8 + 4 + 2)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 
@@ -498,7 +498,7 @@ void fs_storenode(FSNode *f, FILE *fd) {
 				indx++;
 			}
 			if (fwrite(ptr, 1, 8 * 65536, fd) != (size_t)(8 * 65536)) {
-				syslog(LOG_NOTICE, "fwrite error");
+				lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 				return;
 			}
 			ch -= 65536;
@@ -521,7 +521,7 @@ void fs_storenode(FSNode *f, FILE *fd) {
 
 		if (fwrite(ptr, 1, 8 * ch + 4 * sessionids, fd) !=
 		    (size_t)(8 * ch + 4 * sessionids)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 	}
@@ -836,7 +836,7 @@ void fs_storefree(FILE *fd) {
 	ptr = wbuff;
 	put32bit(&ptr, l);
 	if (fwrite(wbuff, 1, 4, fd) != (size_t)4) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 	l = 0;
@@ -845,7 +845,7 @@ void fs_storefree(FILE *fd) {
 	for (const auto &n : gMetadata->inode_pool) {
 		if (l == 1024) {
 			if (fwrite(wbuff, 1, 8 * 1024, fd) != (size_t)(8 * 1024)) {
-				syslog(LOG_NOTICE, "fwrite error");
+				lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 				return;
 			}
 			l = 0;
@@ -857,7 +857,7 @@ void fs_storefree(FILE *fd) {
 	}
 	if (l > 0) {
 		if (fwrite(wbuff, 1, 8 * l, fd) != (size_t)(8 * l)) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 	}
@@ -920,7 +920,7 @@ static int process_section(const char *label, uint8_t (&hdr)[16], uint8_t *&ptr,
 	put64bit(&ptr, offend - offbegin - 16);
 	fseeko(fd, offbegin, SEEK_SET);
 	if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return LIZARDFS_ERROR_IO;
 	}
 	offbegin = offend;
@@ -938,7 +938,7 @@ void fs_store(FILE *fd, uint8_t fver) {
 	put64bit(&ptr, gMetadata->metaversion);
 	put32bit(&ptr, gMetadata->nextsessionid);
 	if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 		return;
 	}
 	if (fver >= kMetadataVersionWithSections) {
@@ -990,7 +990,7 @@ void fs_store(FILE *fd, uint8_t fver) {
 		fseeko(fd, offend, SEEK_SET);
 		memcpy(hdr, "[MFS EOF MARKER]", 16);
 		if (fwrite(hdr, 1, 16, fd) != (size_t)16) {
-			syslog(LOG_NOTICE, "fwrite error");
+			lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 			return;
 		}
 	}
@@ -1010,7 +1010,7 @@ void fs_store_fd(FILE *fd) {
 #endif
 
 	if (fwrite(&hdr, 1, sizeof(hdr) - 1, fd) != sizeof(hdr) - 1) {
-		syslog(LOG_NOTICE, "fwrite error");
+		lzfs_pretty_syslog(LOG_NOTICE, "fwrite error");
 	} else {
 		fs_store(fd, metadataVersion);
 	}
@@ -1549,11 +1549,11 @@ bool fs_commit_metadata_dump() {
 uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (gMetadata == nullptr) {
 		// Periodic dump in shadow master or a request from lizardfs-admin
-		syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
+		lzfs_pretty_syslog(LOG_INFO, "Can't save metadata because no metadata is loaded");
 		return LIZARDFS_ERROR_NOTPOSSIBLE;
 	}
 	if (metadataDumper.inProgress()) {
-		syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
+		lzfs_pretty_syslog(LOG_ERR, "previous metadata save process hasn't finished yet - do not start another one");
 		return LIZARDFS_ERROR_TEMP_NOTPOSSIBLE;
 	}
 
@@ -1568,7 +1568,7 @@ uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 	if (dumpType == MetadataDumper::kForegroundDump) {
 		cstream_t fd(fopen(kMetadataTmpFilename, "w"));
 		if (fd == nullptr) {
-			syslog(LOG_ERR, "can't open metadata file");
+			lzfs_pretty_syslog(LOG_ERR, "can't open metadata file");
 			// try to save in alternative location - just in case
 			fs_emergency_saves();
 			if (child) {
@@ -1581,7 +1581,7 @@ uint8_t fs_storeall(MetadataDumper::DumpType dumpType) {
 		fs_store_fd(fd.get());
 
 		if (ferror(fd.get()) != 0) {
-			syslog(LOG_ERR, "can't write metadata");
+			lzfs_pretty_syslog(LOG_ERR, "can't write metadata");
 			fd.reset();
 			unlink(kMetadataTmpFilename);
 			// try to save in alternative location - just in case

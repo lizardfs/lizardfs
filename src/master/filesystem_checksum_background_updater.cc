@@ -111,12 +111,12 @@ uint32_t ChecksumBackgroundUpdater::getSpeedLimit() {
 
 void ChecksumBackgroundUpdater::updateChecksum() {
 	if (fsNodesChecksum != gMetadata->fsNodesChecksum) {
-		syslog(LOG_WARNING, "FsNodes checksum mismatch found, replacing with a new value.");
+		lzfs_pretty_syslog(LOG_WARNING, "FsNodes checksum mismatch found, replacing with a new value.");
 		gMetadata->fsNodesChecksum = fsNodesChecksum;
 		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.mismatch");
 	}
 	if (xattrChecksum != gMetadata->xattrChecksum) {
-		syslog(LOG_WARNING, "Xattr checksum mismatch found, replacing with a new value.");
+		lzfs_pretty_syslog(LOG_WARNING, "Xattr checksum mismatch found, replacing with a new value.");
 		gMetadata->xattrChecksum = xattrChecksum;
 		lzfs_silent_syslog(LOG_DEBUG, "master.fs.checksum.mismatch");
 	}

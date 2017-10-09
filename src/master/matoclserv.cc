@@ -611,7 +611,7 @@ void matoclserv_store_sessions() {
 	ptr = fsesrecord+8;
 	put16bit(&ptr,SESSION_STATS);
 	if (fwrite(fsesrecord,10,1,fd)!=1) {
-		syslog(LOG_WARNING,"can't store sessions, fwrite error");
+		lzfs_pretty_syslog(LOG_WARNING,"can't store sessions, fwrite error");
 		fclose(fd);
 		return;
 	}
@@ -643,13 +643,13 @@ void matoclserv_store_sessions() {
 				put32bit(&ptr,asesdata->lasthouropstats[i]);
 			}
 			if (fwrite(fsesrecord,(43+SESSION_STATS*8),1,fd)!=1) {
-				syslog(LOG_WARNING,"can't store sessions, fwrite error");
+				lzfs_pretty_syslog(LOG_WARNING,"can't store sessions, fwrite error");
 				fclose(fd);
 				return;
 			}
 			if (ileng>0) {
 				if (fwrite(asesdata->info,ileng,1,fd)!=1) {
-					syslog(LOG_WARNING,"can't store sessions, fwrite error");
+					lzfs_pretty_syslog(LOG_WARNING,"can't store sessions, fwrite error");
 					fclose(fd);
 					return;
 				}
@@ -687,7 +687,7 @@ int matoclserv_load_sessions() {
 		}
 	}
 	if (fread(hdr,8,1,fd)!=1) {
-		syslog(LOG_WARNING,"can't load sessions, fread error");
+		lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, fread error");
 		fclose(fd);
 		return -1;
 	}
@@ -707,7 +707,7 @@ int matoclserv_load_sessions() {
 		mapalldata = 1;
 		goaltrashdata = 0;
 		if (fread(hdr,2,1,fd)!=1) {
-			syslog(LOG_WARNING,"can't load sessions, fread error");
+			lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, fread error");
 			fclose(fd);
 			return -1;
 		}
@@ -717,14 +717,14 @@ int matoclserv_load_sessions() {
 		mapalldata = 1;
 		goaltrashdata = 1;
 		if (fread(hdr,2,1,fd)!=1) {
-			syslog(LOG_WARNING,"can't load sessions, fread error");
+			lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, fread error");
 			fclose(fd);
 			return -1;
 		}
 		ptr = hdr;
 		statsinfile = get16bit(&ptr);
 	} else {
-		syslog(LOG_WARNING,"can't load sessions, bad header");
+		lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, bad header");
 		fclose(fd);
 		return -1;
 	}
@@ -785,7 +785,7 @@ int matoclserv_load_sessions() {
 					free(asesdata->info);
 					delete asesdata;
 					free(fsesrecord);
-					syslog(LOG_WARNING,"can't load sessions, fread error");
+					lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, fread error");
 					fclose(fd);
 					return -1;
 				}
@@ -796,13 +796,13 @@ int matoclserv_load_sessions() {
 		}
 		if (ferror(fd)) {
 			free(fsesrecord);
-			syslog(LOG_WARNING,"can't load sessions, fread error");
+			lzfs_pretty_syslog(LOG_WARNING,"can't load sessions, fread error");
 			fclose(fd);
 			return -1;
 		}
 	}
 	free(fsesrecord);
-	syslog(LOG_NOTICE,"sessions have been loaded");
+	lzfs_pretty_syslog(LOG_NOTICE,"sessions have been loaded");
 	fclose(fd);
 	return 1;
 }
@@ -870,7 +870,7 @@ void matoclserv_remove_open_file(uint32_t sessionid, uint32_t inode) {
 	for (asesdata = sessionshead; asesdata && asesdata->sessionid != sessionid; asesdata = asesdata->next) {
 	}
 	if (asesdata == NULL) {
-		syslog(LOG_ERR, "sessions file is corrupted");
+		lzfs_pretty_syslog(LOG_ERR, "sessions file is corrupted");
 		return;
 	}
 
@@ -1099,7 +1099,7 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 	}
 
 	if (!eptr) {
-		syslog(LOG_WARNING,"got chunk status, but don't want it");
+		lzfs_pretty_syslog(LOG_WARNING,"got chunk status, but don't want it");
 		return;
 	}
 	if (status==LIZARDFS_STATUS_OK) {
@@ -1144,13 +1144,13 @@ void matoclserv_chunk_status(uint64_t chunkid,uint8_t status) {
 		matoclserv_createpacket(eptr, std::move(reply));
 		return;
 	default:
-		syslog(LOG_WARNING,"got chunk status, but operation type is unknown");
+		lzfs_pretty_syslog(LOG_WARNING,"got chunk status, but operation type is unknown");
 	}
 }
 
 void matoclserv_cserv_list(matoclserventry *eptr, const uint8_t */*data*/, uint32_t length) {
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_CSERV_LIST - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_CSERV_LIST - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1194,7 +1194,7 @@ void matoclserv_cserv_removeserv(matoclserventry *eptr,const uint8_t *data,uint3
 	uint32_t ip;
 	uint16_t port;
 	if (length!=6) {
-		syslog(LOG_NOTICE,"CLTOMA_CSSERV_REMOVESERV - wrong size (%" PRIu32 "/6)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_CSSERV_REMOVESERV - wrong size (%" PRIu32 "/6)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1266,7 +1266,7 @@ void matoclserv_session_list(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t vmode;
 	(void)data;
 	if (length!=0 && length!=1) {
-		syslog(LOG_NOTICE,"CLTOMA_SESSION_LIST - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_SESSION_LIST - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1347,7 +1347,7 @@ void matoclserv_chart(matoclserventry *eptr,const uint8_t *data,uint32_t length)
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOAN_CHART - wrong size (%" PRIu32 "/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1374,7 +1374,7 @@ void matoclserv_chart_data(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uint32_t l;
 
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOAN_CHART_DATA - wrong size (%" PRIu32 "/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1390,7 +1390,7 @@ void matoclserv_info(matoclserventry *eptr,const uint8_t *data,uint32_t length) 
 	LizardFsStatistics statistics;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_INFO - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_INFO - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1411,7 +1411,7 @@ void matoclserv_fstest_info(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_FSTEST_INFO - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FSTEST_INFO - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1436,7 +1436,7 @@ void matoclserv_chunkstest_info(matoclserventry *eptr,const uint8_t *data,uint32
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_CHUNKSTEST_INFO - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_CHUNKSTEST_INFO - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1449,7 +1449,7 @@ void matoclserv_chunks_matrix(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t matrixid;
 	(void)data;
 	if (length>1) {
-		syslog(LOG_NOTICE,"CLTOMA_CHUNKS_MATRIX - wrong size (%" PRIu32 "/0|1)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_CHUNKS_MATRIX - wrong size (%" PRIu32 "/0|1)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1467,7 +1467,7 @@ void matoclserv_exports_info(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t *ptr;
 	uint8_t vmode;
 	if (length!=0 && length!=1) {
-		syslog(LOG_NOTICE,"CLTOMA_EXPORTS_INFO - wrong size (%" PRIu32 "/0|1)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_EXPORTS_INFO - wrong size (%" PRIu32 "/0|1)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1484,7 +1484,7 @@ void matoclserv_mlog_list(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	uint8_t *ptr;
 	(void)data;
 	if (length!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_MLOG_LIST - wrong size (%" PRIu32 "/0)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_MLOG_LIST - wrong size (%" PRIu32 "/0)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1537,7 +1537,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		return;
 	}
 	if (length<64) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong size (%" PRIu32 "/<64)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong size (%" PRIu32 "/<64)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1545,19 +1545,19 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 	if (eptr->registered == ClientState::kUnregistered
 			&& (memcmp(data,FUSE_REGISTER_BLOB_NOACL,64)==0 || tools)) {
 		if (RejectOld) {
-			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
+			lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL - rejected (option REJECT_OLD_CLIENTS is set)");
 			eptr->mode = KILL;
 			return;
 		}
 		if (tools) {
 			if (length!=64 && length!=68) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-TOOLS - wrong size (%" PRIu32 "/64|68)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-TOOLS - wrong size (%" PRIu32 "/64|68)",length);
 				eptr->mode = KILL;
 				return;
 			}
 		} else {
 			if (length!=68 && length!=72) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-MOUNT - wrong size (%" PRIu32 "/68|72)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/NOACL-MOUNT - wrong size (%" PRIu32 "/68|72)",length);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1575,7 +1575,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			}
 		}
 		if (eptr->version<0x010500 && !tools) {
-			syslog(LOG_NOTICE,"got register packet from mount older than 1.5 - rejecting");
+			lzfs_pretty_syslog(LOG_NOTICE,"got register packet from mount older than 1.5 - rejecting");
 			eptr->mode = KILL;
 			return;
 		}
@@ -1583,7 +1583,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			status = LIZARDFS_STATUS_OK; // exports_check(eptr->peerip,(const uint8_t*)"",NULL,NULL,&sesflags);      // check privileges for '/' w/o password
 				eptr->sesdata = matoclserv_new_session(0,tools);
 				if (eptr->sesdata==NULL) {
-					syslog(LOG_NOTICE,"can't allocate session record");
+					lzfs_pretty_syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
 					return;
 				}
@@ -1595,7 +1595,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (eptr->sesdata==NULL) {      // in old model if session doesn't exist then create it
 				eptr->sesdata = matoclserv_new_session(0,0);
 				if (eptr->sesdata==NULL) {
-					syslog(LOG_NOTICE,"can't allocate session record");
+					lzfs_pretty_syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
 					return;
 				}
@@ -1642,7 +1642,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		const char *info;
 
 		if (length<65) {
-			syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong size (%" PRIu32 "/<65)",length);
+			lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong size (%" PRIu32 "/<65)",length);
 			eptr->mode = KILL;
 			return;
 		}
@@ -1663,7 +1663,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		switch (rcode) {
 		case REGISTER_GETRANDOM:
 			if (length!=65) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.1 - wrong size (%" PRIu32 "/65)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.1 - wrong size (%" PRIu32 "/65)",length);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1675,14 +1675,14 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_NEWSESSION:
 			if (length<77) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/>=77)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/>=77)",length);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->version = get32bit(&rptr);
 			ileng = get32bit(&rptr);
 			if (length<77+ileng) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/>=77+ileng(%" PRIu32 "))",length,ileng);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/>=77+ileng(%" PRIu32 "))",length,ileng);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1690,14 +1690,14 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			rptr+=ileng;
 			pleng = get32bit(&rptr);
 			if (length!=77+ileng+pleng && length!=77+16+ileng+pleng) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/77+ileng(%" PRIu32 ")+pleng(%" PRIu32 ")[+16])",length,ileng,pleng);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - wrong size (%" PRIu32 "/77+ileng(%" PRIu32 ")+pleng(%" PRIu32 ")[+16])",length,ileng,pleng);
 				eptr->mode = KILL;
 				return;
 			}
 			path = rptr;
 			rptr+=pleng;
 			if (pleng>0 && rptr[-1]!=0) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - received path without ending zero");
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.2 - received path without ending zero");
 				eptr->mode = KILL;
 				return;
 			}
@@ -1715,7 +1715,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (status==LIZARDFS_STATUS_OK) {
 				eptr->sesdata = matoclserv_new_session(1,0);
 				if (eptr->sesdata==NULL) {
-					syslog(LOG_NOTICE,"can't allocate session record");
+					lzfs_pretty_syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
 					return;
 				}
@@ -1778,14 +1778,14 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_NEWMETASESSION:
 			if (length<73) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%" PRIu32 "/>=73)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%" PRIu32 "/>=73)",length);
 				eptr->mode = KILL;
 				return;
 			}
 			eptr->version = get32bit(&rptr);
 			ileng = get32bit(&rptr);
 			if (length!=73+ileng && length!=73+16+ileng) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%" PRIu32 "/73+ileng(%" PRIu32 ")[+16])",length,ileng);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.5 - wrong size (%" PRIu32 "/73+ileng(%" PRIu32 ")[+16])",length,ileng);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1799,7 +1799,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			if (status==LIZARDFS_STATUS_OK) {
 				eptr->sesdata = matoclserv_new_session(1,0);
 				if (eptr->sesdata==NULL) {
-					syslog(LOG_NOTICE,"can't allocate session record");
+					lzfs_pretty_syslog(LOG_NOTICE,"can't allocate session record");
 					eptr->mode = KILL;
 					return;
 				}
@@ -1851,7 +1851,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 		case REGISTER_RECONNECT:
 		case REGISTER_TOOLS:
 			if (length<73) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.%" PRIu8 " - wrong size (%" PRIu32 "/73)",rcode,length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.%" PRIu8 " - wrong size (%" PRIu32 "/73)",rcode,length);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1884,7 +1884,7 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			return;
 		case REGISTER_CLOSESESSION:
 			if (length<69) {
-				syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.6 - wrong size (%" PRIu32 "/69)",length);
+				lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL.6 - wrong size (%" PRIu32 "/69)",length);
 				eptr->mode = KILL;
 				return;
 			}
@@ -1893,11 +1893,11 @@ void matoclserv_fuse_register(matoclserventry *eptr,const uint8_t *data,uint32_t
 			eptr->mode = KILL;
 			return;
 		}
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%" PRIu8 ")",rcode);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER/ACL - wrong rcode (%" PRIu8 ")",rcode);
 		eptr->mode = KILL;
 		return;
 	} else {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong register blob");
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REGISTER - wrong register blob");
 		eptr->mode = KILL;
 		return;
 	}
@@ -1909,7 +1909,7 @@ void matoclserv_fuse_reserved_inodes(matoclserventry *eptr,const uint8_t *data,u
 	uint32_t inode;
 
 	if ((length&0x3)!=0) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RESERVED_INODES - wrong size (%" PRIu32 "/N*4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RESERVED_INODES - wrong size (%" PRIu32 "/N*4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -1985,7 +1985,7 @@ void matoclserv_fuse_statfs(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint32_t msgid,inodes;
 	uint8_t *ptr;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_STATFS - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_STATFS - wrong size (%" PRIu32 "/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2011,7 +2011,7 @@ void matoclserv_fuse_access(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_ACCESS - wrong size (%" PRIu32 "/17)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_ACCESS - wrong size (%" PRIu32 "/17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2064,7 +2064,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2072,7 +2072,7 @@ void matoclserv_fuse_lookup(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_LOOKUP - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2103,7 +2103,7 @@ void matoclserv_fuse_getattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=16) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETATTR - wrong size (%" PRIu32 "/16)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETATTR - wrong size (%" PRIu32 "/16)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2139,7 +2139,7 @@ void matoclserv_fuse_setattr(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint16_t attrmode;
 	uint32_t attruid,attrgid,attratime,attrmtime;
 	if (length!=35 && length!=36) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETATTR - wrong size (%" PRIu32 "/35|36)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETATTR - wrong size (%" PRIu32 "/35|36)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2302,7 +2302,7 @@ void matoclserv_fuse_readlink(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t status;
 	std::string path;
 	if (length != 8) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_READLINK - wrong size (%" PRIu32 "/8)", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "CLTOMA_FUSE_READLINK - wrong size (%" PRIu32 "/8)", length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2339,7 +2339,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	uint8_t status;
 	uint8_t *ptr;
 	if (length < 21) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ")", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ")", length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2347,7 +2347,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length < 21U + nleng) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",
+		lzfs_pretty_syslog(LOG_NOTICE, "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",
 		       length, nleng);
 		eptr->mode = KILL;
 		return;
@@ -2356,7 +2356,7 @@ void matoclserv_fuse_symlink(matoclserventry *eptr,const uint8_t *data,uint32_t 
 	data += nleng;
 	pleng = get32bit(&data);
 	if (length != 21U + nleng + pleng) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 		       "CLTOMA_FUSE_SYMLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ":pleng=%" PRIu32 ")",
 		       length, nleng, pleng);
 		eptr->mode = KILL;
@@ -2493,7 +2493,7 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2501,7 +2501,7 @@ void matoclserv_fuse_unlink(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_UNLINK - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2560,7 +2560,7 @@ void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2568,7 +2568,7 @@ void matoclserv_fuse_rmdir(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	inode = get32bit(&data);
 	nleng = get8bit(&data);
 	if (length!=17U+nleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RMDIR - wrong size (%" PRIu32 ":nleng=%" PRIu8 ")",length,nleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2599,7 +2599,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint8_t status;
 	uint8_t *ptr;
 	if (length<22) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2607,7 +2607,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	inode_src = get32bit(&data);
 	nleng_src = get8bit(&data);
 	if (length<22U+nleng_src) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ":nleng_src=%" PRIu8 ")",length,nleng_src);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ":nleng_src=%" PRIu8 ")",length,nleng_src);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2616,7 +2616,7 @@ void matoclserv_fuse_rename(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
 	if (length!=22U+nleng_src+nleng_dst) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ":nleng_src=%" PRIu8 ":nleng_dst=%" PRIu8 ")",length,nleng_src,nleng_dst);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_RENAME - wrong size (%" PRIu32 ":nleng_src=%" PRIu8 ":nleng_dst=%" PRIu8 ")",length,nleng_src,nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2658,7 +2658,7 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<21) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2667,7 +2667,7 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	inode_dst = get32bit(&data);
 	nleng_dst = get8bit(&data);
 	if (length!=21U+nleng_dst) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%" PRIu32 ":nleng_dst=%" PRIu8 ")",length,nleng_dst);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_LINK - wrong size (%" PRIu32 ":nleng_dst=%" PRIu8 ")",length,nleng_dst);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2728,7 +2728,7 @@ void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t l
 	uint32_t dleng;
 	void *custom;
 	if (length!=16 && length!=17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIR - wrong size (%" PRIu32 "/16|17)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIR - wrong size (%" PRIu32 "/16|17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -2773,7 +2773,7 @@ void matoclserv_fuse_open(matoclserventry *eptr,const uint8_t *data,uint32_t len
 	uint8_t status;
 	int allowcache;
 	if (length!=17) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_OPEN - wrong size (%" PRIu32 "/17)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_OPEN - wrong size (%" PRIu32 "/17)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3001,7 +3001,7 @@ void matoclserv_fuse_repair(matoclserventry *eptr, const uint8_t *data, uint32_t
 		}
 	}
 	else {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_REPAIR - wrong package size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_REPAIR - wrong package size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3030,7 +3030,7 @@ void matoclserv_fuse_check(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_CHECK - wrong size (%" PRIu32 "/8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_CHECK - wrong size (%" PRIu32 "/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3090,7 +3090,7 @@ void matoclserv_fuse_gettrashtime(matoclserventry *eptr,const uint8_t *data,uint
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASHTIME - wrong size (%" PRIu32 "/9)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASHTIME - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3328,7 +3328,7 @@ void matoclserv_fuse_geteattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETEATTR - wrong size (%" PRIu32 "/9)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETEATTR - wrong size (%" PRIu32 "/9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3378,7 +3378,7 @@ void matoclserv_fuse_seteattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=14) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETEATTR - wrong size (%" PRIu32 "/14)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETEATTR - wrong size (%" PRIu32 "/14)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3409,7 +3409,7 @@ void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t anleng;
 	const uint8_t *attrname;
 	if (length<19) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3422,7 +3422,7 @@ void matoclserv_fuse_getxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	attrname = data;
 	data+=anleng;
 	if (length!=19U+anleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ")",length,anleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ")",length,anleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3484,7 +3484,7 @@ void matoclserv_fuse_setxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<23) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ")",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ")",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3495,7 +3495,7 @@ void matoclserv_fuse_setxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	gid = get32bit(&data);
 	anleng = get8bit(&data);
 	if (length<23U+anleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ")",length,anleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ")",length,anleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3503,7 +3503,7 @@ void matoclserv_fuse_setxattr(matoclserventry *eptr,const uint8_t *data,uint32_t
 	data += anleng;
 	avleng = get32bit(&data);
 	if (length!=23U+anleng+avleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ":avleng=%" PRIu32 ")",length,anleng,avleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETXATTR - wrong size (%" PRIu32 ":anleng=%" PRIu8 ":avleng=%" PRIu32 ")",length,anleng,avleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3526,7 +3526,7 @@ void matoclserv_fuse_append(matoclserventry *eptr, const uint8_t *data, uint32_t
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=20) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_APPEND - wrong size (%" PRIu32 "/20)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_APPEND - wrong size (%" PRIu32 "/20)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3604,7 +3604,7 @@ void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,u
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%" PRIu32 "/8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%" PRIu32 "/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3637,7 +3637,7 @@ void matoclserv_fuse_getdirstats(matoclserventry *eptr,const uint8_t *data,uint3
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%" PRIu32 "/8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDIRSTATS - wrong size (%" PRIu32 "/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3665,7 +3665,7 @@ void matoclserv_fuse_gettrash(matoclserventry *eptr,const uint8_t *data,uint32_t
 	uint8_t status;
 	uint32_t dleng;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASH - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETTRASH - wrong size (%" PRIu32 "/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3696,7 +3696,7 @@ void matoclserv_fuse_getdetachedattr(matoclserventry *eptr,const uint8_t *data,u
 	uint8_t *ptr;
 	uint8_t status;
 	if (length<8 || length>9) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDETACHEDATTR - wrong size (%" PRIu32 "/8,9)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETDETACHEDATTR - wrong size (%" PRIu32 "/8,9)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3724,7 +3724,7 @@ void matoclserv_fuse_gettrashpath(matoclserventry *eptr,const uint8_t *data,uint
 	uint8_t status;
 	std::string path;
 	if (length != 8) {
-		syslog(LOG_NOTICE, "CLTOMA_FUSE_GETTRASHPATH - wrong size (%" PRIu32 "/8)", length);
+		lzfs_pretty_syslog(LOG_NOTICE, "CLTOMA_FUSE_GETTRASHPATH - wrong size (%" PRIu32 "/8)", length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3753,7 +3753,7 @@ void matoclserv_fuse_settrashpath(matoclserventry *eptr,const uint8_t *data,uint
 	uint8_t status;
 	uint8_t *ptr;
 	if (length<12) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%" PRIu32 "/>=12)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%" PRIu32 "/>=12)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3761,7 +3761,7 @@ void matoclserv_fuse_settrashpath(matoclserventry *eptr,const uint8_t *data,uint
 	inode = get32bit(&data);
 	pleng = get32bit(&data);
 	if (length!=12+pleng) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%" PRIu32 "/%" PRIu32 ")",length,12+pleng);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_SETTRASHPATH - wrong size (%" PRIu32 "/%" PRIu32 ")",length,12+pleng);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3782,7 +3782,7 @@ void matoclserv_fuse_undel(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t status;
 	uint8_t *ptr;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_UNDEL - wrong size (%" PRIu32 "/8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_UNDEL - wrong size (%" PRIu32 "/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3800,7 +3800,7 @@ void matoclserv_fuse_purge(matoclserventry *eptr,const uint8_t *data,uint32_t le
 	uint8_t *ptr;
 	uint8_t status;
 	if (length!=8) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_PURGE - wrong size (%" PRIu32 "/8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_PURGE - wrong size (%" PRIu32 "/8)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -3819,7 +3819,7 @@ void matoclserv_fuse_getreserved(matoclserventry *eptr,const uint8_t *data,uint3
 	uint8_t status;
 	uint32_t dleng;
 	if (length!=4) {
-		syslog(LOG_NOTICE,"CLTOMA_FUSE_GETRESERVED - wrong size (%" PRIu32 "/4)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"CLTOMA_FUSE_GETRESERVED - wrong size (%" PRIu32 "/4)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -4090,7 +4090,7 @@ void matoclserv_manage_locks_list(matoclserventry *eptr, const uint8_t *data, ui
 	int status;
 
 	if (eptr->registered != ClientState::kAdmin) {
-		syslog(LOG_NOTICE, "Listing file locks is available only for registered admins");
+		lzfs_pretty_syslog(LOG_NOTICE, "Listing file locks is available only for registered admins");
 		eptr->mode = KILL;
 		return;
 	}
@@ -4134,7 +4134,7 @@ void matoclserv_manage_locks_unlock(matoclserventry *eptr, const uint8_t *data, 
 	std::vector<FileLocks::Owner> flocks_applied, posix_applied;
 
 	if (eptr->registered != ClientState::kAdmin) {
-		syslog(LOG_NOTICE, "Removing file locks is available only for registered admins");
+		lzfs_pretty_syslog(LOG_NOTICE, "Removing file locks is available only for registered admins");
 		eptr->mode = KILL;
 		return;
 	}
@@ -4344,7 +4344,7 @@ void matoclserv_iolimit(matoclserventry *eptr, const uint8_t *data, uint32_t len
 			grantedBytes = gIoLimitsDatabase.request(
 					SteadyClock::now(), groupId, requestedBytes);
 		} catch (IoLimitsDatabase::InvalidGroupIdException&) {
-			syslog(LOG_NOTICE, "LIZ_CLTOMA_IOLIMIT: Invalid group: %s", groupId.c_str());
+			lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOMA_IOLIMIT: Invalid group: %s", groupId.c_str());
 			grantedBytes = 0;
 		}
 	}
@@ -4372,7 +4372,7 @@ void matoclserv_admin_register(matoclserventry* eptr, const uint8_t* data, uint3
 		}
 		matoclserv_createpacket(eptr, matocl::adminRegisterChallenge::build(array));
 	} else {
-		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE: retry not allowed");
+		lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_REGISTER_CHALLENGE: retry not allowed");
 		eptr->mode = KILL;
 	}
 }
@@ -4385,7 +4385,7 @@ void matoclserv_admin_register_response(matoclserventry* eptr, const uint8_t* da
 		std::string password = cfg_getstring("ADMIN_PASSWORD", "");
 		if (password == "") {
 			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(LIZARDFS_ERROR_EPERM));
-			syslog(LOG_WARNING, "admin access disabled");
+			lzfs_pretty_syslog(LOG_WARNING, "admin access disabled");
 			return;
 		}
 		auto digest = md5_challenge_response(*eptr->adminChallenge, password);
@@ -4394,11 +4394,11 @@ void matoclserv_admin_register_response(matoclserventry* eptr, const uint8_t* da
 			eptr->registered = ClientState::kAdmin;
 		} else {
 			matoclserv_createpacket(eptr, matocl::adminRegisterResponse::build(LIZARDFS_ERROR_BADPASSWORD));
-			syslog(LOG_WARNING, "admin authentication error");
+			lzfs_pretty_syslog(LOG_WARNING, "admin authentication error");
 		}
 		eptr->adminChallenge.reset();
 	} else {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"LIZ_CLTOMA_ADMIN_REGISTER_RESPONSE: response without previous challenge");
 		eptr->mode = KILL;
 	}
@@ -4411,7 +4411,7 @@ void matoclserv_admin_become_master(matoclserventry* eptr, const uint8_t* data, 
 		uint8_t status = succ ? LIZARDFS_STATUS_OK : LIZARDFS_ERROR_NOTPOSSIBLE;
 		matoclserv_createpacket(eptr, matocl::adminBecomeMaster::build(status));
 	} else {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"LIZ_CLTOMA_ADMIN_BECOME_MASTER: available only for registered admins");
 		eptr->mode = KILL;
 	}
@@ -4423,7 +4423,7 @@ void matoclserv_admin_stop_without_metadata_dump(
 	if (eptr->registered == ClientState::kAdmin) {
 		if (metadataserver::isMaster()) {
 			if (matomlserv_shadows_count() == 0){
-				syslog(LOG_WARNING, "LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP: Trying to stop"
+				lzfs_pretty_syslog(LOG_WARNING, "LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP: Trying to stop"
 						" master server with disabled metadata dump when no shadow servers are "
 						"connected.");
 				matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(EPERM));
@@ -4443,7 +4443,7 @@ void matoclserv_admin_stop_without_metadata_dump(
 			matoclserv_createpacket(eptr, matocl::adminStopWithoutMetadataDump::build(status));
 		}
 	} else {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"LIZ_CLTOMA_ADMIN_STOP_WITHOUT_METADATA_DUMP:"
 				" available only for registered admins");
 		eptr->mode = KILL;
@@ -4455,10 +4455,10 @@ void matoclserv_admin_reload(matoclserventry* eptr, const uint8_t* data, uint32_
 	if (eptr->registered == ClientState::kAdmin) {
 		eptr->adminTask = AdminTask::kReload; // mark, that this admin waits for response
 		eventloop_want_to_reload();
-		syslog(LOG_NOTICE, "reload of the config file requested using lizardfs-admin by %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "reload of the config file requested using lizardfs-admin by %s",
 				ipToString(eptr->peerip).c_str());
 	} else {
-		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RELOAD: available only for registered admins");
+		lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RELOAD: available only for registered admins");
 		eptr->mode = KILL;
 	}
 }
@@ -4467,7 +4467,7 @@ void matoclserv_admin_save_metadata(matoclserventry* eptr, const uint8_t* data, 
 	bool asynchronous;
 	cltoma::adminSaveMetadata::deserialize(data, length, asynchronous);
 	if (eptr->registered == ClientState::kAdmin) {
-		syslog(LOG_NOTICE, "saving metadata image requested using lizardfs-admin by %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "saving metadata image requested using lizardfs-admin by %s",
 				ipToString(eptr->peerip).c_str());
 		uint8_t status = fs_storeall(MetadataDumper::DumpType::kBackgroundDump);
 		if (status != LIZARDFS_STATUS_OK || asynchronous) {
@@ -4477,7 +4477,7 @@ void matoclserv_admin_save_metadata(matoclserventry* eptr, const uint8_t* data, 
 			eptr->adminTask = AdminTask::kSaveMetadata;
 		}
 	} else {
-		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_SAVE_METADATA: available only for registered admins");
+		lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_SAVE_METADATA: available only for registered admins");
 		eptr->mode = KILL;
 	}
 }
@@ -4499,7 +4499,7 @@ void matoclserv_admin_recalculate_metadata_checksum(matoclserventry* eptr,
 	bool asynchronous;
 	cltoma::adminRecalculateMetadataChecksum::deserialize(data, length, asynchronous);
 	if (eptr->registered == ClientState::kAdmin) {
-		syslog(LOG_NOTICE, "metadata checksum recalculation requested using lizardfs-admin by %s",
+		lzfs_pretty_syslog(LOG_NOTICE, "metadata checksum recalculation requested using lizardfs-admin by %s",
 					ipToString(eptr->peerip).c_str());
 		uint8_t status = fs_start_checksum_recalculation();
 		if (status != LIZARDFS_STATUS_OK || asynchronous) {
@@ -4509,7 +4509,7 @@ void matoclserv_admin_recalculate_metadata_checksum(matoclserventry* eptr,
 			eptr->adminTask = AdminTask::kRecalculateChecksums;
 		}
 	} else {
-		syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM: "
+		lzfs_pretty_syslog(LOG_NOTICE, "LIZ_CLTOMA_ADMIN_RECALCULATE_METADATA_CHECKSUM: "
 				"available only for registered admins");
 		eptr->mode = KILL;
 	}
@@ -4652,7 +4652,7 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_admin_save_metadata(eptr, data, length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
+					lzfs_pretty_syslog(LOG_NOTICE,"main master server module: got invalid message in shadow state (type:%" PRIu32 ")",type);
 					eptr->mode = KILL;
 			}
 		} else if (eptr->registered == ClientState::kUnregistered
@@ -4752,12 +4752,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_stop_task(eptr, data, length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
+					lzfs_pretty_syslog(LOG_NOTICE,"main master server module: got unknown message from unregistered (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
 		} else if (eptr->registered == ClientState::kRegistered) {      // mounts and new tools
 			if (eptr->sesdata==NULL) {
-				syslog(LOG_ERR,"registered connection without sesdata !!!");
+				lzfs_pretty_syslog(LOG_ERR,"registered connection without sesdata !!!");
 				eptr->mode=KILL;
 				return;
 			}
@@ -5002,12 +5002,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_liz_cserv_list(eptr, data, length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
+					lzfs_pretty_syslog(LOG_NOTICE,"main master server module: got unknown message from mfsmount (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
 		} else if (eptr->registered == ClientState::kOldTools) {        // old mfstools
 			if (eptr->sesdata==NULL) {
-				syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
+				lzfs_pretty_syslog(LOG_ERR,"registered connection (tools) without sesdata !!!");
 				eptr->mode=KILL;
 				return;
 			}
@@ -5056,12 +5056,12 @@ void matoclserv_gotpacket(matoclserventry *eptr,uint32_t type,const uint8_t *dat
 					matoclserv_fuse_seteattr(eptr,data,length);
 					break;
 				default:
-					syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);
+					lzfs_pretty_syslog(LOG_NOTICE,"main master server module: got unknown message from mfstools (type:%" PRIu32 ")",type);
 					eptr->mode=KILL;
 			}
 		}
 	} catch (IncorrectDeserializationException& e) {
-		syslog(LOG_NOTICE,
+		lzfs_pretty_syslog(LOG_NOTICE,
 				"main master server module: got inconsistent message from mount "
 				"(type:%" PRIu32 ", length:%" PRIu32"), %s", type, length, e.what());
 		eptr->mode = KILL;
@@ -5073,7 +5073,7 @@ void matoclserv_term(void) {
 	packetstruct *pptr,*pptrn;
 	chunklist *cl,*cln;
 
-	syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
+	lzfs_pretty_syslog(LOG_NOTICE,"main master server module: closing %s:%s",ListenHost,ListenPort);
 	tcpclose(lsock);
 
 	for (eptr = matoclservhead ; eptr ; eptr = eptrn) {
@@ -5111,7 +5111,7 @@ void matoclserv_read(matoclserventry *eptr) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
 			if (eptr->registered == ClientState::kRegistered) {       // show this message only for standard, registered clients
-				syslog(LOG_NOTICE,"connection with client(ip:%u.%u.%u.%u) has been closed by peer",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
+				lzfs_pretty_syslog(LOG_NOTICE,"connection with client(ip:%u.%u.%u.%u) has been closed by peer",(eptr->peerip>>24)&0xFF,(eptr->peerip>>16)&0xFF,(eptr->peerip>>8)&0xFF,eptr->peerip&0xFF);
 			}
 			eptr->mode = KILL;
 			return;
@@ -5142,7 +5142,7 @@ void matoclserv_read(matoclserventry *eptr) {
 			size = get32bit(&ptr);
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"main master server module: packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+					lzfs_pretty_syslog(LOG_WARNING,"main master server module: packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 					eptr->mode = KILL;
 					return;
 				}
@@ -5240,7 +5240,7 @@ int matoclserv_canexit(void) {
 	if (adminTerminator != NULL && !terminatorPacketSent) {
 		// Are we replying to termination request?
 		if (!matomlserv_canexit()){  // make sure there are no ml connected
-			syslog(LOG_INFO, "Waiting for ml connections to close...");
+			lzfs_pretty_syslog(LOG_INFO, "Waiting for ml connections to close...");
 			return 0;
 		} else {  // Reply to admin
 			matoclserv_createpacket(adminTerminator,

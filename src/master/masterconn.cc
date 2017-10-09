@@ -348,10 +348,10 @@ void masterconn_request_metadata_dump(masterconn* eptr) {
 
 void masterconn_handle_changelog_apply_error(masterconn* eptr, uint8_t status) {
 	if (eptr->version <= lizardfsVersion(2, 5, 0)) {
-		syslog(LOG_NOTICE, "Dropping in-memory metadata and starting download from master");
+		lzfs_pretty_syslog(LOG_NOTICE, "Dropping in-memory metadata and starting download from master");
 		masterconn_force_metadata_download(eptr);
 	} else {
-		syslog(LOG_NOTICE, "Waiting for master to produce up-to-date metadata image");
+		lzfs_pretty_syslog(LOG_NOTICE, "Waiting for master to produce up-to-date metadata image");
 		eptr->error_status = status;
 		masterconn_request_metadata_dump(eptr);
 	}
@@ -367,7 +367,7 @@ void masterconn_int_send_matoclport(masterconn* eptr) {
 	static uint16_t port = 0;
 	if (portStr != previousPort) {
 		if (tcpresolve(nullptr, portStr.c_str(), nullptr, &port, false) < 0) {
-			syslog(LOG_WARNING, "Cannot resolve MATOCL_LISTEN_PORT: %s", portStr.c_str());
+			lzfs_pretty_syslog(LOG_WARNING, "Cannot resolve MATOCL_LISTEN_PORT: %s", portStr.c_str());
 			return;
 		}
 		previousPort = portStr;
@@ -381,7 +381,7 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 	if (responseVersion == matoml::registerShadow::kStatusPacketVersion) {
 		uint8_t status;
 		matoml::registerShadow::deserialize(data, length, status);
-		syslog(LOG_NOTICE, "Cannot register to master: %s", lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE, "Cannot register to master: %s", lizardfs_error_string(status));
 		eptr->mode = KILL;
 	} else if (responseVersion == matoml::registerShadow::kResponsePacketVersion) {
 		uint32_t masterVersion;
@@ -393,7 +393,7 @@ void masterconn_registered(masterconn *eptr, const uint8_t *data, uint32_t lengt
 			masterconn_force_metadata_download(eptr);
 		}
 	} else {
-		syslog(LOG_NOTICE, "Unknown register response: #%u", unsigned(responseVersion));
+		lzfs_pretty_syslog(LOG_NOTICE, "Unknown register response: #%u", unsigned(responseVersion));
 	}
 }
 #endif
@@ -408,17 +408,17 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		return;
 	}
 	if (length<10) {
-		syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong size (%" PRIu32 "/9+data)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong size (%" PRIu32 "/9+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	if (data[0]!=0xFF) {
-		syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong packet");
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - wrong packet");
 		eptr->mode = KILL;
 		return;
 	}
 	if (data[length-1]!='\0') {
-		syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - invalid string");
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_METACHANGES_LOG - invalid string");
 		eptr->mode = KILL;
 		return;
 	}
@@ -428,7 +428,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 	const char* changelogEntry = reinterpret_cast<const char*>(data);
 
 	if ((lastlogversion > 0) && (version != (lastlogversion + 1))) {
-		syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
+		lzfs_pretty_syslog(LOG_WARNING, "some changes lost: [%" PRIu64 "-%" PRIu64 "], download metadata again",lastlogversion,version-1);
 		masterconn_handle_changelog_apply_error(eptr, LIZARDFS_ERROR_METADATAVERSIONMISMATCH);
 		return;
 	}
@@ -441,7 +441,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 		uint8_t status;
 		if ((status = restore(network, version, buf.c_str(),
 				RestoreRigor::kDontIgnoreAnyErrors)) != LIZARDFS_STATUS_OK) {
-			syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
+			lzfs_pretty_syslog(LOG_WARNING, "malformed changelog sent by the master server, can't apply it. status: %s",
 					lizardfs_error_string(status));
 			masterconn_handle_changelog_apply_error(eptr, status);
 			return;
@@ -454,7 +454,7 @@ void masterconn_metachanges_log(masterconn *eptr,const uint8_t *data,uint32_t le
 
 void masterconn_end_session(masterconn *eptr, const uint8_t* data, uint32_t length) {
 	matoml::endSession::deserialize(data, length); // verify the empty packet
-	syslog(LOG_NOTICE, "Master server is terminating; closing the connection...");
+	lzfs_pretty_syslog(LOG_NOTICE, "Master server is terminating; closing the connection...");
 	masterconn_kill_session(eptr);
 }
 
@@ -501,7 +501,7 @@ int masterconn_metadata_check(const std::string& name) {
 		metadataGetVersion(name);
 		return 0;
 	} catch (MetadataCheckException& ex) {
-		syslog(LOG_NOTICE, "Verification of the downloaded metadata file failed: %s", ex.what());
+		lzfs_pretty_syslog(LOG_NOTICE, "Verification of the downloaded metadata file failed: %s", ex.what());
 		return -1;
 	}
 }
@@ -521,7 +521,7 @@ void masterconn_download_next(masterconn *eptr) {
 		}
 		std::string changelogFilename_1 = changelogFilename + ".1";
 		std::string changelogFilename_2 = changelogFilename + ".2";
-		syslog(LOG_NOTICE, "%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",
+		lzfs_pretty_syslog(LOG_NOTICE, "%s downloaded %" PRIu64 "B/%" PRIu64 ".%06" PRIu32 "s (%.3f MB/s)",
 				(filenum == DOWNLOAD_METADATA_MFS) ? "metadata" :
 				(filenum == DOWNLOAD_SESSIONS_MFS) ? "sessions" :
 				(filenum == DOWNLOAD_CHANGELOG_MFS) ? changelogFilename_1.c_str() :
@@ -534,23 +534,23 @@ void masterconn_download_next(masterconn *eptr) {
 					rotateFiles(metadataFilename, BackMetaCopies, 1);
 				}
 				if (rename(metadataTmpFilename.c_str(), metadataFilename.c_str()) < 0) {
-					syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
+					lzfs_pretty_syslog(LOG_NOTICE,"can't rename downloaded metadata - do it manually before next download");
 				}
 			}
 			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS);
 		} else if (filenum == DOWNLOAD_CHANGELOG_MFS) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_1.c_str()) < 0) {
-				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
+				lzfs_pretty_syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr, DOWNLOAD_CHANGELOG_MFS_1);
 		} else if (filenum == DOWNLOAD_CHANGELOG_MFS_1) {
 			if (rename(changelogTmpFilename.c_str(), changelogFilename_2.c_str()) < 0) {
-				syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
+				lzfs_pretty_syslog(LOG_NOTICE,"can't rename downloaded changelog - do it manually before next download");
 			}
 			masterconn_download_init(eptr, DOWNLOAD_SESSIONS_MFS);
 		} else if (filenum == DOWNLOAD_SESSIONS_MFS) {
 			if (rename(sessionsTmpFilename.c_str(), sessionsFilename.c_str()) < 0) {
-				syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
+				lzfs_pretty_syslog(LOG_NOTICE,"can't rename downloaded sessions - do it manually before next download");
 			} else {
 #ifndef METALOGGER
 				/*
@@ -564,7 +564,7 @@ void masterconn_download_next(masterconn *eptr) {
 						lzfs_pretty_syslog(LOG_NOTICE, "synced at version = %" PRIu64, lastlogversion);
 						eptr->state = MasterConnectionState::kSynchronized;
 					} catch (Exception& ex) {
-						syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
+						lzfs_pretty_syslog(LOG_WARNING, "can't load downloaded metadata and changelogs: %s",
 								ex.what());
 						uint8_t status = ex.status();
 						if (status == LIZARDFS_STATUS_OK) {
@@ -593,14 +593,14 @@ void masterconn_download_next(masterconn *eptr) {
 
 void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t length) {
 	if (length!=1 && length!=8) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_START - wrong size (%" PRIu32 "/1|8)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_START - wrong size (%" PRIu32 "/1|8)",length);
 		eptr->mode = KILL;
 		return;
 	}
 	passert(data);
 	if (length==1) {
 		eptr->downloading=0;
-		syslog(LOG_NOTICE,"download start error");
+		lzfs_pretty_syslog(LOG_NOTICE,"download start error");
 		return;
 	}
 #ifndef METALOGGER
@@ -619,7 +619,7 @@ void masterconn_download_start(masterconn *eptr,const uint8_t *data,uint32_t len
 			|| (eptr->downloading == DOWNLOAD_CHANGELOG_MFS_1)) {
 		eptr->metafd = open(changelogTmpFilename.c_str(), O_WRONLY | O_TRUNC | O_CREAT, 0666);
 	} else {
-		syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
+		lzfs_pretty_syslog(LOG_NOTICE,"unexpected MATOML_DOWNLOAD_START packet");
 		eptr->mode = KILL;
 		return;
 	}
@@ -637,12 +637,12 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	uint32_t crc;
 	ssize_t ret;
 	if (eptr->metafd<0) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - file not opened");
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - file not opened");
 		eptr->mode = KILL;
 		return;
 	}
 	if (length<16) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+data)",length);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+data)",length);
 		eptr->mode = KILL;
 		return;
 	}
@@ -651,17 +651,17 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 	leng = get32bit(&data);
 	crc = get32bit(&data);
 	if (leng+16!=length) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+%" PRIu32 ")",length,leng);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - wrong size (%" PRIu32 "/16+%" PRIu32 ")",length,leng);
 		eptr->mode = KILL;
 		return;
 	}
 	if (offset!=eptr->dloffset) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file offset (%" PRIu64 "/%" PRIu64 ")",offset,eptr->dloffset);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file offset (%" PRIu64 "/%" PRIu64 ")",offset,eptr->dloffset);
 		eptr->mode = KILL;
 		return;
 	}
 	if (offset+leng>eptr->filesize) {
-		syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file size (%" PRIu64 "/%" PRIu64 ")",offset+leng,eptr->filesize);
+		lzfs_pretty_syslog(LOG_NOTICE,"MATOML_DOWNLOAD_DATA - unexpected file size (%" PRIu64 "/%" PRIu64 ")",offset+leng,eptr->filesize);
 		eptr->mode = KILL;
 		return;
 	}
@@ -682,7 +682,7 @@ void masterconn_download_data(masterconn *eptr,const uint8_t *data,uint32_t leng
 		return;
 	}
 	if (crc!=mycrc32(0,data,leng)) {
-		syslog(LOG_NOTICE,"metafile data crc error");
+		lzfs_pretty_syslog(LOG_NOTICE,"metafile data crc error");
 		if (eptr->downloadretrycnt>=5) {
 			masterconn_download_end(eptr);
 		} else {
@@ -714,10 +714,10 @@ void masterconn_changelog_apply_error(masterconn *eptr, const uint8_t *data, uin
 		masterconn_force_metadata_download(eptr);
 	} else if (status == LIZARDFS_ERROR_DELAYED) {
 		eptr->state = MasterConnectionState::kLimbo;
-		syslog(LOG_NOTICE, "Master temporarily refused to produce a new metadata image");
+		lzfs_pretty_syslog(LOG_NOTICE, "Master temporarily refused to produce a new metadata image");
 	} else {
 		eptr->state = MasterConnectionState::kLimbo;
-		syslog(LOG_NOTICE, "Master failed to produce a new metadata image: %s", lizardfs_error_string(status));
+		lzfs_pretty_syslog(LOG_NOTICE, "Master failed to produce a new metadata image: %s", lizardfs_error_string(status));
 	}
 }
 
@@ -761,12 +761,12 @@ void masterconn_gotpacket(masterconn *eptr,uint32_t type,const uint8_t *data,uin
 				masterconn_changelog_apply_error(eptr, data, length);
 				break;
 			default:
-				syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
+				lzfs_pretty_syslog(LOG_NOTICE,"got unknown message (type:%" PRIu32 ")",type);
 				eptr->mode = KILL;
 				break;
 		}
 	} catch (IncorrectDeserializationException& ex) {
-		syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
+		lzfs_pretty_syslog(LOG_NOTICE, "Packet 0x%" PRIX32 " - can't deserialize: %s", type, ex.what());
 		eptr->mode = KILL;
 	}
 }
@@ -890,7 +890,7 @@ void masterconn_connecttest(masterconn *eptr) {
 		eptr->masteraddrvalid = 0;
 		eptr->version = 0;
 	} else {
-		syslog(LOG_NOTICE,"connected to Master");
+		lzfs_pretty_syslog(LOG_NOTICE,"connected to Master");
 		masterconn_connected(eptr);
 	}
 }
@@ -905,7 +905,7 @@ void masterconn_read(masterconn *eptr) {
 	while (eptr->mode != KILL) {
 		i=read(eptr->sock,eptr->inputpacket.startptr,eptr->inputpacket.bytesleft);
 		if (i==0) {
-			syslog(LOG_NOTICE,"connection was reset by Master");
+			lzfs_pretty_syslog(LOG_NOTICE,"connection was reset by Master");
 			masterconn_kill_session(eptr);
 			return;
 		}
@@ -930,7 +930,7 @@ void masterconn_read(masterconn *eptr) {
 
 			if (size>0) {
 				if (size>MaxPacketSize) {
-					syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
+					lzfs_pretty_syslog(LOG_WARNING,"Master packet too long (%" PRIu32 "/%u)",size,MaxPacketSize);
 					masterconn_kill_session(eptr);
 					return;
 				}

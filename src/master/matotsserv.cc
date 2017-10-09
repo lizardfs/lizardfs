@@ -213,7 +213,7 @@ static void matotsserv_gotpacket(matotsserventry* eptr,
 				matotsserv_end_of_files(eptr, data);
 				break;
 			default:
-				syslog(LOG_NOTICE,
+				lzfs_pretty_syslog(LOG_NOTICE,
 						"master <-> tapeservers module: got unknown message from %s, type:%" PRIu32,
 						eptr->address.toString().c_str(),
 						header.type);
@@ -221,7 +221,7 @@ static void matotsserv_gotpacket(matotsserventry* eptr,
 				break;
 		}
 	} catch (IncorrectDeserializationException& e) {
-		syslog(LOG_WARNING,
+		lzfs_pretty_syslog(LOG_WARNING,
 				"master <-> tapeservers module: got inconsistent message from %s"
 				"(type:%" PRIu32 ", length:%" PRIu32"), %s",
 				eptr->address.toString().c_str(), header.type, header.length, e.what());
@@ -393,7 +393,7 @@ static void matotsserv_periodic_put_files() {
 
 /// Terminates the module.
 static void matotsserv_term() {
-	syslog(LOG_INFO,
+	lzfs_pretty_syslog(LOG_INFO,
 			"master <-> tapeservers module: closing socket %s:%s",
 			gListenHost.c_str(),
 			gListenPort.c_str());

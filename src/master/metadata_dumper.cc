@@ -108,7 +108,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 	changelogFilename += ".1";
 	if (useMetarestore_ && dumpingSucceeded_ && (access(changelogFilename.c_str(), F_OK) == -1)) {
 		if (errno == ENOENT || errno == EACCES) {
-			syslog(LOG_ERR, "no current changelog, dump by master");
+			lzfs_pretty_syslog(LOG_ERR, "no current changelog, dump by master");
 		} else {
 			lzfs_pretty_errlog(LOG_ERR, "access error, dump by master");
 		}
@@ -117,7 +117,7 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 
 	// can't communicate with child? foreground dump
 	if (!createPipe(pipeFd)) {
-		syslog(LOG_ERR, "couldn't communicate with child, foreground dump");
+		lzfs_pretty_syslog(LOG_ERR, "couldn't communicate with child, foreground dump");
 		dumpType = kForegroundDump;
 		dumpingSucceeded_ = false;
 		return false;
@@ -161,10 +161,10 @@ bool MetadataDumper::start(MetadataDumper::DumpType& dumpType, uint64_t checksum
 					lzfs_pretty_errlog(LOG_WARNING, "dumping metadata: nice failed");
 				}
 				execv(metarestorePath_.c_str(), metarestoreArgs);
-				syslog(LOG_WARNING, "exec %s failed: %s", metarestorePath_.c_str(), strerr(errno));
+				lzfs_pretty_syslog(LOG_WARNING, "exec %s failed: %s", metarestorePath_.c_str(), strerr(errno));
 			}
 			if (useMetarestore_ && !dumpingSucceeded_) {
-				syslog(LOG_NOTICE, "something previously failed, dump by master");
+				lzfs_pretty_syslog(LOG_NOTICE, "something previously failed, dump by master");
 			}
 			dumpType = kForegroundDump; // child process stores metadata in its foreground
 			return true;
@@ -204,7 +204,7 @@ void MetadataDumper::pollServe(const std::vector<pollfd> &pdesc) {
 			dumpingProcessOutputEmpty_ = false;
 			dumpingSucceeded_ = std::string(buffer) == "OK\n";
 			if (!dumpingSucceeded_) {
-				syslog(LOG_WARNING, "metadata dumping failed: expected 'OK', received '%s'",
+				lzfs_pretty_syslog(LOG_WARNING, "metadata dumping failed: expected 'OK', received '%s'",
 						buffer);
 			}
 		}
@@ -223,7 +223,7 @@ void MetadataDumper::dumpingFinished() {
 	dumpingProcessFd_ = -1;
 	dumpingProcessPollFdsPos_ = -1;
 	if (dumpingProcessOutputEmpty_) {
-		syslog(LOG_WARNING, "the dumping process finished without producing output");
+		lzfs_pretty_syslog(LOG_WARNING, "the dumping process finished without producing output");
 	}
 }
 
@@ -243,7 +243,7 @@ void MetadataDumper::waitUntilFinished(SteadyDuration timeout) {
 		pollServe(pfd);
 	}
 	if (inProgress()) {
-		syslog(LOG_ERR, "dumping didn't finish in specified timeout: %.2f s",
+		lzfs_pretty_syslog(LOG_ERR, "dumping didn't finish in specified timeout: %.2f s",
 				std::chrono::duration_cast<std::chrono::duration<double, std::ratio<1>>>(
 					timeout).count());
 		// mark finish anyway

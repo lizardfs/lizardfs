@@ -147,7 +147,7 @@ void SnapshotTask::cloneChunkData(const FSNodeFile *src_node, FSNodeFile *dst_no
 		auto chunkid = src_node->chunks[i];
 		if (chunkid > 0) {
 			if (chunk_add_file(chunkid, dst_node->goal) != LIZARDFS_STATUS_OK) {
-				syslog(LOG_ERR,
+				lzfs_pretty_syslog(LOG_ERR,
 				       "structure error - chunk %016" PRIX64
 				       " not found (inode: %" PRIu32 " ; index: %" PRIu32 ")",
 				       chunkid, src_node->id, i);

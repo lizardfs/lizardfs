@@ -117,13 +117,13 @@ static void signal_pipe_serv(const std::vector<pollfd> &pdesc) {
 		uint8_t sigid;
 		if (read(signalpipe[0],&sigid,1)==1) {
 			if (sigid == '\001' && gExitingStatus == ExitingStatus::kRunning) {
-				syslog(LOG_NOTICE,"terminate signal received");
+				lzfs_pretty_syslog(LOG_NOTICE,"terminate signal received");
 				gExitingStatus = ExitingStatus::kWantExit;
 			} else if (sigid=='\002') {
-				syslog(LOG_NOTICE,"reloading config files");
+				lzfs_pretty_syslog(LOG_NOTICE,"reloading config files");
 				gReloadRequested = true;
 			} else if (sigid=='\003') {
-				syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
+				lzfs_pretty_syslog(LOG_NOTICE, "Received SIGUSR1, killing gently...");
 				exit(LIZARDFS_EXIT_STATUS_GENTLY_KILL);
 			}
 		}
@@ -215,7 +215,7 @@ static void main_configure_debug_log() {
 
 void main_reload() {
 	// Reload SYSLOG_IDENT
-	syslog(LOG_NOTICE, "Changing SYSLOG_IDENT to %s",
+	lzfs_pretty_syslog(LOG_NOTICE, "Changing SYSLOG_IDENT to %s",
 			cfg_get("SYSLOG_IDENT", STR(APPNAME)).c_str());
 	set_syslog_ident();
 
@@ -393,13 +393,13 @@ void changeugid(RunMode runmode) {
 			lzfs_pretty_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
-			syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
+			lzfs_pretty_syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
 		}
 		if (setuid(wrk_uid)<0) {
 			lzfs_pretty_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
-			syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
+			lzfs_pretty_syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
 		}
 	}
 }

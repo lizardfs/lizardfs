@@ -101,7 +101,7 @@ static void metadataPollServe(const std::vector<pollfd> &pdesc) {
 			fs_broadcast_metadata_saved(LIZARDFS_ERROR_IO);
 			if (metadataDumper.useMetarestore()) {
 				// master should recalculate its checksum
-				syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
+				lzfs_pretty_syslog(LOG_WARNING, "dumping metadata failed, recalculating checksum");
 				fs_start_checksum_recalculation();
 			}
 			unlink(kMetadataTmpFilename);
@@ -124,7 +124,7 @@ void fs_term(void) {
 			if (metadataStored) {
 				break;
 			}
-			syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
+			lzfs_pretty_syslog(LOG_ERR,"can't store metadata - try to make more space on your hdd or change privieleges - retrying after 10 seconds");
 			sleep(10);
 		}
 	}
@@ -242,7 +242,7 @@ void fs_cs_disconnected(void) {
  */
 void fs_become_master() {
 	if (!gMetadata) {
-		syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
+		lzfs_pretty_syslog(LOG_ERR, "Attempted shadow->master transition without metadata - aborting");
 		exit(1);
 	}
 	dcm_clear();
@@ -330,7 +330,7 @@ void fs_reload(void) {
 	try {
 		fs_read_config_file();
 	} catch (Exception& ex) {
-		syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
+		lzfs_pretty_syslog(LOG_WARNING, "Error in configuration: %s", ex.what());
 	}
 }
 
