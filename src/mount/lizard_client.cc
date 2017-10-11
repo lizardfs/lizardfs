@@ -2166,6 +2166,7 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 		fileinfo->data = write_data_new(ino);
 	}
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
+	gDirEntryCache.lockAndInvalidateInode(ino);
 	if (err != LIZARDFS_STATUS_OK) {
 		if (debug_mode) {
 			fprintf(stderr,"IO error occurred while writing inode %lu\n",(unsigned long int)ino);
