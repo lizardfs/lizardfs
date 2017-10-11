@@ -27,12 +27,6 @@
 
 #include "common/cfg.h"
 #include "common/mfserr.h"
-#ifndef _WIN32
-#define SPDLOG_ENABLE_SYSLOG
-#endif
-#include "spdlog/spdlog.h"
-
-typedef std::shared_ptr<spdlog::logger> LoggerPtr;
 
 static spdlog::level::level_enum log_level_from_syslog(int priority) {
 	static const std::array<spdlog::level::level_enum, 8> kSyslogToLevel = {{
@@ -52,6 +46,8 @@ bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int ma
 	try {
 		LoggerPtr logger = spdlog::rotating_logger_mt(path, path, max_file_size, max_file_count);
 		logger->set_level(log_level_from_syslog(priority));
+		// Format: DATE TIME [LEVEL] [PID:TID] : MESSAGE
+		logger->set_pattern("%D %H:%M:%S.%e [%l] [%P:%t] : %v");
 		return true;
 	} catch (const spdlog::spdlog_ex &e) {
 		lzfs_pretty_syslog(LOG_ERR, "Adding %s log file failed: %s", path, e.what());

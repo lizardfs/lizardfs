@@ -22,6 +22,14 @@
 
 #include "common/syslog_defs.h"
 
+#ifndef _WIN32
+#define SPDLOG_ENABLE_SYSLOG
+#endif
+#include "common/small_vector.h"
+#include "spdlog/spdlog.h"
+
+typedef std::shared_ptr<spdlog::logger> LoggerPtr;
+
 extern "C" {
 
 /// Adds custom logging file
@@ -61,3 +69,15 @@ void lzfs_silent_syslog(int priority, const char* format, ...)
 void lzfs_silent_errlog(int priority, const char* format, ...)
 		__attribute__ ((__format__ (__printf__, 2, 3)));
 } // extern "C"
+
+template<typename FormatType, typename... Args>
+void lzfs_log(spdlog::level::level_enum level, const FormatType &format, Args&&... args) {
+	//NOTICE(sarna): Workaround for old GCC, which has issues with args... inside lambdas
+	small_vector<LoggerPtr, 8> loggers;
+	spdlog::apply_all([&loggers](LoggerPtr l) {
+		loggers.push_back(l);
+	});
+	for (LoggerPtr &logger : loggers) {
+		logger->log(level, format, std::forward<Args>(args)...);
+	}
+}
