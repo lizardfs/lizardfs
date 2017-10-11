@@ -9,7 +9,8 @@ endif()
 
 download_external(SPDLOG "spdlog-0.14.0"
                   "https://github.com/gabime/spdlog/archive/v0.14.0.zip"
-                  "f213d83c466aa7044a132e2488d71b11")
+                  "f213d83c466aa7044a132e2488d71b11"
+                  "spdlog-1")
 
 # Find standard libraries
 find_package(Socket REQUIRED)
