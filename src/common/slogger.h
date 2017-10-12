@@ -70,14 +70,59 @@ void lzfs_silent_errlog(int priority, const char* format, ...)
 		__attribute__ ((__format__ (__printf__, 2, 3)));
 } // extern "C"
 
+namespace lzfs {
+namespace log_level {
+enum LogLevel {
+	trace = spdlog::level::trace,
+	debug = spdlog::level::debug,
+	info = spdlog::level::info,
+	warn = spdlog::level::warn,
+	err = spdlog::level::err,
+	critical = spdlog::level::critical,
+	off = spdlog::level::off
+};
+} // namespace level
+
 template<typename FormatType, typename... Args>
-void lzfs_log(spdlog::level::level_enum level, const FormatType &format, Args&&... args) {
+void log(log_level::LogLevel log_level, const FormatType &format, Args&&... args) {
 	//NOTICE(sarna): Workaround for old GCC, which has issues with args... inside lambdas
 	small_vector<LoggerPtr, 8> loggers;
 	spdlog::apply_all([&loggers](LoggerPtr l) {
 		loggers.push_back(l);
 	});
 	for (LoggerPtr &logger : loggers) {
-		logger->log(level, format, std::forward<Args>(args)...);
+		logger->log((spdlog::level::level_enum)log_level, format, std::forward<Args>(args)...);
 	}
 }
+
+template<typename FormatType, typename... Args>
+void log_trace(const FormatType &format, Args&&... args) {
+	log(log_level::trace, format, std::forward<Args>(args)...);
+}
+
+template<typename FormatType, typename... Args>
+void log_debug(const FormatType &format, Args&&... args) {
+	log(log_level::debug, format, std::forward<Args>(args)...);
+}
+
+template<typename FormatType, typename... Args>
+void log_info(const FormatType &format, Args&&... args) {
+	log(log_level::info, format, std::forward<Args>(args)...);
+}
+
+template<typename FormatType, typename... Args>
+void log_warn(const FormatType &format, Args&&... args) {
+	log(log_level::warn, format, std::forward<Args>(args)...);
+}
+
+template<typename FormatType, typename... Args>
+void log_err(const FormatType &format, Args&&... args) {
+	log(log_level::err, format, std::forward<Args>(args)...);
+}
+
+template<typename FormatType, typename... Args>
+void log_critical(const FormatType &format, Args&&... args) {
+	log(log_level::critical, format, std::forward<Args>(args)...);
+}
+
+} // namespace lzfs
