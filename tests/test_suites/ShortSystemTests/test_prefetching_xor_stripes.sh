@@ -26,7 +26,7 @@ assert_less_or_equal "$(grep ^chunkserver.hdd_prefetch_blocks "$TEMP_DIR"/log | 
 
 # Check if at least first blocks of all chunks were prefetched
 for i in {1..3}; do
-	fetched=($(grep nrOfBlocks "$TEMP_DIR/log" | cut -f5 -d' ' | cut -f2 -d':'))
+	fetched=($(grep -oP "nrOfBlocks: *\K[0-9]+" "$TEMP_DIR/log"))
 	for block in ${fetched[@]}; do
 		assert_less_or_equal 1 $block
 	done

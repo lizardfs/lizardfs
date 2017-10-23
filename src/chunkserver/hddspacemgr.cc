@@ -1534,7 +1534,7 @@ int hdd_prefetch_blocks(uint64_t chunkid, ChunkPartType chunk_type, uint32_t fir
 
 	hdd_prefetch(*c, first_block, block_count);
 
-	lzfs_silent_syslog(LOG_DEBUG, "chunkserver.hdd_prefetch_blocks chunk: %lu"
+	lzfs_silent_syslog(LOG_DEBUG, "chunkserver.hdd_prefetch_blocks chunk: %lu "
 	                   "status: %u firstBlock: %u nrOfBlocks: %u",
 	                   chunkid, status, first_block, block_count);
 
