@@ -74,6 +74,11 @@ void recover_parts(std::vector<std::vector<uint8_t>> &output,
 
 int main(int argc, char **argv)
 {
+	if(argc != 3)
+	{
+		std::cout << "Usage: ./ec k m" << std::endl;
+		return 0;
+	}
 	int k = std::atoi(argv[1]);
 	int m = std::atoi(argv[2]);
 
