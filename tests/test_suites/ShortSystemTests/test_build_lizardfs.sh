@@ -1,7 +1,6 @@
 timeout_set 10 minutes
 
 CHUNKSERVERS=8 \
-	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	CHUNKSERVER_EXTRA_CONFIG="READ_AHEAD_KB = 1024|MAX_READ_BEHIND_KB = 2048"
 	setup_local_empty_lizardfs info
