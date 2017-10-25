@@ -43,7 +43,7 @@ static int dir_info(const char *fname) {
 	uint32_t inodes, dirs, files, chunks;
 	uint64_t length, size, realsize;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 0);
+	fd = open_master_conn(fname, &inode, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

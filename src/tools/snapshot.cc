@@ -67,7 +67,7 @@ static int make_snapshot(const char *dstdir, const char *dstbase, const char *sr
 		return -1;
 	}
 
-	fd = open_master_conn(dstdir, &dstinode, NULL, 0, 1);
+	fd = open_master_conn(dstdir, &dstinode, NULL, true);
 	if (fd < 0) {
 		return -1;
 	}

@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -29,49 +30,21 @@
 
 #include "common/datapack.h"
 #include "common/mfserr.h"
+#include "common/serialization.h"
 #include "common/special_inode_defs.h"
+#include "common/sockets.h"
 #include "tools/tools_common_functions.h"
 
-int master_register_old(int rfd) {
-	uint32_t i;
-	const uint8_t *rptr;
-	uint8_t *wptr, regbuff[8 + 72];
+struct master_info_t {
+	uint32_t ip;
+	uint16_t port;
+	uint32_t cuid;
+	uint32_t version;
+};
 
-	wptr = regbuff;
-	put32bit(&wptr, CLTOMA_FUSE_REGISTER);
-	put32bit(&wptr, 68);
-	memcpy(wptr, FUSE_REGISTER_BLOB_TOOLS_NOACL, 64);
-	wptr += 64;
-	put16bit(&wptr, LIZARDFS_PACKAGE_VERSION_MAJOR);
-	put8bit(&wptr, LIZARDFS_PACKAGE_VERSION_MINOR);
-	put8bit(&wptr, LIZARDFS_PACKAGE_VERSION_MICRO);
-	if (tcpwrite(rfd, regbuff, 8 + 68) != 8 + 68) {
-		printf("register to master: send error\n");
-		return -1;
-	}
-	if (tcpread(rfd, regbuff, 9) != 9) {
-		printf("register to master: receive error\n");
-		return -1;
-	}
-	rptr = regbuff;
-	i = get32bit(&rptr);
-	if (i != MATOCL_FUSE_REGISTER) {
-		printf("register to master: wrong answer (type)\n");
-		return -1;
-	}
-	i = get32bit(&rptr);
-	if (i != 1) {
-		printf("register to master: wrong answer (length)\n");
-		return -1;
-	}
-	if (*rptr) {
-		printf("register to master: %s\n", lizardfs_error_string(*rptr));
-		return -1;
-	}
-	return 0;
-}
+static thread_local int gCurrentMaster = -1;
 
-int master_register(int rfd, uint32_t cuid) {
+static int master_register(int rfd, uint32_t cuid) {
 	uint32_t i;
 	const uint8_t *rptr;
 	uint8_t *wptr, regbuff[8 + 73];
@@ -112,22 +85,58 @@ int master_register(int rfd, uint32_t cuid) {
 	return 0;
 }
 
-static thread_local dev_t current_device = 0;
-static thread_local int current_master = -1;
-static thread_local uint32_t masterversion = 0;
+static int master_connect(const master_info_t *info) {
+	for(int cnt = 0; cnt < 10; ++cnt) {
+		int sd = tcpsocket();
+		if (sd < 0) {
+			return -1;
+		}
+		int timeout = (cnt % 2) ? (300 * (1 << (cnt >> 1))) : (200 * (1 << (cnt >> 1)));
+		if (tcpnumtoconnect(sd, info->ip, info->port, timeout) >= 0) {
+			return sd;
+		}
+		tcpclose(sd);
+	}
+	return -1;
+}
 
-int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t needsamedev,
-					 uint8_t needrwfs) {
+static int read_master_info(const char *name, master_info_t *info) {
+	static constexpr int kMasterInfoSize = 14;
+	uint8_t buffer[kMasterInfoSize];
+	struct stat stb;
+	int sd;
+
+	if (stat(name, &stb) < 0) {
+		return -1;
+	}
+
+	if (stb.st_ino != SPECIAL_INODE_MASTERINFO || stb.st_nlink != 1 || stb.st_uid != 0 ||
+	    stb.st_gid != 0 || stb.st_size != kMasterInfoSize) {
+		return -1;
+	}
+
+	sd = open(name, O_RDONLY);
+	if (sd < 0) {
+		return -2;
+	}
+
+	if (read(sd, buffer, kMasterInfoSize) != kMasterInfoSize) {
+		close(sd);
+		return -2;
+	}
+
+	close(sd);
+
+	deserialize(buffer, kMasterInfoSize, info->ip, info->port, info->cuid, info->version);
+
+	return 0;
+}
+
+int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, bool needrwfs) {
 	char rpath[PATH_MAX + 1];
 	struct stat stb;
 	struct statvfs stvfsb;
-	int sd;
-	uint8_t masterinfo[14];
-	const uint8_t *miptr;
-	uint8_t cnt;
-	uint32_t masterip;
-	uint16_t masterport;
-	uint32_t mastercuid;
+	master_info_t master_info;
 
 	rpath[0] = 0;
 	if (realpath(name, rpath) == NULL) {
@@ -144,131 +153,66 @@ int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t ne
 			return -1;
 		}
 	}
-	if (lstat(rpath, &stb) != 0) {
-		printf("%s: (%s) lstat error: %s\n", name, rpath, strerr(errno));
+	if (stat(rpath, &stb) != 0) {
+		printf("%s: (%s) stat error: %s\n", name, rpath, strerr(errno));
 		return -1;
 	}
 	*inode = stb.st_ino;
 	if (mode) {
 		*mode = stb.st_mode;
 	}
-	if (current_master >= 0) {
-		if (current_device == stb.st_dev) {
-			return current_master;
-		}
-		if (needsamedev) {
-			printf("%s: different device\n", name);
+	if (gCurrentMaster >= 0) {
+		close(gCurrentMaster);
+		gCurrentMaster = -1;
+	}
+
+	for (;;) {
+		size_t rpath_len = strlen(rpath);
+		if (rpath_len + sizeof("/" SPECIAL_FILE_NAME_MASTERINFO) > PATH_MAX) {
+			printf("%s: path too long\n", name);
 			return -1;
 		}
-	}
-	if (current_master >= 0) {
-		close(current_master);
-		current_master = -1;
-	}
-	current_device = stb.st_dev;
-	for (;;) {
-		if (stb.st_ino == 1) {  // found fuse root
-			// first try to locate ".masterinfo"
-			if (strlen(rpath) + 12 < PATH_MAX) {
-				strcat(rpath, "/" SPECIAL_FILE_NAME_MASTERINFO);
-				if (lstat(rpath, &stb) == 0) {
-					if (stb.st_ino == SPECIAL_INODE_MASTERINFO && stb.st_nlink == 1 &&
-					    stb.st_uid == 0 && stb.st_gid == 0 &&
-					    (stb.st_size == 10 || stb.st_size == 14)) {
-						sd = open(rpath, O_RDONLY);
-						if (stb.st_size == 10) {
-							if (read(sd, masterinfo, 10) != 10) {
-								printf("%s: can't read '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
-								close(sd);
-								return -1;
-							}
-						} else if (stb.st_size == 14) {
-							if (read(sd, masterinfo, 14) != 14) {
-								printf("%s: can't read '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
-								close(sd);
-								return -1;
-							}
-						}
-						close(sd);
-						miptr = masterinfo;
-						masterip = get32bit(&miptr);
-						masterport = get16bit(&miptr);
-						mastercuid = get32bit(&miptr);
-						if (stb.st_size == 14) {
-							masterversion = get32bit(&miptr);
-						} else {
-							masterversion = 0;
-						}
-						if (masterip == 0 || masterport == 0 || mastercuid == 0) {
-							printf("%s: incorrect '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
-							return -1;
-						}
-						cnt = 0;
-						while (cnt < 10) {
-							sd = tcpsocket();
-							if (sd < 0) {
-								printf("%s: can't create connection socket: %s\n", name,
-								       strerr(errno));
-								return -1;
-							}
-							if (tcpnumtoconnect(sd, masterip, masterport,
-							                    (cnt % 2) ? (300 * (1 << (cnt >> 1)))
-							                              : (200 * (1 << (cnt >> 1)))) < 0) {
-								cnt++;
-								if (cnt == 10) {
-									printf(
-									    "%s: can't connect to master (" SPECIAL_FILE_NAME_MASTERINFO
-									    "): %s\n",
-									    name, strerr(errno));
-									return -1;
-								}
-								tcpclose(sd);
-							} else {
-								cnt = 10;
-							}
-						}
-						if (master_register(sd, mastercuid) < 0) {
-							printf("%s: can't register to master (" SPECIAL_FILE_NAME_MASTERINFO
-							       ")\n",
-							       name);
-							return -1;
-						}
-						current_master = sd;
-						return sd;
-					}
-				}
-				rpath[strlen(rpath) - 4] = 0;  // cut '.masterinfo' to '.master' and try to fallback
-				                               // to older communication method
-				if (lstat(rpath, &stb) == 0) {
-					if (stb.st_ino == SPECIAL_INODE_MASTERINFO && stb.st_nlink == 1 &&
-					    stb.st_uid == 0 && stb.st_gid == 0) {
-						fprintf(stderr,
-						        "old version of mfsmount detected - using old and deprecated "
-						        "version of protocol - "
-						        "please upgrade your mfsmount\n");
-						sd = open(rpath, O_RDWR);
-						if (master_register_old(sd) < 0) {
-							printf("%s: can't register to master (.master / old protocol)\n", name);
-							return -1;
-						}
-						current_master = sd;
-						return sd;
-					}
-				}
-				printf("%s: not LizardFS object\n", name);
-				return -1;
-			} else {
-				printf("%s: path too long\n", name);
+		strcpy(rpath + rpath_len, "/" SPECIAL_FILE_NAME_MASTERINFO);
+
+		int r = read_master_info(rpath, &master_info);
+		if (r == -2) {
+			printf("%s: can't read '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
+			return -1;
+		}
+
+		if (r == 0) {
+			if (master_info.ip == 0 || master_info.port == 0 || master_info.cuid == 0) {
+				printf("%s: incorrect '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
 				return -1;
 			}
+
+			int sd = master_connect(&master_info);
+			if (sd < 0) {
+				printf("%s: can't connect to master (" SPECIAL_FILE_NAME_MASTERINFO "): %s\n", name,
+				       strerr(errno));
+				return -1;
+			}
+
+			if (master_register(sd, master_info.cuid) < 0) {
+				printf("%s: can't register to master (" SPECIAL_FILE_NAME_MASTERINFO ")\n", name);
+				tcpclose(sd);
+				return -1;
+			}
+
+			gCurrentMaster = sd;
+			return sd;
 		}
+
+		// remove .masterinfo from end of string
+		rpath[rpath_len] = 0;
+
 		if (rpath[0] != '/' || rpath[1] == '\0') {
 			printf("%s: not LizardFS object\n", name);
 			return -1;
 		}
 		dirname_inplace(rpath);
-		if (lstat(rpath, &stb) != 0) {
-			printf("%s: (%s) lstat error: %s\n", name, rpath, strerr(errno));
+		if (stat(rpath, &stb) != 0) {
+			printf("%s: (%s) stat error: %s\n", name, rpath, strerr(errno));
 			return -1;
 		}
 	}
@@ -276,21 +220,19 @@ int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, uint8_t ne
 }
 
 void close_master_conn(int err) {
-	if (current_master < 0) {
+	if (gCurrentMaster < 0) {
 		return;
 	}
 	if (err) {
-		close(current_master);
-		current_master = -1;
-		current_device = 0;
+		close(gCurrentMaster);
+		gCurrentMaster = -1;
 	}
 }
 
 void force_master_conn_close() {
-	if (current_master < 0) {
+	if (gCurrentMaster < 0) {
 		return;
 	}
-	close(current_master);
-	current_master = -1;
-	current_device = 0;
+	close(gCurrentMaster);
+	gCurrentMaster = -1;
 }

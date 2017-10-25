@@ -43,7 +43,7 @@ static int file_repair(const char *fname, uint8_t correct_only_flag) {
 	uint32_t cmd, leng, inode;
 	uint32_t notchanged, erased, repaired;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 1);
+	fd = open_master_conn(fname, &inode, nullptr, true);
 	if (fd < 0) {
 		return -1;
 	}

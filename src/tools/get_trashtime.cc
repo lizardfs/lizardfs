@@ -44,7 +44,7 @@ static int get_trashtime(const char *fname, uint8_t mode) {
 	uint32_t trashtime;
 	uint32_t cnt;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 0);
+	fd = open_master_conn(fname, &inode, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

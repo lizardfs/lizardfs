@@ -46,7 +46,7 @@ static int set_goal(const char *fname, const std::string &goal, uint8_t mode, in
 	int fd;
 	uint32_t messageId = 0;
 	uint32_t uid = getuid();
-	fd = open_master_conn(fname, &inode, NULL, 0, 1);
+	fd = open_master_conn(fname, &inode, NULL, true);
 	if (fd < 0) {
 		return -1;
 	}

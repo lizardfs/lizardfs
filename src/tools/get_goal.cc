@@ -37,7 +37,7 @@ static void get_goal_usage() {
 
 static int get_goal(const char *fname, uint8_t mode) {
 	uint32_t inode;
-	int fd = open_master_conn(fname, &inode, NULL, 0, 0);
+	int fd = open_master_conn(fname, &inode, NULL, false);
 	if (fd < 0) {
 		return -1;
 	}

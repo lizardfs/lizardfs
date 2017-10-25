@@ -146,7 +146,7 @@ static int file_info(const char *fileName) {
 	std::vector<uint8_t> buffer;
 	uint32_t inode, messageId = 0;
 	int fd;
-	fd = open_master_conn(fileName, &inode, nullptr, 0, 0);
+	fd = open_master_conn(fileName, &inode, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

@@ -170,7 +170,7 @@ static int quota_rep(const std::string &path, std::vector<int> requested_uids,
 	        (report_all || per_directory_quota));
 
 	uint32_t inode;
-	int fd = open_master_conn(path.c_str(), &inode, nullptr, 0, 0);
+	int fd = open_master_conn(path.c_str(), &inode, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

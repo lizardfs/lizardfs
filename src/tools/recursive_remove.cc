@@ -64,7 +64,7 @@ static int recursive_remove(const char *file_name, int long_wait) {
 	std::string parent_path(path_buf);
 	parent_path = parent_path.substr(0, parent_path.find_last_of("/"));
 
-	fd = open_master_conn(parent_path.c_str(), &parent, nullptr, 0, 0);
+	fd = open_master_conn(parent_path.c_str(), &parent, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

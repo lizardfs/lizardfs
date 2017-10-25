@@ -38,7 +38,7 @@ static int check_file(const char *fname) {
 	uint8_t copies;
 	uint32_t chunks;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 0);
+	fd = open_master_conn(fname, &inode, nullptr, false);
 	if (fd < 0) {
 		return -1;
 	}

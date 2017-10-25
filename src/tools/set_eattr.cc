@@ -56,7 +56,7 @@ static int set_eattr(const char *fname, uint8_t eattr, uint8_t mode) {
 	uint32_t cmd, leng, inode, uid;
 	uint32_t changed, notchanged, notpermitted;
 	int fd;
-	fd = open_master_conn(fname, &inode, nullptr, 0, 1);
+	fd = open_master_conn(fname, &inode, nullptr, true);
 	if (fd < 0) {
 		return -1;
 	}

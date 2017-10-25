@@ -53,7 +53,7 @@ void signalHandler(uint32_t job_id) {
 	sigwait(&set, &sig);
 	if (sig == SIGINT || sig == SIGTERM || sig == SIGHUP) {
 		uint32_t inode;
-		int fd = open_master_conn(".", &inode, nullptr, 0, 0);
+		int fd = open_master_conn(".", &inode, nullptr, false);
 		if (fd < 0) {
 			printf("Connection to master failed\n");
 			return;

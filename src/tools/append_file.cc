@@ -43,11 +43,11 @@ static int append_file(const char *fname, const char *afname) {
 	uint32_t cmd, leng, inode, ainode, uid, gid;
 	mode_t dmode, smode;
 	int fd;
-	fd = open_master_conn(fname, &inode, &dmode, 0, 1);
+	fd = open_master_conn(fname, &inode, &dmode, true);
 	if (fd < 0) {
 		return -1;
 	}
-	if (open_master_conn(afname, &ainode, &smode, 1, 1) < 0) {
+	if (open_master_conn(afname, &ainode, &smode, true) < 0) {
 		return -1;
 	}
 

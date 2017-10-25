@@ -41,7 +41,7 @@ static void quota_set_usage() {
 static int quota_set(const std::string &path, QuotaOwner owner, uint64_t soft_inodes,
 					 uint64_t hard_inodes, uint64_t soft_size, uint64_t hard_size) {
 	uint32_t inode;
-	int fd = open_master_conn(path.c_str(), &inode, nullptr, 0, 1);
+	int fd = open_master_conn(path.c_str(), &inode, nullptr, true);
 	if (fd < 0) {
 		return -1;
 	}
