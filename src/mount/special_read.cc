@@ -24,9 +24,9 @@
 
 using namespace LizardClient;
 
-static void printDebugReadInfo(Inode ino, uint64_t size, uint64_t off) {
-	fprintf(stderr,"read from inode %u up to %" PRIu64 " bytes from position %" PRIu64 "\n",
-	        (unsigned int)ino, size, off);
+static void printDebugReadInfo(const Context &ctx, Inode ino, uint64_t size, uint64_t off) {
+	oplog_printf(ctx, "read (%u,%" PRIu64 ",%" PRIu64 ") ...",
+	             (unsigned int)ino, size, off);
 }
 
 static void printReadOplogOk(const Context &ctx, Inode ino, uint64_t size, uint64_t off,
@@ -44,7 +44,7 @@ namespace InodeMasterInfo {
 static std::vector<uint8_t> read(const Context &ctx, size_t size, off_t off,
 	                          FileInfo */*fi*/, int debug_mode) {
 	if (debug_mode) {
-		printDebugReadInfo(SPECIAL_INODE_MASTERINFO, size, off);
+		printDebugReadInfo(ctx, SPECIAL_INODE_MASTERINFO, size, off);
 	}
 	std::vector<uint8_t> ret;
 	uint8_t masterinfo[14];
@@ -79,7 +79,7 @@ namespace InodeStats {
 static std::vector<uint8_t> read(const Context &ctx,
 		size_t size, off_t off, FileInfo *fi, int debug_mode) {
 	if (debug_mode) {
-		printDebugReadInfo(SPECIAL_INODE_STATS, size, off);
+		printDebugReadInfo(ctx, SPECIAL_INODE_STATS, size, off);
 	}
 	std::vector<uint8_t> ret;
 	sinfo *statsinfo = reinterpret_cast<sinfo*>(fi->fh);
@@ -122,12 +122,7 @@ namespace InodeOplog {
 static std::vector<uint8_t> read(const Context &ctx,
 		size_t size, off_t off, FileInfo *fi, int debug_mode) {
 	if (debug_mode) {
-		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 ") ...",
-		            (unsigned long int)SPECIAL_INODE_OPLOG,
-		            (uint64_t)size,
-		            (uint64_t)off);
-
-		printDebugReadInfo(SPECIAL_INODE_OPLOG, size, off);
+		printDebugReadInfo(ctx, SPECIAL_INODE_OPLOG, size, off);
 	}
 	uint32_t ssize;
 	uint8_t *buff;
@@ -141,12 +136,7 @@ namespace InodeOphistory {
 static std::vector<uint8_t> read(const Context &ctx,
 		size_t size, off_t off, FileInfo *fi, int debug_mode) {
 	if (debug_mode) {
-		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 ") ...",
-		            (unsigned long int)SPECIAL_INODE_OPHISTORY,
-		            (uint64_t)size,
-		            (uint64_t)off);
-
-		printDebugReadInfo(SPECIAL_INODE_OPHISTORY, size, off);
+		printDebugReadInfo(ctx, SPECIAL_INODE_OPHISTORY, size, off);
 	}
 	uint32_t ssize;
 	uint8_t *buff;
@@ -160,7 +150,7 @@ namespace InodeTweaks {
 static std::vector<uint8_t> read(const Context &ctx,
 		size_t size, off_t off, FileInfo *fi, int debug_mode) {
 	if (debug_mode) {
-		printDebugReadInfo(SPECIAL_INODE_TWEAKS, size, off);
+		printDebugReadInfo(ctx, SPECIAL_INODE_TWEAKS, size, off);
 	}
 	MagicFile *file = reinterpret_cast<MagicFile*>(fi->fh);
 	std::unique_lock<std::mutex> lock(file->mutex);

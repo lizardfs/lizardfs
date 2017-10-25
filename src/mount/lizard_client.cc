@@ -144,6 +144,12 @@ void updateGroups(Context &ctx) {
 }
 
 Inode getSpecialInodeByName(const char *name) {
+	assert(name);
+
+	while (name[0] == '/') {
+		++name;
+	}
+
 	if (strcmp(name, SPECIAL_FILE_NAME_MASTERINFO) == 0) {
 		return SPECIAL_INODE_MASTERINFO;
 	} else if (strcmp(name, SPECIAL_FILE_NAME_STATS) == 0) {
