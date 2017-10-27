@@ -1073,7 +1073,6 @@ int fs_load(FILE *fd, int ignoreflag, uint8_t fver) {
 		lzfs_pretty_syslog_attempt(LOG_INFO, "loading chunks data from the metadata file");
 		fflush(stderr);
 		if (chunk_load(fd, false) < 0) {
-			fprintf(stderr, "error\n");
 #ifndef METARESTORE
 			lzfs_pretty_syslog(LOG_ERR, "error reading metadata (chunks)");
 #endif

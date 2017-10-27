@@ -199,6 +199,8 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		}
 		close(piped[0]);
 		s=1;
+	} else {
+		lzfs::add_log_stderr(lzfs::log_level::debug);
 	}
 
 

@@ -501,7 +501,7 @@ RequestException::RequestException(int error_code) : system_error_code(), lizard
 	lizardfs_error_code = error_code;
 	system_error_code = lizardfs_error_conv(error_code);
 	if (debug_mode) {
-		fprintf(stderr, "status: %s\n", lizardfs_error_string(error_code));
+		lzfs::log_debug("status: {}", lizardfs_error_string(error_code));
 	}
 }
 
@@ -615,10 +615,7 @@ EntryParam lookup(const Context &ctx, Inode parent, const char *name) {
 	int status;
 
 	if (debug_mode) {
-		oplog_printf(ctx, "lookup (%lu,%s) ...",
-				(unsigned long int)parent,
-				name);
-		fprintf(stderr,"lookup (%lu,%s)\n",(unsigned long int)parent,name);
+		oplog_printf(ctx, "lookup (%lu,%s) ...", (unsigned long int)parent, name);
 	}
 	nleng = strlen(name);
 	if (nleng > MFS_NAME_MAX) {
@@ -650,7 +647,7 @@ EntryParam lookup(const Context &ctx, Inode parent, const char *name) {
 		icacheflag = 0;
 	} else if (usedircache && gDirEntryCache.lookup(ctx,parent,std::string(name,nleng),inode,attr)) {
 		if (debug_mode) {
-			fprintf(stderr,"lookup: sending data from dircache\n");
+			lzfs::log_debug("lookup: sending data from dircache");
 		}
 		stats_inc(OP_DIRCACHE_LOOKUP);
 		status = 0;
@@ -703,9 +700,7 @@ AttrReply getattr(const Context &ctx, Inode ino) {
 	int status;
 
 	if (debug_mode) {
-		oplog_printf(ctx, "getattr (%lu) ...",
-				(unsigned long int)ino);
-		fprintf(stderr,"getattr (%lu)\n",(unsigned long int)ino);
+		oplog_printf(ctx, "getattr (%lu) ...", (unsigned long int)ino);
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
@@ -715,7 +710,7 @@ AttrReply getattr(const Context &ctx, Inode ino) {
 	maxfleng = write_data_getmaxfleng(ino);
 	if (usedircache && gDirEntryCache.lookup(ctx,ino,attr)) {
 		if (debug_mode) {
-			fprintf(stderr,"getattr: sending data from dircache\n");
+			lzfs::log_debug("getattr: sending data from dircache\n");
 		}
 		stats_inc(OP_DIRCACHE_GETATTR);
 		status = LIZARDFS_STATUS_OK;
@@ -757,16 +752,6 @@ AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set)
 	stats_inc(OP_SETATTR);
 	if (debug_mode) {
 		oplog_printf(ctx, "setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "]) ...",
-			(unsigned long int)ino,
-			to_set,
-			modestr+1,
-			(unsigned int)(stbuf->st_mode & 07777),
-			(long int)stbuf->st_uid,
-			(long int)stbuf->st_gid,
-			(unsigned long int)(stbuf->st_atime),
-			(unsigned long int)(stbuf->st_mtime),
-			(uint64_t)(stbuf->st_size));
-		fprintf(stderr,"setattr (%lu,0x%X,[%s:0%04o,%ld,%ld,%lu,%lu,%" PRIu64 "])\n",
 			(unsigned long int)ino,
 			to_set,
 			modestr+1,
@@ -971,12 +956,6 @@ EntryParam mknod(const Context &ctx, Inode parent, const char *name, mode_t mode
 				modestr,
 				(unsigned int)mode,
 				(unsigned long int)rdev);
-		fprintf(stderr,"mknod (%lu,%s,%s:0%04o,0x%08lX)\n",
-				(unsigned long int)parent,
-				name,
-				modestr,
-				(unsigned int)mode,
-				(unsigned long int)rdev);
 	}
 	nleng = strlen(name);
 	if (nleng>MFS_NAME_MAX) {
@@ -1061,10 +1040,7 @@ void unlink(const Context &ctx, Inode parent, const char *name) {
 
 	stats_inc(OP_UNLINK);
 	if (debug_mode) {
-		oplog_printf(ctx, "unlink (%lu,%s) ...",
-				(unsigned long int)parent,
-				name);
-		fprintf(stderr,"unlink (%lu,%s)\n",(unsigned long int)parent,name);
+		oplog_printf(ctx, "unlink (%lu,%s) ...", (unsigned long int)parent, name);
 	}
 	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
@@ -1106,7 +1082,6 @@ void undel(const Context &ctx, Inode ino) {
 	stats_inc(OP_UNDEL);
 	if (debug_mode) {
 		oplog_printf(ctx, "undel (%lu) ...", (unsigned long)ino);
-		fprintf(stderr, "undel (%lu)\n", (unsigned long)ino);
 	}
 	uint8_t status;
 	// FIXME(haze): modify undel to return parent inode and call gDirEntryCache.lockAndInvalidateParent(parent)
@@ -1130,11 +1105,6 @@ EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode
 	stats_inc(OP_MKDIR);
 	if (debug_mode) {
 		oplog_printf(ctx, "mkdir (%lu,%s,d%s:0%04o) ...",
-				(unsigned long int)parent,
-				name,
-				modestr+1,
-				(unsigned int)mode);
-		fprintf(stderr,"mkdir (%lu,%s,d%s:0%04o)\n",
 				(unsigned long int)parent,
 				name,
 				modestr+1,
@@ -1199,10 +1169,7 @@ void rmdir(const Context &ctx, Inode parent, const char *name) {
 
 	stats_inc(OP_RMDIR);
 	if (debug_mode) {
-		oplog_printf(ctx, "rmdir (%lu,%s) ...",
-				(unsigned long int)parent,
-				name);
-		fprintf(stderr,"rmdir (%lu,%s)\n",(unsigned long int)parent,name);
+		oplog_printf(ctx, "rmdir (%lu,%s) ...", (unsigned long int)parent, name);
 	}
 	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
@@ -1255,7 +1222,6 @@ EntryParam symlink(const Context &ctx, const char *path, Inode parent,
 				path,
 				(unsigned long int)parent,
 				name);
-		fprintf(stderr,"symlink (%s,%lu,%s)\n",path,(unsigned long int)parent,name);
 	}
 	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
@@ -1314,7 +1280,6 @@ std::string readlink(const Context &ctx, Inode ino) {
 	if (debug_mode) {
 		oplog_printf(ctx, "readlink (%lu) ...",
 				(unsigned long int)ino);
-		fprintf(stderr,"readlink (%lu)\n",(unsigned long int)ino);
 	}
 	if (symlink_cache_search(ino,&path)) {
 		stats_inc(OP_READLINK_CACHED);
@@ -1349,11 +1314,6 @@ void rename(const Context &ctx, Inode parent, const char *name,
 	stats_inc(OP_RENAME);
 	if (debug_mode) {
 		oplog_printf(ctx, "rename (%lu,%s,%lu,%s) ...",
-				(unsigned long int)parent,
-				name,
-				(unsigned long int)newparent,
-				newname);
-		fprintf(stderr,"rename (%lu,%s,%lu,%s)\n",
 				(unsigned long int)parent,
 				name,
 				(unsigned long int)newparent,
@@ -1440,10 +1400,6 @@ EntryParam link(const Context &ctx, Inode ino, Inode newparent, const char *newn
 				(unsigned long int)ino,
 				(unsigned long int)newparent,
 				newname);
-		fprintf(stderr,"link (%lu,%lu,%s)\n",
-				(unsigned long int)ino,
-				(unsigned long int)newparent,
-				newname);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "link (%lu,%lu,%s): %s",
@@ -1507,9 +1463,7 @@ void opendir(const Context &ctx, Inode ino) {
 
 	stats_inc(OP_OPENDIR);
 	if (debug_mode) {
-		oplog_printf(ctx, "opendir (%lu) ...",
-				(unsigned long int)ino);
-		fprintf(stderr,"opendir (%lu)\n",(unsigned long int)ino);
+		oplog_printf(ctx, "opendir (%lu) ...", (unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "opendir (%lu): %s",
@@ -1534,10 +1488,6 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
 		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",
-				(unsigned long int)ino,
-				(uint64_t)max_entries,
-				(uint64_t)off);
-		fprintf(stderr,"readdir (%lu,%" PRIu64 ",%" PRIu64 ")\n",
 				(unsigned long int)ino,
 				(uint64_t)max_entries,
 				(uint64_t)off);
@@ -1631,9 +1581,6 @@ std::vector<NamedInodeEntry> readreserved(const Context &ctx, NamedInodeOffset o
 		oplog_printf(ctx, "readreserved (%" PRIu64 ",%" PRIu64 ") ...",
 				(uint64_t)max_entries,
 				(uint64_t)off);
-		fprintf(stderr,"readreserved (%" PRIu64 ",%" PRIu64 ")\n",
-				(uint64_t)max_entries,
-				(uint64_t)off);
 	}
 
 	std::vector<NamedInodeEntry> entries;
@@ -1652,9 +1599,6 @@ std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset off,
 	stats_inc(OP_READTRASH);
 	if (debug_mode) {
 		oplog_printf(ctx, "readtrash (%" PRIu64 ",%" PRIu64 ") ...",
-				(uint64_t)max_entries,
-				(uint64_t)off);
-		fprintf(stderr,"readtrash (%" PRIu64 ",%" PRIu64 ")\n",
 				(uint64_t)max_entries,
 				(uint64_t)off);
 	}
@@ -1678,7 +1622,6 @@ void releasedir(Inode ino) {
 	if (debug_mode) {
 		oplog_printf("releasedir (%lu) ...",
 				(unsigned long int)ino);
-		fprintf(stderr,"releasedir (%lu)\n",(unsigned long int)ino);
 	}
 	oplog_printf("releasedir (%lu): OK",
 			(unsigned long int)ino);
@@ -1756,10 +1699,6 @@ EntryParam create(const Context &ctx, Inode parent, const char *name, mode_t mod
 				name,
 				modestr+1,
 				(unsigned int)mode);
-		fprintf(stderr,"create (%lu,%s,-%s:0%04o)\n",
-				(unsigned long int)parent,
-				name,modestr+1,
-				(unsigned int)mode);
 	}
 	if (parent==SPECIAL_INODE_ROOT) {
 		if (IS_SPECIAL_NAME(name)) {
@@ -1836,9 +1775,7 @@ EntryParam create(const Context &ctx, Inode parent, const char *name, mode_t mod
 		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
 	}
 	if (debug_mode) {
-		fprintf(stderr,"create (%lu) ok -> keep cache: %lu\n",
-				(unsigned long int)inode,
-				(unsigned long int)fi->keep_cache);
+		lzfs::log_debug("create ({}) ok -> keep cache: {}\n", inode, (int)fi->keep_cache);
 	}
 	gDirEntryCache.lockAndInvalidateParent(ctx, parent);
 	e.ino = inode;
@@ -1869,9 +1806,7 @@ void open(const Context &ctx, Inode ino, FileInfo *fi) {
 
 	stats_inc(OP_OPEN);
 	if (debug_mode) {
-		oplog_printf(ctx, "open (%lu) ...",
-				(unsigned long int)ino);
-		fprintf(stderr,"open (%lu)\n",(unsigned long int)ino);
+		oplog_printf(ctx, "open (%lu) ...", (unsigned long int)ino);
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
@@ -1910,9 +1845,7 @@ void open(const Context &ctx, Inode ino, FileInfo *fi) {
 		fi->keep_cache = (mattr&MATTR_ALLOWDATACACHE)?1:0;
 	}
 	if (debug_mode) {
-		fprintf(stderr,"open (%lu) ok -> keep cache: %lu\n",
-				(unsigned long int)ino,
-				(unsigned long int)fi->keep_cache);
+		lzfs::log_debug("open ({}) ok -> keep cache: {}\n", ino, (int)fi->keep_cache);
 	}
 	fi->direct_io = gDirectIo;
 	oplog_printf(ctx, "open (%lu): OK (%lu,%lu)",
@@ -1933,9 +1866,7 @@ void release(Inode ino, FileInfo *fi) {
 
 	stats_inc(OP_RELEASE);
 	if (debug_mode) {
-		oplog_printf("release (%lu) ...",
-				(unsigned long int)ino);
-		fprintf(stderr,"release (%lu)\n",(unsigned long int)ino);
+		oplog_printf("release (%lu) ...", (unsigned long int)ino);
 	}
 
 	if (IS_SPECIAL_INODE(ino)) {
@@ -1979,10 +1910,8 @@ ReadCache::Result read(const Context &ctx,
 	int err;
 	ReadCache::Result ret;
 	if (debug_mode) {
-		fprintf(stderr,"read from inode %lu up to %" PRIu64 " bytes from position %" PRIu64 "\n",
-		                (unsigned long int)ino,
-		                (uint64_t)size,
-		                (uint64_t)off);
+		lzfs::log_debug("read from inode {} up to {} bytes from position {}",
+		                ino, size, off);
 	}
 	if (fileinfo==NULL) {
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
@@ -2032,10 +1961,6 @@ ReadCache::Result read(const Context &ctx,
 	if (fileinfo->mode==IO_WRITE) {
 		err = write_data_flush(fileinfo->data);
 		if (err != LIZARDFS_STATUS_OK) {
-			if (debug_mode) {
-				fprintf(stderr,"IO error occurred while writing inode %lu\n",
-						(unsigned long int)ino);
-			}
 			oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 					(unsigned long int)ino,
 					(uint64_t)size,
@@ -2064,10 +1989,6 @@ ReadCache::Result read(const Context &ctx,
 	err = read_data(fileinfo->data, alignedOffset, ssize, ret);
 	ssize = ret.requestSize(alignedOffset, ssize);
 	if (err != LIZARDFS_STATUS_OK) {
-		if (debug_mode) {
-			fprintf(stderr,"IO error occurred while reading inode %lu\n",
-					(unsigned long int)ino);
-		}
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
@@ -2083,11 +2004,6 @@ ReadCache::Result read(const Context &ctx,
 			}
 		} else {
 			ssize = 0;
-		}
-		if (debug_mode) {
-			fprintf(stderr,"%" PRIu32 " bytes have been read from inode %lu\n",
-					ssize,
-					(unsigned long int)ino);
 		}
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
 				(unsigned long int)ino,
@@ -2106,10 +2022,6 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 	stats_inc(OP_WRITE);
 	if (debug_mode) {
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 ") ...",
-				(unsigned long int)ino,
-				(uint64_t)size,
-				(uint64_t)off);
-		fprintf(stderr,"write to inode %lu %" PRIu64 " bytes at position %" PRIu64 "\n",
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off);
@@ -2174,9 +2086,6 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	gDirEntryCache.lockAndInvalidateInode(ino);
 	if (err != LIZARDFS_STATUS_OK) {
-		if (debug_mode) {
-			fprintf(stderr,"IO error occurred while writing inode %lu\n",(unsigned long int)ino);
-		}
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
@@ -2184,11 +2093,6 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 				lizardfs_error_string(err));
 		throw RequestException(err);
 	} else {
-		if (debug_mode) {
-			fprintf(stderr,"%" PRIu64 " bytes have been written to inode %lu\n",
-					(uint64_t)size,
-					(unsigned long int)ino);
-		}
 		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): OK (%lu)",
 				(unsigned long int)ino,
 				(uint64_t)size,
@@ -2206,7 +2110,6 @@ void flush(const Context &ctx, Inode ino, FileInfo* fi) {
 	if (debug_mode) {
 		oplog_printf(ctx, "flush (%lu) ...",
 				(unsigned long int)ino);
-		fprintf(stderr,"flush (%lu)\n",(unsigned long int)ino);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "flush (%lu): OK",
@@ -2251,7 +2154,6 @@ void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi) {
 		oplog_printf(ctx, "fsync (%lu,%d) ...",
 				(unsigned long int)ino,
 				datasync);
-		fprintf(stderr,"fsync (%lu,%d)\n",(unsigned long int)ino,datasync);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "fsync (%lu,%d): OK",
@@ -2650,11 +2552,6 @@ void setxattr(const Context &ctx, Inode ino, const char *name, const char *value
 				name,
 				(uint64_t)size,
 				flags);
-		fprintf(stderr,"setxattr (%lu,%s,%" PRIu64 ",%d)",
-				(unsigned long int)ino,
-				name,
-				(uint64_t)size,
-				flags);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d): %s",
@@ -2771,7 +2668,6 @@ XattrReply getxattr(const Context &ctx, Inode ino, const char *name, size_t size
 				(unsigned long int)ino,
 				name,
 				(uint64_t)size);
-		fprintf(stderr,"getxattr (%lu,%s,%" PRIu64 ")",(unsigned long int)ino,name,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
@@ -2869,7 +2765,6 @@ XattrReply listxattr(const Context &ctx, Inode ino, size_t size) {
 		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 ") ...",
 				(unsigned long int)ino,
 				(uint64_t)size);
-		fprintf(stderr,"listxattr (%lu,%" PRIu64 ")",(unsigned long int)ino,(uint64_t)size);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "listxattr (%lu,%" PRIu64 "): %s",
@@ -2924,7 +2819,6 @@ void removexattr(const Context &ctx, Inode ino, const char *name) {
 		oplog_printf(ctx, "removexattr (%lu,%s) ...",
 				(unsigned long int)ino,
 				name);
-		fprintf(stderr,"removexattr (%lu,%s)",(unsigned long int)ino,name);
 	}
 	if (IS_SPECIAL_INODE(ino)) {
 		oplog_printf(ctx, "removexattr (%lu,%s): %s",
@@ -2986,7 +2880,6 @@ void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::Flock
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
 			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -2994,7 +2887,6 @@ void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::Flock
 	if (!fi) {
 		if (debug_mode) {
 			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -3015,7 +2907,6 @@ uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_loc
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
 			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -3023,7 +2914,6 @@ uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_loc
 	if (!fi) {
 		if (debug_mode) {
 			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -3066,7 +2956,6 @@ uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op) {
 	if (IS_SPECIAL_INODE(ino)) {
 		if (debug_mode) {
 			oplog_printf(ctx, "flock(ctx, %lu, fi): %s", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr, "flock(ctx, %lu, fi): %s\n", (unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -3074,7 +2963,6 @@ uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op) {
 	if (!fi) {
 		if (debug_mode) {
 			oplog_printf(ctx,"flock(ctx, %lu, fi): %s",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-			fprintf(stderr,"flock(ctx, %lu, fi): %s\n",(unsigned long int)ino, lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
 		}
 		throw RequestException(LIZARDFS_ERROR_EINVAL);
 	}
@@ -3203,11 +3091,15 @@ void init(int debug_mode_, int keep_cache_, double direntry_cache_timeout_, unsi
 	gDirEntryCache.setTimeout(timeout);
 	gDirEntryCacheMaxSize = direntry_cache_size_;
 	if (debug_mode) {
-		std::fprintf(stderr,"cache parameters: file_keep_cache=%s direntry_cache_timeout=%.2f entry_cache_timeout=%.2f attr_cache_timeout=%.2f\n",(keep_cache==1)?"always":(keep_cache==2)?"never":"auto",direntry_cache_timeout,entry_cache_timeout,attr_cache_timeout);
-		std::fprintf(stderr,"mkdir copy sgid=%d\nsugid clear mode=%s\n",mkdir_copy_sgid_,sugidClearModeString(sugid_clear_mode_));
-		std::fprintf(stderr, "RW lock %s\n", use_rwlock ? "enabled" : "disabled");
-		std::fprintf(stderr, "ACL acl_cache_timeout=%.2f, acl_cache_size=%u\n",
-				acl_cache_timeout_, acl_cache_size_);
+		lzfs::log_debug("cache parameters: file_keep_cache={} direntry_cache_timeout={:.2f}"
+		                " entry_cache_timeout={:.2f} attr_cache_timeout={:.2f}",
+		                (keep_cache==1)?"always":(keep_cache==2)?"never":"auto",
+		                direntry_cache_timeout, entry_cache_timeout, attr_cache_timeout);
+		lzfs::log_debug("mkdir copy sgid={} sugid clear mode={}",
+		                mkdir_copy_sgid_, sugidClearModeString(sugid_clear_mode_));
+		lzfs::log_debug("RW lock {}", use_rwlock ? "enabled" : "disabled");
+		lzfs::log_debug("ACL acl_cache_timeout={:.2f}, acl_cache_size={}\n",
+		                acl_cache_timeout_, acl_cache_size_);
 	}
 	statsptr_init();
 
