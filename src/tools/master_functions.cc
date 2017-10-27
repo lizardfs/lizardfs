@@ -167,6 +167,14 @@ int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, bool needr
 	}
 
 	for (;;) {
+		uint32_t rpath_inode;
+
+		if (stat(rpath, &stb) != 0) {
+			printf("%s: (%s) stat error: %s\n", name, rpath, strerr(errno));
+			return -1;
+		}
+		rpath_inode = stb.st_ino;
+
 		size_t rpath_len = strlen(rpath);
 		if (rpath_len + sizeof("/" SPECIAL_FILE_NAME_MASTERINFO) > PATH_MAX) {
 			printf("%s: path too long\n", name);
@@ -184,6 +192,10 @@ int open_master_conn(const char *name, uint32_t *inode, mode_t *mode, bool needr
 			if (master_info.ip == 0 || master_info.port == 0 || master_info.cuid == 0) {
 				printf("%s: incorrect '" SPECIAL_FILE_NAME_MASTERINFO "'\n", name);
 				return -1;
+			}
+
+			if (rpath_inode == *inode) {
+				*inode = SPECIAL_INODE_ROOT;
 			}
 
 			int sd = master_connect(&master_info);
