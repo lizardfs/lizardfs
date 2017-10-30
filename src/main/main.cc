@@ -177,7 +177,7 @@ const std::string& set_syslog_ident() {
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
 #else
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_USER);
-		lzfs_add_log_stderr();
+		lzfs_add_log_stderr(LOG_DEBUG);
 #endif
 	}
 	return logIdent;
@@ -199,7 +199,7 @@ static void main_configure_debug_log() {
 	lzfs_add_log_syslog();
 #ifndef LOG_PERROR
 	if (!gRunAsDaemon) {
-		lzfs_add_log_stderr();
+		lzfs_add_log_stderr(LOG_DEBUG);
 	}
 #endif
 	for (std::string suffix : {"", "_A", "_B", "_C"}) {

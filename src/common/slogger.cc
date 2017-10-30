@@ -63,11 +63,12 @@ void lzfs_drop_all_logs() {
 	spdlog::drop_all();
 }
 
-bool lzfs_add_log_stderr() {
+bool lzfs_add_log_stderr(int priority) {
 	try {
-		spdlog::stderr_color_mt("stderr");
-	} catch (const spdlog::spdlog_ex &e) {
+		LoggerPtr logger = spdlog::stderr_color_mt("stderr");
+		logger->set_level(log_level_from_syslog(priority));
 		return true;
+	} catch (const spdlog::spdlog_ex &e) {
 		lzfs_pretty_syslog(LOG_ERR, "Adding stderr log failed: %s", e.what());
 	}
 	return false;
@@ -77,8 +78,8 @@ bool lzfs_add_log_syslog() {
 #ifndef _WIN32
 	try {
 		spdlog::syslog_logger("syslog");
-	} catch (const spdlog::spdlog_ex &e) {
 		return true;
+	} catch (const spdlog::spdlog_ex &e) {
 		lzfs_pretty_syslog(LOG_ERR, "Adding syslog log failed: %s", e.what());
 	}
 #endif

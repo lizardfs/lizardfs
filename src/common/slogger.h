@@ -43,7 +43,7 @@ void lzfs_drop_all_logs();
 
 bool lzfs_add_log_syslog();
 
-bool lzfs_add_log_stderr();
+bool lzfs_add_log_stderr(int priority);
 
 /*
  * function names may contain following words:
