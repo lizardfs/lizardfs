@@ -28,24 +28,44 @@
 #include "common/cfg.h"
 #include "common/mfserr.h"
 
-static spdlog::level::level_enum log_level_from_syslog(int priority) {
-	static const std::array<spdlog::level::level_enum, 8> kSyslogToLevel = {{
-		spdlog::level::critical, // emerg
-		spdlog::level::critical, // alert
-		spdlog::level::critical, // critical
-		spdlog::level::err,      // error
-		spdlog::level::warn,     // warning
-		spdlog::level::info,     // notice
-		spdlog::level::info,     // info
-		spdlog::level::debug,    // debug
+static lzfs::log_level::LogLevel log_level_from_syslog(int priority) {
+	static const std::array<lzfs::log_level::LogLevel, 8> kSyslogToLevel = {{
+		lzfs::log_level::critical, // emerg
+		lzfs::log_level::critical, // alert
+		lzfs::log_level::critical, // critical
+		lzfs::log_level::err,      // error
+		lzfs::log_level::warn,     // warning
+		lzfs::log_level::info,     // notice
+		lzfs::log_level::info,     // info
+		lzfs::log_level::debug,    // debug
 	}};
 	return kSyslogToLevel[std::min<int>(priority, kSyslogToLevel.size())];
 }
 
 bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int max_file_count) {
+	return lzfs::add_log_file(path, log_level_from_syslog(priority), max_file_size, max_file_count);
+}
+
+void lzfs_set_log_flush_on(int priority) {
+	return lzfs::set_log_flush_on(log_level_from_syslog(priority));
+}
+
+void lzfs_drop_all_logs() {
+	return lzfs::drop_all_logs();
+}
+
+bool lzfs_add_log_stderr(int priority) {
+	return lzfs::add_log_stderr(log_level_from_syslog(priority));
+}
+
+bool lzfs_add_log_syslog() {
+	return lzfs::add_log_syslog();
+}
+
+bool lzfs::add_log_file(const char *path, log_level::LogLevel level, int max_file_size, int max_file_count) {
 	try {
 		LoggerPtr logger = spdlog::rotating_logger_mt(path, path, max_file_size, max_file_count);
-		logger->set_level(log_level_from_syslog(priority));
+		logger->set_level((spdlog::level::level_enum)level);
 		// Format: DATE TIME [LEVEL] [PID:TID] : MESSAGE
 		logger->set_pattern("%D %H:%M:%S.%e [%l] [%P:%t] : %v");
 		return true;
@@ -55,26 +75,15 @@ bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int ma
 	return false;
 }
 
-void lzfs_set_log_flush_on(int priority) {
-	spdlog::apply_all([priority](LoggerPtr l) {l->flush_on(log_level_from_syslog(priority));});
+void lzfs::set_log_flush_on(log_level::LogLevel level) {
+	spdlog::apply_all([level](LoggerPtr l) {l->flush_on((spdlog::level::level_enum)level);});
 }
 
-void lzfs_drop_all_logs() {
+void lzfs::drop_all_logs() {
 	spdlog::drop_all();
 }
 
-bool lzfs_add_log_stderr(int priority) {
-	try {
-		LoggerPtr logger = spdlog::stderr_color_mt("stderr");
-		logger->set_level(log_level_from_syslog(priority));
-		return true;
-	} catch (const spdlog::spdlog_ex &e) {
-		lzfs_pretty_syslog(LOG_ERR, "Adding stderr log failed: %s", e.what());
-	}
-	return false;
-}
-
-bool lzfs_add_log_syslog() {
+bool lzfs::add_log_syslog() {
 #ifndef _WIN32
 	try {
 		spdlog::syslog_logger("syslog");
@@ -83,6 +92,17 @@ bool lzfs_add_log_syslog() {
 		lzfs_pretty_syslog(LOG_ERR, "Adding syslog log failed: %s", e.what());
 	}
 #endif
+	return false;
+}
+
+bool lzfs::add_log_stderr(log_level::LogLevel level) {
+	try {
+		LoggerPtr logger = spdlog::stderr_color_mt("stderr");
+		logger->set_level((spdlog::level::level_enum)level);
+		return true;
+	} catch (const spdlog::spdlog_ex &e) {
+		lzfs_pretty_syslog(LOG_ERR, "Adding stderr log failed: %s", e.what());
+	}
 	return false;
 }
 
@@ -98,7 +118,7 @@ static void lzfs_vsyslog(int priority, const char* format, va_list ap) {
 	va_end(ap2);
 
 	spdlog::apply_all([priority, buf](LoggerPtr l) {
-		l->log(log_level_from_syslog(priority), buf);
+		l->log((spdlog::level::level_enum)log_level_from_syslog(priority), buf);
 	});
 }
 

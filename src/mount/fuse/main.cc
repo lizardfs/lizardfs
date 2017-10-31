@@ -161,7 +161,7 @@ int mainloop(struct fuse_args *args,const char* mp,int mt,int fg) {
 		openlog(STR(APPNAME), LOG_PID | LOG_NDELAY, LOG_USER);
 #endif
 	}
-	lzfs_add_log_syslog();
+	lzfs::add_log_syslog();
 
 	rls.rlim_cur = gMountOptions.nofile;
 	rls.rlim_max = gMountOptions.nofile;

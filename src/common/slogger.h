@@ -30,46 +30,6 @@
 
 typedef std::shared_ptr<spdlog::logger> LoggerPtr;
 
-extern "C" {
-
-/// Adds custom logging file
-bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int max_file_count);
-
-/// Sets which level triggers immediate log flush (default: CRITICAL)
-void lzfs_set_log_flush_on(int priority);
-
-/// Removes all log files
-void lzfs_drop_all_logs();
-
-bool lzfs_add_log_syslog();
-
-bool lzfs_add_log_stderr(int priority);
-
-/*
- * function names may contain following words:
- *   "pretty" -> write pretty prefix to stderr
- *   "silent" -> do not write anything to stderr
- *   "errlog" -> append strerr(errno) to printed message
- *   "attempt" -> instead of pretty prefix based on priority, write prefix suggesting
- *      that something is starting
- */
-
-void lzfs_pretty_syslog(int priority, const char* format, ...)
-		__attribute__ ((__format__ (__printf__, 2, 3)));
-
-void lzfs_pretty_syslog_attempt(int priority, const char* format, ...)
-		__attribute__ ((__format__ (__printf__, 2, 3)));
-
-void lzfs_pretty_errlog(int priority, const char* format, ...)
-		__attribute__ ((__format__ (__printf__, 2, 3)));
-
-void lzfs_silent_syslog(int priority, const char* format, ...)
-		__attribute__ ((__format__ (__printf__, 2, 3)));
-
-void lzfs_silent_errlog(int priority, const char* format, ...)
-		__attribute__ ((__format__ (__printf__, 2, 3)));
-} // extern "C"
-
 namespace lzfs {
 namespace log_level {
 enum LogLevel {
@@ -125,4 +85,51 @@ void log_critical(const FormatType &format, Args&&... args) {
 	log(log_level::critical, format, std::forward<Args>(args)...);
 }
 
+bool add_log_file(const char *path, log_level::LogLevel level, int max_file_size, int max_file_count);
+void set_log_flush_on(log_level::LogLevel level);
+void drop_all_logs();
+bool add_log_syslog();
+bool add_log_stderr(log_level::LogLevel level);
+
 } // namespace lzfs
+
+// NOTICE(sarna) Old interface, don't use unless extern-C is needed
+extern "C" {
+
+/// Adds custom logging file
+bool lzfs_add_log_file(const char *path, int priority, int max_file_size, int max_file_count);
+
+/// Sets which level triggers immediate log flush (default: CRITICAL)
+void lzfs_set_log_flush_on(int priority);
+
+/// Removes all log files
+void lzfs_drop_all_logs();
+
+bool lzfs_add_log_syslog();
+
+bool lzfs_add_log_stderr(int priority);
+
+/*
+ * function names may contain following words:
+ *   "pretty" -> write pretty prefix to stderr
+ *   "silent" -> do not write anything to stderr
+ *   "errlog" -> append strerr(errno) to printed message
+ *   "attempt" -> instead of pretty prefix based on priority, write prefix suggesting
+ *      that something is starting
+ */
+
+void lzfs_pretty_syslog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+
+void lzfs_pretty_syslog_attempt(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+
+void lzfs_pretty_errlog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+
+void lzfs_silent_syslog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+
+void lzfs_silent_errlog(int priority, const char* format, ...)
+		__attribute__ ((__format__ (__printf__, 2, 3)));
+} // extern "C"
