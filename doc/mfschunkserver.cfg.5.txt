@@ -122,6 +122,18 @@ in MooseFS format)
 *PERFORM_FSYNC*::
 call fsync() after a chunk is modified (default is 1, i.e. enabled)
 
+*REPLICATION_TOTAL_TIMEOUT_MS*::
+total timeout for single replication operation. Replications that take longer than that
+are considered failed and are immediately aborted (default: 60000)
+
+*REPLICATION_CONNECTION_TIMEOUT_MS*::
+connection for single replication operation. If connecting to another chunkserver takes longer
+than this timeout, the operation is considered failed and is immediately aborted (default: 1000)
+
+*REPLICATION_WAVE_TIMEOUT_MS*::
+*ADVANCED*:: timeout for single wave in replication. After this timeout, next wave
+of read requests is sent to other chunkservers (default: 500)
+
 == COPYRIGHT
 
 Copyright 2008-2009 Gemius SA, 2013-2015 Skytechnology sp. z o.o.

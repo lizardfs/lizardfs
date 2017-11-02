@@ -33,9 +33,25 @@
 
 class ChunkReplicator {
 public:
+	static constexpr unsigned kDefaultTotalTimeout_ms = 60 * 1000;
+	static constexpr unsigned kDefaultWaveTimeout_ms = 500;
+	static constexpr unsigned kDefaultConnectionTimeout_ms = 1000;
+
 	ChunkReplicator(ChunkConnector& connector);
 	void replicate(ChunkFileCreator& fileCreator, const std::vector<ChunkTypeWithAddress>& sources);
 	uint32_t getStats();
+
+	void setTotalTimeout(unsigned timeout_ms) {
+		total_timeout_ms_ = timeout_ms;
+	}
+
+	void setWaveTimeout(unsigned timeout_ms) {
+		wave_timeout_ms_ = timeout_ms;
+	}
+
+	void setConnectionTimeout(unsigned timeout_ms) {
+		connection_timeout_ms_ = timeout_ms;
+	}
 
 private:
 	ChunkserverStats chunkserverStats_;
@@ -50,6 +66,10 @@ private:
 			const std::vector<ChunkTypeWithAddress>& sources);
 
 	void incStats();
+
+	unsigned total_timeout_ms_;
+	unsigned wave_timeout_ms_;
+	unsigned connection_timeout_ms_;
 };
 
 extern ChunkReplicator gReplicator;

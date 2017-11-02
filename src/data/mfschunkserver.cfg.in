@@ -130,4 +130,17 @@
 # BACK_LOGS = 50
 # CSSERV_TIMEOUT = 5
 
+## Replication bandwidth limit
 # REPLICATION_BANDWIDTH_LIMIT_KBPS = 102400
+
+## Total timeout for single replication operation. Replications that take longer than that
+## are considered failed and are immediately aborted.
+# REPLICATION_TOTAL_TIMEOUT_MS = 60000
+
+## Connection for single replication operation. If connecting to another chunkserver takes longer
+## than this timeout, the operation is considered failed and is immediately aborted.
+# REPLICATION_CONNECTION_TIMEOUT_MS = 1000
+
+## [ADVANCED] Timeout for single wave in replication. After this timeout, next wave
+## of read requests is sent to other chunkservers.
+# REPLICATION_WAVE_TIMEOUT_MS = 500

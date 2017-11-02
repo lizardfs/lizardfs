@@ -38,7 +38,9 @@ static ConnectionPool gPool;
 static ChunkConnectorUsingPool gConnector(gPool);
 ChunkReplicator gReplicator(gConnector);
 
-ChunkReplicator::ChunkReplicator(ChunkConnector& connector) : connector_(connector), stats_(0) {}
+ChunkReplicator::ChunkReplicator(ChunkConnector& connector)
+	: connector_(connector), stats_(0), total_timeout_ms_(kDefaultTotalTimeout_ms),
+	  wave_timeout_ms_(kDefaultWaveTimeout_ms), connection_timeout_ms_(kDefaultConnectionTimeout_ms) {}
 
 uint32_t ChunkReplicator::getStats() {
 	std::unique_lock<std::mutex> lock(mutex_);
@@ -51,7 +53,7 @@ uint32_t ChunkReplicator::getChunkBlocks(uint64_t chunk_id, uint32_t chunk_versi
 		ChunkTypeWithAddress type_with_address) {
 	NetworkAddress server = type_with_address.address;
 	ChunkPartType chunk_type = type_with_address.chunk_type;
-	int fd = connector_.startUsingConnection(server, Timeout{std::chrono::seconds(1)});
+	int fd = connector_.startUsingConnection(server, Timeout{std::chrono::milliseconds(connection_timeout_ms_)});
 	sassert(fd >= 0);
 
 	std::vector<uint8_t> output_buffer;
@@ -158,8 +160,8 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 	}
 
 	fileCreator.create();
-	static const SteadyDuration maxWaitTime = std::chrono::seconds(60);
-	Timeout timeout{maxWaitTime};
+	static const SteadyDuration max_wait_time = std::chrono::milliseconds(total_timeout_ms_);
+	Timeout timeout{max_wait_time};
 	for (int firstBlock = 0; firstBlock < blocks; firstBlock += batchSize) {
 		int nrOfBlocks = std::min(blocks - firstBlock, batchSize);
 
@@ -169,7 +171,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		}
 
 		// Wait for limit to be assigned
-		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, maxWaitTime);
+		uint8_t status = replicationBandwidthLimiter().wait(nrOfBlocks * MFSBLOCKSIZE, max_wait_time);
 		if (status != LIZARDFS_STATUS_OK) {
 			throw Exception("Replication limiting error", status);
 		}
@@ -179,7 +181,7 @@ void ChunkReplicator::replicate(ChunkFileCreator& fileCreator,
 		ReadPlanExecutor executor(chunkserverStats_,
 				fileCreator.chunkId(), fileCreator.chunkVersion(),
 				planner.buildPlan());
-		executor.executePlan(buffer, locations, connector_, timeout.remaining_ms(), 300, timeout);
+		executor.executePlan(buffer, locations, connector_, timeout.remaining_ms(), wave_timeout_ms_, timeout);
 
 		for (int i = 0; i < nrOfBlocks; ++i) {
 			uint32_t offset = i * MFSBLOCKSIZE;
