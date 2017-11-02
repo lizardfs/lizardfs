@@ -4071,9 +4071,11 @@ void matoclserv_fuse_setlk(matoclserventry *eptr, const uint8_t *data, uint32_t 
 }
 
 void matoclserv_list_defective_files(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
+	static const uint64_t kMaxNumberOfDefectiveEntries = 64 * 1024 * 1024;
 	uint8_t flags;
 	uint64_t entry_index, number_of_entries;
 	cltoma::listDefectiveFiles::deserialize(data, length, flags, entry_index, number_of_entries);
+	number_of_entries = std::min(number_of_entries, kMaxNumberOfDefectiveEntries);
 	std::vector<DefectiveFileInfo> files_info = fs_get_defective_nodes_info(flags, number_of_entries, entry_index);
 	matoclserv_createpacket(eptr, matocl::listDefectiveFiles::build(entry_index, files_info));
 }
