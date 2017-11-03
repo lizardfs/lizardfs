@@ -32,10 +32,9 @@ CHUNKSERVERS=4 \
 # Start failproxies on each chunkserver with different 'initial counter' parameters
 for csid in {0..3}; do
 	port=${info[chunkserver${csid}_port]}
-	config=${info[chunkserver${csid}_config]}
-	mfschunkserver -c "${config}" stop
+	lizardfs_chunkserver_daemon $csid stop
 	start_proxy $port $((port + 1000)) $((1883 * (4 + csid)))
-	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
+	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
 done
 lizardfs_wait_for_all_ready_chunkservers
 
@@ -59,9 +58,8 @@ FILE_SIZE=200M file-generate "${info[mount1]}/dir/big"
 # Validate all parts (including parity parts)
 MESSAGE="Validating data" expect_success file-validate "${info[mount2]}"/dir/*
 for csid in 0 1; do
-	config=${info[chunkserver${csid}_config]}
-	mfschunkserver -c "${config}" stop
+	lizardfs_chunkserver_daemon $csid stop
 	MESSAGE="Validating data (CS$csid is down)" expect_success file-validate "${info[mount3]}"/dir/*
-	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
+	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
 	lizardfs_wait_for_all_ready_chunkservers
 done

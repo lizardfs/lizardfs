@@ -15,16 +15,16 @@ for i in {0..19} ; do
 	head -c $filesize </dev/urandom >file${i}_$filesize
 done
 
-mfschunkserver -c "${info[chunkserver0_config]}" stop
-mfschunkserver -c "${info[chunkserver1_config]}" stop
+lizardfs_chunkserver_daemon 0 stop
+lizardfs_chunkserver_daemon 1 stop
 
 for file in * ; do
 	MESSAGE="Overwriting $file" expect_success file-overwrite $file
 	MESSAGE="Validating overwritten file" expect_success file-validate $file
 done
 
-mfschunkserver -c "${info[chunkserver0_config]}" start
-mfschunkserver -c "${info[chunkserver1_config]}" start
+lizardfs_chunkserver_daemon 0 start
+lizardfs_chunkserver_daemon 1 start
 
 lizardfs_wait_for_all_ready_chunkservers
 

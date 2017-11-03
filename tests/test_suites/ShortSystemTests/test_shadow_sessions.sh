@@ -12,7 +12,7 @@ MOUNTS=2 \
 
 mkdir "${info[mount1]}/subdir"
 
-echo 'mfssubfolder=/subdir' >>"${info[mount1_config]}"
+echo 'mfssubfolder=/subdir' >>"${info[mount1_cfg]}"
 lizardfs_mount_unmount 1
 lizardfs_mount_start 1
 

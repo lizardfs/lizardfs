@@ -96,7 +96,7 @@ lizardfs filerepair to_be_destroyed
 check metarestore OK
 
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk*')
-mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lizardfs_chunkserver_daemon $csid stop
 lizardfs_wait_for_ready_chunkservers 2
 lizardfs filerepair to_be_destroyed
 check metarestore OK

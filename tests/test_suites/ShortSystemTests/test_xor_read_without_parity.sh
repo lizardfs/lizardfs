@@ -11,7 +11,7 @@ FILE_SIZE=6M file-generate "$dir/file"
 
 # Find the chunkserver serving parity part and stop it
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_parity_of_2*')
-mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lizardfs_chunkserver_daemon $csid stop
 
 if ! file-validate "$dir/file"; then
 	test_add_failure "Data read from file is different than written"

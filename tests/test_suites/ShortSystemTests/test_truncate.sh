@@ -14,7 +14,7 @@ for goal in 2 xor3; do
 		# Empty the ramdisk to prevent running out of space in case of big chunks
 		find_all_chunks | xargs rm -f
 		for i in {0..2}; do
-			mfschunkserver -c "${info[chunkserver${i}_config]}" restart
+			lizardfs_chunkserver_daemon $i restart
 		done
 		lizardfs_wait_for_all_ready_chunkservers
 	else

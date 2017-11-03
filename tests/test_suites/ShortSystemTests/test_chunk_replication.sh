@@ -31,7 +31,7 @@ done
 
 # Remember list of all available chunks, stop one of the chunkservers and wait for replication
 chunks_before=$(get_list_of_chunks)
-mfschunkserver -c ${info[chunkserver0_config]} stop
+lizardfs_chunkserver_daemon 0 stop
 echo "Waiting $replication_timeout for replication..."
 end_time=$(date +%s -d "$replication_timeout")
 while (( $(date +%s) < end_time )); do
@@ -48,10 +48,9 @@ fi
 
 if [[ $verify_file_content == YES ]]; then
 	for ((csid=1; csid < number_of_chunkservers; ++csid)); do
-		config=${info[chunkserver${csid}_config]}
-		mfschunkserver -c "${config}" stop
+		lizardfs_chunkserver_daemon $csid stop
 		file-validate */*
-		mfschunkserver -c "${config}" start
+		lizardfs_chunkserver_daemon $csid start
 		lizardfs_wait_for_ready_chunkservers $((number_of_chunkservers - 1))
 	done
 fi

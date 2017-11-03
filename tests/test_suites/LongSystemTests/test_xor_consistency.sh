@@ -55,9 +55,9 @@ spoiling_thread() {
 	pseudorandom_init
 	while true; do
 		for i in 0 1 2; do
-			mfschunkserver -c "${info[chunkserver${i}_config]}" stop
+			lizardfs_chunkserver_daemon $i stop
 			sleep $(pseudorandom 1 30)
-			mfschunkserver -c "${info[chunkserver${i}_config]}" start
+			lizardfs_chunkserver_daemon $i start
 			sleep 5
 		done
 	done

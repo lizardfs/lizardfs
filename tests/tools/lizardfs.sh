@@ -119,7 +119,7 @@ setup_local_empty_lizardfs() {
 lizardfs_chunkserver_daemon() {
 	local id=$1
 	shift
-	mfschunkserver -c "${lizardfs_info_[chunkserver${id}_config]}" "$@" | cat
+	mfschunkserver -c "${lizardfs_info_[chunkserver${id}_cfg]}" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
 
@@ -442,7 +442,7 @@ add_chunkserver_() {
 	mfschunkserver -c "$chunkserver_cfg" start
 
 	lizardfs_info_[chunkserver${chunkserver_id}_port]=$csserv_port
-	lizardfs_info_[chunkserver${chunkserver_id}_config]=$chunkserver_cfg
+	lizardfs_info_[chunkserver${chunkserver_id}_cfg]=$chunkserver_cfg
 	lizardfs_info_[chunkserver${chunkserver_id}_hdd]=$hdd_cfg
 }
 
@@ -482,7 +482,7 @@ add_mount_() {
 	create_mfsmount_cfg_ ${mount_id} > "$mount_cfg"
 	mkdir -p "$mount_dir"
 	lizardfs_info_[mount${mount_id}]="$mount_dir"
-	lizardfs_info_[mount${mount_id}_config]="$mount_cfg"
+	lizardfs_info_[mount${mount_id}_cfg]="$mount_cfg"
 	max_tries=30
 	fuse_options=""
 	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do

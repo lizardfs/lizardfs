@@ -16,7 +16,7 @@ done
 wait
 
 # wait for lizardfs to close files
-cs_pid=$(mfschunkserver -c "${info[chunkserver0_config]}" test 2>&1 | sed 's/.*: //')
+cs_pid=$(lizardfs_chunkserver_daemon 0 test 2>&1 | sed 's/.*: //')
 for ((time_elapsed=0; time_elapsed < time_limit; ++time_elapsed)); do
 	leaked_descriptors_number=$(lsof +D $RAMDISK_DIR -p$cs_pid 2>/dev/null | \
 			grep -v 'lock' | grep chunk_ | wc -l)

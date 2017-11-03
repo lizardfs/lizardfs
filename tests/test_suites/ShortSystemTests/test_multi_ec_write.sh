@@ -2,7 +2,7 @@ for_chunkservers() {
 	operation=${1}
 	shift
 	for csid in "${@}"; do
-		mfschunkserver -c ${info[chunkserver${csid}_config]} "${operation}" &
+		lizardfs_chunkserver_daemon $csid "${operation}" &
 	done
 	wait
 	if [[ $operation == stop ]]; then

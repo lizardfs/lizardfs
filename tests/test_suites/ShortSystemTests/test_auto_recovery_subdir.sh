@@ -12,7 +12,7 @@ CHUNKSERVERS=1 \
 mkdir -p "${info[mount0]}/some/subfolder"
 chmod 1777 "${info[mount0]}/some/subfolder"
 lizardfs_mount_unmount 1
-echo "mfssubfolder=some/subfolder" >> "${info[mount1_config]}"
+echo "mfssubfolder=some/subfolder" >> "${info[mount1_cfg]}"
 lizardfs_mount_start 1
 
 # Remember version of the metadata file. We expect it not to change when generating data.

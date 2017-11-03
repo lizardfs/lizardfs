@@ -30,7 +30,7 @@ expect_equals "cs0 cs1 cs2 cs3" "$(awk '{print $10}' <<< "$cslist" | sort | xarg
 
 # Turn off one chunkserver and see what lizardfs-probe prints now
 export MESSAGE="Veryfing chunkservers list with one chunkserver down"
-mfschunkserver -c "${info[chunkserver0_config]}" stop
+lizardfs_chunkserver_daemon 0 stop
 lizardfs_wait_for_ready_chunkservers 3
 cslist=$(list_chunkservers)
 expect_awk_finds_no 'NF != 10' "$cslist"

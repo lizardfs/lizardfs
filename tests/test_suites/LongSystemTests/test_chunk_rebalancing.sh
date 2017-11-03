@@ -42,10 +42,9 @@ done
 MESSAGE="Chunks are not rebalanced properly" assert_equals "$expected_rebalancing_status" "$status"
 
 for csid in {0..4}; do
-	config=${info[chunkserver${csid}_config]}
-	mfschunkserver -c "${config}" stop
+	lizardfs_chunkserver_daemon $csid stop
 	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dir/*
 	MESSAGE="Validating files without chunkserver $csid" expect_success file-validate dirxor/*
-	mfschunkserver -c "${config}" start
+	lizardfs_chunkserver_daemon $csid start
 	lizardfs_wait_for_all_ready_chunkservers
 done

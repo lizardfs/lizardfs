@@ -16,7 +16,7 @@ assert_success lizardfs-admin stop-master-without-saving-metadata \
 		localhost "${info[matocl]}" <<< "${info[admin_password]}"
 
 # Wait for master server to actually shut down
-assert_eventually "! mfsmaster -c ${info[master_cfg]} isalive"
+assert_eventually "! lizardfs_master_daemon isalive"
 
 # Verify if a proper lock file was left by the master server
 lockfile="${info[master_data_path]}/metadata.mfs.lock"

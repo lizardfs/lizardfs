@@ -31,5 +31,5 @@ MESSAGE="Data is corrupted after writing" expect_success file-validate "$file"
 
 # Validate the parity part
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_3*')
-mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lizardfs_chunkserver_daemon $csid stop
 MESSAGE="Parity is corrupted after writing" expect_success file-validate "$file"

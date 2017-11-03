@@ -31,7 +31,7 @@ for i in "${levels[@]}"; do
 done
 
 # Now remove one of chunkservers
-mfschunkserver -c "${info[chunkserver0_config]}" stop
+lizardfs_chunkserver_daemon 0 stop
 
 # For each created file restore its original size using truncate (ie. chop off the random bytes
 # appended after generating the file) and verify if the data is OK.
@@ -45,6 +45,6 @@ for i in "${levels[@]}"; do
 done
 
 # Verify again after starting the chunkserver
-mfschunkserver -c "${info[chunkserver0_config]}" start
+lizardfs_chunkserver_daemon 0 start
 lizardfs_wait_for_ready_chunkservers 10
 MESSAGE="Verification after starting the chunkserver" assert_success file-validate xor*/*

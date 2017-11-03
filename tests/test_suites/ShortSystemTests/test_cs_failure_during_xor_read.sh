@@ -28,12 +28,11 @@ FILE_SIZE=123456789 file-generate "$dir/file"
 # Find any chunkserver serving part 1 of some chunk
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_3*')
 port=${info[chunkserver${csid}_port]}
-config=${info[chunkserver${csid}_config]}
 
 # Limit data transfer from this chunkserver
 start_proxy $port $((port + 1000))
-mfschunkserver -c "${config}" stop
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" mfschunkserver -c "${config}" start
+lizardfs_chunkserver_daemon $csid stop
+LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
 lizardfs_wait_for_all_ready_chunkservers
 
 if ! file-validate "$dir/file"; then

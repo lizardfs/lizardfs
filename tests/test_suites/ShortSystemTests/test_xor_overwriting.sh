@@ -29,7 +29,7 @@ fi
 
 # Find the chunkserver serving part 1 of 3 and stop it
 csid=$(find_first_chunkserver_with_chunks_matching 'chunk_xor_1_of_3*')
-mfschunkserver -c "${info[chunkserver${csid}_config]}" stop
+lizardfs_chunkserver_daemon $csid stop
 
 # Validate the parity part
 if ! file-validate "$dir/file"; then

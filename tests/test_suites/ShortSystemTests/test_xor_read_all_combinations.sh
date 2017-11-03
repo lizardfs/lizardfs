@@ -12,10 +12,10 @@ lizardfs setgoal xor9 "$dir"
 FILE_SIZE=876M file-generate "$dir/file"
 
 for i in {0..9}; do
-	mfschunkserver -c "${info[chunkserver${i}_config]}" stop
+	lizardfs_chunkserver_daemon $i stop
 	if ! file-validate "$dir/file"; then
 		test_add_failure "Data read from file without chunkserver $i is different than written"
 	fi
-	mfschunkserver -c "${info[chunkserver${i}_config]}" start
+	lizardfs_chunkserver_daemon $i start
 	lizardfs_wait_for_all_ready_chunkservers
 done

@@ -38,7 +38,7 @@ build_lizardfsXX() {
 }
 
 lizardfsXX_chunkserver_daemon() {
-	"$LIZARDFSXX_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_config]}" "$2" | cat
+	"$LIZARDFSXX_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_cfg]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 

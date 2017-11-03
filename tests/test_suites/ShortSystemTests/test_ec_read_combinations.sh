@@ -14,13 +14,13 @@ FILE_SIZE=876M file-generate "$dir/file"
 
 for i in {0..7}; do
 	for cs in {0..2}; do
-		mfschunkserver -c "${info[chunkserver$(((i + cs) % 8))_config]}" stop
+		lizardfs_chunkserver_daemon $(((i + cs) % 8)) stop
 	done
 	if ! file-validate "$dir/file"; then
 		test_add_failure "Data read from file without chunkservers $i-$(((i + cs) % 8)) is different than written"
 	fi
 	for cs in {0..2}; do
-		mfschunkserver -c "${info[chunkserver$(((i + cs) % 8))_config]}" start
+		lizardfs_chunkserver_daemon $(((i + cs) % 8)) start
 	done
 	lizardfs_wait_for_all_ready_chunkservers
 done

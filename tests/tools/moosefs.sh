@@ -31,7 +31,7 @@ build_moosefs() {
 }
 
 moosefs_chunkserver_daemon() {
-	"$MOOSEFS_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_config]}" "$2" | cat
+	"$MOOSEFS_DIR/sbin/mfschunkserver" -c "${lizardfs_info_[chunkserver$1_cfg]}" "$2" | cat
 	return ${PIPESTATUS[0]}
 }
 

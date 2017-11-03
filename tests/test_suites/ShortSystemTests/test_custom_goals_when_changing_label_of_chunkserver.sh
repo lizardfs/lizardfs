@@ -17,7 +17,7 @@ assert_equals 0 $(find_chunkserver_chunks 2 | wc -l)
 assert_equals 0 $(find_chunkserver_chunks 3 | wc -l)
 
 # Change label of chunkserver 0 from "us" to "eu".
-sed -i -re 's/LABEL ?=.*/LABEL = eu/' "${info[chunkserver0_config]}"
+sed -i -re 's/LABEL ?=.*/LABEL = eu/' "${info[chunkserver0_cfg]}"
 lizardfs_chunkserver_daemon 0 reload
 
 # Expect all chunks to disappear from this server and move to server 1.
