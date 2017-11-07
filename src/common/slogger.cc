@@ -99,6 +99,8 @@ bool lzfs::add_log_stderr(log_level::LogLevel level) {
 	try {
 		LoggerPtr logger = spdlog::stderr_color_mt("stderr");
 		logger->set_level((spdlog::level::level_enum)level);
+		// Format: DATE TIME [LEVEL] [PID:TID] : MESSAGE
+		logger->set_pattern("%D %H:%M:%S.%e [%l] [%P:%t] : %v");
 		return true;
 	} catch (const spdlog::spdlog_ex &e) {
 		lzfs_pretty_syslog(LOG_ERR, "Adding stderr log failed: %s", e.what());

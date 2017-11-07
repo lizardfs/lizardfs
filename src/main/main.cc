@@ -177,9 +177,9 @@ const std::string& set_syslog_ident() {
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY | LOG_PERROR, LOG_USER);
 #else
 		openlog(logIdent.c_str(), LOG_PID | LOG_NDELAY, LOG_USER);
-		lzfs::add_log_stderr(lzfs::log_level::debug);
 #endif
 	}
+
 	return logIdent;
 }
 
@@ -197,11 +197,6 @@ static void main_configure_debug_log() {
 	}
 	lzfs::drop_all_logs();
 	lzfs::add_log_syslog();
-#ifndef LOG_PERROR
-	if (!gRunAsDaemon) {
-		lzfs::add_log_stderr(lzfs::log_level::debug);
-	}
-#endif
 	for (std::string suffix : {"", "_A", "_B", "_C"}) {
 		std::string configEntryName = "MAGIC_DEBUG_LOG" + suffix;
 		std::string value = cfg_get(configEntryName.c_str(), "");
@@ -877,6 +872,11 @@ int main(int argc,char **argv) {
 		return LIZARDFS_EXIT_STATUS_ERROR;
 	}
 
+	if (gRunAsDaemon) {
+		lzfs::add_log_stderr(lzfs::log_level::warn);
+	} else {
+		lzfs::add_log_stderr(lzfs::log_level::debug);
+	}
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		if (gRunAsDaemon) {
 			makedaemon();
