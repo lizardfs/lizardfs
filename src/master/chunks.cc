@@ -2114,6 +2114,13 @@ bool ChunkWorker::replicateChunkPart(Chunk *c, Goal::Slice::Type slice_type, int
 				skipped_replications += label_and_count.second;
 				continue;
 			}
+			if (!RebalancingBetweenLabels && !c->isEndangered()
+			    && calc.isSafeEnoughToWrite(gRedundancyLevel)) {
+				// Chunk is not endangered, so we should prevent label spilling.
+				// Only endangered chunks will be replicated across labels.
+				skipped_replications += label_and_count.second;
+				continue;
+			}
 			if (valid_parts_count + skipped_replications >= expected_copies) {
 				// Don't create copies on non-matching servers if there already are
 				// enough replicas.
