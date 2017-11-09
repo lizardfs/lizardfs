@@ -27,8 +27,6 @@
 #  include "common/platform.h"
 #endif
 
-#include "common/lizardfs_error_codes.h"
-
 #define MSB_1 0
 #define MSB_2 1
 #define MSB_4 2

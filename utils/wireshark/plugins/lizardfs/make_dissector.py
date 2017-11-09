@@ -467,7 +467,7 @@ static guint lizardfs_get_message_length(packet_info *pinfo, tvbuff_t *tvb, int 
 
 static void dissect_lizardfs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree) {
     col_clear(pinfo->cinfo, COL_INFO);
-    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, lizardfs_get_message_length, dissect_lizardfs_message);
+    tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, lizardfs_get_message_length, dissect_lizardfs_message, NULL);
 }
 
 static void register_tcp_port(guint32 port) {

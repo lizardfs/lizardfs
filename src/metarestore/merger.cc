@@ -26,6 +26,7 @@
 #include <syslog.h>
 
 #include "protocol/MFSCommunication.h"
+#include "common/lizardfs_error_codes.h"
 #include "common/slogger.h"
 #include "master/restore.h"
 

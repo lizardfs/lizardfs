@@ -18,7 +18,7 @@ On Debian/Ubuntu system you should use dpkg-statoverride command, i.e.:
 # Set some variables
       LIZARDFS_SRCDIR=~/src/lizardfs
       WIRESHARK_SRCDIR=~/src/wireshark
-      WIRESHARK_VERSION=1.10.6 # Get version by invoking wireshark --version
+      WIRESHARK_VERSION=2.2.6 # Get version by invoking wireshark --version
 # Checkout the wireshark sources, eg:
       git clone http://code.wireshark.org/git/wireshark "$WIRESHARK_SRCDIR"
 # Checkout your version of wireshark
@@ -45,12 +45,12 @@ On Debian/Ubuntu system you should use dpkg-statoverride command, i.e.:
       cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_wireshark=NO
       make -j8
 # Install the plugin, eg. on Debian-like distros:
-      sudo ln -s "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
+      sudo ln -s "$WIRESHARK_SRCDIR"/build/run/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
 # or (depending on your wireshark version)
-      sudo ln -s "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so /usr/lib/x86_64-linux-gnu/wireshark/libwireshark3/plugins/
+      sudo ln -s "$WIRESHARK_SRCDIR"/build/run/lizardfs.so /usr/lib/x86_64-linux-gnu/wireshark/libwireshark3/plugins/
 # or better yet, put plugin in your home directory:
       mkdir -p ${HOME}/.wireshark/plugins
-      mv "$WIRESHARK_SRCDIR"/build/lib/lizardfs.so ${HOME}/.wireshark/plugins/
+      cp "$WIRESHARK_SRCDIR"/build/run/lizardfs.so ${HOME}/.wireshark/plugins/
 # Enjoy! This plugin recognizes the LizardFS proocol using TCP port numbers. If you use
   non-standard ports (9419-9422) you have to change it in Edit->Preferences->Protocols->LizardFS,
   eg. to parse the communication in our test suite:
