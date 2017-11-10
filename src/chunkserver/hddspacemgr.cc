@@ -2923,7 +2923,7 @@ void hdd_scrub_handle(int signal) {
     if ( signal == 31 || signal == 12 || signal == 17 ) {
         if ( ScrubIsRunning ) {
             ScrubIsRunning = 0;
-            syslog(LOG_NOTICE, "hdd space manager: scrub aborted");
+            lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub aborted");
             return;
         } else {
             ScrubIsRunning = 1;
@@ -2963,7 +2963,7 @@ void hdd_scrubber_thread() {
 
     	starttime = time(NULL);
 
-    	syslog(LOG_NOTICE, "hdd space manager: scrub started. Scrubbing %d chunks.", chunksNumber);
+    	lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub started. Scrubbing %d chunks.", chunksNumber);
 
     	for (f=folderhead ; f ; f=f->next) {
             	for (c=f->testhead ; c ; c=c->testnext) {
@@ -2985,7 +2985,7 @@ void hdd_scrubber_thread() {
 			remainingtime = elapsedtime * (100-progress);
 
 			if ( progress != lastProgress ) {
-				syslog(LOG_NOTICE, "hdd space manager: scrub is running (%d%%, %d mins, %d remaining). scrubbed chunks=%d/%d, damaged chunks=%d", progress, elapsedtime/60, remainingtime/60, cnt, chunksNumber, damagedCnt);
+				lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub is running (%d%%, %d mins, %d remaining). scrubbed chunks=%d/%d, damaged chunks=%d", progress, elapsedtime/60, remainingtime/60, cnt, chunksNumber, damagedCnt);
 			}
 
 			if ( c && c->state==CH_AVAIL && !c->filename().empty() ) {
@@ -2998,7 +2998,7 @@ void hdd_scrubber_thread() {
                 	hdd_report_damaged_chunk(chunkid, chunkType);
                 	damagedCnt++;
 
-                	syslog(LOG_NOTICE, "hdd space manager: scrub FAILED on chunk %s, damaged chunks=%d", path.c_str(), damagedCnt);
+                	lzfs_pretty_syslog(LOG_WARNING, "hdd space manager: scrub FAILED on chunk %s, damaged chunks=%d", path.c_str(), damagedCnt);
 				}
 			}
 
@@ -3006,7 +3006,7 @@ void hdd_scrubber_thread() {
 		}
 
     	totaltime = (time(NULL)-starttime)/60.0;
-    	syslog(LOG_NOTICE, "hdd space manager: scrub ended in %d minutes. scrubbed chunks=%d, failed chunks=%d", totaltime, cnt, damagedCnt);
+    	lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub ended in %d minutes. scrubbed chunks=%d, failed chunks=%d", totaltime, cnt, damagedCnt);
     	ScrubIsRunning = 0;
 	}
 }
