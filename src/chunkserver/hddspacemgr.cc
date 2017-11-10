@@ -104,7 +104,7 @@
 
 #define CHUNKLOCKED ((void*)1)
 
-static std::atomic<uint32_t> HDDTestFreq(10);
+static std::atomic<unsigned> HDDTestFreq_ms(10 * 1000);
 
 /// Number of bytes which should be addded to each disk's used space
 static uint64_t gLeaveFree;
@@ -2846,22 +2846,18 @@ void hdd_test_chunk(ChunkWithVersionAndType chunk) {
 
 void hdd_tester_thread() {
 	TRACETHIS();
-	folder *f,*of;
+	folder *f, *of;
 	Chunk *c;
 	uint64_t chunkid;
 	uint32_t version;
 	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
-	uint32_t freq;
 	uint32_t cnt;
-	uint64_t st,en;
-	std::string path;
+	uint64_t start_us, end_us;
 
 	f = folderhead;
-	freq = HDDTestFreq;
 	cnt = 0;
 	while (!term) {
-		st = get_usectime();
-		path.clear();
+		start_us = get_usectime();
 		chunkid = 0;
 		version = 0;
 		{
@@ -2871,45 +2867,44 @@ void hdd_tester_thread() {
 			uint8_t testerresetExpected = 1;
 			if (testerreset.compare_exchange_strong(testerresetExpected, 0)) {
 				f = folderhead;
-				freq = HDDTestFreq;
 				cnt = 0;
 			}
-			cnt++;
-			if (cnt<freq || freq==0 || folderactions==0 || folderhead==NULL) {
-				path.clear();
+			cnt += std::min(HDDTestFreq_ms.load(), 1000U);
+			if (cnt < HDDTestFreq_ms || folderactions == 0 || folderhead == nullptr) {
+				chunkid = 0;
 			} else {
 				cnt = 0;
 				of = f;
 				do {
 					f = f->next;
-					if (f==NULL) {
+					if (f == nullptr) {
 						f = folderhead;
 					}
-				} while ((f->damaged || f->todel || f->toremove || f->scanstate!=SCST_WORKING) && of!=f);
-				if (of==f && (f->damaged || f->todel || f->toremove || f->scanstate!=SCST_WORKING)) {   // all folders are unavailable
-					path.clear();
+				} while ((f->damaged || f->todel || f->toremove || f->scanstate != SCST_WORKING) && of != f);
+				if (of == f && (f->damaged || f->todel || f->toremove || f->scanstate != SCST_WORKING)) {
+					chunkid = 0;
 				} else {
 					c = f->testhead;
 					if (c && c->state==CH_AVAIL) {
 						chunkid = c->chunkid;
 						version = c->version;
 						chunkType = c->type();
-						path = c->filename();
 					}
 				}
 			}
 		}
-		if (!path.empty()) {
-			if (hdd_int_test(chunkid, version, chunkType) !=LIZARDFS_STATUS_OK) {
+		if (chunkid > 0) {
+			if (hdd_int_test(chunkid, version, chunkType) != LIZARDFS_STATUS_OK) {
 				hdd_report_damaged_chunk(chunkid, chunkType);
 			}
-			path.clear();
+			chunkid = 0;
 		}
-		en = get_usectime();
-		if (en>st) {
-			en-=st;
-			if (en<1000000) {
-				usleep(1000000-en);
+		end_us = get_usectime();
+		if (end_us > start_us) {
+			unsigned time_to_sleep_us = 1000 * std::min(HDDTestFreq_ms.load(), 1000U);
+			end_us -= start_us;
+			if (end_us < time_to_sleep_us) {
+				usleep(time_to_sleep_us - end_us);
 			}
 		}
 	}
@@ -3742,7 +3737,7 @@ void hdd_reload(void) {
 
 	PerformFsync = cfg_getuint32("PERFORM_FSYNC", 1);
 
-	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
+	HDDTestFreq_ms = cfg_ranged_get("HDD_TEST_FREQ", 10., 0.001, 1000000.) * 1000;
 
 	gPunchHolesInFiles = cfg_getuint32("HDD_PUNCH_HOLES", 0);
 
@@ -3831,7 +3826,7 @@ int hdd_init(void) {
 				"(searching for available chunks)");
 
 	gAdviseNoCache = cfg_getuint32("HDD_ADVISE_NO_CACHE", 0);
-	HDDTestFreq = cfg_getuint32("HDD_TEST_FREQ",10);
+	HDDTestFreq_ms = cfg_ranged_get("HDD_TEST_FREQ", 10., 0.001, 1000000.) * 1000;
 
 	gPunchHolesInFiles = cfg_getuint32("HDD_PUNCH_HOLES", 0);
 
