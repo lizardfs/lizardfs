@@ -384,6 +384,7 @@ void changeugid(RunMode runmode) {
 		free(wuser);
 		free(wgroup);
 
+		setgroups(0, NULL);
 		if (setgid(wrk_gid)<0) {
 			lzfs_pretty_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
