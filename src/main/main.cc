@@ -384,17 +384,20 @@ void changeugid(RunMode runmode) {
 		free(wuser);
 		free(wgroup);
 
-		if (setgid(wrk_gid)<0) {
-			lzfs_pretty_errlog(LOG_ERR,"can't set gid to %d",(int)wrk_gid);
+		if (setgroups(0, NULL) < 0) {
+			lzfs::log_warn("can't reset supplementary groups");
+		}
+		if (setgid(wrk_gid) < 0) {
+			lzfs::log_err("can't set gid to {}", (int)wrk_gid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
-			lzfs_pretty_syslog(LOG_NOTICE,"set gid to %d",(int)wrk_gid);
+			lzfs::log_info("set gid to {}", (int)wrk_gid);
 		}
 		if (setuid(wrk_uid)<0) {
-			lzfs_pretty_errlog(LOG_ERR,"can't set uid to %d",(int)wrk_uid);
+			lzfs::log_err("can't set uid to {}", (int)wrk_uid);
 			exit(LIZARDFS_EXIT_STATUS_ERROR);
 		} else if ((runmode == RunMode::kStart) || (runmode == RunMode::kRestart)){
-			lzfs_pretty_syslog(LOG_NOTICE,"set uid to %d",(int)wrk_uid);
+			lzfs::log_info("set uid to {}", (int)wrk_uid);
 		}
 	}
 }
