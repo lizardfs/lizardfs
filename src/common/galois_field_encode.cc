@@ -163,7 +163,7 @@ void ec_encode_data_avx2(int len, int srcs, int dests, uint8_t *v, uint8_t **src
 			for (int j = 0; j < srcs; j++) {
 				v16ui a = *(v16ui_unaligned *)(src[j] + i);
 
-				v32u tbl_lo = *(v32u *)tbl;
+				v32u tbl_lo = *(v32u_unaligned *)tbl;
 
 				v32u tbl_hi =
 				    (v32u)_mm256_permute2x128_si256((__m256i)tbl_lo, (__m256i)tbl_lo, 0x11);
