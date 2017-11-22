@@ -320,7 +320,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files master
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmaster
 %attr(755,root,root) %{_sbindir}/mfsrestoremaster
 %attr(755,root,root) %{_sbindir}/mfsmetadump
@@ -353,7 +353,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files metalogger
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmetalogger
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfsmetalogger.cfg.5*
@@ -368,7 +368,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files chunkserver
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfschunkserver
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfschunkserver.cfg.5*
@@ -385,7 +385,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files client
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_bindir}/lizardfs
 %attr(755,root,root) %{_bindir}/mfsmount
 %attr(755,root,root) %{_bindir}/mfstools.sh
@@ -455,7 +455,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files cgi
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %dir %{_datadir}/mfscgi
 %{_datadir}/mfscgi/err.gif
 %{_datadir}/mfscgi/favicon.ico
@@ -480,7 +480,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files adm
 %defattr(644,root,root,755)
-%doc NEWS README UPGRADE
+%doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_bindir}/lizardfs-admin
 %{_mandir}/man8/lizardfs-admin.8*
 %{_bindir}/lizardfs-probe
