@@ -487,8 +487,16 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
-* Thu May 11 2017 Artur Kornacki <contact@lizardfs.org> - 3.12.0-devel
-- (none) None
+* Wed Nov 22 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.12.0
+- (all) C API
+- (all) nfs-ganesha plugin
+- (all) RichACL support (which includes NFSv4)
+- (all) OSX ACL support
+- (master, mount) file lock fixes
+- (mount) client readahead enabled by default
+- (mount) AVX2 extensions support for erasure code goals
+- (chunkserver) more flexible options
+- (all) many fixes
 
 * Tue May 9 2017 Piotr Sarna <contact@lizardfs.org> - 3.11.0
 - (master) improve ACL implementation

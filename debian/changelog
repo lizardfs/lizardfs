@@ -1,8 +1,16 @@
-lizardfs (3.12.0-devel) unstable; urgency=low
+lizardfs (3.12.0) stable; urgency=medium
 
-  * (none) None
+  * (all) C API
+  * (all) nfs-ganesha plugin
+  * (all) RichACL support (which includes NFSv4)
+  * (all) OSX ACL support
+  * (master, mount) file lock fixes
+  * (mount) client readahead enabled by default
+  * (mount) AVX2 extensions support for erasure code goals
+  * (chunkserver) more flexible options
+  * (all) many fixes
 
- -- Artur Kornacki <contact@lizardfs.org>  Thu, 11 May 2017 11:00:00 +0200
+ -- Pawel Kalinowski <contact@lizardfs.org>  Wed, 22 Nov 2017 11:00:00 +0200
 
 lizardfs (3.11.0) stable; urgency=medium
 
