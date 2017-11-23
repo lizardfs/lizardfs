@@ -1,7 +1,7 @@
 goal=9
 CHUNKSERVERS=9 \
 		MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-		CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 0" \
+		CHUNKSERVER_EXTRA_CONFIG="HDD_TEST_FREQ = 10000" \
 		USE_RAMDISK=YES \
 		setup_local_empty_lizardfs info
 
