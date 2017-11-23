@@ -2,7 +2,7 @@
 
 Summary:        LizardFS - distributed, fault tolerant file system
 Name:           lizardfs
-Version:        3.12.0
+Version:        3.13.0
 Release:        0%{?distro}
 License:        GPL v3
 Group:          System Environment/Daemons
@@ -487,6 +487,9 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %changelog
+* Thu Nov 23 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.13.0-devel
+- (none) None
+
 * Wed Nov 22 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.12.0
 - (all) C API
 - (all) nfs-ganesha plugin
