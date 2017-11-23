@@ -264,6 +264,14 @@ public:
 		return ace_list_.end();
 	}
 
+	void clear() {
+		owner_mask_ = 0;
+		group_mask_ = 0;
+		other_mask_ = 0;
+		flags_ = 0;
+		ace_list_.clear();
+	}
+
 	void setOwnerMask(uint32_t mask) {
 		owner_mask_ = mask;
 	}
@@ -435,6 +443,17 @@ public:
 	 */
 	static bool equivMode(const RichACL &acl, uint16_t &mode, bool is_dir);
 
+	/*! \brief Compute upper bound masks
+	*
+	* Computes upper bound owner, group, and other masks so that none of the
+	* permissions allowed by the acl are disabled.
+	*
+	* We don't make assumptions about who the owner is so that the owner can
+	* change with no effect on the file masks or file mode permission bits; this
+	* means that we must assume that all entries can match the owner.
+	*/
+	void computeMaxMasks();
+
 	LIZARDFS_DEFINE_SERIALIZE_METHODS(owner_mask_, group_mask_, other_mask_, flags_, ace_list_)
 
 protected:
@@ -449,7 +468,6 @@ protected:
 	void isolateWho(const Ace &who, uint32_t deny);
 	void isolateGroupClass(uint32_t deny);
 	void applyMasks2AceList(uint32_t owner);
-	void computeMaxMasks();
 
 	uint32_t allowedToWho(const Ace &who) const;
 	uint32_t groupClassAllowed();

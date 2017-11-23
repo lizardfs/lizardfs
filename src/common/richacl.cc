@@ -394,8 +394,6 @@ bool RichACL::inheritInode(const RichACL &dir_acl, uint16_t &mode_out, RichACL &
 	return true;
 }
 
-
-
 void RichACL::createExplicitInheritance() {
 	int n = ace_list_.size();
 	for (int i = 0; i < n; ++i) {
