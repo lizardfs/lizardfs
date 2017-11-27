@@ -27,11 +27,13 @@ assert_equals 0 $(grep updater_start "$TEMP_DIR/log" | wc -l)
 
 # Verify if the command without --async blocks us until checkum is recalculated
 time assert_success lizardfs-admin magic-recalculate-metadata-checksum localhost "$port" <<< "pass"
-assert_equals 1 $(grep updater_end "$TEMP_DIR/log" | wc -l)
-assert_equals 1 $(grep updater_start "$TEMP_DIR/log" | wc -l)
+log_data=$(tail -n 100 "$TEMP_DIR/log")
+assert_equals 1 $(echo "$log_data" | grep updater_end | wc -l)
+assert_equals 1 $(echo "$log_data" | grep updater_start | wc -l)
 
 # Verify if the command with --async starts the process, but doesn't block us
-assert_success lizardfs-admin magic-recalculate-metadata-checksum localhost "$port" --async <<< "pass"
-assert_equals 2 $(grep updater_start "$TEMP_DIR/log" | wc -l)
-assert_equals 1 $(grep updater_end "$TEMP_DIR/log" | wc -l)
+time assert_success lizardfs-admin magic-recalculate-metadata-checksum localhost "$port" --async <<< "pass"
+log_data=$(tail -n 100 "$TEMP_DIR/log")
+assert_equals 2 $(echo "$log_data" | grep updater_start | wc -l)
+assert_equals 1 $(echo "$log_data" | grep updater_end | wc -l)
 assert_eventually_prints 2 'grep updater_end "$TEMP_DIR/log" | wc -l'
