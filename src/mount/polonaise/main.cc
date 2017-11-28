@@ -1023,19 +1023,6 @@ bool daemonize() {
 #endif
 
 int main (int argc, char **argv) {
-	bool userwlock = true;
-	auto writeworkers = 30;
-	auto writewindowsize = 15;
-	auto chunkserverrtt = 200;
-	auto chunkserverconnectreadto = 2000;
-	auto chunkserverwavereadto = 500;
-	auto chunkservertotalreadto = 2000;
-	auto cacheexpirationtime = 500;
-	auto readaheadmaxwindowsize = 4096;
-	bool prefetchFullXorStripes = true;
-	auto bandwidthOveruse = 1.25;
-	auto chunkserverwriteto = 5000;
-	auto cacheperinodepercentage = 25;
 	parse_command_line(argc, argv, gSetup);
 
 #ifndef _WIN32
@@ -1068,21 +1055,9 @@ int main (int argc, char **argv) {
 	params.password_digest = std::vector<uint8_t>(gSetup.password.begin(), gSetup.password.end());
 	params.do_not_remember_password = gSetup.forget_password;
 	params.report_reserved_period = gSetup.report_reserved_period;
-	params.bandwidth_overuse = bandwidthOveruse;
 
 	params.io_retries = gSetup.io_retries;
-	params.chunkserver_round_time_ms = chunkserverrtt;
-	params.chunkserver_connect_timeout_ms = chunkserverconnectreadto;
-	params.chunkserver_wave_read_timeout_ms = chunkserverwavereadto;
-	params.total_read_timeout_ms = chunkservertotalreadto;
-	params.cache_expiration_time_ms = cacheexpirationtime;
-	params.readahead_max_window_size_kB = readaheadmaxwindowsize;
-	params.prefetch_xor_stripes = prefetchFullXorStripes;
 	params.write_cache_size = gSetup.write_buffer_size;
-	params.write_workers = writeworkers;
-	params.write_window_size = writewindowsize;
-	params.chunkserver_write_timeout_ms = chunkserverwriteto;
-	params.cache_per_inode_percentage = cacheperinodepercentage;
 
 	params.keep_cache = true;
 	params.direntry_cache_timeout = gSetup.direntry_cache_timeout;
@@ -1091,7 +1066,6 @@ int main (int argc, char **argv) {
 	params.attr_cache_timeout = gSetup.attr_cache_timeout;
 	params.mkdir_copy_sgid = !gSetup.no_mkdir_copy_sgid;
 	params.sugid_clear_mode = gSetup.sugid_clear_mode;
-	params.use_rw_lock = userwlock;
 
 	params.debug_mode = gSetup.debug;
 	params.verbose = true;
