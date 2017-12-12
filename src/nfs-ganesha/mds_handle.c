@@ -52,6 +52,7 @@ static nfsstat4 lzfs_fsal_layoutget(struct fsal_obj_handle *obj_pub, struct req_
 	LogDebug(COMPONENT_PNFS, "will issue layout offset: %" PRIu64 " length: %" PRIu64,
 	         res->segment.offset, res->segment.length);
 
+	deviceid.device_id2 = lzfs_hdl->export->export.export_id;
 	deviceid.devid = lzfs_hdl->inode;
 	ds_wire.inode = lzfs_hdl->inode;
 	layout_util = MFSCHUNKSIZE;

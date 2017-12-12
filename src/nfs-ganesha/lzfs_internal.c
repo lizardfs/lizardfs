@@ -103,6 +103,9 @@ struct lzfs_fsal_handle *lzfs_fsal_new_handle(const struct stat *attr,
 	result = gsh_calloc(1, sizeof(struct lzfs_fsal_handle));
 
 	result->inode = attr->st_ino;
+	result->unique_key.module_id = FSAL_ID_EXPERIMENTAL;
+	result->unique_key.export_id = lzfs_export->export.export_id;
+	result->unique_key.inode = attr->st_ino;
 
 	fsal_obj_handle_init(&result->handle, &lzfs_export->export, posix2fsal_type(attr->st_mode));
 	lzfs_fsal_handle_ops_init(lzfs_export, &result->handle.obj_ops);

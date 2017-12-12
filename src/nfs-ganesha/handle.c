@@ -482,8 +482,8 @@ static void lzfs_fsal_handle_to_key(struct fsal_obj_handle *obj_hdl, struct gsh_
 
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	fh_desc->addr = &lzfs_obj->inode;
-	fh_desc->len = sizeof(liz_inode_t);
+	fh_desc->addr = &lzfs_obj->unique_key;
+	fh_desc->len = sizeof(struct lzfs_fsal_key);
 }
 
 static fsal_status_t lzfs_int_open_fd(struct lzfs_fsal_handle *lzfs_obj, fsal_openflags_t openflags,
