@@ -57,10 +57,17 @@ struct lzfs_fsal_state_fd {
 	struct lzfs_fsal_fd lzfs_fd;
 };
 
+struct lzfs_fsal_key {
+	uint16_t module_id;
+	uint16_t export_id;
+	liz_inode_t inode;
+};
+
 struct lzfs_fsal_handle {
 	struct fsal_obj_handle handle; /*< The public handle */
 	struct lzfs_fsal_fd fd;
 	liz_inode_t inode;
+	struct lzfs_fsal_key unique_key;
 	struct lzfs_fsal_export *export;
 	struct fsal_share share;
 };
