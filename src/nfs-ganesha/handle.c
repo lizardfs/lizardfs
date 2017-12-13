@@ -105,8 +105,8 @@ static fsal_status_t lzfs_fsal_readdir(struct fsal_obj_handle *dir_hdl, fsal_coo
 		direntry_offset = MAX(3, *whence) - 1;
 	}
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%lli", lzfs_dir->inode,
-	             (long long)direntry_offset);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32 " offset=%lli",
+	             lzfs_export->export.export_id, lzfs_dir->inode, (long long)direntry_offset);
 
 	while (1) {
 		size_t i, entries_count = 0;
@@ -167,8 +167,9 @@ static fsal_status_t lzfs_fsal_mkdir(struct fsal_obj_handle *dir_hdl, const char
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_dir = container_of(dir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "parent_inode=%" PRIu32 " mode=%" PRIo32 " name=%s",
-	             lzfs_dir->inode, attrib->mode, name);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " parent_inode=%" PRIu32 " mode=%" PRIo32 " name=%s",
+	             lzfs_export->export.export_id, lzfs_dir->inode, attrib->mode, name);
 
 	unix_mode =
 	    fsal2unix_mode(attrib->mode) & ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
@@ -221,8 +222,9 @@ static fsal_status_t lzfs_fsal_mknode(struct fsal_obj_handle *dir_hdl, const cha
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_dir = container_of(dir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "parent_inode=%" PRIu32 " mode=%" PRIo32 " name=%s",
-	             lzfs_dir->inode, attrib->mode, name);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " parent_inode=%" PRIu32 " mode=%" PRIo32 " name=%s",
+	             lzfs_export->export.export_id, lzfs_dir->inode, attrib->mode, name);
 
 	unix_mode =
 	    fsal2unix_mode(attrib->mode) & ~op_ctx->fsal_export->exp_ops.fs_umask(op_ctx->fsal_export);
@@ -293,7 +295,8 @@ static fsal_status_t lzfs_fsal_symlink(struct fsal_obj_handle *dir_hdl, const ch
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_dir = container_of(dir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "parent_inode=%" PRIu32 " name=%s", lzfs_dir->inode, name);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " parent_inode=%" PRIu32 " name=%s",
+	             lzfs_export->export.export_id, lzfs_dir->inode, name);
 
 	rc = liz_cred_symlink(lzfs_export->lzfs_instance, op_ctx->creds, link_path, lzfs_dir->inode,
 	                      name, &node_entry);
@@ -338,7 +341,8 @@ static fsal_status_t lzfs_fsal_readlink(struct fsal_obj_handle *link_hdl,
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_link = container_of(link_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32, lzfs_link->inode);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32, lzfs_export->export.export_id,
+	             lzfs_link->inode);
 
 	rc = liz_cred_readlink(lzfs_export->lzfs_instance, op_ctx->creds, lzfs_link->inode, result,
 	                       LIZARDFS_MAX_READLINK_LENGTH);
@@ -365,10 +369,10 @@ static fsal_status_t lzfs_fsal_getattrs(struct fsal_obj_handle *obj_hdl, struct 
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32, lzfs_obj->inode);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32, lzfs_export->export.export_id,
+	             lzfs_obj->inode);
 
-	rc = liz_cred_getattr(lzfs_export->lzfs_instance, op_ctx->creds, lzfs_obj->inode,
-	                      &lzfs_attrs);
+	rc = liz_cred_getattr(lzfs_export->lzfs_instance, op_ctx->creds, lzfs_obj->inode, &lzfs_attrs);
 
 	if (rc < 0) {
 		if (attrs->request_mask & ATTR_RDATTR_ERR) {
@@ -405,9 +409,10 @@ static fsal_status_t lzfs_fsal_rename(struct fsal_obj_handle *obj_hdl,
 	lzfs_olddir = container_of(olddir_hdl, struct lzfs_fsal_handle, handle);
 	lzfs_newdir = container_of(newdir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL,
-	             "old_inode=%" PRIu32 " new_inode=%" PRIu32 " old_name=%s new_name=%s",
-	             lzfs_olddir->inode, lzfs_newdir->inode, old_name, new_name);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " old_inode=%" PRIu32 " new_inode=%" PRIu32
+	                             " old_name=%s new_name=%s",
+	             lzfs_export->export.export_id, lzfs_olddir->inode, lzfs_newdir->inode, old_name,
+	             new_name);
 
 	rc = liz_cred_rename(lzfs_export->lzfs_instance, op_ctx->creds, lzfs_olddir->inode, old_name,
 	                     lzfs_newdir->inode, new_name);
@@ -432,7 +437,8 @@ static fsal_status_t lzfs_fsal_unlink(struct fsal_obj_handle *dir_hdl,
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_dir = container_of(dir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "parent_inode=%" PRIu32 " name=%s type=%s", lzfs_dir->inode, name,
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " parent_inode=%" PRIu32 " name=%s type=%s",
+	             lzfs_export->export.export_id, lzfs_dir->inode, name,
 	             object_file_type_to_str(obj_hdl->type));
 
 	if (obj_hdl->type != DIRECTORY) {
@@ -770,7 +776,8 @@ static fsal_status_t lzfs_fsal_reopen2(struct fsal_obj_handle *obj_hdl, struct s
 	lzfs_hdl = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 	lzfs_share_fd = &container_of(state, struct lzfs_fsal_state_fd, state)->lzfs_fd;
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32, lzfs_hdl->inode);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32,
+	             lzfs_hdl->unique_key.export_id, lzfs_hdl->inode);
 
 	memset(&fd, 0, sizeof(fd));
 
@@ -851,8 +858,8 @@ static fsal_status_t lzfs_fsal_read2(struct fsal_obj_handle *obj_hdl, bool bypas
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%zu", lzfs_obj->inode,
-	             offset, buffer_size);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32 " offset=%" PRIu64 " size=%zu",
+	             lzfs_export->export.export_id, lzfs_obj->inode, offset, buffer_size);
 
 	if (info != NULL) {
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
@@ -905,8 +912,8 @@ static fsal_status_t lzfs_fsal_write2(struct fsal_obj_handle *obj_hdl, bool bypa
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%zu", lzfs_obj->inode,
-	             offset, buffer_size);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32 " offset=%" PRIu64 " size=%zu",
+	             lzfs_export->export.export_id, lzfs_obj->inode, offset, buffer_size);
 
 	if (info != NULL) {
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
@@ -961,8 +968,8 @@ static fsal_status_t lzfs_fsal_commit2(struct fsal_obj_handle *obj_hdl, off_t of
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%lli len=%zu", lzfs_obj->inode,
-	             (long long)offset, len);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32 " offset=%lli len=%zu",
+	             lzfs_export->export.export_id, lzfs_obj->inode, (long long)offset, len);
 
 	status = fsal_reopen_obj(obj_hdl, false, false, FSAL_O_WRITE, (struct fsal_fd *)&lzfs_obj->fd,
 	                         &lzfs_obj->share, lzfs_int_open_func, lzfs_int_close_func,
@@ -1000,7 +1007,8 @@ static fsal_status_t lzfs_fsal_close(struct fsal_obj_handle *obj_hdl) {
 
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32, lzfs_obj->inode);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32,
+	             lzfs_obj->unique_key.export_id, lzfs_obj->inode);
 
 	PTHREAD_RWLOCK_wrlock(&obj_hdl->obj_lock);
 
@@ -1025,8 +1033,9 @@ static fsal_status_t lzfs_fsal_merge(struct fsal_obj_handle *orig_hdl,
 		lzfs_orig = container_of(orig_hdl, struct lzfs_fsal_handle, handle);
 		lzfs_dupe = container_of(dupe_hdl, struct lzfs_fsal_handle, handle);
 
-		LogFullDebug(COMPONENT_FSAL, "orig_inode=%" PRIu32 " dupe_inode=%" PRIu32, lzfs_orig->inode,
-		             lzfs_dupe->inode);
+		LogFullDebug(COMPONENT_FSAL,
+		             "export=%" PRIu32 " orig_inode=%" PRIu16 " dupe_inode=%" PRIu32,
+		             lzfs_orig->unique_key.export_id, lzfs_orig->inode, lzfs_dupe->inode);
 
 		PTHREAD_RWLOCK_wrlock(&orig_hdl->obj_lock);
 
@@ -1150,7 +1159,8 @@ static fsal_status_t lzfs_fsal_close2(struct fsal_obj_handle *obj_hdl, struct st
 
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32, lzfs_obj->inode);
+	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32,
+	             lzfs_obj->unique_key.export_id, lzfs_obj->inode);
 
 	if (state->state_type == STATE_TYPE_SHARE || state->state_type == STATE_TYPE_NLM_SHARE ||
 	    state->state_type == STATE_TYPE_9P_FID) {
@@ -1164,13 +1174,10 @@ static fsal_status_t lzfs_fsal_close2(struct fsal_obj_handle *obj_hdl, struct st
 	return lzfs_int_close_fd(lzfs_obj, &lzfs_obj->fd);
 }
 
-fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
-			    struct state_t *state,
-			    void *owner,
-			    fsal_lock_op_t lock_op,
-			    fsal_lock_param_t *request_lock,
-			    fsal_lock_param_t *conflicting_lock)
-{
+fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl, struct state_t *state,
+                                 void *owner, fsal_lock_op_t lock_op,
+                                 fsal_lock_param_t *request_lock,
+                                 fsal_lock_param_t *conflicting_lock) {
 	struct lzfs_fsal_export *lzfs_export;
 
 	liz_err_t last_err;
@@ -1186,11 +1193,8 @@ fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
 
 	lzfs_export = container_of(op_ctx->fsal_export, struct lzfs_fsal_export, export);
 
-	LogFullDebug(COMPONENT_FSAL,
-		     "op:%d type:%d start:%" PRIu64 " length:%"
-		     PRIu64 " ",
-		     lock_op, request_lock->lock_type, request_lock->lock_start,
-		     request_lock->lock_length);
+	LogFullDebug(COMPONENT_FSAL, "op:%d type:%d start:%" PRIu64 " length:%" PRIu64 " ", lock_op,
+	             request_lock->lock_type, request_lock->lock_start, request_lock->lock_length);
 
 	if (lock_op == FSAL_OP_LOCKT) {
 		// We may end up using global fd, don't fail on a deny mode
@@ -1206,7 +1210,7 @@ fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
 		openflags = FSAL_O_ANY;
 	} else {
 		LogFullDebug(COMPONENT_FSAL,
-			 "ERROR: Lock operation requested was not TEST, READ, or WRITE.");
+		             "ERROR: Lock operation requested was not TEST, READ, or WRITE.");
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
 	}
 
@@ -1220,8 +1224,7 @@ fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
 	} else if (request_lock->lock_type == FSAL_LOCK_W) {
 		lock_info.l_type = F_WRLCK;
 	} else {
-		LogFullDebug(COMPONENT_FSAL,
-			 "ERROR: The requested lock type was not read or write.");
+		LogFullDebug(COMPONENT_FSAL, "ERROR: The requested lock type was not read or write.");
 		return fsalstat(ERR_FSAL_NOTSUPP, 0);
 	}
 
@@ -1233,11 +1236,13 @@ fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
 	lock_info.l_len = request_lock->lock_length;
 	lock_info.l_start = request_lock->lock_start;
 
-	status = lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
+	status =
+	    lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
 	// IF lzfs_int_find_fd returned DELAY, then fd caching in mdcache is turned off, which means
 	// that the consecutive attempt is very likely to succeed immediately.
 	if (status.major == ERR_FSAL_DELAY) {
-		status = lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
+		status =
+		    lzfs_int_find_fd(&liz_fd, obj_hdl, bypass, state, openflags, &has_lock, &closefd, true);
 	}
 	if (FSAL_IS_ERROR(status)) {
 		LogCrit(COMPONENT_FSAL, "Unable to find fd for lock operation");
@@ -1269,7 +1274,7 @@ fsal_status_t lzfs_fsal_lock_op2(struct fsal_obj_handle *obj_hdl,
 		}
 	}
 
- err:
+err:
 	last_err = liz_last_err();
 	if (closefd) {
 		liz_release(lzfs_export->lzfs_instance, fileinfo);
@@ -1299,8 +1304,9 @@ static fsal_status_t lzfs_fsal_link(struct fsal_obj_handle *obj_hdl,
 	lzfs_obj = container_of(obj_hdl, struct lzfs_fsal_handle, handle);
 	lzfs_destdir = container_of(destdir_hdl, struct lzfs_fsal_handle, handle);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " dest_inode=%" PRIu32 " name=%s",
-	             lzfs_obj->inode, lzfs_destdir->inode, name);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " inode=%" PRIu32 " dest_inode=%" PRIu32 " name=%s",
+	             lzfs_export->export.export_id, lzfs_obj->inode, lzfs_destdir->inode, name);
 
 	liz_entry_t result;
 	int rc = liz_cred_link(lzfs_export->lzfs_instance, op_ctx->creds, lzfs_obj->inode,

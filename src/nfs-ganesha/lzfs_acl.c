@@ -127,7 +127,7 @@ fsal_acl_t *lzfs_int_convert_lzfs_acl(const liz_acl_t *lzfs_acl) {
 			default:
 				fsal_ace->who.uid = FSAL_ACE_NORMAL_WHO;
 				LogWarn(COMPONENT_FSAL, "Invalid LizardFS ACE special id type (%u)",
-				             (unsigned)lzfs_ace.id);
+				        (unsigned)lzfs_ace.id);
 			}
 		}
 	}
@@ -150,8 +150,8 @@ fsal_status_t lzfs_int_getacl(struct lzfs_fsal_export *lzfs_export, uint32_t ino
 	liz_acl_t *acl = NULL;
 	int rc = liz_cred_getacl(lzfs_export->lzfs_instance, op_ctx->creds, inode, &acl);
 	if (rc < 0) {
-		LogFullDebug(COMPONENT_FSAL, "getacl status=%s inode=%lli",
-		             liz_error_string(liz_last_err()), (long long)inode);
+		LogFullDebug(COMPONENT_FSAL, "getacl status=%s export=%" PRIu16 " inode=%" PRIu32,
+		             liz_error_string(liz_last_err()), lzfs_export->export.export_id, inode);
 		return lzfs_fsal_last_err();
 	}
 
@@ -161,7 +161,9 @@ fsal_status_t lzfs_int_getacl(struct lzfs_fsal_export *lzfs_export, uint32_t ino
 	liz_destroy_acl(acl);
 
 	if (*fsal_acl == NULL) {
-		LogFullDebug(COMPONENT_FSAL, "Failed to convert lzfs acl to nfs4 acl");
+		LogFullDebug(COMPONENT_FSAL,
+		             "Failed to convert lzfs acl to nfs4 acl, export=%" PRIu16 " inode=%" PRIu32,
+		             lzfs_export->export.export_id, inode);
 		return fsalstat(ERR_FSAL_FAULT, 0);
 	}
 
