@@ -248,7 +248,7 @@ static nfsstat4 lzfs_fsal_getdeviceinfo(struct fsal_module *fsal_hdl, XDR *da_ad
 	}
 
 	if (!lzfs_export) {
-		LogCrit(COMPONENT_PNFS, "Couldn't find export with id: %d", (int)export_id);
+		LogCrit(COMPONENT_PNFS, "Couldn't find export with id: %" PRIu16, export_id);
 		return NFS4ERR_SERVERFAULT;
 	}
 
@@ -257,14 +257,16 @@ static nfsstat4 lzfs_fsal_getdeviceinfo(struct fsal_module *fsal_hdl, XDR *da_ad
 	rc = liz_cred_get_chunks_info(lzfs_export->lzfs_instance, op_ctx->creds, deviceid->devid, 0,
 	                              chunk_info, LZFS_BIGGEST_STRIPE_COUNT, &chunk_count);
 	if (rc < 0) {
-		LogCrit(COMPONENT_PNFS, "Failed to get LizardFS layout for inode=%" PRIu64,
+		LogCrit(COMPONENT_PNFS,
+		        "Failed to get LizardFS layout for export=%" PRIu16 " inode=%" PRIu64, export_id,
 		        deviceid->devid);
 		goto generic_err;
 	}
 
 	chunkserver_info = lzfs_int_get_randomized_chunkserver_list(lzfs_export, &chunkserver_count);
 	if (chunkserver_info == NULL || chunkserver_count == 0) {
-		LogCrit(COMPONENT_PNFS, "Failed to get LizardFS layout for inode=%" PRIu64,
+		LogCrit(COMPONENT_PNFS,
+		        "Failed to get LizardFS layout for export=%" PRIu16 " inode=%" PRIu64, export_id,
 		        deviceid->devid);
 		goto generic_err;
 	}
@@ -304,7 +306,8 @@ static nfsstat4 lzfs_fsal_getdeviceinfo(struct fsal_module *fsal_hdl, XDR *da_ad
 	return NFS4_OK;
 
 encode_err:
-	LogCrit(COMPONENT_PNFS, "Failed to encode device information for inode=%" PRIu64,
+	LogCrit(COMPONENT_PNFS,
+	        "Failed to encode device information for export=%" PRIu16 " inode=%" PRIu64, export_id,
 	        deviceid->devid);
 
 generic_err:
@@ -363,7 +366,7 @@ static uint32_t lzfs_fsal_fs_maximum_segments(struct fsal_export *export_hdl) {
  * \see fsal_api.h for more information
  */
 static size_t lzfs_fsal_fs_loc_body_size(struct fsal_export *export_hdl) {
-	return 0x100; // typical value in NFS FSAL plugins
+	return 0x100;  // typical value in NFS FSAL plugins
 }
 
 /*! \brief Max Size of the buffer needed for da_addr_body in getdeviceinfo

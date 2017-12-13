@@ -119,8 +119,9 @@ static nfsstat4 lzfs_fsal_ds_handle_read(struct fsal_ds_handle *const ds_hdl,
 	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
-	             lzfs_ds->inode, offset, requested_length);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_export->export.export_id, lzfs_ds->inode, offset, requested_length);
 
 	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
 	if (nfs_status != NFS4_OK) {
@@ -161,8 +162,9 @@ static nfsstat4 lzfs_fsal_ds_handle_write(struct fsal_ds_handle *const ds_hdl,
 	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
-	             lzfs_ds->inode, offset, write_length);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_export->export.export_id, lzfs_ds->inode, offset, write_length);
 
 	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
 	if (nfs_status != NFS4_OK) {
@@ -207,8 +209,9 @@ static nfsstat4 lzfs_fsal_ds_handle_commit(struct fsal_ds_handle *const ds_hdl,
 	lzfs_export = container_of(ds_hdl->pds->mds_fsal_export, struct lzfs_fsal_export, export);
 	lzfs_ds = container_of(ds_hdl, struct lzfs_fsal_ds_handle, ds);
 
-	LogFullDebug(COMPONENT_FSAL, "inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
-	             lzfs_ds->inode, offset, count);
+	LogFullDebug(COMPONENT_FSAL,
+	             "export=%" PRIu16 " inode=%" PRIu32 " offset=%" PRIu64 " size=%" PRIu32,
+	             lzfs_export->export.export_id, lzfs_ds->inode, offset, count);
 
 	nfs_status = lzfs_int_openfile(lzfs_export, lzfs_ds);
 	if (nfs_status != NFS4_OK) {
