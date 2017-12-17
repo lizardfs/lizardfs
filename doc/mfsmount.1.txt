@@ -203,7 +203,7 @@ This option is effective only with N+M goals (xors and erasure codes).
 
 == DATA CACHE MODES
 
-There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shuldn't
+There are three cache modes: *NO*, *YES* and *AUTO*. Default option is *AUTO* and you shouldn't
 change it unless you really know what you are doing. In *AUTO* mode data cache is managed
 automatically by mfsmaster.
 
