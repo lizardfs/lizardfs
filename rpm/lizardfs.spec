@@ -489,7 +489,7 @@ rm -rf $RPM_BUILD_ROOT
 %changelog
 * Wed Nov 22 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.12.0
 - (all) C API
-- (all) nfs-ganesha plugin
+- (all) nfs-ganesha plugin (multiple exports allowed)
 - (all) RichACL support (which includes NFSv4)
 - (all) OSX ACL support
 - (master, mount) file lock fixes

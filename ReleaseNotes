@@ -1,11 +1,11 @@
 Dear Users,
 
-3.12.0-rc (release candidate) is officially out!
+3.12.0 is officially out!
 
 Featuring:
 
 - C API
-- nfs-ganesha plugin
+- nfs-ganesha plugin (with multiple exports allowed)
 - RichACL - a new POSIX + NFSv4 compatible ACL standard
 - OSX ACL support through osxfuse
 - ACL in-memory deduplication
