@@ -196,6 +196,19 @@ RichACL richAclConverter::extractObjectFromNFS(const uint8_t *buffer, uint32_t b
 		RichACL::Ace ace = extractAceFromNFS(buffer, bytes_left);
 		acl.insert(ace);
 	}
+
+	// Manually recompute masks used for extracting POSIX rwx mode.
+	uint32_t owner_mask = acl.allowedToWho(
+		RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0, RichACL::Ace::kOwnerSpecialId));
+	uint32_t group_mask = acl.allowedToWho(
+		RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0, RichACL::Ace::kGroupSpecialId));
+	uint32_t other_mask = acl.allowedToWho(
+		RichACL::Ace(0, RichACL::Ace::kSpecialWho, 0, RichACL::Ace::kEveryoneSpecialId));
+
+	acl.setOwnerMask(owner_mask);
+	acl.setGroupMask(group_mask);
+	acl.setOtherMask(other_mask);
+
 	return acl;
 }
 

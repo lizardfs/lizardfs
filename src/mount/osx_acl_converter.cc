@@ -136,7 +136,7 @@ static RichACL convertOsxToRichACL(acl_t osx_acl) {
 		entry_id = ACL_NEXT_ENTRY;
 	}
 
-	out.setFlags(RichACL::kAutoSetMode);
+	out.setFlags(out.getFlags() | RichACL::kAutoSetMode);
 	return out;
 }
 

@@ -181,19 +181,19 @@ case "$release" in
 		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
 		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get install libpam0g-dev libdb-dev
+		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr nc rsync tidy wget boost-program-options boost-system
 		yum install libboost-filesystem libboost-iostreams
-		yum install pam-devel libdb-devel
+		yum install pam-devel libdb-devel nfs4-acl-tools
 		;;
 	CentOS/7*)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
-		yum install pam-devel libdb-devel
+		yum install pam-devel libdb-devel nfs4-acl-tools
 		;;
 	*)
 		set +x

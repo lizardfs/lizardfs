@@ -444,15 +444,22 @@ public:
 	static bool equivMode(const RichACL &acl, uint16_t &mode, bool is_dir);
 
 	/*! \brief Compute upper bound masks
-	*
-	* Computes upper bound owner, group, and other masks so that none of the
-	* permissions allowed by the acl are disabled.
-	*
-	* We don't make assumptions about who the owner is so that the owner can
-	* change with no effect on the file masks or file mode permission bits; this
-	* means that we must assume that all entries can match the owner.
-	*/
+	 *
+	 * Computes upper bound owner, group, and other masks so that none of the
+	 * permissions allowed by the acl are disabled.
+	 *
+	 * We don't make assumptions about who the owner is so that the owner can
+	 * change with no effect on the file masks or file mode permission bits; this
+	 * means that we must assume that all entries can match the owner.
+	 */
 	void computeMaxMasks();
+
+	/*! \brief Return a mask of permissions allowed for given "who".
+	 *
+	 * \param who Ace describing the "who"
+	 * \return Mask representing allowed permissions.
+	 */
+	uint32_t allowedToWho(const Ace &who) const;
 
 	LIZARDFS_DEFINE_SERIALIZE_METHODS(owner_mask_, group_mask_, other_mask_, flags_, ace_list_)
 
@@ -469,7 +476,6 @@ protected:
 	void isolateGroupClass(uint32_t deny);
 	void applyMasks2AceList(uint32_t owner);
 
-	uint32_t allowedToWho(const Ace &who) const;
 	uint32_t groupClassAllowed();
 	bool hasGroupEntry() const;
 

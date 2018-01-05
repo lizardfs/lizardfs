@@ -2366,8 +2366,13 @@ public:
 				value = richAclConverter::objectToNFSXattr(cache_entry->acl, cache_entry->owner_id);
 				valueLength = value.size();
 			} else {
-				valueLength = 4;
-				value.assign(valueLength, 0);
+				// NOTICE(sarna): This call will most likely use attr cache anyway
+				AttrReply attr_reply = LizardClient::getattr(ctx, ino);
+				RichACL generated_acl = RichACL::createFromMode(
+					attr_reply.attr.st_mode & 0777,
+					S_ISDIR(attr_reply.attr.st_mode));
+				value = richAclConverter::objectToNFSXattr(generated_acl, attr_reply.attr.st_uid);
+				valueLength = value.size();
 			}
 			return LIZARDFS_STATUS_OK;
 		} catch (AclAcquisitionException& e) {
