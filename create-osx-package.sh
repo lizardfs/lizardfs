@@ -30,6 +30,7 @@ cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release \
 	-DENABLE_TESTS=NO \
 	-DENABLE_DOCS=YES
+
 make
 make DESTDIR=${working_dir}/lizardfs/build-osx/ install
 

@@ -17,7 +17,11 @@ find_package(Socket REQUIRED)
 find_package(Threads REQUIRED)
 
 if(NOT MINGW)
-  find_package(FUSE REQUIRED)
+  find_package(FUSE)
+  find_package(FUSE3)
+  if(NOT (FUSE_FOUND OR FUSE3_FOUND))
+	message(FATAL_ERROR "Could not find FUSE library (required)")
+  endif()
 endif()
 
 find_library(RT_LIBRARY rt)

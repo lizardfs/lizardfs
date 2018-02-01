@@ -66,6 +66,12 @@ Provides: mfs-client
 Description: LizardFS client
  LizardFS clients: mfsmount and mfstools.
 
+Package: lizardfs-client3
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-client
+Description: LizardFS client using FUSE3
+ LizardFS client: mfsmount3.
+
 Package: lizardfs-lib-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}

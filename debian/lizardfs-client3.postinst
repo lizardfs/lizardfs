@@ -1,0 +1,3 @@
+#!/bin/sh
+
+ln -s usr/share/man/man1/mfsmount.1 usr/share/man/man1/mfsmount3.1

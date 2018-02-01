@@ -1,4 +1,4 @@
-#  Copyright 2016-2017 Skytechnology sp. z o.o..
+#  Copyright 2016-2018 Skytechnology sp. z o.o..
 #
 #  This file is part of LizardFS.
 #
@@ -29,16 +29,19 @@ if(APPLE)
     find_path(FUSE_INCLUDE_DIR "fuse.h" PATHS ${PC_FUSE_INCLUDE_DIRS} ${PC_FUSE_INCLUDE_DIRS}/.. PATH_SUFFIXES "fuse")
   endif()
 else()
-  find_library(FUSE_LIBRARY NAMES fuse3 fuse)
-  find_path(FUSE_INCLUDE_DIR "fuse.h" PATH_SUFFIXES "fuse3" "fuse")
+  find_library(FUSE_LIBRARY fuse)
+  find_path(FUSE_INCLUDE_DIR "fuse/fuse.h")
 
-  file(STRINGS "${FUSE_INCLUDE_DIR}/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
-  string(REGEX REPLACE ".*#define[\t ]+FUSE_MAJOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_major "${fuse_version_str}")
-  string(REGEX REPLACE ".*#define[\t ]+FUSE_MINOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_minor "${fuse_version_str}")
+  if(FUSE_INCLUDE_DIR)
+    set(FUSE_INCLUDE_DIR "${FUSE_INCLUDE_DIR}/fuse")
 
-  set(FUSE_VERSION_STRING "${fuse_version_major}.${fuse_version_minor}")
+    file(STRINGS "${FUSE_INCLUDE_DIR}/fuse_common.h" fuse_version_str REGEX "^#define[\t ]+FUSE.+VERSION[\t ]+[0-9]+")
+    string(REGEX REPLACE ".*#define[\t ]+FUSE_MAJOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_major "${fuse_version_str}")
+    string(REGEX REPLACE ".*#define[\t ]+FUSE_MINOR_VERSION[\t ]+([0-9]+).*" "\\1" fuse_version_minor "${fuse_version_str}")
+
+    set(FUSE_VERSION_STRING "${fuse_version_major}.${fuse_version_minor}")
+  endif()
 endif()
-
 
 find_package_handle_standard_args(FUSE REQUIRED_VARS FUSE_LIBRARY FUSE_INCLUDE_DIR
                                      VERSION_VAR FUSE_VERSION_STRING)

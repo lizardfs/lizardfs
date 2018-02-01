@@ -81,6 +81,14 @@ Requires:       bash-completion
 %description client
 LizardFS client: mfsmount and mfstools.
 
+%package client3
+Summary:        LizardFS client using FUSE3
+Group:          System Environment/Daemons
+Requires:       lizardfs-client
+
+%description client3
+LizardFS client: mfsmount and mfstools.
+
 %package lib-client
 Summary:        LizardFS client C/C++ library
 Group:          Development/Libraries
@@ -287,6 +295,12 @@ fi
 %systemd_postun_with_restart lizardfs-cgiserv.service
 %endif
 
+# Scriptlets - client3
+############################################################
+
+%post client3
+/bin/ln -s %{_mandir}/man1/mfsmount.1 %{_mandir}/man1/mfsmount3.1
+
 # Prep, build, install, files...
 ############################################################
 
@@ -437,6 +451,9 @@ rm -rf $RPM_BUILD_ROOT
 %{liz_confdir}/mfsmount.cfg.dist
 %{liz_confdir}/iolimits.cfg.dist
 %{_sysconfdir}/bash_completion.d/lizardfs
+
+%files client3
+%attr(755,root,root) %{_bindir}/mfsmount3
 
 %files lib-client
 %{_libdir}/liblizardfsmount_shared.so

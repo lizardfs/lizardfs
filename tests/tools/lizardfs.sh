@@ -116,7 +116,7 @@ setup_local_empty_lizardfs() {
 }
 
 lizardfs_fusermount() {
-	fuse_version=$(mfsmount --version | grep "FUSE library" | grep -Eo "[0-9]+\..+")
+	fuse_version=$(${LZFS_MOUNT_COMMAND} --version 2>&1 | grep "FUSE library" | grep -Eo "[0-9]+\..+")
 	if [[ "$fuse_version" =~ ^3\..+$ ]]; then
 		fusermount3 "$@"
 	else
@@ -493,14 +493,24 @@ add_mount_() {
 	lizardfs_info_[mount${mount_id}]="$mount_dir"
 	lizardfs_info_[mount${mount_id}_cfg]="$mount_cfg"
 	max_tries=30
+
+	if [ -z ${LZFS_MOUNT_COMMAND+x} ]; then
+		if (($RANDOM % 2)); then
+			LZFS_MOUNT_COMMAND=mfsmount3
+			echo "Using libfuse3 for mounting filesystem."
+		else
+			LZFS_MOUNT_COMMAND=mfsmount
+		fi
+	fi
+
 	fuse_options=""
 	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do
 		fuse_option_name=$(echo $fuse_option | cut -f1 -d'=')
-		mfsmount --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
+		${LZFS_MOUNT_COMMAND} --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
 				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
 		fuse_options+="-o $fuse_option "
 	done
-	local call="${command_prefix} mfsmount -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	local call="${command_prefix} ${LZFS_MOUNT_COMMAND} -c ${mount_cfg} ${mount_dir} ${fuse_options}"
 	lizardfs_info_[mntcall$mount_id]=$call
 	do_mount_ ${mount_id}
 }
