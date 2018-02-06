@@ -171,6 +171,7 @@ static void ping_pong(int fd, int num_locks)
 		       i, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+	free(val);
 }
 
 int main(int argc, char *argv[])

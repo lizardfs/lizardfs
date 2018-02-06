@@ -114,6 +114,7 @@ static void lzfs_vsyslog(int priority, const char* format, va_list ap) {
 	va_copy(ap2, ap);
 	int written = vsnprintf(buf, 1023, format, ap2);
 	if (written < 0) {
+		va_end(ap2);
 		return;
 	}
 	buf[std::min<int>(written, sizeof(buf))] = '\0';

@@ -4266,6 +4266,7 @@ void matoclserv_fuse_setacl(matoclserventry *eptr, const uint8_t *data, uint32_t
 	} else {
 		lzfs_pretty_syslog(LOG_WARNING, "LIZ_CLTOMA_FUSE_SET_ACL: unknown packet version");
 		eptr->mode = KILL;
+		return;
 	}
 
 	uint8_t status = matoclserv_check_group_cache(eptr, gid);
