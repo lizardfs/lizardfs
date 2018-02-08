@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+### BEGIN INIT INFO
+# Provides: lizardfs-uraft
+# Required-Start: $local_fs $network $syslog $remote_fs
+# Required-Stop: $local_fs $syslog $remote_fs
+# Should-Start: $syslog
+# Should-Stop: $network $syslog
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: Start up lizardfs-master managed by lizardfs-uraft high availability daemon
+# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                    This service starts up LizardFS master managed by high availability daemon.
+### END INIT INFO
+
+# Source function library.
+. @initddir@/functions
+
+LZFS_USER=mfs
+PID_FILE=/var/run/lizardfs-uraft.pid
+
+RETVAL=0
+prog="lizardfs-uraft"
+
+start () {
+    echo -n $"Starting $prog: "
+    mfsmaster -o ha-cluster-managed -o initial-personality=shadow start
+    daemon --user $LZFS_USER --pidfile $PID_FILE $prog -d --pidfile $PID_FILE
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$prog
+    return $RETVAL
+}
+
+stop () {
+    echo -n $"Stopping $prog: "
+    killproc -p $PID_FILE $prog
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$prog
+    mfsmaster -o ha-cluster-managed -o initial-personality=shadow stop
+    return $RETVAL
+}
+
+restart () {
+    stop
+    start
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  restart|reload)
+    restart
+    ;;
+  condrestart)
+    [ -e /var/lock/subsys/$prog ] && restart
+    RETVAL=$?
+    ;;
+  status)
+    status $prog
+    RETVAL=$?
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+    RETVAL=1
+esac
+
+exit $RETVAL

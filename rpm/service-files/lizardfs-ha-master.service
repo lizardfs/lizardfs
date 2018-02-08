@@ -1,0 +1,15 @@
+[Unit]
+Description=LizardFS master server daemon
+After=syslog.target network.target
+PartOf=lizardfs-uraft.service
+
+[Service]
+Type=forking
+TimeoutSec=0
+ExecStart=/usr/sbin/mfsmaster -o ha-cluster-managed -o initial-personality=shadow start
+ExecStop=/usr/sbin/mfsmaster -o ha-cluster-managed -o initial-personality=shadow stop
+ExecReload=/usr/sbin/mfsmaster -o ha-cluster-managed -o initial-personality=shadow reload
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

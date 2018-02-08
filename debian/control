@@ -110,3 +110,16 @@ Provides: mfs-cgiserv
 Description: Simple CGI-capable HTTP server to run LizardFS CGI Monitor
  Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
 
+Package: lizardfs-uraft
+Architecture: any
+Depends: lizardfs-master,
+         lizardfs-adm,
+         iputils-arping,
+         sudo,
+         ${shlibs:Depends},
+Description: LizardFS cluster management tool
+ LizardFS is a distributed filesystem.
+ .
+ This package offers means for simplified LizardFS deployment
+ on cluster infrastructure.
+

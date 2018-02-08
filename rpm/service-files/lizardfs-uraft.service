@@ -1,0 +1,17 @@
+[Unit]
+Description=LizardFS uraft high availability daemon
+Requires=lizardfs-ha-master.service
+After=network.target
+After=lizardfs-ha-master.service
+
+[Service]
+Type=simple
+PIDFile=/var/run/lizardfs-uraft.pid
+TimeoutSec=0
+ExecStart=/usr/sbin/lizardfs-uraft
+ExecStopPost=/usr/sbin/lizardfs-uraft-helper demote
+Restart=no
+User=mfs
+
+[Install]
+WantedBy=multi-user.target
