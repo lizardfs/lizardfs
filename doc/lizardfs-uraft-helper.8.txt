@@ -1,0 +1,34 @@
+lizardfs-uraft-helper(8)
+========================
+
+== NAME
+
+lizardfs-uraft-helper - LizardFS HA suite helper
+
+== SYNOPSIS
+
+[verse]
+lizardfs-uraft-helper
+
+== DESCRIPTION
+
+*lizardfs-uraft-helper* is a helper script, used internally by *lizardfs-uraft*
+to manage nodes. The script should implement the following operations:
+  isalive
+  metadata-version
+  quick-stop
+  promote
+  demote
+  assign-ip
+  drop-ip
+
+Except from *isalive*, this script should not be used on its own.
+If anyone needs special actions to be taken during *lizardfs-uraft* management
+stages (such as promotion, demotion), editing this script is sufficient to do so.
+
+== COPYRIGHT
+
+Copyright 2018 Skytechnology sp. z o.o.
+
+== SEE ALSO
+lizardfs-uraft(8), lizardfs-uraft.cfg(5)

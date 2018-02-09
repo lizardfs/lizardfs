@@ -1,0 +1,73 @@
+lizardfs-uraft.cfg(5)
+=====================
+
+== NAME
+
+lizardfs-uraft.cfg - main configuration file for lizardfs-uraft
+
+== DESCRIPTION
+
+The file *lizardfs-uraft.cfg* contains configuration of LizardFS HA suite.
+
+== SYNTAX
+
+Syntax is:
+
+'OPTION' *=* 'VALUE'
+
+Lines starting with *#* character are ignored.
+
+== OPTIONS
+
+Configuration options:
+
+*URAFT_NODE_ADDRESS*::
+Contains an IP address or hostname of uraft node, possibly with port.
+This option should be specified multiple times in order to contain
+information on *every* node in the cluster. Example:
+URAFT_NODE_ADDRESS = node1:9427
+URAFT_NODE_ADDRESS = node2
+URAFT_NODE_ADDRESS = 192.168.0.1:9427
+
+*URAFT_ID*::
+This option is strictly connected with the ones above - *URAFT_NODE_ADDRESS*.
+It identifies on which node this uraft instance runs on.
+Node numbers start from 0 and have the same order as URAFT_NODE_ADDRESS entries.
+For example, if this configuration resides on node with hostname 'node2',
+its URAFT_ID should be set to 1.
+
+*LOCAL_MASTER_ADDRESS*::
+Specifies an address of local LizardFS master server (default: localhost).
+
+*LOCAL_MASTER_MATOCL_PORT*::
+Specifies a client port of local LizardFS master server (default: 9421).
+
+*URAFT_FLOATING_IP*::
+Floating IP to be used as an active master.
+
+*URAFT_FLOATING_NETMASK*::
+Network mask matching floating IP configuration.
+
+*URAFT_FLOATING_IFACE*::
+Network interface where floating IP should be managed (example: eth0).
+
+*ELECTION_TIMEOUT_MIN*::
+*[advanced]* minimal timeout in milliseconds for election algorithm.
+
+*ELECTION_TIMEOUT_MAX*::
+*[advanced]* maximal timeout in milliseconds for election algorithm.
+
+*HEARTBEAT_PERIOD*::
+*[advanced]* period in milliseconds between subsequent heartbeat messages.
+
+*LOCAL_MASTER_CHECK_PERIOD*::
+*[advanced]* period in milliseconds between checking wheter local master
+is alive.
+
+== COPYRIGHT
+
+Copyright 2018 Skytechnology sp. z o.o.
+
+== SEE ALSO
+
+lizardfs-uraft(8)

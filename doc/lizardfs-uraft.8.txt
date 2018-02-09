@@ -8,20 +8,36 @@ lizardfs-uraft - LizardFS high availability cluster management tool
 == SYNOPSIS
 
 [verse]
-*lizardfs-uraft* # TODO
+lizardfs-uraft [*--help*]
+
+[verse]
+lizardfs-uraft [*-c 'CFGFILE'*]
 
 == DESCRIPTION
 
-*lizardfs-uraft* provides a ... # TODO
+*lizardfs-uraft* is a high availability management daemon.
+It can provide master server failover mechanisms based on floating ip.
+
+*lizardfs-uraft* internal algorithms are based on Raft (raft.github.io).
+Functions used to manage (promote/demote/check/kill/etc) nodes
+are called through *lizardfs-uraft-helper*, a script that implements
+uraft API for a specific backend (in this case, LizardFS).
+See lizardfs-uraft-helper(8) man entry for details.
+
+For more configuration info and examples, refer to *lizardfs-uraft.cfg* file
+and lizardfs-uraft.cfg(5) man entry.
 
 == OPTIONS
 
-*-h*::
+*--help*::
 print usage information and exit
 
-# TODO
+*--config 'CFGFILE'*::
+provide an alternative configuration file path.
 
 == COPYRIGHT
 
-Copyright 2015 Skytechnology sp. z o.o.
+Copyright 2018 Skytechnology sp. z o.o.
 
+== SEE ALSO
+lizardfs-uraft-helper(8), lizardfs-uraft.cfg(5)

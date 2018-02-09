@@ -531,6 +531,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/lizardfs-uraft-helper
 %doc NEWS README.md UPGRADE
 %{_mandir}/man8/lizardfs-uraft.8*
+%{_mandir}/man8/lizardfs-uraft-helper.8*
+%{_mandir}/man5/lizardfs-uraft.cfg.5*
 %{liz_confdir}/lizardfs-uraft.cfg.dist
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-uraft
