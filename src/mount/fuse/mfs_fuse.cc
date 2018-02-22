@@ -114,9 +114,9 @@ static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) 
 }
 
 /**
- * A function converting fuse_ctx to LizardClient::Context
+ * A function converting fuse_ctx to LizardClient::Context (without secondary groups update)
  */
-LizardClient::Context get_context(fuse_req_t& req) {
+LizardClient::Context get_reduced_context(fuse_req_t& req) {
 	auto fuse_ctx = fuse_req_ctx(req);
 #if (FUSE_VERSION >= 28)
 	mode_t umask = fuse_ctx->umask;
@@ -124,11 +124,20 @@ LizardClient::Context get_context(fuse_req_t& req) {
 	mode_t umask = 0000;
 #endif
 	auto ret = LizardClient::Context(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, umask);
-	if (fuse_ctx->pid > 0) {
+	return ret;
+}
+
+/**
+ * A function converting fuse_ctx to LizardClient::Context (with secondary groups update)
+ */
+LizardClient::Context get_context(fuse_req_t& req) {
+	auto ret = get_reduced_context(req);
+	if (ret.pid > 0) {
 		updateGroupsForContext(req, ret);
 	}
 	return ret;
 }
+
 
 /**
  * A wrapper that allows one to use fuse_file_info as if it was LizardClient::FileInfo object.
@@ -443,11 +452,11 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 	try {
 		if (LizardClient::isSpecialInode(ino)) {
 			auto ret = LizardClient::read_special_inode(
-				   get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
+				   get_reduced_context(req), ino, size, off, fuse_file_info_wrapper(fi));
 			fuse_reply_buf(req, (char*) ret.data(), ret.size());
 		} else {
 			ReadCache::Result ret = LizardClient::read(
-					get_context(req), ino, size, off, fuse_file_info_wrapper(fi));
+					get_reduced_context(req), ino, size, off, fuse_file_info_wrapper(fi));
 
 			small_vector<struct iovec, 8> reply;
 			ret.toIoVec(reply, off, size);
@@ -462,7 +471,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 		struct fuse_file_info *fi) {
 	try {
 		fuse_reply_write(req, LizardClient::write(
-				get_context(req), ino, buf, size, off, fuse_file_info_wrapper(fi)));
+				get_reduced_context(req), ino, buf, size, off, fuse_file_info_wrapper(fi)));
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
 	}
@@ -470,7 +479,7 @@ void mfs_write(fuse_req_t req, fuse_ino_t ino, const char *buf, size_t size, off
 
 void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	try {
-		LizardClient::flush(get_context(req), ino, fuse_file_info_wrapper(fi));
+		LizardClient::flush(get_reduced_context(req), ino, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
@@ -479,7 +488,7 @@ void mfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 void mfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync, struct fuse_file_info *fi) {
 	try {
-		LizardClient::fsync(get_context(req), ino, datasync, fuse_file_info_wrapper(fi));
+		LizardClient::fsync(get_reduced_context(req), ino, datasync, fuse_file_info_wrapper(fi));
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
