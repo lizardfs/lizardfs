@@ -66,14 +66,20 @@ struct ChunkTypeWithAddress {
 		: address(address), chunk_type(chunk_type), chunkserver_version(chunkserver_version) {
 	}
 
+	// ChunkType is uniquely identified by the IP, port and type.
+	// The chunkserver_version is needed for serializing data.
+	// Adding it to compare may break logic, see counting crcErrors in ChunkReader.
 	bool operator==(const ChunkTypeWithAddress& other) const {
-		return std::make_tuple(address, chunk_type, chunkserver_version)
-			== std::make_tuple(other.address, other.chunk_type, other.chunkserver_version);
+		return std::make_tuple(address, chunk_type)
+		    == std::make_tuple(other.address, other.chunk_type);
 	}
 
+	// ChunkType is uniquely identified by the IP, port and type.
+	// The chunkserver_version is needed for serializing data.
+	// Adding it to compare may break logic, see counting crcErrors in ChunkReader.
 	bool operator<(const ChunkTypeWithAddress& other) const {
-		return std::make_tuple(address, chunk_type, chunkserver_version)
-			< std::make_tuple(other.address, other.chunk_type, other.chunkserver_version);
+		return std::make_tuple(address, chunk_type)
+		    < std::make_tuple(other.address, other.chunk_type);
 	}
 
 	LIZARDFS_DEFINE_SERIALIZE_METHODS(address, chunk_type, chunkserver_version);
