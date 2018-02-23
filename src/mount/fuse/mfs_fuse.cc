@@ -24,14 +24,21 @@
 #include <type_traits>
 #include <vector>
 
+#include "common/lru_cache.h"
 #include "common/massert.h"
 #include "common/small_vector.h"
 #include "common/special_inode_defs.h"
+#include "common/time_utils.h"
 #include "mount/fuse/lock_conversion.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
 #include "mount/thread_safe_map.h"
+#include "protocol/cltoma.h"
 #include "protocol/MFSCommunication.h"
+
+#include "grp.h"
+#include "pwd.h"
+#include "unistd.h"
 
 #if SPECIAL_INODE_ROOT != FUSE_ROOT_ID
 #error FUSE_ROOT_ID is not equal to SPECIAL_INODE_ROOT
@@ -55,7 +62,10 @@ void checkTypesEqual(const A& a, const B& b) {
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/sysctl.h>
 
-void getBsdGroups(LizardClient::Context &ctx) {
+static LizardClient::Context getSecondaryGroups(fuse_req_t &req) {
+	auto fuse_ctx = fuse_req_ctx(req);
+	LizardClient::Context ctx(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, 0);
+
 	int mib_path[4];
 	struct kinfo_proc kinfo;
 	size_t len;
@@ -81,21 +91,17 @@ void getBsdGroups(LizardClient::Context &ctx) {
 		}
 #endif
 	}
+
+	return ctx;
 }
-#endif
 
-static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
-	static_assert(sizeof(gid_t) == sizeof(LizardClient::Context::IdType),
-	              "Invalid IdType to call fuse_req_getgroups");
-
-#if defined(__APPLE__) || defined(__FreeBSD__)
-	(void)req;
-	getBsdGroups(ctx);
-	LizardClient::updateGroups(ctx);
-#elif (FUSE_VERSION < 28)
-	(void)req, (void)ctx;
 #else
+
+static LizardClient::Context getSecondaryGroups(fuse_req_t &req) {
 	static const int kMaxGroups = GroupCache::kDefaultGroupsSize - 1;
+
+	auto fuse_ctx = fuse_req_ctx(req);
+	LizardClient::Context ctx(fuse_ctx->uid, fuse_ctx->gid, fuse_ctx->pid, 0);
 
 	assert(ctx.gids.size() == 1);
 	ctx.gids.resize(kMaxGroups + 1);
@@ -109,8 +115,39 @@ static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) 
 		// calls to fuse_req_getgroups
 		ctx.gids.resize(std::max(1, std::min<int>(getgroups_ret + 1, ctx.gids.size())));
 	}
-	LizardClient::updateGroups(ctx);
+
+	return ctx;
+}
+
 #endif
+
+typedef LruCache<
+	LruCacheOption::UseTreeMap,
+	LruCacheOption::Reentrant,
+	LizardClient::Context,
+	uint32_t> PidToContextCache;
+
+static PidToContextCache gPidToContextCache(std::chrono::seconds(10), 1024);
+
+static void updateGroupsForContext(fuse_req_t &req, LizardClient::Context &ctx) {
+	static_assert(sizeof(gid_t) == sizeof(LizardClient::Context::IdType),
+	              "Invalid IdType to call fuse_req_getgroups");
+
+	LizardClient::Context cached_context = gPidToContextCache.get(SteadyClock::now(), ctx.pid,
+		[&req](LizardClient::Context::IdType /*pid*/) { return getSecondaryGroups(req); });
+	if (!cached_context.isValid()) {
+		lzfs::log_warn("Failed to extract context information (secondary groups)");
+		return;
+	}
+	if (cached_context.uid != ctx.uid || cached_context.gid != ctx.gid) {
+		// uid and/or gid changed - this may happen due to setuid or other changes,
+		// so let's invalidate cache and try again
+		gPidToContextCache.erase(ctx.uid);
+		cached_context = gPidToContextCache.get(SteadyClock::now(), ctx.pid,
+			[&req](LizardClient::Context::IdType /*pid*/) { return getSecondaryGroups(req); });
+	}
+	ctx.gids = std::move(cached_context.gids);
+	LizardClient::updateGroups(ctx);
 }
 
 /**

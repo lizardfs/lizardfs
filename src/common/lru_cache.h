@@ -73,7 +73,7 @@ public:
 	 * \param valueObtainer a function that is used for obtaining a value for a given key, if
 	 *                   cached value was not available.
 	 */
-	LruCache(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer)
+	LruCache(SteadyDuration maxTime, uint64_t maxElements, ValueObtainer valueObtainer = ValueObtainer())
 		: cacheHit(0),
 		  cacheExpired(0),
 		  cacheMiss(0),
@@ -89,7 +89,8 @@ public:
 	 * cache a bit by removing few outdated entries if there were any, or remove the oldest entry
 	 * if the capacity was exceeded.
 	 */
-	Value get(SteadyTimePoint currentTs, Keys... keys) {
+	template<typename CustomValueObtainer>
+	Value get(SteadyTimePoint currentTs, Keys... keys, CustomValueObtainer value_obtainer) {
 		std::unique_lock<Mutex> lock(mutex_);
 		uint64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(maxTime_).count();
 		if (maxTime_ms != ms) {
@@ -117,7 +118,7 @@ public:
 
 		// Don't call valueObtainer under a lock
 		lock.unlock();
-		auto value = valueObtainer_(keys...);
+		auto value = value_obtainer(keys...);
 		lock.lock();
 		// If there was a race and the cache was filled after the lock was released, return the
 		// value that was just obtained, don't update the cache itself.
@@ -144,6 +145,12 @@ public:
 		this->cleanupWithoutLocking(currentTs, few);
 		return value;
 	}
+
+	Value get(SteadyTimePoint currentTs, Keys... keys) {
+		assert(valueObtainer_);
+		return get(currentTs, keys..., valueObtainer_);
+	}
+
 
 	/**
 	 * Remove 'maxOperations' or less entries that are either outdated or make the cache exceed

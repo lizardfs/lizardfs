@@ -34,12 +34,20 @@ struct Context {
 
 	typedef cltoma::updateCredentials::GroupsContainer GroupsContainer;
 
+	static constexpr IdType kIncorrectId = 0xffffffff;
+
+	Context() : uid(kIncorrectId), gid(kIncorrectId), pid(), umask(), gids() {}
+
 	Context(IdType uid, IdType gid, pid_t pid, MaskType umask)
 			: uid(uid), gid(gid), pid(pid), umask(umask), gids(1, gid) {
 	}
 
 	Context(IdType uid, const GroupsContainer &gids, pid_t pid, MaskType umask)
 		  : uid(uid), gid(0), pid(pid), umask(umask), gids(gids) {
+	}
+
+	bool isValid() const {
+		return !gids.empty();
 	}
 
 	IdType uid;
