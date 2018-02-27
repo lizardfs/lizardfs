@@ -197,6 +197,11 @@ static void main_configure_debug_log() {
 	}
 	lzfs::drop_all_logs();
 	lzfs::add_log_syslog();
+	if (gRunAsDaemon) {
+		lzfs::add_log_stderr(lzfs::log_level::warn);
+	} else {
+		lzfs::add_log_stderr(lzfs::log_level::debug);
+	}
 	for (std::string suffix : {"", "_A", "_B", "_C"}) {
 		std::string configEntryName = "MAGIC_DEBUG_LOG" + suffix;
 		std::string value = cfg_get(configEntryName.c_str(), "");
