@@ -34,6 +34,19 @@
  */
 void gf_gen_rs_matrix(uint8_t *a, int m, int k);
 
+/*! \brief Create Cauchy encoding matrix for Reed-Solomon.
+ *
+ * Matrix dimension is (m, k)
+ *
+ * Top of the matrix is identity matrix.
+ * Next (m-k) rows compute parity parts.
+ *
+ * \param a Pointer to buffer for storing matrix
+ * \param m Sum of parity and data parts .
+ * \param k Number of data parts.
+ */
+void gf_gen_cauchy1_matrix(uint8_t *a, int m, int k);
+
 /*! Compute matrix inversion.
  *
  * Input and output matrix have dimension (k, k).

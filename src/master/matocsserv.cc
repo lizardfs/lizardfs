@@ -421,6 +421,7 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 		uint32_t min_version = std::max({
 			slice_traits::isXor(slice) ? kFirstXorVersion : 0,
 			slice_traits::isEC(slice) ? kFirstECVersion : 0,
+			slice_traits::isEC(slice) && slice_traits::ec::isEC2(slice) ? kEC2Version : 0,
 			min_server_version
 		});
 

@@ -51,24 +51,24 @@ for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating goal 1 chunk" expect_success file-validate file
 for_chunkservers stop ${cs_list[@]}
 
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_1_of_4_1*.???")
-cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_2_of_4_1*.???")
-cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_3_of_4_1*.???")
-cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_4_of_4_1*.???")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_1_of_4_1*.???")
+cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_2_of_4_1*.???")
+cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_3_of_4_1*.???")
+cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_4_of_4_1*.???")
 for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating ec(4,1) parts of chunk" file-validate file
 
 for_chunkservers stop ${cs_list[0]}
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_5_of_4_1*.???")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_5_of_4_1*.???")
 for_chunkservers start ${cs_list[0]}
 MESSAGE="Validating ec(4,1) parity of chunk" file-validate file
 for_chunkservers stop ${cs_list[@]}
 
-cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_1_of_5_4*.???")
-cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_2_of_5_4*.???")
-cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_3_of_5_4*.???")
-cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_4_of_5_4*.???")
-cs_list[4]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_5_of_5_4*.???")
+cs_list[0]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_1_of_5_4*.???")
+cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_2_of_5_4*.???")
+cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_3_of_5_4*.???")
+cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_4_of_5_4*.???")
+cs_list[4]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_5_of_5_4*.???")
 for_chunkservers start ${cs_list[@]}
 MESSAGE="Validating ec(5,4) parts of chunk" file-validate file
 
@@ -76,10 +76,10 @@ for_chunkservers stop ${cs_list[1]}
 for_chunkservers stop ${cs_list[2]}
 for_chunkservers stop ${cs_list[3]}
 for_chunkservers stop ${cs_list[4]}
-cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_6_of_5_4*.???")
-cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_7_of_5_4*.???")
-cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_8_of_5_4*.???")
-cs_list[4]=$(find_first_chunkserver_with_chunks_matching "chunk_ec_9_of_5_4*.???")
+cs_list[1]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_6_of_5_4*.???")
+cs_list[2]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_7_of_5_4*.???")
+cs_list[3]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_8_of_5_4*.???")
+cs_list[4]=$(find_first_chunkserver_with_chunks_matching "chunk_ec2_9_of_5_4*.???")
 for_chunkservers start ${cs_list[1]}
 for_chunkservers start ${cs_list[2]}
 for_chunkservers start ${cs_list[3]}

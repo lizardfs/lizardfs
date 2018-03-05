@@ -60,7 +60,7 @@ std::string Chunk::generateFilenameForVersion(uint32_t version, int layout_versi
 		ss << (unsigned)slice_traits::xors::getXorLevel(type_) << "_";
 	}
 	if (slice_traits::isEC(type_)) {
-		ss << "ec_" << (type_.getSlicePart() + 1) << "_of_"
+		ss << "ec2_" << (type_.getSlicePart() + 1) << "_of_"
 		   << slice_traits::ec::getNumberOfDataParts(type_) << "_"
 		   << slice_traits::ec::getNumberOfParityParts(type_) << "_";
 	}

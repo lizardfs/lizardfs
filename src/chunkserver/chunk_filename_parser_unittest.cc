@@ -73,7 +73,7 @@ TEST(ChunkFilenameParser, ParseXorParityFilenameMaxLevel) {
 }
 
 TEST(ChunkFilenameParser, ParseECChunkFilename) {
-	ChunkFilenameParser filenameParser("chunk_ec_3_of_2_4_0000000000550A00_00000002.mfs");
+	ChunkFilenameParser filenameParser("chunk_ec2_3_of_2_4_0000000000550A00_00000002.mfs");
 	ASSERT_EQ(ChunkFilenameParser::OK, filenameParser.parse());
 	EXPECT_EQ(ChunkFormat::MOOSEFS, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
@@ -82,7 +82,7 @@ TEST(ChunkFilenameParser, ParseECChunkFilename) {
 }
 
 TEST(ChunkFilenameParser, ParseECChunkFilenameMaxLevel) {
-	ChunkFilenameParser filenameParser("chunk_ec_1_of_3_7_0000000000550A00_00000002.liz");
+	ChunkFilenameParser filenameParser("chunk_ec2_1_of_3_7_0000000000550A00_00000002.liz");
 	ASSERT_EQ(ChunkFilenameParser::OK, filenameParser.parse());
 	EXPECT_EQ(ChunkFormat::INTERLEAVED, filenameParser.chunkFormat());
 	EXPECT_EQ(0x550A00U, filenameParser.chunkId());
@@ -181,31 +181,31 @@ TEST(ChunkFilenameParser, ParseWrongFilenames) {
 
 	// leading 0's in ec part
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_04_of_3_5_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_04_of_3_5_0000000000550A00_00000001.liz").parse());
 
 	// wrong ec part
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_4_of_2_1_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_4_of_2_1_0000000000550A00_00000001.liz").parse());
 
 	// wrong ec part
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_0_of_2_1_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_0_of_2_1_0000000000550A00_00000001.liz").parse());
 
 	// leading 0's in data part count
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_4_of_05_10_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_4_of_05_10_0000000000550A00_00000001.liz").parse());
 
 	// leading 0's in parity part count
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_4_of_05_10_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_4_of_05_10_0000000000550A00_00000001.liz").parse());
 
 	// wrong ec number of parity parts
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_4_of_7_33_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_4_of_7_33_0000000000550A00_00000001.liz").parse());
 
 	// wrong ec number of data parts
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,
-			ChunkFilenameParser("chunk_ec_4_of_39_8_0000000000550A00_00000001.liz").parse());
+			ChunkFilenameParser("chunk_ec2_4_of_39_8_0000000000550A00_00000001.liz").parse());
 
 	// wrong ec number of data parts
 	EXPECT_EQ(ChunkFilenameParser::ERROR_INVALID_FILENAME,

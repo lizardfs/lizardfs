@@ -10,11 +10,11 @@ lizardfs setgoal ec22 "$dir"
 FILE_SIZE=6M file-generate "$dir/file"
 
 # Find the chunkserver serving part 1 of 4 and stop it
-csid=$(find_first_chunkserver_with_chunks_matching 'chunk_ec_1_of_*')
+csid=$(find_first_chunkserver_with_chunks_matching 'chunk_ec2_1_of_*')
 lizardfs_chunkserver_daemon $csid stop
 
 # Find the chunkserver serving part 2 of 4 and stop it
-csid=$(find_first_chunkserver_with_chunks_matching 'chunk_ec_2_of_*')
+csid=$(find_first_chunkserver_with_chunks_matching 'chunk_ec2_2_of_*')
 lizardfs_chunkserver_daemon $csid stop
 
 if ! file-validate "$dir/file"; then

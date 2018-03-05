@@ -165,7 +165,11 @@ protected:
 			return;
 		}
 
-		gf_gen_rs_matrix(rs_matrix_.data(), k + m, k);
+		if (m >= 5 || (m == 4 && k > 20)) {
+			gf_gen_cauchy1_matrix(rs_matrix_.data(), k + m, k);
+		} else {
+			gf_gen_rs_matrix(rs_matrix_.data(), k + m, k);
+		}
 
 		rs_k_ = k;
 		rs_m_ = m;

@@ -1023,6 +1023,16 @@ static void getStandardChunkCopies(const std::vector<ChunkTypeWithAddress>& allC
 	}
 }
 
+static void remove_unsupported_ec_parts(uint32_t client_version, std::vector<ChunkTypeWithAddress> &chunk_list) {
+	auto it = std::remove_if(chunk_list.begin(), chunk_list.end(),
+	     [client_version](const ChunkTypeWithAddress &entry) {
+		return slice_traits::isEC(entry.chunk_type) &&
+		       slice_traits::ec::isEC2Part(entry.chunk_type) &&
+		       (client_version < kEC2Version || entry.chunkserver_version < kEC2Version);
+	});
+	chunk_list.erase(it, chunk_list.end());
+}
+
 uint8_t matoclserv_fuse_write_chunk_respond(matoclserventry *eptr,
 		const PacketSerializer* serializer, uint64_t chunkId, uint32_t messageId,
 		uint64_t fileLength, uint32_t lockId) {
@@ -1030,6 +1040,8 @@ uint8_t matoclserv_fuse_write_chunk_respond(matoclserventry *eptr,
 	std::vector<ChunkTypeWithAddress> allChunkCopies;
 	uint8_t status = chunk_getversionandlocations(chunkId, eptr->peerip, chunkVersion,
 			kMaxNumberOfChunkCopies, allChunkCopies);
+
+	remove_unsupported_ec_parts(eptr->version, allChunkCopies);
 
 	// don't allow old clients to modify standard copy of a xor chunk
 	if (status == LIZARDFS_STATUS_OK && !serializer->isLizardFsPacketSerializer()) {
@@ -2832,6 +2844,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, PacketHeader header, cons
 		if (chunkid > 0) {
 			status = chunk_getversionandlocations(chunkid, eptr->peerip, version,
 					kMaxNumberOfChunkCopies, allChunkCopies);
+			remove_unsupported_ec_parts(eptr->version, allChunkCopies);
 		} else {
 			version = 0;
 		}

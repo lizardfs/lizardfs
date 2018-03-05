@@ -163,6 +163,12 @@ ChunkFilenameParser::Status ChunkFilenameParser::parseXorChunkType() {
 }
 
 ChunkFilenameParser::Status ChunkFilenameParser::parseChunkType() try {
+	bool is_ec2 = (consume("ec2_") == Parser::OK);
+
+	if (is_ec2) {
+		return parseECChunkType();
+	}
+
 	bool is_ec = (consume("ec_") == Parser::OK);
 	if (is_ec) {
 		return parseECChunkType();

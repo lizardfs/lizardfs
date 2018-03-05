@@ -196,6 +196,18 @@ inline bool isParityPart(const ::ChunkPartType &cpt) {
 	return cpt.getSlicePart() >= getNumberOfDataParts(cpt);
 }
 
+inline bool isEC2Part(const ::ChunkPartType &cpt) {
+	return isParityPart(cpt) &&
+	       (getNumberOfParityParts(cpt) >= 5 ||
+	       (getNumberOfParityParts(cpt) == 4 && getNumberOfDataParts(cpt) > 20));
+}
+
+inline bool isEC2(const ::Goal::Slice &slice) {
+	return isEC(slice) &&
+	       (getNumberOfParityParts(slice) >= 5 ||
+	       (getNumberOfParityParts(slice) == 4 && getNumberOfDataParts(slice) > 20));
+}
+
 } // ec
 
 inline bool isParityPart(const ::ChunkPartType &cpt) {

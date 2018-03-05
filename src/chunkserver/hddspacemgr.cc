@@ -3016,6 +3016,49 @@ static inline void hdd_add_chunk(folder *f,
 	f->chunkcount++;
 }
 
+void hdd_convert_chunk_to_ec2(const std::string &subfolder_path, const std::string &name,
+		std::string &new_name) {
+	std::string::size_type ec_pos;
+
+	ec_pos = name.find("_ec_");
+	if (ec_pos == std::string::npos) {
+		new_name = name;
+		return;
+	}
+
+	ChunkFilenameParser parser(name);
+
+	if (!slice_traits::isEC(parser.chunkType())) {
+		new_name = name;
+		return;
+	}
+
+
+	// drop old parity chunks for parity count greater than 4
+	if (slice_traits::ec::isEC2Part(parser.chunkType())) {
+		new_name.clear();
+		int r = remove((subfolder_path + name).c_str());
+		if (r < 0) {
+			lzfs_pretty_syslog(LOG_ERR,
+			                   "Failed to remove invalid chunk file %s placed in chunk directory %s.",
+			                   name.c_str(), subfolder_path.c_str());
+		}
+		return;
+	}
+
+	new_name = name;
+	new_name.replace(ec_pos, 4, "_ec2_");
+
+	int r = rename((subfolder_path + name).c_str(), (subfolder_path + new_name).c_str());
+	if (r < 0) {
+		lzfs_pretty_syslog(LOG_ERR,
+		                   "Failed to rename old chunk %s placed in chunk directory %s.",
+		                   name.c_str(), subfolder_path.c_str());
+		new_name.clear();
+		return;
+	}
+}
+
 /*! \brief Scan folder for new chunks in specific directory layout
  *
  * \param f folder
@@ -3038,20 +3081,20 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 		return;
 	}
 
-	bool scanterm = false;
+	bool scan_term = false;
 	tcheckcnt = 0;
 	lastperc = 0;
 	lasttime = time(NULL);
-	for (unsigned subfolderNumber = 0; subfolderNumber < Chunk::kNumberOfSubfolders && !scanterm;
-	     ++subfolderNumber) {
-		std::string subfolderPath =
-		    f->path + Chunk::getSubfolderNameGivenNumber(subfolderNumber, layout_version) + "/";
-		dd = opendir(subfolderPath.c_str());
+	for (unsigned subfolder_number = 0; subfolder_number < Chunk::kNumberOfSubfolders && !scan_term;
+	     ++subfolder_number) {
+		std::string subfolder_path =
+		    f->path + Chunk::getSubfolderNameGivenNumber(subfolder_number, layout_version) + "/";
+		dd = opendir(subfolder_path.c_str());
 		if (!dd) {
 			continue;
 		}
 
-		while (!scanterm) {
+		while (!scan_term) {
 			de = readdir(dd);
 			if (!de) {
 				break;
@@ -3062,25 +3105,33 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 				if (strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
 					lzfs_pretty_syslog(LOG_WARNING,
 					                   "Invalid file %s placed in chunk directory %s; skipping it.",
-					                   de->d_name, subfolderPath.c_str());
+					                   de->d_name, subfolder_path.c_str());
 				}
 				continue;
 			}
 			if (Chunk::getSubfolderNumber(filenameParser.chunkId(), layout_version) !=
-			    subfolderNumber) {
+			    subfolder_number) {
 				lzfs_pretty_syslog(LOG_WARNING,
 				                   "Chunk %s%s placed in a wrong directory; skipping it.",
-				                   subfolderPath.c_str(), de->d_name);
+				                   subfolder_path.c_str(), de->d_name);
 				continue;
 			}
-			hdd_add_chunk(f, subfolderPath + de->d_name, filenameParser.chunkId(),
+
+			std::string chunk_name = de->d_name;
+			hdd_convert_chunk_to_ec2(subfolder_path, de->d_name, chunk_name);
+
+			if(chunk_name.empty()) {
+				continue;
+			}
+
+			hdd_add_chunk(f, subfolder_path + chunk_name, filenameParser.chunkId(),
 			              filenameParser.chunkFormat(), filenameParser.chunkVersion(),
 			              filenameParser.chunkType(), f->todel, layout_version);
 			tcheckcnt++;
 			if (tcheckcnt >= 1000) {
 				std::lock_guard<std::mutex> folderlock_guard(folderlock);
 				if (f->scanstate == SCST_SCANTERMINATE) {
-					scanterm = true;
+					scan_term = true;
 				}
 				tcheckcnt = 0;
 			}
@@ -3088,7 +3139,7 @@ void hdd_folder_scan_layout(folder *f, uint32_t begin_time, int layout_version) 
 		closedir(dd);
 
 		currenttime = time(NULL);
-		currentperc = (subfolderNumber * 100.0) / 256.0;
+		currentperc = (subfolder_number * 100.0) / 256.0;
 		if (currentperc > lastperc && currenttime > lasttime) {
 			lastperc = currentperc;
 			lasttime = currenttime;
