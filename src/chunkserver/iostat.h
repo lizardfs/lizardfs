@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
+#include <sys/sysmacros.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
