@@ -37,8 +37,8 @@ static void set_trashtime_usage() {
 	print_numberformat_options();
 	print_recursive_option();
 	fprintf(stderr, " -l - wait until settrashtime will finish (otherwise there is 30s timeout)\n");
-	fprintf(stderr, " SECONDS+ - increase trashtime to given value\n");
-	fprintf(stderr, " SECONDS- - decrease trashtime to given value\n");
+	fprintf(stderr, " SECONDS+ - if trashtime smaller then given value, increase trashtime to given value\n");
+	fprintf(stderr, " SECONDS- - if trashtime bigger then given value, decrease trashtime to given value\n");
 	fprintf(stderr, " SECONDS - just set trashtime to given value\n");
 }
 
