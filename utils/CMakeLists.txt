@@ -38,6 +38,10 @@ install(TARGETS file-overwrite RUNTIME DESTINATION ${BIN_SUBDIR})
 add_executable(file-validate file_validate.cc)
 install(TARGETS file-validate RUNTIME DESTINATION ${BIN_SUBDIR})
 
+# test files validator
+add_executable(file-validate-growing file_validate_growing.cc)
+install(TARGETS file-validate-growing RUNTIME DESTINATION ${BIN_SUBDIR})
+
 # utility for flock() system call
 add_executable(flockcmd flockcmd.cc)
 install(TARGETS flockcmd RUNTIME DESTINATION ${BIN_SUBDIR})

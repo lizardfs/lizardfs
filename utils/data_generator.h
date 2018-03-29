@@ -60,61 +60,65 @@ public:
 		utils_zassert(close(fd));
 	}
 
-	static void validateFile(int fd, const std::string &name) {
+	static void validateFile(int fd, const std::string &name, uint64_t file_size = 0) {
 		std::string error;
 
-		/* Check the file size */
-		struct stat fileInformation;
-		utils_zassert(stat(name.c_str(), &fileInformation));
-		uint64_t actualSize = fileInformation.st_size;
-		uint64_t expectedSize;
+		struct stat file_information;
+		utils_zassert(stat(name.c_str(), &file_information));
 
-		if(read(fd, &expectedSize, sizeof(expectedSize)) != sizeof(expectedSize)) {
-			// The file if too short, so the first bytes are corrupted.
-			throw std::length_error("(inode " + std::to_string(fileInformation.st_ino) + ")"
-					" file too short (" + std::to_string(actualSize) + " bytes)");
-		}
-		expectedSize = be64toh(expectedSize);
-		if (expectedSize != (uint64_t)fileInformation.st_size) {
-			error = "(inode " + std::to_string(fileInformation.st_ino) + ")"
-					" file should be " + std::to_string(expectedSize) +
-					" bytes long, but is " + std::to_string(actualSize) + " bytes long\n";
+		if (file_size == 0) {
+			/* Check the file size */
+			file_size = file_information.st_size;
+			uint64_t expected_size;
+
+			if(read(fd, &expected_size, sizeof(expected_size)) != sizeof(expected_size)) {
+				// The file if too short, so the first bytes are corrupted.
+				throw std::length_error("(inode " + std::to_string(file_information.st_ino) + ")"
+						" file too short (" + std::to_string(file_size) + " bytes)");
+			}
+			expected_size = be64toh(expected_size);
+			if (expected_size != (uint64_t)file_information.st_size) {
+				error = "(inode " + std::to_string(file_information.st_ino) + ")"
+						" file should be " + std::to_string(expected_size) +
+						" bytes long, but is " + std::to_string(file_size) + " bytes long\n";
+			}
 		}
 
 		/* Check the data */
-		off_t currentOffset = sizeof(actualSize);
-		uint64_t size = actualSize - sizeof(actualSize);
-		std::vector<char> actualBuffer(UtilsConfiguration::blockSize());
-		std::vector<char> properBuffer(UtilsConfiguration::blockSize());
+		off_t current_offset = sizeof(uint64_t);
+		uint64_t size = file_size - sizeof(uint64_t);
+		std::vector<char> actual_buffer(UtilsConfiguration::blockSize());
+		std::vector<char> proper_buffer(UtilsConfiguration::blockSize());
 		while (size > 0) {
-			uint64_t bytesToRead = size;
-			if (bytesToRead > properBuffer.size()) {
-				bytesToRead = properBuffer.size();
+			uint64_t bytes_to_read = size;
+			if (bytes_to_read > proper_buffer.size()) {
+				bytes_to_read = proper_buffer.size();
 			}
-			properBuffer.resize(bytesToRead);
-			fillBufferWithProperData(properBuffer, currentOffset);
-			utils_passert(read(fd, actualBuffer.data(), bytesToRead) == (ssize_t)bytesToRead);
-			size -= bytesToRead;
+			proper_buffer.resize(bytes_to_read);
+			fillBufferWithProperData(proper_buffer, current_offset);
+			ssize_t bytes_read = pread(fd, actual_buffer.data(), bytes_to_read, current_offset);
+			utils_passert((file_size == 0 && bytes_read == (ssize_t)bytes_to_read) || (file_size > 0 && bytes_read >= 0));
+			size -= bytes_read;
 			// memcmp is very fast, use it to check if everything is OK
-			if (memcmp(actualBuffer.data(), properBuffer.data(), bytesToRead) == 0) {
-				currentOffset += bytesToRead;
+			if (memcmp(actual_buffer.data(), proper_buffer.data(), bytes_read) == 0) {
+				current_offset += bytes_read;
 				continue;
 			}
 			// if not -- find the byte which is corrupted
-			for (size_t i = 0; i < bytesToRead; ++i) {
-				if (actualBuffer[i] != properBuffer[i]) {
+			for (size_t i = 0; i < (size_t)bytes_read; ++i) {
+				if (actual_buffer[i] != proper_buffer[i]) {
 					std::stringstream ss;
-					ss << "(inode " << fileInformation.st_ino << ")"
+					ss << "(inode " << file_information.st_ino << ")"
 							<< " data mismatch at offset " << i << ". Expected/actual:\n";
-					for (size_t j = i; j < bytesToRead && j < i + 32; ++j) {
+					for (size_t j = i; j < (size_t)bytes_read && j < i + 32; ++j) {
 						ss << std::hex << std::setfill('0') << std::setw(2)
-								<< static_cast<int>(static_cast<unsigned char>(properBuffer[j]))
+								<< static_cast<int>(static_cast<unsigned char>(proper_buffer[j]))
 								<< " ";
 					}
 					ss << "\n";
-					for (size_t j = i; j < bytesToRead && j < i + 32; ++j) {
+					for (size_t j = i; j < (size_t)bytes_read && j < i + 32; ++j) {
 						ss << std::hex << std::setfill('0') << std::setw(2)
-								<< static_cast<int>(static_cast<unsigned char>(actualBuffer[j]))
+								<< static_cast<int>(static_cast<unsigned char>(actual_buffer[j]))
 								<< " ";
 					}
 					throw std::invalid_argument(error + ss.str());
@@ -150,6 +154,12 @@ public:
 		utils_zassert(close(fd));
 	}
 
+	static void validateGrowingFile(const std::string& name, size_t file_size) {
+		int fd = open(name.c_str(), O_RDONLY);
+		utils_passert(fd != -1);
+		validateFile(fd, name, file_size);
+		utils_zassert(close(fd));
+	}
 
 protected:
 	static void fillBufferWithProperData(std::vector<char>& buffer, off_t offset) {
