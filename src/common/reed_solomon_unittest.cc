@@ -23,6 +23,7 @@
 #include <iostream>
 
 #include "common/reed_solomon.h"
+#include "common/slice_traits.h"
 #include "common/time_utils.h"
 
 #define SMALL_TEST_DATA_SIZE (64 * 1024)
@@ -219,4 +220,100 @@ TEST(ReedSolomon, EncodeBenchmarkBig) {
 	benchmark_encoding(data, 2, 5);
 	generate_random_data(data, 32, BIG_TEST_DATA_SIZE/32);
 	benchmark_encoding(data, 4, 5);
+}
+
+template<std::size_t N>
+void select_rows(uint8_t *output_matrix, const uint8_t *input_matrix, int s1, int s2,
+	                const std::bitset<N> &required_rows) {
+	for (int i = 0; i < s1; ++i) {
+		if (!required_rows[i]) {
+			input_matrix += s2;
+			continue;
+		}
+
+		for (int j = 0; j < s2; ++j) {
+			output_matrix[j] = input_matrix[j];
+		}
+
+		output_matrix += s2;
+		input_matrix += s2;
+	}
+}
+
+template<std::size_t M, std::size_t N>
+bool test_matrix(std::array<uint8_t, M> &rs_matrix, const std::bitset<N> &erased, int k, int m) {
+	std::array<uint8_t, M> tmp_matrix,result_matrix;
+	assert((int)erased.count() == m);
+	select_rows(tmp_matrix.data(), rs_matrix.data(), k + m, k, ~erased);
+
+	return gf_invert_matrix(tmp_matrix.data(), result_matrix.data(), k) == 0;
+}
+
+TEST(ReedSolomon, TestMatrix) {
+	static const int max_part_count = 32 + 8;
+	typedef std::bitset<2 * max_part_count> ErasedMap;
+	typedef std::array<uint8_t, max_part_count * max_part_count> MatrixContainer;
+
+	MatrixContainer rs_matrix;
+	for(int k = slice_traits::ec::kMinDataCount; k <= slice_traits::ec::kMaxDataCount; ++k) {
+		int m;
+
+		m = 1; gf_gen_rs_matrix(rs_matrix.data(), k + m, k);
+		for(int a = 0; a < k + m; ++a) {
+			ErasedMap erased;
+			erased.set(a);
+
+			EXPECT_TRUE(test_matrix(rs_matrix, erased, k, m))
+			<< "K,M = " << k << "," << m << " set=" << erased.to_string();
+		}
+
+		m = 2; gf_gen_rs_matrix(rs_matrix.data(), k + m, k);
+		for(int a = 0; a < k + m; ++a) {
+		for(int b = a + 1; b < k + m; ++b) {
+			ErasedMap erased;
+			erased.set(a);
+			erased.set(b);
+
+			EXPECT_TRUE(test_matrix(rs_matrix, erased, k, m))
+			<< "K,M = " << k << "," << m << " set=" << erased.to_string();
+		}
+		}
+
+		m = 3; gf_gen_rs_matrix(rs_matrix.data(), k + m, k);
+		for(int a = 0; a < k + m; ++a) {
+		for(int b = a + 1; b < k + m; ++b) {
+		for(int c = b + 1; c < k + m; ++c) {
+			ErasedMap erased;
+			erased.set(a);
+			erased.set(b);
+			erased.set(c);
+
+			EXPECT_TRUE(test_matrix(rs_matrix, erased, k, m))
+			<< "K,M = " << k << "," << m << " set=" << erased.to_string();
+		}
+		}
+		}
+
+		if (k > 20) {
+			continue;
+		}
+
+		m = 4; gf_gen_rs_matrix(rs_matrix.data(), k + m, k);
+		for(int a = 0; a < k + m; ++a) {
+		for(int b = a + 1; b < k + m; ++b) {
+		for(int c = b + 1; c < k + m; ++c) {
+		for(int d = c + 1; d < k + m; ++d) {
+			ErasedMap erased;
+			erased.set(a);
+			erased.set(b);
+			erased.set(c);
+			erased.set(d);
+
+			EXPECT_TRUE(test_matrix(rs_matrix, erased, k, m))
+			<< "K,M = " << k << "," << m << " set=" << erased.to_string();
+		}
+		}
+		}
+		}
+	}
 }
