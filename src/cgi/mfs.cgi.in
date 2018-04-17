@@ -10,6 +10,7 @@ import cgi
 import cgitb
 import sys
 import re
+from datetime import datetime
 
 PROTO_BASE = @PROTO_BASE@
 
@@ -2776,9 +2777,13 @@ if "HELP" in sectionset:
 	print """please contact with help@lizardfs.com"""
 	print """<br/>"""
 
-
-
 print """</div> <!-- end of container -->"""
+
+print """<div id="footer">"""
+print """<div id="footer-left"></div>"""
+print """<div id="footer-center"></div>"""
+print """<div id="footer-right">Generated: %s</div>""" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+print """</div>"""
 
 print """</body>"""
 print """</html>"""
