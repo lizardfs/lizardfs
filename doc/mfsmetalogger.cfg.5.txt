@@ -12,6 +12,7 @@ The file *mfsmetalogger.cfg* contains configuration of LizardFS metalogger proce
 == SYNTAX
 
 Syntax is:
+
 'OPTION' *=* 'VALUE'
 
 Lines starting with *#* character are ignored.

@@ -14,6 +14,7 @@ The file *mfsgoals.cfg* contains definitions of the replication goals.
 Syntax is:
 
 'id' 'name' : $'type' { 'label' ... }
+
 'id' 'name' : 'label' ...
 
 The *#* character starts comments.
@@ -53,6 +54,7 @@ characters: a-z, A-Z, 0-9, _.
 	         the parts are necessary. If labels are specified, parts will
 	         be kept on chunkservers with these labels. Otherwise, default wildcard
 	         labels will be used. K can be in range from 2 to 32 and M from 1 to 32.
+
 	If the type is unspecified is is assumed to be *std*.
 
 The list of 'labels' is a list of chunkserver labels as defined in
