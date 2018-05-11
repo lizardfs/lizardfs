@@ -14,6 +14,7 @@ The file *mfschunkserver.cfg* contains configuration of LizardFS chunkserver pro
 Syntax is:
 
 'OPTION' *=* 'VALUE'::
+
 Lines starting with *#* character are ignored.
 
 == OPTIONS
