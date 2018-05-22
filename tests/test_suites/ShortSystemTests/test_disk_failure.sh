@@ -1,7 +1,9 @@
 USE_RAMDISK=YES \
 	CHUNKSERVERS=3 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
-	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|OPERATIONS_DELAY_INIT = 0" \
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
+			`|CHUNKS_LOOP_MAX_CPU = 90`
+			`|OPERATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
 # Spoil disks on two chunkservers
