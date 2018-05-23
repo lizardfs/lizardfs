@@ -64,6 +64,17 @@
 }
 
 {
+   fuse mount stack of running threads
+   Memcheck:Leak
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   ...
+   fun:main
+}
+
+{
    Berkeley DB close
    Memcheck:Param
    pwrite64(buf)
