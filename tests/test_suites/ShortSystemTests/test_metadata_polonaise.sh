@@ -1,4 +1,4 @@
-timeout_set '1 minute'
+timeout_set '3 minutes'
 CHUNKSERVERS=3 \
 	MOUNTS=1 \
 	USE_RAMDISK="YES" \

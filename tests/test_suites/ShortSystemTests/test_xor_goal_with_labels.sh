@@ -1,4 +1,4 @@
-timeout_set 1 minute
+timeout_set 2 minutes
 
 # Returns number of standard chunks and number of different parts for each xor level.
 # If the same chunk has two copies of the same parts, these will be counted as one, eg:
@@ -29,6 +29,7 @@ USE_RAMDISK=YES \
 			`|CHUNKS_SOFT_DEL_LIMIT = 10`
 			`|CHUNKS_WRITE_REP_LIMIT = 10`
 			`|OPERATIONS_DELAY_INIT = 0`
+			`|CHUNKS_REBALANCING_BETWEEN_LABELS=1`
 			`|OPERATIONS_DELAY_DISCONNECT = 0"\
 	setup_local_empty_lizardfs info
 

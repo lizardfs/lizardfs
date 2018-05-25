@@ -1,4 +1,4 @@
-timeout_set 5 minutes
+timeout_set 10 minutes
 
 master_cfg="MAGIC_DISABLE_METADATA_DUMPS = 1"
 

@@ -1,4 +1,4 @@
-timeout_set '90 seconds'
+timeout_set '160 seconds'
 
 # Test if sessions are properly supported after promoting the shadow server.
 MOUNTS=2 \
