@@ -18,7 +18,7 @@ my_client() {
 		local PORT=${info[master${1}_${2}]}
 	fi
 	echo "Connecting to metadata server ${1} ${2} port ${PORT}..."
-	nc -q 1000 localhost ${PORT} | cat > ${TEMP_DIR}/nc_out
+	nc -d localhost ${PORT} | cat > ${TEMP_DIR}/nc_out
 	local result="${PIPESTATUS[0]}"
 	echo "$result" > ${TEMP_DIR}/${2}_exit_status
 	echo "Connecting to metadata server ${1} ${2} result: $result"
@@ -47,6 +47,7 @@ lizardfs_master_daemon stop
 lizardfs_make_conf_for_master 1
 lizardfs_admin_shadow 1 reload-config
 
+sleep 1
 run_my_client assert_failure 1 0 matocl
 run_my_client assert_failure 1 0 matocs
 run_my_client assert_failure 1 0 matots

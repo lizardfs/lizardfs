@@ -46,4 +46,6 @@ assert_not_equal "$expected_changelogs" "$(changelog_checksums)"
 # Start master and metalogger, and make sure they properly rename changelog files
 lizardfs_master_daemon start
 lizardfs_metalogger_daemon start
+
+sleep 1
 assert_no_diff "$expected_changelogs" "$(changelog_checksums)"

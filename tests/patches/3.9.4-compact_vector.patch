@@ -1,0 +1,43 @@
+--- a/src/common/compact_vector.h	2018-06-12 10:41:12.512999250 +0200
++++ b/src/common/compact_vector.h	2018-02-21 12:17:17.618277953 +0100
+@@ -163,8 +163,8 @@
+ 
+ private:
+ 	union {
+-		pointer   ptr_;
+-		uint8_t   data_[sizeof(pointer)];
++		volatile pointer ptr_;
++		uint8_t data_[sizeof(pointer)];
+ 	};
+ 	size_type size_;
+ };
+@@ -241,7 +241,8 @@
+ 	}
+ 
+ 	void set_ptr(pointer p) {
+-		assert((reinterpret_cast<uint64_t>(p) & size_mask) == 0);
++		assert((reinterpret_cast<uint64_t>(p) & ((static_cast<uint64_t>(1) << ptr_shift) - 1)) == 0);
++		assert(((reinterpret_cast<uint64_t>(p) >> ptr_shift) & size_mask) == 0);
+ 		assert((reinterpret_cast<uint64_t>(p) &
+ 		        ((static_cast<uint64_t>(1) << ptr_shift) - 1)) == 0);
+ 		ptr_ = ((reinterpret_cast<uint64_t>(p) >> ptr_shift) & ptr_mask) |
+@@ -278,8 +279,8 @@
+ 
+ private:
+ 	union {
+-		uint64_t ptr_;
+-		uint8_t  data_[8];
++		volatile uint64_t ptr_;
++		uint8_t data_[8];
+ 	};
+ #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
+ 	pointer debug_ptr_;
+@@ -839,7 +840,7 @@
+ 		return size() == base::storage_.max_size();
+ 	}
+ 
+-	void reserve(size_type n) {
++	void reserve(size_type /*n*/) {
+ 	}
+ 
+ 	reference operator[](size_type n) noexcept {
