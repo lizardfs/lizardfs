@@ -146,7 +146,7 @@ set timeout for executing each wave of a read operation in milliseconds (default
 set timeout for the whole communication with chunkservers during a read operation in milliseconds (default: 2000)
 
 *-o cacheexpirationtime=*'MSEC'::
-set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: 300)
+set timeout for read cache entries to be considered valid in milliseconds (0 disables cache) (default: 0)
 
 *-o readaheadmaxwindowsize=*'KB'::
 set max value of readahead window per single descriptor in kibibytes (default: 16384)
