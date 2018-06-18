@@ -1,3 +1,5 @@
+timeout_set 2 minutes
+
 MOUNTS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \

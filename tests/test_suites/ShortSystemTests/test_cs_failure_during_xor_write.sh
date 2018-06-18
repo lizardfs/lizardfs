@@ -34,7 +34,7 @@ for csid in {0..3}; do
 	port=${info[chunkserver${csid}_port]}
 	lizardfs_chunkserver_daemon $csid stop
 	start_proxy $port $((port + 1000)) $((1883 * (4 + csid)))
-	sleep 1
+	sleep 2
 	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
 done
 lizardfs_wait_for_all_ready_chunkservers

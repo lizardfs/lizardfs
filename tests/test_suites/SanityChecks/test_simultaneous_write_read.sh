@@ -1,4 +1,4 @@
-timeout_set 80 seconds
+timeout_set 3 minutes
 
 CHUNKSERVERS=4
 USE_RAMDISK=YES
