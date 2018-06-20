@@ -15,6 +15,7 @@ done
 . tools/stack_trace.sh
 . tools/assert.sh
 . tools/moosefs.sh
+. tools/string.sh
 . tools/lizardfs.sh
 . tools/lizardfsXX.sh
 . tools/network.sh
@@ -24,7 +25,6 @@ done
 . tools/timeout.sh
 . tools/valgrind.sh
 . tools/time.sh
-. tools/string.sh
 . tools/quota.sh
 . tools/metadata.sh
 . tools/color.sh

@@ -40,7 +40,11 @@ setup_local_empty_lizardfs() {
 	fi
 
 	if [[ $use_lizardfsXX ]]; then
-		use_new_goal_config="false"
+		if version_compare_gte "$LIZARDFSXX_TAG" "3.11.0" ; then
+			use_new_goal_config="true"
+		else
+			use_new_goal_config="false"
+		fi
 		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/lizardfs-${LIZARDFSXX_TAG}
 		export PATH="${LIZARDFSXX_DIR}/bin:${LIZARDFSXX_DIR}/sbin:$PATH"
 		build_lizardfsXX
