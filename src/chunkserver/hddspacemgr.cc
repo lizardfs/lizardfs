@@ -3028,11 +3028,10 @@ void hdd_convert_chunk_to_ec2(const std::string &subfolder_path, const std::stri
 
 	ChunkFilenameParser parser(name);
 
-	if (!slice_traits::isEC(parser.chunkType())) {
+	if (parser.parse() != ChunkFilenameParser::OK || !slice_traits::isEC(parser.chunkType())) {
 		new_name = name;
 		return;
 	}
-
 
 	// drop old parity chunks for parity count greater than 4
 	if (slice_traits::ec::isEC2Part(parser.chunkType())) {
