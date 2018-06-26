@@ -775,6 +775,14 @@ int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
 int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
 	       liz_acl_t **acl);
 
+/*!
+ * \brief Apply rich acl masks to aces
+ * \param acl acl to be modified
+ * \param owner owner id
+ * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
+ */
+int liz_acl_apply_masks(liz_acl_t *acl, uint32_t owner);
+
 /*! \brief Gather chunks information for a file
  * \param instance instance returned from liz_init
  * \param ctx context returned from liz_create_context

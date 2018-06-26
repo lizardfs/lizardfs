@@ -19,8 +19,6 @@
 #include "context_wrap.h"
 #include "lzfs_internal.h"
 
-void lzfs_int_apply_masks(liz_acl_t *lzfs_acl, uint32_t owner);
-
 liz_acl_t *lzfs_int_convert_fsal_acl(const fsal_acl_t *fsal_acl) {
 	liz_acl_t *lzfs_acl = NULL;
 
@@ -155,7 +153,7 @@ fsal_status_t lzfs_int_getacl(struct lzfs_fsal_export *lzfs_export, uint32_t ino
 		return lzfs_fsal_last_err();
 	}
 
-	lzfs_int_apply_masks(acl, owner_id);
+	liz_acl_apply_masks(acl, owner_id);
 
 	*fsal_acl = lzfs_int_convert_lzfs_acl(acl);
 	liz_destroy_acl(acl);

@@ -862,6 +862,19 @@ int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, liz_acl_t *
 	return 0;
 }
 
+int liz_acl_apply_masks(liz_acl_t *acl, uint32_t owner) {
+	if (acl) {
+		try {
+			((RichACL *)acl)->applyMasks(owner);
+		} catch (...) {
+			gLastErrorCode = LIZARDFS_ERROR_EINVAL;
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 int liz_get_chunks_info(liz_t *instance, liz_context_t *ctx, liz_inode_t inode,
 	                    uint32_t chunk_index, liz_chunk_info_t *buffer, uint32_t buffer_size,
 	                    uint32_t *reply_size) {
