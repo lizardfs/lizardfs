@@ -543,8 +543,13 @@ rm -rf $RPM_BUILD_ROOT
 %endif
 
 %changelog
-* Thu Nov 23 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.13.0-devel
-- (none) None
+* Thu Jun 28 2018 Pawel Kalinowski <contact@lizardfs.org> - 3.13.0
+- (all) uRaft HA
+- (all) fixes to EC handling
+- (all) nfs-ganesha plugin changed to use only C code
+- (mount) reduced number of secondary groups retrievals (better performance)
+- (mount) add fuse3 client (better performance, writeback cache)
+- (all) many fixes
 
 * Wed Nov 22 2017 Pawel Kalinowski <contact@lizardfs.org> - 3.12.0
 - (all) C API

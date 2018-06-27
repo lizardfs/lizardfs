@@ -1,71 +1,56 @@
 Dear Users,
 
-3.12.0-rc (release candidate) is officially out!
+3.13.0-rc1 (release candidate) is officially out!
 
 Featuring:
 
-- C API
-- nfs-ganesha plugin
-- RichACL - a new POSIX + NFSv4 compatible ACL standard
-- OSX ACL support through osxfuse
-- ACL in-memory deduplication
-- client readahead enabled by default
-- file lock fixes
-- AVX2 support for erasure code goals
-- MinGW compilation fixes
-- more flexible chunkserver options
-- many fixes
+ - uRaft HA
+ - fixes to EC handling
+ - nfs-ganesha plugin changed to use only C code
+ - reduced number of secondary groups retrievals
+ - add fuse3 client
+ - many fixes
 
 
 Detailed info:
 
-* C API *
+* uRaft HA *
 
-LizardFS 3.12 comes with liblizardfs-client library and C language API header.
-It's now possible to build programs/plugins with direct support for LizardFS operations,
-no FUSE needed. For reference, see:
-src/mount/client/lizardfs_c_api.h
-src/data/liblizardfs-client-example.c
+uRaft is HA solution designed for use with LizardFS. It allows for seamless switching
+of master server in case of hardware failure. More information about uRaft is available
+in LizardfFS Handbook (https://docs.lizardfs.com/index.html)
 
-For those building LizardFS from source, pass a -DENABLE_CLIENT_LIB=YES flag to cmake
-in order to make sure you're building client library as well.
+* fixes to EC handling *
 
+For chunk types with number of parity grater than 4 there could occur situation when
+it wasn't possible to recover missing data. This was low probability event but nonetheless
+it could happen. To solve this problem we have to recompute parity parts for those types of chunks.
+Unfortunately until all parity parts are recomputed affected chunks are in endangered state.
 
-* nfs-ganesha plugin *
+* nfs-ganesha plugin changed to use only C code *
 
-Our official plugin for Ganesha NFS server is included as well. This plugin enables
-a LizardFS FSAL (File System Abstraction Layer) to Ganesha, which is then used
-to access LizardFS clusters directly. Our new plugin is pNFS and NFSv4.1 friendly.
+In preparation for moving LizardFS nfs-ganesha plugin to official nfs-ganesha repository,
+we had to remove all occurrences of C++ code and replace it with plain C.
 
-For those building LizardFS from source, pass a -DENABLE_NFS_GANESHA=YES flag to cmake in order to make sure you're building client library as well.
+* reduced number of secondary groups retrievals *
 
+In LizardFS we introduced handling of secondary groups. Unfortunately the function to retrieve
+secondary groups in FUSE library turned out to be using a lot of CPU resources. Thanks to removing
+unnecessary calls to this function, mount performance increased significantly.
 
-* RichACL *
-In order to extend POSIX access control list implementation we introduced RichACL support.
-Backward compatibility with POSIX ACLs is guaranteed. Additionally, it's possible to use NFSv4-style ACL tools (nfs4_getfacl/nfs4_setfacl) and RichACL tools (getrichacl/setrichacl) to manage more complicated access control rules.
+* add fuse3 client *
 
+LizardFS now include mount3 client which uses FUSE3 library. Thanks to new features in FUSE3,
+now mount performs much better in many scenarios. Here are the most important changes visible
+to LizardFS users:
+ - big_writes option is now enabled by default (also it isn't recognized as a parameter anymore).
+ - Added writeback_cache option. With kernel 3.14 and newer this
+   enables write-back caching which can significantly improve performance.
+ - increased read/write performance (specially for small operations)
 
-* OSX ACL *
-Setting/getting ACLs is also possible on OSX via both command line chmod/ls -e interface and desktop.
-
-
-* File lock fixes *
-Global file locking mechanism is now fully fixed and passes all NFS lock tests from connectathon suite.
-
-
-* AVX2 *
-Erasure code goal computing routines now take full advantage of AVX2 processor extensions.
-
-
-* MinGW *
-LizardFS is now bug-free again for MinGW cross-compiling.
-
-
-* Chunkserver options *
-Replication limits are now fully configurable in chunkserver config.
-Also, chunk test (a.k.a. scrubbing) has 1 millisecond precision now instead of previous 1 second, which allows users to turn on more aggressive scrubbing with simple chunkserver reload.
+Because most of the Linux distributions don't include FUSE3 library, we have build FUSE3 packages
+and made them available on LizardFS page (https://lizardfs.com/)
 
 Cheers,
-Piotr Sarna
+Artur Kornacki
 LizardFS Team
-

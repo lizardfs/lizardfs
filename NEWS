@@ -1,5 +1,13 @@
 This file lists noteworthy changes in LizardFS.
 
+ * Lizardfs (3.13.0-rc1) (2018-06-28)
+ - (all) uRaft HA
+ - (all) fixes to EC handling
+ - (all) nfs-ganesha plugin changed to use only C code
+ - (mount) reduced number of secondary groups retrievals (better performance)
+ - (mount) add fuse3 client (better performance, writeback cache)
+ - (all) many fixes
+
  * Lizardfs (3.12.0-rc1) (2017-11-22)
  - (all) C API
  - (all) nfs-ganesha plugin
