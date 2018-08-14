@@ -23,5 +23,5 @@
 #include <functional>
 
 void daemonize_return_status(int status);
-int daemonize_and_wait(bool block_output, std::function<int ()> run_function);
+int daemonize_and_wait(std::function<int ()> run_function);
 

@@ -37,7 +37,7 @@ void daemonize_return_status(int status) {
 	}
 }
 
-int daemonize_and_wait(bool block_output, std::function<int()> run_function) {
+int daemonize_and_wait(std::function<int()> run_function) {
 	gWaiter[0] = gWaiter[1] = -1;
 
 	if (pipe(gWaiter) < 0) {
@@ -57,20 +57,6 @@ int daemonize_and_wait(bool block_output, std::function<int()> run_function) {
 			status = 1;
 		}
 		return status;
-	}
-
-	if (block_output) {
-		setsid();
-		setpgid(0, getpid());
-		int nullfd = open("/dev/null", O_RDWR, 0);
-		if (nullfd != -1) {
-			(void)dup2(nullfd, 0);
-			(void)dup2(nullfd, 1);
-			(void)dup2(nullfd, 2);
-			if (nullfd > 2) {
-				close(nullfd);
-			}
-		}
 	}
 
 	close(gWaiter[0]);
