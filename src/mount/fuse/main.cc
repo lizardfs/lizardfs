@@ -333,6 +333,21 @@ int mainloop(struct fuse_args *args, const char *mountpoint, bool multithread,
 	fuse_session_add_chan(se, ch);
 #endif
 
+    // If this is moved before the fuse_mount() stuff, autofs mounts will fail
+    if (!gMountOptions.debug && !foreground) {
+        setsid();
+        setpgid(0, getpid());
+        int nullfd = open("/dev/null", O_RDWR, 0);
+        if (nullfd != -1) {
+            (void)dup2(nullfd, 0);
+            (void)dup2(nullfd, 1);
+            (void)dup2(nullfd, 2);
+            if (nullfd > 2) {
+                close(nullfd);
+            }
+        }
+    }
+
 	int err;
 	if (multithread) {
 #if FUSE_VERSION >= 30
@@ -652,15 +667,13 @@ int main(int argc, char *argv[]) try {
 	int res;
 #if FUSE_VERSION >= 30
 	if (!fuse_opts.foreground) {
-		res = daemonize_and_wait(!gMountOptions.debug,
-		                         std::bind(&mainloop, &args, &fuse_opts, conn_opts));
+		res = daemonize_and_wait(std::bind(&mainloop, &args, &fuse_opts, conn_opts));
 	} else {
 		res = mainloop(&args, &fuse_opts, conn_opts);
 	}
 #else
 	if (!foreground) {
-		res = daemonize_and_wait(!gMountOptions.debug,
-		                         std::bind(&mainloop, &args, mountpoint, multithread, foreground));
+		res = daemonize_and_wait(std::bind(&mainloop, &args, mountpoint, multithread, foreground));
 	} else {
 		res = mainloop(&args, mountpoint, multithread, foreground);
 	}
