@@ -477,6 +477,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files client3
 %attr(755,root,root) %{_bindir}/mfsmount3
+%{_mandir}/man1/mfsmount3.1*
 
 %files lib-client
 %{_libdir}/liblizardfsmount_shared.so
