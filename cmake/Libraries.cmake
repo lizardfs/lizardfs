@@ -26,11 +26,20 @@ endif()
 
 find_library(RT_LIBRARY rt)
 message(STATUS "RT_LIBRARY: ${RT_LIBRARY}")
+
+if(ENABLE_TCMALLOC AND ENABLE_JEMALLOC)
+    message(FATAL_ERROR "You cannot enable both TCMALLOC and JEMALLOC simultaneously")
+endif()
+
 if(ENABLE_TCMALLOC)
   find_library(TCMALLOC_LIBRARY NAMES tcmalloc_minimal)
   message(STATUS "TCMALLOC_LIBRARY: ${TCMALLOC_LIBRARY}")
 endif()
 
+if(ENABLE_JEMALLOC)
+  find_library(JEMALLOC_LIBRARY NAMES jemalloc)
+  message(STATUS "JEMALLOC_LIBRARY: ${JEMALLOC_LIBRARY}")
+endif()
 
 # Find extra binaries
 find_program(A2X_BINARY a2x)
