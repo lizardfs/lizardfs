@@ -22,7 +22,7 @@ void parseOptions(int argc, char **argv, uRaftController::Options &opt, bool &ma
 
 	generic.add_options()
 	("help", "produce help message")
-	("config,c", po::value<std::string>()->default_value("/etc/mfs/lizardfs-uraft.cfg"), "configuration file");
+	("config,c", po::value<std::string>()->default_value(ETC_PATH "/lizardfs-uraft.cfg"), "configuration file");
 
 	po::options_description config("Configuration");
 	config.add_options()
