@@ -78,4 +78,18 @@ foreach(MANPAGE ${MANPAGES})
   # Install the generated file
   install(FILES ${GENERATED_MANPAGE_PATH} DESTINATION ${MAN_SUBDIR}/man${SECTION_NUMBER})
 endforeach()
+
+# mfsmount3.1 is special, since it should be available even if we do not install the
+# fuse2 package with mfsmount.1. Make a copy in the binary directory and replace
+# the string "mfsmount" with "mfsmount3".
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/mfsmount.1.txt MFSMOUNT1)
+string(REPLACE "mfsmount" "mfsmount3" MFSMOUNT3 ${MFSMOUNT1})
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/mfsmount3.1 ${MFSMOUNT3})
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/mfsmount3.1
+    COMMAND a2x ${ASCIIDOC_VERBOSE} -L -f manpage ${CMAKE_CURRENT_BINARY_DIR}/mfsmount3.1.txt
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mfsmount.1.txt)
+set(GENERATED_MANPAGES ${GENERATED_MANPAGES} ${CMAKE_CURRENT_BINARY_DIR}/mfsmount3.1)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/mfsmount3.1 DESTINATION ${MAN_SUBDIR}/man1)
+
 add_custom_target(manpages ALL SOURCES ${GENERATED_MANPAGES})
