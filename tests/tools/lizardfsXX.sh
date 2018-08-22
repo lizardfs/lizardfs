@@ -1,7 +1,7 @@
 build_lizardfsXX_or_use_cache() {
 	LIZARDFS_TESTS_DIR=$(pwd)
-	# Exit if MooseFS was already configured and installed,
-	# assume it was configured properly
+	# Exit if LizardFS was already configured and installed, assume it was
+	# configured properly
 	(cd "$LIZARDFSXX_DIR/src/lizardfs/build" && make install) && return || true
 
 	rm -rf "$LIZARDFSXX_DIR"
@@ -47,10 +47,12 @@ lizardfsXX_master_daemon() {
 	return ${PIPESTATUS[0]}
 }
 
-# A generic function to run MooseFS commands. Usage examples:
-# mfs mfssetgoal 3 file
-# mfs mfsdirinfo file
-# mfs mfsmetalogger stop
+# A generic function to run LizardFS commands.
+#
+# Usage examples:
+#   mfs mfssetgoal 3 file
+#   mfs mfsdirinfo file
+#   mfs mfsmetalogger stop
 lizardfsXX() {
 	local command="$1"
 	shift
