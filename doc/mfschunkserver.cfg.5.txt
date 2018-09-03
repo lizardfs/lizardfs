@@ -67,6 +67,10 @@ port to listen on for client (mount) connections (default is 9422)
 *CSSERV_TIMEOUT*::
 timeout (in seconds) for client (mount) connections (default is 5)
 
+*CSSERV_ADVERTISE_ADDR*::
+IP address to advertise to clients. This should be set if running behind a NAT
+or in a Docker container.
+
 *HDD_CONF_FILENAME*::
 alternative name of *mfshdd.cfg* file
 
