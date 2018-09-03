@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import socket
 import struct
@@ -12,18 +12,18 @@ ANTOCU_CHART = (PROTO_BASE+505)
 
 fields = cgi.FieldStorage()
 
-if fields.has_key("host"):
+if "host" in fields:
 	host = fields.getvalue("host")
 else:
 	host = ''
-if fields.has_key("port"):
+if "port" in fields:
 	try:
 		port = int(fields.getvalue("port"))
 	except ValueError:
 		port = 0
 else:
 	port = 0
-if fields.has_key("id"):
+if "id" in fields:
 	try:
 		chartid = int(fields.getvalue("id"))
 	except ValueError:
@@ -36,7 +36,7 @@ def mysend(socket,msg):
 	while totalsent < len(msg):
 		sent = socket.send(msg[totalsent:])
 		if sent == 0:
-			raise RuntimeError, "socket connection broken"
+			raise RuntimeError("socket connection broken")
 		totalsent = totalsent + sent
 
 def myrecv(socket,leng):
@@ -44,15 +44,15 @@ def myrecv(socket,leng):
 	while len(msg) < leng:
 		chunk = socket.recv(leng-len(msg))
 		if chunk == '':
-			raise RuntimeError, "socket connection broken"
+			raise RuntimeError("socket connection broken")
 		msg = msg + chunk
 	return msg
 
 if host=='' or port==0 or chartid<0:
-	print "Content-Type: image/gif"
-	print
+	print("Content-Type: image/gif")
+	print()
 	f = open('err.gif')
-	print f.read(),
+	print(f.read(), end=' ')
 	f.close()
 else:
 	try:
@@ -66,32 +66,32 @@ else:
 #               data = s.recv(length)
 #               print len(data),length
 			if data[:3]=="GIF":
-				print "Content-Type: image/gif"
-				print
-				print data,
+				print("Content-Type: image/gif")
+				print()
+				print(data, end=' ')
 			elif data[:8]=="\x89PNG\x0d\x0a\x1a\x0a":
-				print "Content-Type: image/png"
-				print
-				print data,
+				print("Content-Type: image/png")
+				print()
+				print(data, end=' ')
 			elif data[:9]=="timestamp":
-				print "Content-Type: text"
-				print
-				print data,
+				print("Content-Type: text")
+				print()
+				print(data, end=' ')
 			else:
-				print "Content-Type: image/gif"
+				print("Content-Type: image/gif")
 				f = open('err.gif')
-				print f.read(),
+				print(f.read(), end=' ')
 				f.close()
 		else:
-			print "Content-Type: image/gif"
-			print
+			print("Content-Type: image/gif")
+			print()
 			f = open('err.gif')
-			print f.read(),
+			print(f.read(), end=' ')
 			f.close()
 		s.close()
 	except Exception:
-		print "Content-Type: image/gif"
-		print
+		print("Content-Type: image/gif")
+		print()
 		f = open('err.gif')
-		print f.read(),
+		print(f.read(), end=' ')
 		f.close()

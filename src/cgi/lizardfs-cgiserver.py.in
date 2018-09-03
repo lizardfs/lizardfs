@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # vim: noexpandtab shiftwidth=4 softtabstop=4 tabstop=4
 
 import fcntl
@@ -13,9 +13,9 @@ import getopt
 import traceback
 import datetime
 import mimetypes
-import urlparse
-import urllib
-import cStringIO
+import urllib.parse
+import urllib.request, urllib.parse, urllib.error
+import io
 import socket
 import select
 import pwd
@@ -140,7 +140,7 @@ class ClientHandler:
 # ============================================================================
 def loop(server,handler,timeout=30):
 	while True:
-		k = client_handlers.keys()
+		k = list(client_handlers.keys())
 		# w = sockets to which there is something to send
 		# we must test if we can send data
 		w = [ cl for cl in client_handlers if client_handlers[cl].writable ]
@@ -207,7 +207,7 @@ class HTTP(ClientHandler):
 		if (self.protocol == "HTTP/1.1" and close_conn.lower() == "keep-alive"):
 			self.close_when_done = False
 		# parse the url
-		scheme,netloc,path,params,query,fragment = urlparse.urlparse(self.url)
+		scheme,netloc,path,params,query,fragment = urllib.parse.urlparse(self.url)
 		self.path,self.rest = path,(params,query,fragment)
 
 		if self.method == 'POST':
@@ -218,7 +218,7 @@ class HTTP(ClientHandler):
 			# request is incomplete if not all message body received
 			if len(body)<content_length:
 				return False
-			f_body = cStringIO.StringIO(body)
+			f_body = io.StringIO(body)
 			f_body.seek(0)
 			sys.stdin = f_body # compatibility with CGI
 
@@ -244,11 +244,11 @@ class HTTP(ClientHandler):
 					return self.err_resp(403,'Forbidden')
 				else:
 					fstatdata = os.stat(file_name)
-					if (fstatdata.st_mode & 0170000) == 0040000:    # directory
+					if (fstatdata.st_mode & 0o170000) == 0o040000:    # directory
 						for index in self.index_files:
 							if os.path.exists(file_name+'/'+index) and os.access(file_name+'/'+index,os.R_OK):
 								return self.redirect_resp(index)
-					if (fstatdata.st_mode & 0170000) != 0100000:
+					if (fstatdata.st_mode & 0o170000) != 0o100000:
 						return self.err_resp(403,'Forbidden')
 					ext = os.path.splitext(file_name)[1]
 					c_type = mimetypes.types_map.get(ext,'text/plain')
@@ -299,15 +299,15 @@ class HTTP(ClientHandler):
 		self.make_cgi_env()
 		# redirect print statements to a cStringIO
 		save_stdout = sys.stdout
-		output_buffer = cStringIO.StringIO()
+		output_buffer = io.StringIO()
 		sys.stdout = output_buffer
 		# run the script
 		try:
-			execfile(self.file_name, {})
+			exec(compile(open(self.file_name).read(), self.file_name, 'exec'), {})
 		except SystemExit:
 			pass
 		except:
-			output_buffer = cStringIO.StringIO()
+			output_buffer = io.StringIO()
 			output_buffer.write("Content-type:text/plain\r\n\r\n")
 			traceback.print_exc(file=output_buffer)
 		sys.stdout = save_stdout # restore sys.stdout
@@ -340,7 +340,7 @@ class HTTP(ClientHandler):
 		env['REQUEST_URI'] = self.url
 		env['PATH_TRANSLATED'] = self.translate_path()
 		env['SCRIPT_NAME'] = self.path
-		env['PATH_INFO'] = urlparse.urlunparse(("","","",self.rest[0],"",""))
+		env['PATH_INFO'] = urllib.parse.urlunparse(("","","",self.rest[0],"",""))
 		env['QUERY_STRING'] = self.rest[1]
 		if not self.host == self.client_address[0]:
 			env['REMOTE_HOST'] = self.host
@@ -447,13 +447,13 @@ if __name__=="__main__":
 	opts,args = getopt.getopt(sys.argv[1:],"vhH:P:R:p:u:")
 	for opt, val in opts:
 		if opt == '-h':
-			print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0]
-			print "-H bind_host : local address to listen on (default: any)"
-			print "-P bind_port : port to listen on (default: 9425)"
-			print "-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)"
-			print "-v : log requests on stderr"
-			print "-p : pidfile path, setting it triggers manual daemonization"
-			print "-u : username of server owner, used in manual daemonization"
+			print("usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0])
+			print("-H bind_host : local address to listen on (default: any)")
+			print("-P bind_port : port to listen on (default: 9425)")
+			print("-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)")
+			print("-v : log requests on stderr")
+			print("-p : pidfile path, setting it triggers manual daemonization")
+			print("-u : username of server owner, used in manual daemonization")
 			sys.exit(0)
 		elif opt == '-H':
 			host = val
@@ -471,9 +471,9 @@ if __name__=="__main__":
 	# launch the server on the specified port
 	server = Server(host, port)
 	if host != 'any':
-		print "Asynchronous HTTP server running on %s:%s" % (host,port)
+		print("Asynchronous HTTP server running on %s:%s" % (host,port))
 	else:
-		print "Asynchronous HTTP server running on port %s" % port
+		print("Asynchronous HTTP server running on port %s" % port)
 	if verbose:
 		HTTP.logging = True
 	else:
