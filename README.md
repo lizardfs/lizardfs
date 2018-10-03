@@ -14,7 +14,7 @@ For support please contact sales@lizardfs.com or visit www.lizardfs.com.
 
 - [GitHub repository mirror](https://github.com/lizardfs/lizardfs)
 
-- [Documentation Source](https://github.com/lizardfs/documetatnion)
+- [Documentation Source](https://github.com/lizardfs/documentation)
 
 - [Code review system](http://cr.skytechnology.pl:8081/)
 
