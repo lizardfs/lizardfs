@@ -25,6 +25,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %define         liz_confdir        %{_sysconfdir}/%{liz_project}
 %define         liz_limits_conf    /etc/security/limits.d/10-lizardfs.conf
 %define         liz_pam_d          /etc/pam.d/lizardfs
+%define         _unpackaged_files_terminate_build 0
 
 %description
 LizardFS is an Open Source, easy to deploy and maintain, distributed,

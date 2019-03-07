@@ -26,7 +26,7 @@ git clone "$source_dir" "$working_dir/lizardfs"
 cd "$working_dir/lizardfs"
 
 # Move service files to debian/
-cp rpm/service-files/* debian/
+cp -P rpm/service-files/* debian/
 
 sed -i '1 s/-devel//g' debian/changelog
 if [[ $use_systemd == 0 ]]; then
