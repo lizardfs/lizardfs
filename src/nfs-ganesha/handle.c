@@ -17,6 +17,7 @@
  */
 
 #include <stdint.h>
+#include <sys/sysmacros.h>
 
 #include "fsal.h"
 #include "fsal_api.h"
