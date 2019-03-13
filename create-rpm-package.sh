@@ -6,6 +6,7 @@ case "$os_release" in
   6*) distro=el6 ;;
   7*) distro=el7 ;;
   24*) distro=fc24 ;;
+  *) echo "This Linux distribution is not supported" && exit 1 ;;
 esac
 echo "Building packages for '$distro'"
 
