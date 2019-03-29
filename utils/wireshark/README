@@ -104,6 +104,10 @@ Follow below steps to install LizardFS Wireshark plugin:
 
         Edit -> Preferences -> Protocols -> LizardFS
 
+<<<<<<< HEAD
     E.g. to parse the communication in our test suite set LizardFS TCP Ports to:
+=======
+    E.g. to parse the communication in our test suite set LizardFS TCP ports to:
+>>>>>>> utils: Made LizardFS' Wireshark plugin work again
 
         9419-9422,25000-25015
