@@ -1,57 +1,109 @@
-About the wireshark plugin
-==========================
+About the LizardFS Wireshark plugin
+===================================
 
-This directory contains a script, which generates a plugin for wireshark (http://www.wireshark.org/)
-which adds support for the LizardFS protocol. This plugin is compiled into a .so shared library
-to make it easily redistributable, because the build process is a bit complicated.
+This directory contains a Python and Bash scripts which generate a plugin
+(dissector) for Wireshark (http://www.wireshark.org/) which adds support for
+the LizardFS protocol. This plugin is compiled into a lizardfs.so shared
+library to make it easily redistributable.
 
-Ensure you have the following packages installed (for Ubuntu):
-      apt-get install wireshark libpcap-dev libglib2.0-dev bison flex
+To learn more about Wireshark dissectors see:
+https://www.wireshark.org/docs/wsdg_html_chunked/ChapterDissection.html
 
-If you want to be able to sniff interfaces without root privileges execute:
-      sudo chmod +s /usr/bin/dumpcap
-On Debian/Ubuntu system you should use dpkg-statoverride command, i.e.:
-      sudo addgroup pcap
-      sudo adduser ${USER} pcap
-      sudo dpkg-statoverride --update --add root pcap 4750 /usr/bin/dumpcap
+----
 
-# Set some variables
-      LIZARDFS_SRCDIR=~/src/lizardfs
-      WIRESHARK_SRCDIR=~/src/wireshark
-      WIRESHARK_VERSION=2.2.6 # Get version by invoking wireshark --version
-# Checkout the wireshark sources, eg:
-      git clone http://code.wireshark.org/git/wireshark "$WIRESHARK_SRCDIR"
-# Checkout your version of wireshark
-      ( cd "$WIRESHARK_SRCDIR" && git checkout wireshark-$WIRESHARK_VERSION )
-# Copy contents of this directory to the wireshark source directory
-      tar -C "$LIZARDFS_SRCDIR"/utils/wireshark -c . | tar -C "$WIRESHARK_SRCDIR" -vx
-# Run the generate.sh script (provide path to the MFSCommunication file as an argument)
-      "$WIRESHARK_SRCDIR"/plugins/lizardfs/generate.sh "$LIZARDFS_SRCDIR"/src/protocol/MFSCommunication.h
-# Edit the main CMakeLists.txt file in the wireshark source tree to add the new plugin
-      vim "$WIRESHARK_SRCDIR"/CMakeLists.txt
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -413,6 +413,7 @@ if(ENABLE_PLUGINS)
-                plugins/ethercat
-                plugins/gryphon
-                plugins/irda
-+               plugins/lizardfs
-                plugins/m2m
-                plugins/mate
-                plugins/opcua
-# Build the wireshark using cmake (you don't have to build the GUI)
-      mkdir "$WIRESHARK_SRCDIR"/build
-      cd "$WIRESHARK_SRCDIR"/build
-      cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_wireshark=NO
-      make -j8
-# Install the plugin, eg. on Debian-like distros:
-      sudo ln -s "$WIRESHARK_SRCDIR"/build/run/lizardfs.so /usr/lib/wireshark/libwireshark2/plugins/
-# or (depending on your wireshark version)
-      sudo ln -s "$WIRESHARK_SRCDIR"/build/run/lizardfs.so /usr/lib/x86_64-linux-gnu/wireshark/libwireshark3/plugins/
-# or better yet, put plugin in your home directory:
-      mkdir -p ${HOME}/.wireshark/plugins
-      cp "$WIRESHARK_SRCDIR"/build/run/lizardfs.so ${HOME}/.wireshark/plugins/
-# Enjoy! This plugin recognizes the LizardFS proocol using TCP port numbers. If you use
-  non-standard ports (9419-9422) you have to change it in Edit->Preferences->Protocols->LizardFS,
-  eg. to parse the communication in our test suite:
-      LizardFS TCP Ports: 9419-9422,25000-25015
+Follow below steps to install LizardFS Wireshark plugin:
+
+1) Ensure you have the following packages installed (for Debian and Ubuntu):
+
+        # apt install wireshark cmake libcap-dev libglib2.0-dev bison flex libcrypto++-dev libc-ares-dev
+
+2) If you want to be able to sniff interfaces without root privileges follow
+   instructions from /usr/share/doc/wireshark-common/README.Debian (same steps
+   for Ubuntu):
+
+        # apt install wireshark
+        # dpkg-reconfigure wireshark-common
+        # usermod -a -G wireshark $USER
+        # reboot
+        # chmod +s /usr/bin/dumpcap
+
+   If you haven't installed Wireshark yet, you can find instructions here:
+   https://code.wireshark.org/review/gitweb?p=wireshark.git;a=blob_plain;f=debian/README.Debian;hb=HEAD
+
+3) Set some variables:
+
+        $ LIZARDFS_SRCDIR=~/src/lizardfs
+        $ WIRESHARK_SRCDIR=~/src/wireshark
+        $ WIRESHARK_VERSION=2.2.6  # get version by invoking wireshark --version
+
+4) Clone the Wireshark sources, e.g.:
+
+        $ git clone http://code.wireshark.org/git/wireshark "$WIRESHARK_SRCDIR"
+
+5) Checkout your version of Wireshark:
+
+        $ cd "$WIRESHARK_SRCDIR" && git checkout wireshark-$WIRESHARK_VERSION
+
+6) Copy contents of this directory to the Wireshark source directory:
+
+        $ tar -C "$LIZARDFS_SRCDIR"/utils/wireshark -c . | tar -C "$WIRESHARK_SRCDIR" -vx
+
+7) Run the generate.sh script (provide path to the MFSCommunication file as an
+   argument):
+
+        $ "$WIRESHARK_SRCDIR"/plugins/epan/lizardfs/generate.sh "$LIZARDFS_SRCDIR"/src/protocol/MFSCommunication.h
+
+8) Edit the main CMakeLists.txt file in the Wireshark source tree to add the
+   new plugin:
+
+        $ vim "$WIRESHARK_SRCDIR"/CMakeLists.txt
+
+            --- a/CMakeLists.txt
+            +++ b/CMakeLists.txt
+            @@ -1401,6 +1401,7 @@ if(ENABLE_PLUGINS)
+                            plugins/epan/ethercat
+                            plugins/epan/gryphon
+                            plugins/epan/irda
+            +               plugins/epan/lizardfs
+                            plugins/epan/mate
+                            plugins/epan/opcua
+                            plugins/epan/profinet
+
+9) Build the Wireshark using cmake (you don't have to build the GUI):
+
+        $ mkdir "$WIRESHARK_SRCDIR"/build
+        $ cd "$WIRESHARK_SRCDIR"/build
+        $ cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_wireshark=NO
+        $ make -j8
+
+10) To install the plugin copy lizardfs.so library to the personal plugin
+    folder:
+
+        $ mkdir -p ${PERSONAL_CONFIG_DIR}/epan
+        $ cp "$WIRESHARK_SRCDIR"/build/run/lizardfs.so ${PERSONAL_CONFIG_DIR}/epan
+
+    or global plugin folder:
+
+        # cp "$WIRESHARK_SRCDIR"/build/run/lizardfs.so ${GLOBAL_CONFIG_DIR}/epan
+
+    ${PERSONAL_CONFIG_DIR} and ${GLOBAL_CONFIG_DIR} are dependent on your
+    system and Wireshark version. You can determine them by running Wireshark
+    and navigating to:
+
+        Help > About Wireshark > Folders
+
+    E.g. for Wireshark 2.6.7:
+
+        PERSONAL_CONFIG_DIR=~/.local/lib/wireshark/plugins/2.6
+        GLOBAL_CONFIG_DIR=/usr/lib/x86_64-linux-gnu/wireshark/plugins/2.6
+
+12) Enjoy!
+
+    This plugin recognizes the LizardFS protocol using TCP port numbers. If you
+    use non-standard ports (9419-9422) you need to change them in:
+
+        Edit -> Preferences -> Protocols -> LizardFS
+
+    E.g. to parse the communication in our test suite set LizardFS TCP Ports to:
+
+        9419-9422,25000-25015

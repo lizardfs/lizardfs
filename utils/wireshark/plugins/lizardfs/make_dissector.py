@@ -4,13 +4,14 @@ import sys
 import re
 
 # Some configuration goes here
-chunk_prefixes = ['', 'old', 'new', 'copy'] # prefixes of chunkid field, eg. copychunkid
+chunk_prefixes = ['', 'old', 'new', 'copy']  # prefixes of chunkid field, eg. copychunkid
 oct_fields = ['mode', 'modemask', 'umask']
 hex_fields = ['vershex', 'rver', 'ip', 'crc']
 for pfx in chunk_prefixes:
     hex_fields += [pfx + 'chunkid', pfx + 'chunkversion']
 fields_with_external_dictionary = ['chunktype', 'goal']
 fields_with_dictionary = fields_with_external_dictionary + ['type']
+
 
 class Types:
     int_dec = 1
@@ -45,6 +46,7 @@ class Types:
         4: 'tvb_get_ntohl',
         8: 'tvb_get_ntoh64',
     }
+
 
 class PacketDissectionVariant(object):
     def __init__(self, message):
@@ -227,22 +229,23 @@ class PacketDissectionVariant(object):
         print('    (void)length;')
         print('}\n')
 
+
 # Parse input
 dissectinfo = {}
-dictionaries = { 'type':[] }
+dictionaries = {'type': []}
 packet_regexp = re.compile(r'(LIZ_)?(AN|CS|CL|MA|ML|TS)TO(AN|CS|CL|MA|ML|TS)_[A-Z0-9_]+$')
-field_types = { 'type':Types.int_dec, 'length':Types.int_dec, 'version':Types.int_dec }
-int_field_bits = { 'type':32, 'length':32, 'version':32 }
-command = None    # if set, we are building list of possible dissections for this message
-dict_field = None # if set, we are building list of possible values for this field
+field_types = {'type': Types.int_dec, 'length': Types.int_dec, 'version': Types.int_dec}
+int_field_bits = {'type': 32, 'length': 32, 'version': 32}
+command = None     # if set, we are building list of possible dissections for this message
+dict_field = None  # if set, we are building list of possible values for this field
 for line in sys.stdin:
     try:
-        line = re.sub(r'(^|[^/])//($|[^/]).*', r'\1', line) # Remove //-style comments
-        line = re.sub(r'^# *', '#', line)       # Remove indentation in preprocessor directives
+        line = re.sub(r'(^|[^/])//($|[^/]).*', r'\1', line)  # Remove //-style comments
+        line = re.sub(r'^# *', '#', line)  # Remove indentation in preprocessor directives
         tokens = line.split()
         if len(tokens) == 0:
             # A blank line
-            dict_field = None # Blank lines end dictionaries
+            dict_field = None  # Blank lines end dictionaries
             continue
         if dict_field:
             # We are in progress of building a dictionary, let's add a new entry to it
@@ -273,7 +276,7 @@ for line in sys.stdin:
         if command is None:
             command = '(UNKNOWN)'
             raise RuntimeError('No command name defined before the dissection info')
-        line = re.sub(r'\([^)]*\)', 'BYTES', line) # Replace 'field:(some info)' -> 'field:BYTES'
+        line = re.sub(r'\([^)]*\)', 'BYTES', line)  # Replace 'field:(some info)' -> 'field:BYTES'
         args = line.split()[1:]
         variant = PacketDissectionVariant(command)
         condition_added = False
@@ -296,8 +299,10 @@ for line in sys.stdin:
             # int fields: 8, 16, 32, 64
             if typestr in ['8', '16', '32', '64']:
                 type = Types.int_dec
-                if name in oct_fields: type = Types.int_oct
-                if name in hex_fields: type = Types.int_hex
+                if name in oct_fields:
+                    type = Types.int_oct
+                if name in hex_fields:
+                    type = Types.int_hex
                 bits = int(typestr)
                 variant.add_int_field(type, name, bits)
                 if name not in int_field_bits:
@@ -345,8 +350,9 @@ for line in sys.stdin:
 
 # Generate includes (to make IDEs happy)
 print('#include "config.h"')
-for header in ['<glib.h>', '<epan/dissectors/packet-tcp.h>', '<epan/packet.h>', '<epan/packet_info.h>',
-        '<epan/prefs.h>', '<epan/tvbuff.h>', '<epan/value_string.h>']:
+for header in ['<glib.h>', '<epan/dissectors/packet-tcp.h>', '<epan/packet.h>',
+               '<epan/packet_info.h>', '<epan/prefs.h>', '<epan/tvbuff.h>',
+               '<epan/value_string.h>']:
     print('#include {}'.format(header))
 print('#include "includes.h"')
 
@@ -457,7 +463,7 @@ for message in sorted(dissectinfo):
     print('            dissect_{}(tvb, length, version, pinfo, lizardfs_tree);'.format(message))
     print('            break;')
 print('    }')
-print('}')# Generate function registering the protocol
+print('}')  # Generate function registering the protocol
 print('''
 static guint lizardfs_get_message_length(packet_info *pinfo, tvbuff_t *tvb, int offset) {
     (void)pinfo;
@@ -470,13 +476,13 @@ static void dissect_lizardfs(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree
     tcp_dissect_pdus(tvb, pinfo, tree, TRUE, 8, lizardfs_get_message_length, dissect_lizardfs_message, NULL);
 }
 
-static void register_tcp_port(guint32 port) {
+static void register_tcp_port(guint32 port, gpointer ptr _U_) {
     if (port != 0) {
         dissector_add_uint("tcp.port", port, lizardfs_handle);
     }
 }
 
-static void unregister_tcp_port(guint32 port)
+static void unregister_tcp_port(guint32 port, gpointer ptr _U_)
 {
     if (port != 0) {
         dissector_delete_uint("tcp.port", port, lizardfs_handle);
@@ -492,12 +498,12 @@ void proto_reg_handoff_lizardfs(void) {
         lizardfs_initialized = TRUE;
     } else {
         if (tcp_ports_lizardfs_copy != NULL) {
-            range_foreach(tcp_ports_lizardfs_copy, unregister_tcp_port);
+            range_foreach(tcp_ports_lizardfs_copy, unregister_tcp_port, NULL);
             g_free(tcp_ports_lizardfs_copy);
         }
     }
-    tcp_ports_lizardfs_copy = range_copy(tcp_ports_lizardfs);
-    range_foreach(tcp_ports_lizardfs_copy, register_tcp_port);
+    tcp_ports_lizardfs_copy = range_copy(wmem_epan_scope(), tcp_ports_lizardfs);
+    range_foreach(tcp_ports_lizardfs_copy, register_tcp_port, NULL);
 }
 
 void proto_register_lizardfs(void) {
@@ -523,7 +529,7 @@ print('''};
     proto_lizardfs = proto_register_protocol("LizardFS Protocol", "LizardFS", "lizardfs");
     proto_register_field_array(proto_lizardfs, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
-    range_convert_str(&tcp_ports_lizardfs, "9419-9422",  65535);
+    range_convert_str(wmem_epan_scope(), &tcp_ports_lizardfs, "9419-9422", MAX_TCP_PORT);
     lizardfs_module = prefs_register_protocol(proto_lizardfs, proto_reg_handoff_lizardfs);
     prefs_register_range_preference(lizardfs_module, "tcp_ports",
                  "LizardFS TCP Ports",

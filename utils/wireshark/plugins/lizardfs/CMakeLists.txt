@@ -21,6 +21,11 @@
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
 
+include(WiresharkPlugin)
+
+# Plugin name and version info (major minor micro extra)
+set_module_info(lizardfs 1 0 0 0)
+
 set(DISSECTOR_SRC
 	packet-lizardfs.c
 )
@@ -44,7 +49,7 @@ endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-register_dissector_files(plugin.c
+register_plugin_files(plugin.c
 	plugin
 	${DISSECTOR_SRC}
 )
