@@ -84,6 +84,7 @@ struct fuse_opt gMfsOptsStage2[] = {
 	MFS_OPT("symlinkcachetimeout=%d", symlinkcachetimeout, 3600),
 	MFS_OPT("bandwidthoveruse=%lf", bandwidthoveruse, 1),
 	MFS_OPT("mfsdirentrycachesize=%u", direntrycachesize, 0),
+	MFS_OPT("nostdmountoptions", nostdmountoptions, 1),
 
 #if FUSE_VERSION >= 26
 	MFS_OPT("enablefilelocks=%u", filelocks, 0),
@@ -134,6 +135,7 @@ printf(
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
+"    -o nostdmountoptions        equivalent of --nostdopts for /etc/fstab\n"
 "    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
 "    -o mfsmeta                  mount meta filesystem (trash etc.)\n"

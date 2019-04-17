@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2015 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -67,7 +68,7 @@ typedef struct _exports {
 static exports *exports_records;
 static char *ExportsFileName;
 
-char* exports_strsep(char **stringp, const char *delim) {
+static char* exports_strsep(char **stringp, const char *delim) {
 	char *s;
 	const char *spanp;
 	int c, sc;
@@ -142,7 +143,12 @@ void exports_info_data(uint8_t versmode,uint8_t *buff) {
 	}
 }
 
-uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *path,const uint8_t rndcode[32],const uint8_t passcode[16],uint8_t *sesflags,uint32_t *rootuid,uint32_t *rootgid,uint32_t *mapalluid,uint32_t *mapallgid,uint8_t *mingoal,uint8_t *maxgoal,uint32_t *mintrashtime,uint32_t *maxtrashtime) {
+uint8_t exports_check(uint32_t ip, uint32_t version, uint8_t meta,
+		const uint8_t *path, const uint8_t rndcode[32],
+		const uint8_t passcode[16], uint8_t *sesflags,
+		uint32_t *rootuid, uint32_t *rootgid, uint32_t *mapalluid,
+		uint32_t *mapallgid, uint8_t *mingoal, uint8_t *maxgoal,
+		uint32_t *mintrashtime, uint32_t *maxtrashtime) {
 	const uint8_t *p;
 	uint32_t pleng,i;
 	uint8_t rndstate;
@@ -151,7 +157,8 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	uint8_t entrydigest[16];
 	exports *e,*f;
 
-//      syslog(LOG_NOTICE,"check exports for: %u.%u.%u.%u:%s",(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
+	//syslog(LOG_NOTICE,"check exports for: %u.%u.%u.%u:%s",
+	//		(ip>>24)&0xFF,(ip>>16)&0xFF,(ip>>8)&0xFF,ip&0xFF,path);
 
 	if (meta==0) {
 		p = path;
@@ -263,7 +270,7 @@ uint8_t exports_check(uint32_t ip,uint32_t version,uint8_t meta,const uint8_t *p
 	return LIZARDFS_STATUS_OK;
 }
 
-void exports_freelist(exports *arec) {
+static void exports_freelist(exports *arec) {
 	exports *drec;
 	while (arec) {
 		drec = arec;
@@ -295,9 +302,9 @@ void exports_freelist(exports *arec) {
 // ip[/bits] can be '*' (same as 0.0.0.0/0)
 //
 // default:
-// *    /       alldirs,maproot=0
+// *    /       rw,alldirs,maproot=0
 
-int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
+static int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	uint32_t ip,i,octet;
 	if (net[0]=='*' && net[1]==0) {
 		*fromip = 0;
@@ -410,7 +417,7 @@ int exports_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 	return -1;
 }
 
-int exports_parsegoal(char *goalstr,uint8_t *goal) {
+static int exports_parsegoal(char *goalstr,uint8_t *goal) {
 	if (*goalstr < '1' || *goalstr > '9') {
 		// the string does not begin with a number or is empty
 		return -1;
@@ -429,7 +436,7 @@ int exports_parsegoal(char *goalstr,uint8_t *goal) {
 }
 
 // # | [#w][#d][#h][#m][#s]
-int exports_parsetime(char *timestr,uint32_t *time) {
+static int exports_parsetime(char *timestr,uint32_t *time) {
 	uint64_t t;
 	uint64_t tp;
 	uint8_t bits;
@@ -515,7 +522,7 @@ int exports_parsetime(char *timestr,uint32_t *time) {
 }
 
 // x | x.y | x.y.z -> (x<<16 + y<<8 + z)
-int exports_parseversion(char *verstr,uint32_t *version) {
+static int exports_parseversion(char *verstr,uint32_t *version) {
 	uint32_t vp;
 	if (*verstr<'0' || *verstr>'9') {
 		return -1;
@@ -567,7 +574,7 @@ int exports_parseversion(char *verstr,uint32_t *version) {
 	return 0;
 }
 
-int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid) {
+static int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *rgid) {
 	char *uptr,*gptr,*eptr;
 	struct group *grrec,grp;
 	struct passwd *pwrec,pwd;
@@ -642,7 +649,7 @@ int exports_parseuidgid(char *maproot,uint32_t lineno,uint32_t *ruid,uint32_t *r
 	return -1;      // unreachable
 }
 
-int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
+static int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 	char *p;
 	int o;
 	md5ctx ctx;
@@ -835,7 +842,7 @@ int exports_parseoptions(char *opts,uint32_t lineno,exports *arec) {
 	return 0;
 }
 
-int exports_parseline(char *line,uint32_t lineno,exports *arec) {
+static int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	char *net,*path;
 	char *p;
 	uint32_t pleng;
@@ -943,23 +950,27 @@ int exports_parseline(char *line,uint32_t lineno,exports *arec) {
 	return 0;
 }
 
-void exports_loadexports(void) {
+static void exports_loadexports(void) {
+	const size_t MAX_LINE_LEN = 10000;
 	FILE *fd;
-	char linebuff[10000];
+	char linebuff[MAX_LINE_LEN];
 	uint32_t s,lineno;
 	exports *newexports,**netail,*arec;
 
 	fd = fopen(ExportsFileName,"r");
 	if (fd==NULL) {
 		if (errno==ENOENT) {
-			throw InitializeException(
-					std::string("exports configuration file (") + ExportsFileName + ") not found"
-					" - please create one (you can copy " ETC_PATH "/mfsexports.cfg.dist"
-					" to get a base configuration)");
+			std::string err_msg = std::string("exports "
+				"configuration file (") + ExportsFileName +
+				") not found - please create one (you can "
+				"copy ETC_PATH/mfsexports.cfg.dist to get a "
+				"base configuration)";
+			throw InitializeException(err_msg);
 		} else {
-			throw InitializeException(
-					std::string("can't open exports configuration file (") + ExportsFileName + "):"
-					+ errorString(errno));
+			std::string err_msg = std::string("can't open exports "
+				    "configuration  file (") + ExportsFileName
+				    + "):" + errorString(errno);
+			throw InitializeException(err_msg);
 		}
 	}
 	newexports = NULL;
@@ -967,24 +978,26 @@ void exports_loadexports(void) {
 	lineno = 1;
 	arec = (exports*) malloc(sizeof(exports));
 	passert(arec);
-	while (fgets(linebuff,10000,fd)) {
-		if (linebuff[0]!='#') {
-			linebuff[9999]=0;
-			s=strlen(linebuff);
-			while (s>0 && (linebuff[s-1]=='\r' || linebuff[s-1]=='\n' || linebuff[s-1]=='\t' || linebuff[s-1]==' ')) {
-				s--;
-			}
-			if (s>0) {
-				linebuff[s]=0;
-				if (exports_parseline(linebuff,lineno,arec)>=0) {
-					*netail = arec;
-					netail = &(arec->next);
-					arec = (exports*) malloc(sizeof(exports));
-					passert(arec);
-				}
+	for (lineno = 1; fgets(linebuff,MAX_LINE_LEN,fd); lineno++) {
+		if (linebuff[0]=='#')
+			continue;
+		linebuff[MAX_LINE_LEN-1]=0;
+		s=strlen(linebuff);
+		while (s > 0 && (linebuff[s-1]=='\r' ||
+				 linebuff[s-1]=='\n' ||
+				 linebuff[s-1]=='\t' ||
+				 linebuff[s-1]==' ')) {
+			s--;
+		}
+		if (s>0) {
+			linebuff[s]=0;
+			if (exports_parseline(linebuff,lineno,arec)>=0) {
+				*netail = arec;
+				netail = &(arec->next);
+				arec = (exports*) malloc(sizeof(exports));
+				passert(arec);
 			}
 		}
-		lineno++;
 	}
 	free(arec);
 	if (ferror(fd)) {
@@ -999,7 +1012,7 @@ void exports_loadexports(void) {
 	lzfs_pretty_syslog(LOG_INFO,"initialized exports from file %s", ExportsFileName);
 }
 
-void exports_load(void) {
+static void exports_load(void) {
 	if (ExportsFileName) {
 		free(ExportsFileName);
 	}
@@ -1007,7 +1020,7 @@ void exports_load(void) {
 	exports_loadexports();
 }
 
-void exports_reload(void) {
+static void exports_reload(void) {
 	try {
 		exports_load();
 	} catch (Exception& ex) {
