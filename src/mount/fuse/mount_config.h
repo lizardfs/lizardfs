@@ -53,6 +53,9 @@ enum {
 	KEY_PATH,
 	KEY_PASSWORDASK,
 	KEY_NOSTDMOUNTOPTIONS,
+#if FUSE_VERSION >= 30
+	KEY_NONEMPTY,
+#endif
 	KEY_HELP,
 	KEY_VERSION
 };
@@ -109,60 +112,66 @@ struct mfsopts_ {
 	int prefetchxorstripes;
 	unsigned symlinkcachetimeout;
 	double bandwidthoveruse;
+#if FUSE_VERSION >= 30
+	int nonemptymount;
+#endif
 
 	mfsopts_()
 		: masterhost(NULL),
-			masterport(NULL),
-			bindhost(NULL),
-			subfolder(NULL),
-			password(NULL),
-			md5pass(NULL),
-			nofile(0),
-			nice(-19),
+		masterport(NULL),
+		bindhost(NULL),
+		subfolder(NULL),
+		password(NULL),
+		md5pass(NULL),
+		nofile(0),
+		nice(-19),
 #ifdef MFS_USE_MEMLOCK
-			memlock(0),
+		memlock(0),
 #endif
 #if FUSE_VERSION >= 26
-			filelocks(0),
+		filelocks(0),
 #endif
-			nostdmountoptions(0),
-			meta(0),
-			debug(LizardClient::FsInitParams::kDefaultDebugMode),
-			delayedinit(LizardClient::FsInitParams::kDefaultDelayedInit),
-			acl(), // deprecated
-			aclcacheto(LizardClient::FsInitParams::kDefaultAclCacheTimeout),
-			aclcachesize(LizardClient::FsInitParams::kDefaultAclCacheSize),
-			rwlock(LizardClient::FsInitParams::kDefaultUseRwLock),
-			mkdircopysgid(LizardClient::FsInitParams::kDefaultMkdirCopySgid),
-			sugidclearmodestr(NULL),
-			sugidclearmode(LizardClient::FsInitParams::kDefaultSugidClearMode),
-			cachemode(NULL),
-			cachefiles(0),
-			keepcache(LizardClient::FsInitParams::kDefaultKeepCache),
-			passwordask(0),
-			donotrememberpassword(LizardClient::FsInitParams::kDefaultDoNotRememberPassword),
-			writecachesize(LizardClient::FsInitParams::kDefaultWriteCacheSize),
-			cachePerInodePercentage(LizardClient::FsInitParams::kDefaultCachePerInodePercentage),
-			writeworkers(LizardClient::FsInitParams::kDefaultWriteWorkers),
-			ioretries(LizardClient::FsInitParams::kDefaultIoRetries),
-			writewindowsize(LizardClient::FsInitParams::kDefaultWriteWindowSize),
-			attrcacheto(LizardClient::FsInitParams::kDefaultAttrCacheTimeout),
-			entrycacheto(LizardClient::FsInitParams::kDefaultEntryCacheTimeout),
-			direntrycacheto(LizardClient::FsInitParams::kDefaultDirentryCacheTimeout),
-			direntrycachesize(LizardClient::FsInitParams::kDefaultDirentryCacheSize),
-			reportreservedperiod(LizardClient::FsInitParams::kDefaultReportReservedPeriod),
-			iolimits(NULL),
-			chunkserverrtt(LizardClient::FsInitParams::kDefaultRoundTime),
-			chunkserverconnectreadto(LizardClient::FsInitParams::kDefaultChunkserverConnectTo),
-			chunkserverwavereadto(LizardClient::FsInitParams::kDefaultChunkserverWaveReadTo),
-			chunkservertotalreadto(LizardClient::FsInitParams::kDefaultChunkserverTotalReadTo),
-			chunkserverwriteto(LizardClient::FsInitParams::kDefaultChunkserverWriteTo),
-			cacheexpirationtime(LizardClient::FsInitParams::kDefaultCacheExpirationTime),
-			readaheadmaxwindowsize(LizardClient::FsInitParams::kDefaultReadaheadMaxWindowSize),
-			prefetchxorstripes(LizardClient::FsInitParams::kDefaultPrefetchXorStripes),
-			symlinkcachetimeout(LizardClient::FsInitParams::kDefaultSymlinkCacheTimeout),
-			bandwidthoveruse(LizardClient::FsInitParams::kDefaultBandwidthOveruse) {
-	}
+		nostdmountoptions(0),
+		meta(0),
+		debug(LizardClient::FsInitParams::kDefaultDebugMode),
+		delayedinit(LizardClient::FsInitParams::kDefaultDelayedInit),
+		acl(), // deprecated
+		aclcacheto(LizardClient::FsInitParams::kDefaultAclCacheTimeout),
+		aclcachesize(LizardClient::FsInitParams::kDefaultAclCacheSize),
+		rwlock(LizardClient::FsInitParams::kDefaultUseRwLock),
+		mkdircopysgid(LizardClient::FsInitParams::kDefaultMkdirCopySgid),
+		sugidclearmodestr(NULL),
+		sugidclearmode(LizardClient::FsInitParams::kDefaultSugidClearMode),
+		cachemode(NULL),
+		cachefiles(0),
+		keepcache(LizardClient::FsInitParams::kDefaultKeepCache),
+		passwordask(0),
+		donotrememberpassword(LizardClient::FsInitParams::kDefaultDoNotRememberPassword),
+		writecachesize(LizardClient::FsInitParams::kDefaultWriteCacheSize),
+		cachePerInodePercentage(LizardClient::FsInitParams::kDefaultCachePerInodePercentage),
+		writeworkers(LizardClient::FsInitParams::kDefaultWriteWorkers),
+		ioretries(LizardClient::FsInitParams::kDefaultIoRetries),
+		writewindowsize(LizardClient::FsInitParams::kDefaultWriteWindowSize),
+		attrcacheto(LizardClient::FsInitParams::kDefaultAttrCacheTimeout),
+		entrycacheto(LizardClient::FsInitParams::kDefaultEntryCacheTimeout),
+		direntrycacheto(LizardClient::FsInitParams::kDefaultDirentryCacheTimeout),
+		direntrycachesize(LizardClient::FsInitParams::kDefaultDirentryCacheSize),
+		reportreservedperiod(LizardClient::FsInitParams::kDefaultReportReservedPeriod),
+		iolimits(NULL),
+		chunkserverrtt(LizardClient::FsInitParams::kDefaultRoundTime),
+		chunkserverconnectreadto(LizardClient::FsInitParams::kDefaultChunkserverConnectTo),
+		chunkserverwavereadto(LizardClient::FsInitParams::kDefaultChunkserverWaveReadTo),
+		chunkservertotalreadto(LizardClient::FsInitParams::kDefaultChunkserverTotalReadTo),
+		chunkserverwriteto(LizardClient::FsInitParams::kDefaultChunkserverWriteTo),
+		cacheexpirationtime(LizardClient::FsInitParams::kDefaultCacheExpirationTime),
+		readaheadmaxwindowsize(LizardClient::FsInitParams::kDefaultReadaheadMaxWindowSize),
+		prefetchxorstripes(LizardClient::FsInitParams::kDefaultPrefetchXorStripes),
+		symlinkcachetimeout(LizardClient::FsInitParams::kDefaultSymlinkCacheTimeout),
+		bandwidthoveruse(LizardClient::FsInitParams::kDefaultBandwidthOveruse)
+#if FUSE_VERSION >= 30
+		, nonemptymount(LizardClient::FsInitParams::kDefaultNonEmptyMounts)
+#endif
+	{ }
 };
 
 extern mfsopts_ gMountOptions;

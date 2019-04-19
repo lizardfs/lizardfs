@@ -52,6 +52,9 @@ Mount MFSMETA companion filesystem instead of primary LizardFS.
 Omit default mount options (*-o allow_other,default_permissions*). Equivalent
 to *-o nostdmountoptions*.
 
+*--nonempty*::
+Allow mounts over non-empty file/dir. Equivalent to *-o nonempty*.
+
 *-p*, *-o askpassword*::
 Prompt for password (interactive version of *-o mfspassword=*'PASS').
 
@@ -196,7 +199,10 @@ Define ratio of allowed bandwidth overuse when fetching data. Default value is
 1.0. This option is effective only with N+M goals (xors and erasure codes).
 
 *-o nostdmountoptions*::
-Equivalent to *--nostdopts* (*-n*) for use in fstab.
+Equivalent to *--nostdopts* (*-n*) option for use in fstab.
+
+*-o nonempty*::
+Equivalent to *--nonempty* option for use in fstab.
 
 General mount options (see *mount*(8) manual):
 

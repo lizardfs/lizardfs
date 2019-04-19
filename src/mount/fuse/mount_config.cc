@@ -89,6 +89,9 @@ struct fuse_opt gMfsOptsStage2[] = {
 #if FUSE_VERSION >= 26
 	MFS_OPT("enablefilelocks=%u", filelocks, 0),
 #endif
+#if FUSE_VERSION >= 30
+	MFS_OPT("nonempty", nonemptymount, 1),
+#endif
 
 	FUSE_OPT_KEY("-m",             KEY_META),
 	FUSE_OPT_KEY("--meta",         KEY_META),
@@ -100,6 +103,9 @@ struct fuse_opt gMfsOptsStage2[] = {
 	FUSE_OPT_KEY("--password",     KEY_PASSWORDASK),
 	FUSE_OPT_KEY("-n",             KEY_NOSTDMOUNTOPTIONS),
 	FUSE_OPT_KEY("--nostdopts",    KEY_NOSTDMOUNTOPTIONS),
+#if FUSE_VERSION >= 30
+	FUSE_OPT_KEY("--nonempty",     KEY_NONEMPTY),
+#endif
 #if FUSE_VERSION < 30
 	FUSE_OPT_KEY("-V",             KEY_VERSION),
 	FUSE_OPT_KEY("--version",      KEY_VERSION),
@@ -135,6 +141,7 @@ printf(
 "    -S PATH                     equivalent to '-o mfssubfolder=PATH'\n"
 "    -p   --password             similar to '-o mfspassword=PASSWORD', but show prompt and ask user for password\n"
 "    -n   --nostdopts            do not add standard LizardFS mount options: '-o " DEFAULT_OPTIONS ",fsname=MFS'\n"
+"    --nonempty                  allow mounts over non-empty file/dir\n"
 "    -o nostdmountoptions        equivalent of --nostdopts for /etc/fstab\n"
 "    -o mfscfgfile=CFGFILE       load some mount options from external file (if not specified then use default file: " ETC_PATH "/mfsmount.cfg)\n"
 "    -o mfsdebug                 print some debugging information\n"
@@ -184,6 +191,9 @@ printf(
 "    -o bandwidthoveruse=N       define ratio of allowed bandwidth overuse when fetching data (default: %.2f)\n"
 #if FUSE_VERSION >= 26
 "    -o enablefilelocks=0|1      enables/disables global file locking (disabled by default)\n"
+#endif
+#if FUSE_VERSION >= 30
+"    -o nonempty                 allow mounts over non-empty file/dir\n"
 #endif
 "\n",
 		LizardClient::FsInitParams::kDefaultUseRwLock,
@@ -376,6 +386,11 @@ int mfs_opt_proc_stage2(void *data, const char *arg, int key, struct fuse_args *
 	case KEY_NOSTDMOUNTOPTIONS:
 		gMountOptions.nostdmountoptions = 1;
 		return 0;
+#if FUSE_VERSION >= 30
+	case KEY_NONEMPTY:
+		gMountOptions.nonemptymount = 1;
+		return 0;
+#endif
 #if FUSE_VERSION < 30
 	case KEY_VERSION:
 		printf("LizardFS version %s\n", LIZARDFS_PACKAGE_VERSION);

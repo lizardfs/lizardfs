@@ -19,10 +19,12 @@
 
 #include "common/platform.h"
 
+#include <dirent.h>
 #include <errno.h>
+#include <fstream>
 #include <fuse.h>
 #include <fuse_lowlevel.h>
-#include <fstream>
+#include <sys/types.h>
 
 #include "common/crc.h"
 #include "common/md5.h"
@@ -124,7 +126,7 @@ static void mfs_fsinit(void *userdata, struct fuse_conn_info *conn) {
 	daemonize_return_status(0);
 }
 
-bool setup_password(std::vector<uint8_t> &md5pass) {
+static bool setup_password(std::vector<uint8_t> &md5pass) {
 	md5ctx ctx;
 
 	if (gMountOptions.password) {
@@ -146,13 +148,43 @@ bool setup_password(std::vector<uint8_t> &md5pass) {
 }
 
 #if FUSE_VERSION >= 30
-int mainloop(struct fuse_args *args, struct fuse_cmdline_opts *fuse_opts,
+int fuse_mnt_check_empty(const char *mnt, mode_t rootmode, off_t rootsize) {
+	int isempty = 1;
+
+	if (S_ISDIR(rootmode)) {
+		struct dirent *ent;
+		DIR *dp = opendir(mnt);
+		if (!dp) {
+			return -1;
+		}
+		while ((ent = readdir(dp))) {
+			if (strncmp(ent->d_name, ".", 1) &&
+			    strncmp(ent->d_name, "..", 2)) {
+				isempty = 0;
+				break;
+			}
+		}
+		closedir(dp);
+	} else if (rootsize) {
+		isempty = 0;
+	}
+
+	if (!isempty) {
+		return -1;
+	}
+
+	return 0;
+}
+#endif
+
+#if FUSE_VERSION >= 30
+static int mainloop(struct fuse_args *args, struct fuse_cmdline_opts *fuse_opts,
 			struct fuse_conn_info_opts *conn_opts) try {
 	const char *mountpoint = fuse_opts->mountpoint;
 	bool multithread = !fuse_opts->singlethread;
 	bool foreground = fuse_opts->foreground;
 #else
-int mainloop(struct fuse_args *args, const char *mountpoint, bool multithread,
+static int mainloop(struct fuse_args *args, const char *mountpoint, bool multithread,
 			bool foreground) try {
 #endif
 
@@ -402,69 +434,28 @@ static unsigned int strncpy_escape_commas(char *dstbuff, unsigned int dstsize, c
 	return l;
 }
 
-void make_fsname(struct fuse_args *args) {
-	char fsnamearg[256];
+static void make_fsname(struct fuse_args *args) {
 	unsigned int l;
+	char fsnamearg[256];
 	int libver = fuse_version();
-	if (libver >= 27) {
-		l = snprintf(fsnamearg, 256, "-osubtype=mfs%s,fsname=", (gMountOptions.meta) ? "meta" : "");
-		if (libver >= 28) {
-			l += strncpy_escape_commas(fsnamearg + l, 256 - l, gMountOptions.masterhost);
-			if (l < 255) {
-				fsnamearg[l++] = ':';
-			}
-			l += strncpy_escape_commas(fsnamearg + l, 256 - l, gMountOptions.masterport);
-			if (gMountOptions.subfolder[0] != '/') {
-				if (l < 255) {
-					fsnamearg[l++] = '/';
-				}
-			}
-			if (gMountOptions.subfolder[0] != '/' && gMountOptions.subfolder[1] != 0) {
-				l += strncpy_escape_commas(fsnamearg + l, 256 - l, gMountOptions.subfolder);
-			}
-			if (l > 255) {
-				l = 255;
-			}
-			fsnamearg[l] = 0;
-		} else {
-			l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.masterhost);
-			if (l < 255) {
-				fsnamearg[l++] = ':';
-			}
-			l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.masterport);
-			if (gMountOptions.subfolder[0] != '/') {
-				if (l < 255) {
-					fsnamearg[l++] = '/';
-				}
-			}
-			if (gMountOptions.subfolder[0] != '/' && gMountOptions.subfolder[1] != 0) {
-				l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.subfolder);
-			}
-			if (l > 255) {
-				l = 255;
-			}
-			fsnamearg[l] = 0;
-		}
-	} else {
-		l = snprintf(fsnamearg, 256, "-ofsname=mfs%s#", (gMountOptions.meta) ? "meta" : "");
-		l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.masterhost);
-		if (l < 255) {
-			fsnamearg[l++] = ':';
-		}
-		l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.masterport);
-		if (gMountOptions.subfolder[0] != '/') {
-			if (l < 255) {
-				fsnamearg[l++] = '/';
-			}
-		}
-		if (gMountOptions.subfolder[0] != '/' && gMountOptions.subfolder[1] != 0) {
-			l += strncpy_remove_commas(fsnamearg + l, 256 - l, gMountOptions.subfolder);
-		}
-		if (l > 255) {
-			l = 255;
-		}
-		fsnamearg[l] = 0;
+	unsigned int (*strncpy_commas)(char*, unsigned int, char*) = libver >= 28 ? strncpy_escape_commas : strncpy_remove_commas;
+	const char *fmt = libver >= 27 ? "-osubtype=mfs%s,fsname=" : "-ofsname=mfs%s#";
+	l = snprintf(fsnamearg, 256, fmt, (gMountOptions.meta) ? "meta" : "");
+	l += strncpy_commas(fsnamearg + l, 256 - l, gMountOptions.masterhost);
+	if (l < 255) {
+		fsnamearg[l++] = ':';
 	}
+	l += strncpy_commas(fsnamearg + l, 256 - l, gMountOptions.masterport);
+	if (gMountOptions.subfolder[0] != '/' && l < 255) {
+		fsnamearg[l++] = '/';
+	}
+	if (gMountOptions.subfolder[0] != '/' && gMountOptions.subfolder[1] != 0) {
+		l += strncpy_commas(fsnamearg + l, 256 - l, gMountOptions.subfolder);
+	}
+	if (l > 255) {
+		l = 255;
+	}
+	fsnamearg[l] = 0;
 	fuse_opt_insert_arg(args, 1, fsnamearg);
 }
 
@@ -651,6 +642,19 @@ int main(int argc, char *argv[]) try {
 
 	int res;
 #if FUSE_VERSION >= 30
+	struct stat stbuf;
+	res = stat(fuse_opts.mountpoint, &stbuf);
+	if (res) {
+		fprintf(stderr, "failed to access mountpoint %s: %s\n",
+			fuse_opts.mountpoint, strerror(errno));
+		return 1;
+	}
+	if (gMountOptions.nonemptymount == 0) {
+		if (fuse_mnt_check_empty(fuse_opts.mountpoint, stbuf.st_mode,
+					 stbuf.st_size)) {
+			return 1;
+		}
+	}
 	if (!fuse_opts.foreground) {
 		res = daemonize_and_wait(!gMountOptions.debug,
 		                         std::bind(&mainloop, &args, &fuse_opts, conn_opts));
@@ -691,6 +695,6 @@ int main(int argc, char *argv[]) try {
 #endif
 	stats_term();
 	return res;
-} catch (std::bad_alloc ex) {
+} catch (std::bad_alloc& ex) {
 	mabort("run out of memory");
 }

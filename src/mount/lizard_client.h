@@ -74,6 +74,9 @@ struct FsInitParams {
 	static constexpr unsigned kDefaultWriteWorkers = 10;
 	static constexpr unsigned kDefaultWriteWindowSize = 15;
 	static constexpr unsigned kDefaultSymlinkCacheTimeout = 3600;
+#if FUSE_VERSION >= 30
+	static constexpr int      kDefaultNonEmptyMounts = 0;
+#endif
 
 	static constexpr bool     kDefaultDebugMode = false;
 	static constexpr int      kDefaultKeepCache = 0;
