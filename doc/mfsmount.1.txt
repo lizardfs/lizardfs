@@ -8,7 +8,7 @@ mfsmount - mount Lizard File System
 == SYNOPSIS
 
 [verse]
-*mfsmount* 'mountpoint' [*-d*] [*-f*] [*-s*] [*-m*] [*-n*] [*-p*]
+*mfsmount* [HOST:[PORT]]:[PATH] [*-d*] [*-f*] [*-s*] [*-m*] [*-n*] [*-p*]
          [*-H* 'HOST'] [*-P* 'PORT'] [*-S* 'PATH'] [*-o* 'opt'[,'opt']...]
 
 [verse]
@@ -261,6 +261,20 @@ btrfs, ext2, ext3, ext4, hfs[+], jfs, ntfs and reiserfs on Linux work as 'EXT'.
 Only xfs on Linux works a little different. Beware that there is a strange
 operation - chown(-1,-1) which is usually converted by a kernel into something
 like 'chmod ug-s', and therefore can't be controlled by MFS as 'chown'
+
+== FSTAB
+
+Since version 3.13 you can define your `/etc/fstab` LizardFS share with new
+scheme:
+
+    lizardfs-master:/ /mnt/lizardfs lzfs default 0 0
+
+instead of old fashioned (still supported for backward compatibility):
+
+    mfsmount /mnt/lizardfs fuse mfssubfolder=/,mfsmaster=lizardfs-master 0 0
+
+This new scheme was implemented to be compliant with scheme introduced by
+FUSE's author (read more: https://lwn.net/Articles/221779/).
 
 == REPORTING BUGS
 

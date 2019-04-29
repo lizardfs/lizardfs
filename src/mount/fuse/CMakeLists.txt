@@ -15,6 +15,5 @@ if(FUSE3_FOUND)
   target_link_libraries(mfsmount3 mount mfscommon ${FUSE3_LIBRARY})
   target_include_directories(mfsmount3 PRIVATE ${FUSE3_INCLUDE_DIR})
   target_compile_definitions(mfsmount3 PRIVATE "-DAPPNAME=mfsmount3" ${FUSE3_CFLAGS_OTHER} "-DFUSE_USE_VERSION=30")
-
   install(TARGETS mfsmount3 RUNTIME DESTINATION ${BIN_SUBDIR})
 endif()

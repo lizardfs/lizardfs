@@ -45,7 +45,7 @@ typedef uint32_t JobId;
 typedef uint32_t NamedInodeOffset;
 
 struct FsInitParams {
-	static constexpr const char *kDefaultSubfolder = "/";
+	static constexpr const char *kDefaultSubfolder = DEFAULT_MOUNTED_SUBFOLDER;
 	static constexpr bool     kDefaultDoNotRememberPassword = false;
 	static constexpr bool     kDefaultDelayedInit = false;
 #ifdef _WIN32
