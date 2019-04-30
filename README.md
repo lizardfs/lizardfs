@@ -14,7 +14,7 @@ For support please contact sales@lizardfs.com or visit www.lizardfs.com.
 
 - [GitHub repository mirror](https://github.com/lizardfs/lizardfs)
 
-- [Documentation Source](https://github.com/lizardfs/documetatnion)
+- [Documentation Source](https://github.com/lizardfs/documentation)
 
 - [Code review system](http://cr.skytechnology.pl:8081/)
 
@@ -23,8 +23,6 @@ For support please contact sales@lizardfs.com or visit www.lizardfs.com.
 - [Documentation](http://docs.lizardfs.com/)
 
 - [Mailing List](https://sourceforge.net/p/lizardfs/mailman/lizardfs-users/)
-
-- [Forum](https://lizardfs.org/forum/)
 
 You can also join the community irc at #lizardfs on FreeNode.
 
@@ -52,5 +50,3 @@ It will help us make LizardFS even better and will help others choose LizardFS f
 Thank you for your help.
 
 The LizardFS team.
-
-
