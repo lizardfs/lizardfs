@@ -120,6 +120,7 @@ static void mfs_fsinit(void *userdata, struct fuse_conn_info *conn) {
 #if FUSE_VERSION >= 30
 	fuse_conn_info_opts *conn_opts = (fuse_conn_info_opts *)userdata;
 	fuse_apply_conn_info_opts(conn_opts, conn);
+	conn->want |= FUSE_CAP_POSIX_ACL;
 	conn->want &= ~FUSE_CAP_ATOMIC_O_TRUNC;
 #endif
 
