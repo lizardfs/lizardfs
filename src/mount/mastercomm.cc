@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -164,7 +165,7 @@ struct InitParams {
 static InitParams gInitParams;
 
 void master_statsptr_init(void) {
-	void *s;
+	statsnode *s;
 	s = stats_get_subnode(NULL,"master",0);
 	statsptr[MASTER_PACKETSRCVD] = stats_get_counterptr(stats_get_subnode(s,"packets_received",0));
 	statsptr[MASTER_PACKETSSENT] = stats_get_counterptr(stats_get_subnode(s,"packets_sent",0));
@@ -1392,7 +1393,7 @@ uint8_t fs_getattr(uint32_t inode, uint32_t uid, uint32_t gid, Attributes &attr)
 	uint8_t ret;
 	threc *rec = fs_get_my_threc();
 	wptr = fs_createpacket(rec,CLTOMA_FUSE_GETATTR,12);
-	if (wptr==NULL) {
+	if (!wptr) {
 		return LIZARDFS_ERROR_IO;
 	}
 	put32bit(&wptr,inode);

@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -250,7 +251,7 @@ private:
 static uint64_t *statsptr[STATNODES];
 
 void statsptr_init(void) {
-	void *s;
+	statsnode *s;
 	s = stats_get_subnode(NULL,"fuse_ops",0);
 	statsptr[OP_SETXATTR] = stats_get_counterptr(stats_get_subnode(s,"setxattr",0));
 	statsptr[OP_GETXATTR] = stats_get_counterptr(stats_get_subnode(s,"getxattr",0));
@@ -1634,9 +1635,12 @@ void releasedir(Inode ino) {
 
 static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 	finfo *fileinfo;
-	fileinfo = (finfo*) malloc(sizeof(finfo));
-	pthread_mutex_init(&(fileinfo->flushlock),NULL);
-	pthread_mutex_init(&(fileinfo->lock),NULL);
+	if (!(fileinfo = (finfo*)malloc(sizeof(finfo))))
+		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
+	if (pthread_mutex_init(&(fileinfo->flushlock), NULL))
+		throw RequestException(LIZARDFS_ERROR_EPERM);
+	if (pthread_mutex_init(&(fileinfo->lock), NULL))
+		throw RequestException(LIZARDFS_ERROR_EPERM);
 	PthreadMutexWrapper lock((fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
 	/* old FreeBSD fuse reads whole file when opening with O_WRONLY|O_APPEND,

@@ -44,76 +44,104 @@ int cfg_reload(void) {
 	return cfg_load(configfname.c_str(), lu);
 }
 
-static int cfg_do_load (void) {
-	FILE *fd;
-	char linebuff[1000];
-	uint32_t nps,npe,vps,vpe,i;
+static int cfg_do_load(void) {
+	constexpr size_t MAX_LINE_LEN = 1000;
+	char linebuff[MAX_LINE_LEN];
+	uint32_t nps, npe, vps, vpe, i;
 	uint8_t found;
 	paramstr *tmp;
+	FILE *fd = fopen(cfgfname, "r");
 
-	fd = fopen(cfgfname,"r");
-	if (fd==NULL) {
-		lzfs_silent_syslog(LOG_ERR,"can't load config file: %s",cfgfname);
-		return 0;
+	if (!fd) {
+		lzfs_silent_syslog(LOG_ERR, "can't load config file: %s", cfgfname);
+		return 1;
 	}
-	while (fgets(linebuff,999,fd)!=NULL) {
-		linebuff[999]=0;
-		if (linebuff[0]=='#') {
+
+	while (fgets(linebuff, MAX_LINE_LEN - 1, fd)) {
+		linebuff[MAX_LINE_LEN - 1] = 0;
+
+		if (linebuff[0] == '#')
+			continue;
+
+		for (i = 0; isspace(linebuff[i]); i++);
+
+		for (nps = i; isupper(linebuff[i]) || linebuff[i] == '_'; i++);
+
+		for (npe = i; isspace(linebuff[i]); i++);
+
+		if (linebuff[i] != '=' || npe <= nps) {
+			if (linebuff[i] > ' ')
+				lzfs_pretty_syslog(LOG_WARNING, "bad "
+						"definition in config file "
+						"'%s': %s", cfgfname, linebuff);
 			continue;
 		}
-		i = 0;
-		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		nps = i;
-		while ((linebuff[i]>='A' && linebuff[i]<='Z') || linebuff[i]=='_') {
-			i++;
-		}
-		npe = i;
-		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		if (linebuff[i]!='=' || npe==nps) {
-			if (linebuff[i]>32) {
-				lzfs_pretty_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
-			}
+
+		for (i++; isspace(linebuff[i]); i++);
+
+		for (vps = i; linebuff[i] >= ' ' && linebuff[i] < 127; i++);
+
+		for (; i > vps && linebuff[i - 1] == ' '; i--);
+
+		for (vpe = i; isspace(linebuff[i]); i++);
+
+		if ((linebuff[i] != '\0' && linebuff[i] != '\r' &&
+		     linebuff[i] != '\n' && linebuff[i] != '#') || vps == vpe) {
+
+			lzfs_pretty_syslog(LOG_WARNING, "bad definition in "
+					"config file '%s': %s", cfgfname,
+					linebuff);
 			continue;
 		}
-		i++;
-		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		vps = i;
-		while (linebuff[i]>=32 && linebuff[i]<127) {
-			i++;
-		}
-		while (i>vps && linebuff[i-1]==32) {
-			i--;
-		}
-		vpe = i;
-		while (linebuff[i]==' ' || linebuff[i]=='\t') i++;
-		if ((linebuff[i]!='\0' && linebuff[i]!='\r' && linebuff[i]!='\n' && linebuff[i]!='#')
-				|| vps==vpe) {
-			lzfs_pretty_syslog(LOG_WARNING,"bad definition in config file '%s': %s",cfgfname,linebuff);
-			continue;
-		}
-		linebuff[npe]=0;
-		linebuff[vpe]=0;
+
+		linebuff[npe] = 0;
+		linebuff[vpe] = 0;
 		found = 0;
-		for (tmp = paramhead ; tmp && found==0; tmp=tmp->next) {
-			if (strcmp(tmp->name,linebuff+nps)==0) {
-				free(tmp->value);
-				tmp->value = (char*)malloc(vpe-vps+1);
-				memcpy(tmp->value,linebuff+vps,vpe-vps+1);
-				found = 1;
-			}
+
+		for (tmp = paramhead; tmp && !found; tmp = tmp->next) {
+			if (strcmp(tmp->name, linebuff + nps))
+				continue;
+
+			free(tmp->value);
+			tmp->value = (char*)malloc(vpe - vps + 1);
+			if (!tmp->value)
+				goto err_exit;
+			memcpy(tmp->value, linebuff + vps, vpe - vps + 1);
+			found = 1;
 		}
-		if (found==0) {
-			tmp = (paramstr*)malloc(sizeof(paramstr));
-			tmp->name = (char*)malloc(npe-nps+1);
-			tmp->value = (char*)malloc(vpe-vps+1);
-			memcpy(tmp->name,linebuff+nps,npe-nps+1);
-			memcpy(tmp->value,linebuff+vps,vpe-vps+1);
-			tmp->next = paramhead;
-			paramhead = tmp;
-		}
+
+		if (found)
+			continue;
+
+		if (!(tmp = (paramstr*)malloc(sizeof(paramstr))))
+			goto err_malloc_tmp;
+
+		if (!(tmp->name = (char*)malloc(npe - nps + 1)))
+			goto err_malloc_tmp_name;
+
+		if (!(tmp->value = (char*)malloc(vpe - vps + 1)))
+			goto err_malloc_tmp_value;
+
+		memcpy(tmp->name, linebuff + nps, npe - nps + 1);
+		memcpy(tmp->value, linebuff + vps, vpe - vps + 1);
+		tmp->next = paramhead;
+		paramhead = tmp;
 	}
+
 	fclose(fd);
-	return 1;
+	return 0;
+
+err_malloc_tmp_value:
+	free(tmp->name);
+err_malloc_tmp_name:
+	free(tmp);
+err_malloc_tmp:
+	if (found)
+		free(tmp->value);
+err_exit:
+	fclose(fd);
+	cfg_term();
+	return -1;
 }
 
 int cfg_load (const char *configfname,int _lu) {
@@ -143,8 +171,8 @@ int cfg_isdefined(const char *name) {
 }
 
 void cfg_term(void) {
-	paramstr *i,*in;
-	for (i = paramhead ; i ; i = in) {
+	paramstr *i, *in;
+	for (i = paramhead; i; i = in) {
 		in = i->next;
 		free(i->value);
 		free(i->name);

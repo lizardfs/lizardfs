@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -60,7 +61,7 @@ enum {
 static uint64_t *statsptr[STATNODES];
 
 static inline void symlink_cache_statsptr_init(void) {
-	void *s;
+	statsnode *s;
 	s = stats_get_subnode(NULL,"symlink_cache",0);
 	statsptr[INSERTS] = stats_get_counterptr(stats_get_subnode(s,"inserts",0));
 	statsptr[SEARCH_HITS] = stats_get_counterptr(stats_get_subnode(s,"search_hits",0));

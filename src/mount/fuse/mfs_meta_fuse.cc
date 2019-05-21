@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2018 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -528,59 +529,69 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 
 static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	int status;
-	uint32_t msize,dcsize;
+	uint32_t msize, dsize, dcsize;
 	const uint8_t *dbuff;
-	uint32_t dsize;
 
 	b->p = NULL;
 	b->size = 0;
 	msize = dir_metaentries_size(ino);
-	if (ino==SPECIAL_INODE_META_TRASH) {
-		status = fs_gettrash(&dbuff,&dsize);
-		if (status!=LIZARDFS_STATUS_OK) {
+
+	if (ino == SPECIAL_INODE_META_TRASH) {
+		status = fs_gettrash(&dbuff, &dsize);
+		if (status != LIZARDFS_STATUS_OK)
 			return;
-		}
 		dcsize = dir_dataentries_size(dbuff,dsize);
-	} else if (ino==SPECIAL_INODE_META_RESERVED) {
-		status = fs_getreserved(&dbuff,&dsize);
-		if (status!=LIZARDFS_STATUS_OK) {
+	} else if (ino == SPECIAL_INODE_META_RESERVED) {
+		status = fs_getreserved(&dbuff, &dsize);
+		if (status != LIZARDFS_STATUS_OK)
 			return;
-		}
-		dcsize = dir_dataentries_size(dbuff,dsize);
+		dcsize = dir_dataentries_size(dbuff, dsize);
 	} else {
 		dcsize = 0;
 	}
-	if (msize+dcsize==0) {
+
+	if (msize + dcsize == 0)
+		return;
+
+	if (!(b->p = (uint8_t*)malloc(msize + dcsize))) {
+		lzfs_pretty_syslog(LOG_EMERG, "out of memory");
 		return;
 	}
-	b->p = (uint8_t*) malloc(msize+dcsize);
-	if (b->p==NULL) {
-		lzfs_pretty_syslog(LOG_WARNING,"out of memory");
-		return;
-	}
-	if (msize>0) {
-		dir_metaentries_fill(b->p,ino);
-	}
-	if (dcsize>0) {
-		dir_dataentries_convert(b->p+msize,dbuff,dsize);
-	}
-	b->size = msize+dcsize;
+
+	if (msize > 0)
+		dir_metaentries_fill(b->p, ino);
+
+	if (dcsize > 0)
+		dir_dataentries_convert(b->p + msize, dbuff, dsize);
+
+	b->size = msize + dcsize;
 }
 
 void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	dirbuf *dirinfo;
-	if (ino==SPECIAL_INODE_ROOT || ino==SPECIAL_INODE_META_TRASH || ino==SPECIAL_INODE_META_UNDEL || ino==SPECIAL_INODE_META_RESERVED) {
-		dirinfo = (dirbuf*) malloc(sizeof(dirbuf));
-		pthread_mutex_init(&(dirinfo->lock),NULL);
+
+	if (ino == SPECIAL_INODE_ROOT || ino == SPECIAL_INODE_META_TRASH ||
+	    ino == SPECIAL_INODE_META_UNDEL || ino == SPECIAL_INODE_META_RESERVED) {
+
+		if (!(dirinfo = (dirbuf*)malloc(sizeof(dirbuf)))) {
+			lzfs_pretty_syslog(LOG_EMERG, "out of memory");
+			return;
+		}
+
+		if (pthread_mutex_init(&(dirinfo->lock), NULL))
+			return;
+
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
 		dirinfo->wasread = 0;
 		fi->fh = (unsigned long)dirinfo;
+
 		if (fuse_reply_open(req,fi) == -ENOENT) {
 			fi->fh = 0;
-			pthread_mutex_destroy(&(dirinfo->lock));
 			free(dirinfo->p);
 			free(dirinfo);
+			if (pthread_mutex_destroy(&(dirinfo->lock)))
+				return;
 		}
 	} else {
 		fuse_reply_err(req, ENOTDIR);
@@ -666,13 +677,15 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	pathbuf *pathinfo;
 	const uint8_t *path;
 	int status;
-	if (ino==SPECIAL_INODE_MASTERINFO) {
+
+	if (ino == SPECIAL_INODE_MASTERINFO) {
 		fi->fh = 0;
 		fi->direct_io = 0;
 		fi->keep_cache = 1;
 		fuse_reply_open(req, fi);
 		return;
 	}
+
 	if (IS_SPECIAL_INODE(ino)) {
 		fuse_reply_err(req, EACCES);
 		return;
@@ -680,19 +693,34 @@ void mfs_meta_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 
 	status = fs_gettrashpath(ino,&path);
 	status = lizardfs_error_conv(status);
-	if (status!=0) {
+
+	if (status) {
 		fuse_reply_err(req, status);
 	} else {
-		pathinfo = (pathbuf*) malloc(sizeof(pathbuf));
-		pthread_mutex_init(&(pathinfo->lock),NULL);
+		if (!(pathinfo = (pathbuf*)malloc(sizeof(pathbuf)))) {
+			lzfs_pretty_syslog(LOG_EMERG, "out of memory");
+			return;
+		}
+
+		if (pthread_mutex_init(&(pathinfo->lock), NULL)) {
+			free(pathinfo);
+			return;
+		}
+
 		pathinfo->changed = 0;
-		pathinfo->size = strlen((char*)path)+1;
-		pathinfo->p = (char*) malloc(pathinfo->size);
-		memcpy(pathinfo->p,path,pathinfo->size-1);
-		pathinfo->p[pathinfo->size-1]='\n';
+		pathinfo->size = strlen((char*)path) + 1;
+		if (!(pathinfo->p = (char*)malloc(pathinfo->size))) {
+			lzfs_pretty_syslog(LOG_EMERG, "out of memory");
+			free(pathinfo);
+			pthread_mutex_destroy(&(pathinfo->lock));
+			return;
+		}
+		memcpy(pathinfo->p, path, pathinfo->size - 1);
+		pathinfo->p[pathinfo->size - 1] = '\n';
 		fi->direct_io = 1;
 		fi->fh = (unsigned long)pathinfo;
-		if (fuse_reply_open(req,fi) == -ENOENT) {
+
+		if (fuse_reply_open(req, fi) == -ENOENT) {
 			fi->fh = 0;
 			pthread_mutex_destroy(&(pathinfo->lock));
 			free(pathinfo->p);

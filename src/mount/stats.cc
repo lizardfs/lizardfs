@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -25,18 +26,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct _statsnode {
-	uint64_t counter;
-	uint8_t active;
-	uint8_t absolute;
-	char *name;
-	char *fullname;
-	uint32_t nleng; // : strlen(name)
-	uint32_t fnleng; // : strlen(fullname)
-	struct _statsnode *firstchild;
-	struct _statsnode *nextsibling;
-} statsnode;
-
 static statsnode *firstnode = NULL;
 static uint32_t allactiveplengs = 0;
 static uint32_t activenodes = 0;
@@ -50,125 +39,128 @@ void stats_unlock(void) {
 	pthread_mutex_unlock(&glock);
 }
 
-void* stats_get_subnode(void *node,const char *name,uint8_t absolute) {
-	statsnode *sn = (statsnode*)node;
-	statsnode *a;
-	pthread_mutex_lock(&glock);
-	for (a=sn?sn->firstchild:firstnode ; a ; a=a->nextsibling) {
-		if (strcmp(a->name,name)==0) {
-			pthread_mutex_unlock(&glock);
-			return a;
-		}
-	}
-	a = (statsnode*) malloc(sizeof(statsnode));
-	a->nextsibling = sn?sn->firstchild:firstnode;
+statsnode* stats_get_subnode(statsnode *node, const char *name, uint8_t absolute) {
+	stats_lock();
+
+	statsnode *a = node ? node->firstchild : firstnode;
+
+	for (; a; a = a->nextsibling)
+		if (!strcmp(a->name, name))
+			goto unlock_stats_and_exit;
+
+	if (!(a = (statsnode*)malloc(sizeof(statsnode))))
+		goto unlock_stats_and_exit;
+
+	a->nextsibling = node ? node->firstchild : firstnode;
 	a->firstchild = NULL;
 	a->counter = 0;
 	a->active = 0;
 	a->absolute = absolute;
 	a->name = strdup(name);
 	a->nleng = strlen(name);
-	if (sn) {
+
+	if (node) {
+		a->fnleng = node->fnleng + 1 + a->nleng;
+
 		char *bstr;
-		a->fnleng = sn->fnleng+1+a->nleng;
-		bstr = (char*) malloc(a->fnleng+1);
-		memcpy(bstr,sn->fullname,sn->fnleng);
-		bstr[sn->fnleng]='.';
-		memcpy(bstr+sn->fnleng+1,a->name,a->nleng);
-		bstr[a->fnleng]=0;
+		if (!(bstr = (char*)malloc(a->fnleng + 1))) {
+			free(a);
+			a = NULL;
+			goto unlock_stats_and_exit;
+		}
+
+		memcpy(bstr, node->fullname, node->fnleng);
+		bstr[node->fnleng] = '.';
+		memcpy(bstr + node->fnleng + 1, a->name, a->nleng);
+		bstr[a->fnleng] = 0;
 		a->fullname = bstr;
 	} else {
 		a->fullname = a->name;
 		a->fnleng = a->nleng;
 	}
-	if (sn) {
-		sn->firstchild = a;
-	} else {
+
+	if (node)
+		node->firstchild = a;
+	else
 		firstnode = a;
-	}
-	pthread_mutex_unlock(&glock);
+
+unlock_stats_and_exit:
+	stats_unlock();
 	return a;
 }
 
-uint64_t* stats_get_counterptr(void *node) {
-	statsnode *sn = (statsnode*)node;
-	pthread_mutex_lock(&glock);
-	if (sn->active==0) {
-		sn->active = 1;
-		allactiveplengs += sn->fnleng;
+uint64_t* stats_get_counterptr(statsnode *node) {
+	stats_lock();
+
+	if (!node->active) {
+		node->active = 1;
+		allactiveplengs += node->fnleng;
 		activenodes++;
 	}
-	pthread_mutex_unlock(&glock);
-	return &(sn->counter);
+
+	stats_unlock();
+
+	return &(node->counter);
 }
 
-static inline void stats_reset(statsnode *n) {
+static inline void stats_reset(statsnode *node) {
 	statsnode *a;
-	if (n->absolute==0) {
-		n->counter = 0;
-	}
-	for (a=n->firstchild ; a ; a=a->nextsibling) {
+
+	if (!node->absolute)
+		node->counter = 0;
+
+	for (a = node->firstchild; a; a = a->nextsibling)
 		stats_reset(a);
-	}
 }
 
 void stats_reset_all(void) {
 	statsnode *a;
-	pthread_mutex_lock(&glock);
-	for (a=firstnode ; a ; a=a->nextsibling) {
+	stats_lock();
+
+	for (a = firstnode; a; a = a->nextsibling)
 		stats_reset(a);
-	}
-	pthread_mutex_unlock(&glock);
+
+	stats_unlock();
 }
 
-static inline uint32_t stats_print_values(char *buff,uint32_t maxleng,statsnode *n) {
-	statsnode *a;
-	uint32_t l;
-	if (n->active) {
-		l = snprintf(buff,maxleng,"%s: %" PRIu64 "\n",n->fullname,n->counter);
-	} else {
-		l = 0;
-	}
-	for (a=n->firstchild ; a ; a=a->nextsibling) {
-		if (maxleng>l) {
-			l += stats_print_values(buff+l,maxleng-l,a);
-		}
-	}
+static inline uint32_t stats_print_values(char *buff, uint32_t maxleng, statsnode *n) {
+	uint32_t l = n->active ? snprintf(buff, maxleng, "%s: %" PRIu64 "\n", n->fullname, n->counter) : 0;
+
+	for (statsnode *a = n->firstchild; a; a = a->nextsibling)
+		if (maxleng > l)
+			l += stats_print_values(buff + l, maxleng - l, a);
+
 	return l;
 }
 
-static inline uint32_t stats_print_total(char *buff,uint32_t maxleng) {
-	statsnode *a;
-	uint32_t l;
-	l = 0;
-	for (a=firstnode ; a ; a=a->nextsibling) {
-		if (maxleng>l) {
-			l += stats_print_values(buff+l,maxleng-l,a);
-		}
-	}
+static inline uint32_t stats_print_total(char *buff, uint32_t maxleng) {
+	uint32_t l = 0;
+
+	for (statsnode *a = firstnode; a; a = a->nextsibling)
+		if (maxleng > l)
+			l += stats_print_values(buff + l, maxleng - l, a);
+
 	return l;
 }
 
-void stats_show_all(char **buff,uint32_t *leng) {
-	uint32_t rl;
-	pthread_mutex_lock(&glock);
-	rl = allactiveplengs + 23*activenodes + 1;
+void stats_show_all(char **buff, uint32_t *leng) {
+	stats_lock();
+
+	uint32_t rl = allactiveplengs + 23 * activenodes + 1;
 	*buff = (char*) malloc(rl);
-	if (*buff) {
-		*leng = stats_print_total(*buff,rl);
-	} else {
-		*leng = 0;
-	}
-	pthread_mutex_unlock(&glock);
+	*leng = *buff ? stats_print_total(*buff,rl) : 0;
+
+	stats_unlock();
 }
 
 void stats_free(statsnode *n) {
-	statsnode *a,*an;
+	statsnode *a, *an;
 	free(n->name);
-	if (n->fullname != n->name) {
+
+	if (n->fullname != n->name)
 		free(n->fullname);
-	}
-	for (a=n->firstchild ; a ; a = an) {
+
+	for (a = n->firstchild; a; a = an) {
 		an = a->nextsibling;
 		stats_free(a);
 		free(a);
@@ -176,8 +168,9 @@ void stats_free(statsnode *n) {
 }
 
 void stats_term(void) {
-	statsnode *a,*an;
-	for (a=firstnode ; a ; a = an) {
+	statsnode *a, *an;
+
+	for (a = firstnode; a; a = an) {
 		an = a->nextsibling;
 		stats_free(a);
 		free(a);

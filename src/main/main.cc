@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o..
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -894,7 +895,8 @@ int main(int argc,char **argv) {
 		makePidFile(pidfile);
 	}
 
-	if (cfg_load(cfgfile.c_str(), logundefined)==0) {
+	ch = cfg_load(cfgfile.c_str(), logundefined);
+	if (ch == 1) {
 		lzfs_pretty_syslog(LOG_WARNING, "configuration file %s not found - using defaults; "
 				"please create one to remove this warning "
 				"(you can copy %s.dist to get a base configuration)",
@@ -902,6 +904,7 @@ int main(int argc,char **argv) {
 	} else if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		lzfs_pretty_syslog(LOG_INFO, "configuration file %s loaded", cfgfile.c_str());
 	}
+
 	main_configure_debug_log();
 
 	if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {

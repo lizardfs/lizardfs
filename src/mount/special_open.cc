@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2016 Skytechnology sp. z o.o.
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -45,13 +46,14 @@ namespace InodeStats {
 static void open(const Context &ctx, FileInfo *fi) {
 	sinfo *statsinfo;
 	statsinfo = (sinfo*) malloc(sizeof(sinfo));
-	if (statsinfo==NULL) {
+	if (!statsinfo) {
 		oplog_printf(ctx, "open (%lu) (internal node: STATS): %s",
 		            (unsigned long int)inode_,
 		            lizardfs_error_string(LIZARDFS_ERROR_OUTOFMEMORY));
 		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
 	}
-	pthread_mutex_init(&(statsinfo->lock),NULL);         // make helgrind happy
+	if (pthread_mutex_init(&(statsinfo->lock), NULL))    // make helgrind happy
+		throw RequestException(LIZARDFS_ERROR_EPERM);
 	PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 	stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
 	statsinfo->reset = 0;

@@ -1,5 +1,6 @@
 /*
-   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare, 2013-2015 Skytechnology sp. z o.o..
+   Copyright 2005-2010 Jakub Kruszona-Zawadzki, Gemius SA, 2013-2014 EditShare,
+   2013-2019 Skytechnology sp. z o.o.
 
    This file was part of MooseFS and is part of LizardFS.
 
@@ -22,10 +23,22 @@
 
 #include <inttypes.h>
 
-void* stats_get_subnode(void *node,const char *name,uint8_t absolute);
-uint64_t* stats_get_counterptr(void *node);
+struct statsnode {
+	uint64_t counter;
+	uint8_t active;
+	uint8_t absolute;
+	char *name;
+	char *fullname;
+	uint32_t nleng; // : strlen(name)
+	uint32_t fnleng; // : strlen(fullname)
+	struct statsnode *firstchild;
+	struct statsnode *nextsibling;
+};
+
+statsnode* stats_get_subnode(statsnode *node, const char *name, uint8_t absolute);
+uint64_t* stats_get_counterptr(statsnode *node);
 void stats_reset_all(void);
-void stats_show_all(char **buff,uint32_t *leng);
+void stats_show_all(char **buff, uint32_t *leng);
 void stats_lock(void);
 void stats_unlock(void);
 void stats_term(void);
