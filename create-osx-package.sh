@@ -6,7 +6,7 @@ output_dir=$(pwd)
 source_dir=$(dirname "$0")
 working_dir=/tmp/lizardfs_osx_working_directory
 install_dir=${working_dir}/lizardfs/
-lizard_version=$(grep "set(PACKAGE_VERSION_"  CMakeLists.txt | awk '{print $2}' | cut -d")" -f1 |xargs | sed -e 's/\ /./g')
+lizard_version=$(grep "set(PACKAGE_VERSION_"  CMakeLists.txt |grep -E "(MAJOR|MINOR|MICRO)" |awk '{print substr($2, 1, length($2)-1)}' |xargs |sed 's/\ /./g')
 
 # Create an empty working directory and clone sources there to make
 # sure there are no additional files included in the source package
