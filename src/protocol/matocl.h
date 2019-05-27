@@ -188,8 +188,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(FuseGetGoalStats,
 		std::string, goalName,
-		uint32_t, directories,
-		uint32_t, files);
+		uint32_t, files,
+		uint32_t, directories);
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		matocl, fuseGetGoal, LIZ_MATOCL_FUSE_GETGOAL, kResponsePacketVersion,
