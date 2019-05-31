@@ -1,5 +1,5 @@
 /*
-   Copyright 2018 Skytechnology sp. z o.o.
+   Copyright 2019 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -23,5 +23,4 @@
 #include <functional>
 
 void daemonize_return_status(int status);
-int daemonize_and_wait(std::function<int ()> run_function);
-
+int daemonize_and_wait(std::function<int()> run_function);
