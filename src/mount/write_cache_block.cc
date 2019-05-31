@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2019 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
@@ -58,9 +58,7 @@ WriteCacheBlock &WriteCacheBlock::operator=(WriteCacheBlock &&block) {
 }
 
 WriteCacheBlock::~WriteCacheBlock() {
-	if (blockData != nullptr) {
-		delete[] blockData;
-	}
+	delete[] blockData;
 }
 
 bool WriteCacheBlock::expand(uint32_t from, uint32_t to, const uint8_t *buffer) {

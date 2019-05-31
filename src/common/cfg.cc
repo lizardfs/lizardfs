@@ -153,11 +153,7 @@ int cfg_load (const char *configfname,int _lu) {
 }
 
 std::string cfg_filename() {
-	if (cfgfname != nullptr) {
-		return cfgfname;
-	} else {
-		return "";
-	}
+	return cfgfname ? cfgfname : "";
 }
 
 int cfg_isdefined(const char *name) {

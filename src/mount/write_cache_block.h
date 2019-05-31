@@ -1,5 +1,5 @@
 /*
-   Copyright 2013-2015 Skytechnology sp. z o.o.
+   Copyright 2013-2019 Skytechnology sp. z o.o.
 
    This file is part of LizardFS.
 
