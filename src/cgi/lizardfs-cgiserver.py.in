@@ -1,31 +1,26 @@
 #!/usr/bin/env python2
 
-import fcntl
-import errno
-import posix
-import time
-import signal
-import os
-import sys
-import time
-import getopt
-import traceback
-import datetime
-import mimetypes
-import urlparse
-import urllib
 import cStringIO
-import socket
-import select
+import datetime
+import getopt
+import mimetypes
+import os
 import pwd
+import select
+import socket
+import sys
+import traceback
+import urlparse
 
 
-"""Http server based on recipes 511453,511454 from code.activestate.com by Pierre Quentel"""
-"""Added support for indexes, access tests, proper handle of SystemExit exception, fixed couple of errors and vulnerbilities, getopt, lockfiles, daemonize etc. by Jakub Kruszona-Zawadzki"""
+# Http server based on recipes 511453,511454 from code.activestate.com by
+# Pierre Quentel Added support for indexes, access tests, proper handle of
+# SystemExit exception, fixed couple of errors and vulnerbilities, getopt,
+# lockfiles, daemonize etc. by Jakub Kruszona-Zawadzki
 
-# the dictionary holding one client handler for each connected client
+# The dictionary holding one client handler for each connected client
 # key = client socket, value = instance of (a subclass of) ClientHandler
-client_handlers = {}
+CLIENT_HANDLERS = {}
 
 # =======================================================================
 # The server class. Creating an instance starts a server on the specified
@@ -63,6 +58,7 @@ class ClientHandler:
         self.outgoing = ''
         self.writable = False
         self.close_when_done = True
+        self.response = None
 
     def handle_error(self):
         self.close()
@@ -108,8 +104,7 @@ class ClientHandler:
             if isinstance(self.response[0], str):
                 self.outgoing = self.response.pop(0)
             else:
-                self.outgoing = self.response[0].read(
-                    self.blocksize)  # pylint: disable=E1101
+                self.outgoing = self.response[0].read(self.blocksize)  # pylint: disable=E1101
                 if not self.outgoing:
                     self.response.pop(0)
         if self.outgoing:
@@ -131,7 +126,7 @@ class ClientHandler:
                 self.incoming = ''
 
     def close(self):
-        del client_handlers[self.client_socket]
+        del CLIENT_HANDLERS[self.client_socket]
         self.client_socket.close()
 
 # ============================================================================
@@ -146,30 +141,30 @@ class ClientHandler:
 
 def loop(server, handler, timeout=30):
     while True:
-        k = client_handlers.keys()
+        k = CLIENT_HANDLERS.keys()
         # w = sockets to which there is something to send
         # we must test if we can send data
-        w = [cl for cl in client_handlers if client_handlers[cl].writable]
+        w = [cl for cl in CLIENT_HANDLERS if CLIENT_HANDLERS[cl].writable]
         # the heart of the program ! "r" will have the sockets that have sent
         # data, and the server socket if a new client has tried to connect
         r, w, e = select.select(k + [server.socket], w, k, timeout)
         for e_socket in e:
-            client_handlers[e_socket].handle_error()
+            CLIENT_HANDLERS[e_socket].handle_error()
         for r_socket in r:
             if r_socket is server.socket:
                 # server socket readable means a new connection request
                 try:
                     client_socket, client_address = server.socket.accept()
-                    client_handlers[client_socket] = handler(
+                    CLIENT_HANDLERS[client_socket] = handler(
                         server, client_socket, client_address)
                 except socket.error:
                     pass
             else:
                 # the client connected on r_socket has sent something
-                client_handlers[r_socket].handle_read()
-        w = set(w) & set(client_handlers.keys())  # remove deleted sockets
+                CLIENT_HANDLERS[r_socket].handle_read()
+        w = set(w) & set(CLIENT_HANDLERS.keys())  # remove deleted sockets
         for w_socket in w:
-            client_handlers[w_socket].handle_write()
+            CLIENT_HANDLERS[w_socket].handle_write()
 
 
 # =============================================================
@@ -187,6 +182,17 @@ class HTTP(ClientHandler):
     # size of blocks to read from files and send
     blocksize = 2 << 16
 
+    def __init__(self):
+        self.requestline = None
+        self.protocol = None
+        self.url = None
+        self.file_name = None
+        self.rest = None
+        self.headers = None
+        self.mngt_method = None
+        self.path = None
+        self.method = None
+
     def request_complete(self):
         """In the HTTP protocol, a request is complete if the "end of headers"
         sequence ('\r\n\r\n') has been received
@@ -199,7 +205,9 @@ class HTTP(ClientHandler):
         self.requestline = lines[0]
         try:
             self.method, self.url, self.protocol = lines[0].strip().split()
-            if not self.protocol.startswith("HTTP/1") or (self.protocol[7] != '0' and self.protocol[7] != '1') or len(self.protocol) != 8:
+            if (not self.protocol.startswith("HTTP/1") or
+                    (self.protocol[7] != '0' and self.protocol[7] != '1') or
+                    len(self.protocol) != 8):
                 self.method = None
                 self.protocol = "HTTP/1.1"
                 return True
@@ -217,7 +225,7 @@ class HTTP(ClientHandler):
         if (self.protocol == "HTTP/1.1" and close_conn.lower() == "keep-alive"):
             self.close_when_done = False
         # parse the url
-        scheme, netloc, path, params, query, fragment = urlparse.urlparse(
+        _, _, path, params, query, fragment = urlparse.urlparse(
             self.url)
         self.path, self.rest = path, (params, query, fragment)
 
@@ -236,11 +244,11 @@ class HTTP(ClientHandler):
         return True
 
     def make_response(self):
+        """Build the response: a list of strings or files"""
         try:
-            """Build the response : a list of strings or files"""
             if self.method is None:  # bad request
                 return self.err_resp(400, 'Bad request : %s' % self.requestline)
-            resp_headers, resp_body, resp_file = '', '', None
+            resp_headers, _, resp_file = '', '', None
             if self.method not in ['GET', 'POST', 'HEAD']:
                 return self.err_resp(501, 'Unsupported method (%s)' % self.method)
             else:
@@ -257,7 +265,8 @@ class HTTP(ClientHandler):
                     fstatdata = os.stat(file_name)
                     if (fstatdata.st_mode & 0170000) == 0040000:    # directory
                         for index in self.index_files:
-                            if os.path.exists(file_name + '/' + index) and os.access(file_name + '/' + index, os.R_OK):
+                            if (os.path.exists(file_name + '/' + index) and
+                                    os.access(file_name + '/' + index, os.R_OK)):
                                 return self.redirect_resp(index)
                     if (fstatdata.st_mode & 0170000) != 0100000:
                         return self.err_resp(403, 'Forbidden')
@@ -403,8 +412,8 @@ def fork():
         pid = os.fork()
         if pid > 0:
             sys.exit(0)
-    except OSError as e:
-        exit_err("fork failed: %d (%s)" % (e.errno, e.strerror))
+    except OSError as err:
+        exit_err("fork failed: %d (%s)" % (err.errno, err.strerror))
 
 
 # =======================================================================
@@ -414,7 +423,7 @@ def daemonize(pidfile, user=None):
     # open pidfile descriptor
     try:
         pidf = open(pidfile, 'w+')
-    except IOError as e:
+    except IOError:
         exit_err("could not open pidfile for writing: %s" % pidfile)
 
     # change user from root to custom
@@ -451,15 +460,15 @@ def daemonize(pidfile, user=None):
 
 
 if __name__ == "__main__":
-    verbose = False
-    host = 'any'
-    port = 9425
-    rootpath = "@CGI_PATH@"
-    pidfile = None
-    user = None
+    VERBOSE = False
+    HOST = 'any'
+    PORT = 9425
+    ROOTPATH = "@CGI_PATH@"
+    PIDFILE = None
+    USER = None
 
-    opts, args = getopt.getopt(sys.argv[1:], "vhH:P:R:p:u:")
-    for opt, val in opts:
+    OPTS, ARGS = getopt.getopt(sys.argv[1:], "vhH:P:R:p:u:")
+    for opt, val in OPTS:
         if opt == '-h':
             print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0]
             print "-H bind_host : local address to listen on (default: any)"
@@ -470,29 +479,26 @@ if __name__ == "__main__":
             print "-u : username of server owner, used in manual daemonization"
             sys.exit(0)
         elif opt == '-H':
-            host = val
+            HOST = val
         elif opt == '-P':
-            port = int(val)
+            PORT = int(val)
         elif opt == '-R':
-            rootpath = val
+            ROOTPATH = val
         elif opt == '-v':
-            verbose = True
+            VERBOSE = True
         elif opt == '-p':
-            pidfile = val
+            PIDFILE = val
         elif opt == '-u':
-            user = val
+            USER = val
 
     # launch the server on the specified port
-    server = Server(host, port)
-    if host != 'any':
-        print "Asynchronous HTTP server running on %s:%s" % (host, port)
+    SERVER = Server(HOST, PORT)
+    if HOST != 'any':
+        print "Asynchronous HTTP server running on %s:%s" % (HOST, PORT)
     else:
-        print "Asynchronous HTTP server running on port %s" % port
-    if verbose:
-        HTTP.logging = True
-    else:
-        HTTP.logging = False
-    HTTP.root = os.path.realpath(rootpath)
-    if pidfile:
-        daemonize(pidfile, user)
-    loop(server, HTTP)
+        print "Asynchronous HTTP server running on port %s" % PORT
+    HTTP.logging = bool(VERBOSE)
+    HTTP.root = os.path.realpath(ROOTPATH)
+    if PIDFILE:
+        daemonize(PIDFILE, USER)
+    loop(SERVER, HTTP)
