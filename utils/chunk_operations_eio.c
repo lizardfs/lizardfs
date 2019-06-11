@@ -33,7 +33,6 @@ typedef int (*fsync_t)(int);
 
 static char *read_filename(int fd, char *buf, int bufsize) {
 	char fdpath[COMMAND_BUFSIZE] = {0};
-	int procfd;
 
 	sprintf(fdpath, "/proc/self/fd/%d", fd);
 	memset(buf, 0, bufsize);

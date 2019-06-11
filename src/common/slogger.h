@@ -27,6 +27,9 @@
 #endif
 #include "common/small_vector.h"
 #include "spdlog/spdlog.h"
+#include "spdlog/sinks/rotating_file_sink.h"
+#include "spdlog/sinks/syslog_sink.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 
 typedef std::shared_ptr<spdlog::logger> LoggerPtr;
 
