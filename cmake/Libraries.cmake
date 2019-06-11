@@ -2,9 +2,7 @@ include(DownloadExternal)
 
 # Download GoogleTest
 if(ENABLE_TESTS)
-  download_external(GTEST "googletest-release-1.7.0"
-                    "https://github.com/google/googletest/archive/release-1.7.0.zip"
-                    "ef5e700c8a0f3ee123e2e0209b8b4961")
+  find_package(GTest REQUIRED)
 endif()
 
 # Find spdlog
@@ -131,7 +129,7 @@ endif()
 # Find GoogleTest
 
 if(ENABLE_TESTS)
-  set(GTEST_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/external/${GTEST_DIR_NAME}/include)
+  set(GTEST_INCLUDE_DIRS ${GTEST_INCLUDE_DIRS})
   set(TEST_LIBRARIES "" CACHE INTERNAL "" FORCE)
 endif()
 

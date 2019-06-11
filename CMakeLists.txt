@@ -281,6 +281,10 @@ include_directories(${CMAKE_BINARY_DIR}) # Here we have generated config.h
 # main.cc shared by some LizardFS applications
 set(MAIN_SRC ${CMAKE_SOURCE_DIR}/src/main/main.cc)
 
+if(GTEST_FOUND)
+  include_directories(${GTEST_INCLUDE_DIRS})
+endif()
+
 if(ZLIB_FOUND)
   include_directories(${ZLIB_INCLUDE_DIRS})
 endif()
