@@ -126,7 +126,7 @@ static int chunks_info(const char *file_name, int fd, uint32_t inode, bool long_
 				if (chunk.chunk_parts.size() > 0) {
 					std::sort(chunk.chunk_parts.begin(), chunk.chunk_parts.end());
 					for (size_t i = 0; i < chunk.chunk_parts.size(); i++) {
-						printf("\t\tcopy %lu: %s:%s%s\n", i + 1,
+						printf("\t\tcopy %zu: %s:%s%s\n", i + 1,
 								chunk.chunk_parts[i].address.toString().c_str(),
 								chunk.chunk_parts[i].label.c_str(),
 								chunkTypeToString(chunk.chunk_parts[i].chunkType).c_str());

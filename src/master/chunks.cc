@@ -2403,11 +2403,11 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 
 	// step 2. check number of copies
 	if (c->isLost() && invalid_parts > 0 && c->fileCount() > 0) {
-		lzfs_pretty_syslog(LOG_WARNING, "chunk %016lx has not enough valid parts (%d)"
+		lzfs_pretty_syslog(LOG_WARNING, "chunk %016" PRIx64 " has not enough valid parts (%d)"
 		                   " consider repairing it manually", c->chunkid, invalid_parts);
 		for (const auto &part : c->parts) {
 			if (!part.is_valid()) {
-				lzfs_pretty_syslog(LOG_NOTICE, "chunk %016lx_%08x - invalid part on (%s - ver:%08x)",
+				lzfs_pretty_syslog(LOG_NOTICE, "chunk %016" PRIx64 "_%08x - invalid part on (%s - ver:%08x)",
 				c->chunkid, c->version, matocsserv_getstrip(part.server()), part.version);
 			}
 		}

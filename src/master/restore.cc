@@ -957,13 +957,13 @@ int restore_line(const char* filename, uint64_t lv, const char* line) {
 
 	if (status == LIZARDFS_ERROR_MAX) {
 #ifndef METARESTORE
-		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %lu, %s -- unknown entry",
+		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %" PRIu64 ", %s -- unknown entry",
 			   filename, lv, line);
 #endif
 		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": unknown entry '%s'", filename, lv, ptr);
 	} else if (status != LIZARDFS_STATUS_OK) {
 #ifndef METARESTORE
-		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %lu, %s -- %s",
+		lzfs_silent_syslog(LOG_DEBUG, "master.mismatch File %s, %" PRIu64 ", %s -- %s",
 			   filename, lv, line, lizardfs_error_string(status));
 #endif
 		lzfs_pretty_syslog(LOG_ERR, "%s:%" PRIu64 ": error: %d (%s)", filename, lv, status,

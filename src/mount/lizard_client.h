@@ -252,7 +252,11 @@ struct EntryParam {
 	}
 
 	Inode ino;
+#if FUSE_USE_VERSION >= 30
+	uint64_t generation;
+#else
 	unsigned long generation;
+#endif
 	struct stat attr;
 	double attr_timeout;
 	double entry_timeout;

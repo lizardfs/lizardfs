@@ -416,7 +416,7 @@ void masterconn_replicate(const std::vector<uint8_t>& data) {
 	OutputPacket* outputPacket = new OutputPacket;
 	cstoma::replicateChunk::serialize(outputPacket->packet,
 			chunkId, chunkType, LIZARDFS_STATUS_OK, chunkVersion);
-	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %lu", chunkId);
+	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %" PRIu64, chunkId);
 	if (hdd_scans_in_progress()) {
 		// Folder scan in progress - replication is not possible
 		masterconn_lizjobfinished(LIZARDFS_ERROR_WAITING, outputPacket);
@@ -442,7 +442,7 @@ void masterconn_legacy_replicate(masterconn *eptr,const uint8_t *data,uint32_t l
 	}
 	chunkid = get64bit(&data);
 	version = get32bit(&data);
-	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %lu", chunkid);
+	lzfs_silent_syslog(LOG_DEBUG, "cs.matocs.replicate %" PRIu64, chunkid);
 	packet = masterconn_create_detached_packet(CSTOMA_REPLICATE,8+4+1);
 	ptr = masterconn_get_packet_data(packet);
 	put64bit(&ptr,chunkid);

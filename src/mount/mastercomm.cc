@@ -1497,7 +1497,7 @@ uint8_t fs_truncate(uint32_t inode, bool opened, uint32_t uid, uint32_t gid, uin
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE message from master "
-				"(length:%" PRIu64"), %s", message.size(), ex.what());
+				"(length:%zu), %s", message.size(), ex.what());
 		setDisconnect(true);
 		return LIZARDFS_ERROR_IO;
 	}
@@ -1543,7 +1543,7 @@ uint8_t fs_truncateend(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t leng
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_TRUNCATE_END message from master "
-				"(length:%" PRIu64"), %s", message.size(), ex.what());
+				"(length:%zu), %s", message.size(), ex.what());
 		setDisconnect(true);
 		return LIZARDFS_ERROR_IO;
 	}
@@ -2167,7 +2167,7 @@ uint8_t fs_lizwritechunk(uint32_t inode, uint32_t chunkIndex, uint32_t &lockId,
 	} catch (IncorrectDeserializationException& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK message from master "
-				"(length:%" PRIu64"), %s", message.size(), ex.what());
+				"(length:%zu), %s", message.size(), ex.what());
 		setDisconnect(true);
 		return LIZARDFS_ERROR_IO;
 	}
@@ -2192,7 +2192,7 @@ uint8_t fs_lizwriteend(uint64_t chunkId, uint32_t lockId, uint32_t inode, uint64
 	} catch (Exception& ex) {
 		lzfs_pretty_syslog(LOG_NOTICE,
 				"got inconsistent LIZ_MATOCL_FUSE_WRITE_CHUNK_END message from master "
-				"(length:%" PRIu64"), %s", message.size(), ex.what());
+				"(length:%zu), %s", message.size(), ex.what());
 		setDisconnect(true);
 		return LIZARDFS_ERROR_IO;
 	}

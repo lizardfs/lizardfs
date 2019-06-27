@@ -256,7 +256,7 @@ int read_data_sleep_time_ms(int tryCounter) {
 static void print_error_msg(const readrec *rrec, uint32_t try_counter, const Exception &ex) {
 	if (rrec->reader.isChunkLocated()) {
 		lzfs_pretty_syslog(LOG_WARNING,
-		                   "read file error, inode: %u, index: %u, chunk: %lu, version: %u - %s "
+		                   "read file error, inode: %u, index: %u, chunk: %" PRIu64 ", version: %u - %s "
 		                   "(try counter: %u)", rrec->reader.inode(), rrec->reader.index(),
 		                   rrec->reader.chunkId(), rrec->reader.version(), ex.what(), try_counter);
 	} else {
