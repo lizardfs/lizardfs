@@ -45,7 +45,7 @@ class Server:
 # =====================================================================
 
 
-class ClientHandler:
+class ClientHandler(object):
     blocksize = 2048
 
     def __init__(self, server, client_socket, client_address):
@@ -182,7 +182,8 @@ class HTTP(ClientHandler):
     # size of blocks to read from files and send
     blocksize = 2 << 16
 
-    def __init__(self):
+    def __init__(self, server, client_socket, client_address):
+        super(HTTP, self).__init__(server, client_socket, client_address)
         self.requestline = None
         self.protocol = None
         self.url = None
