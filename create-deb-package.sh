@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -eux
 
+export LIZARDFS_OFFICIAL_BUILD=NO
+
 # Directories used by this script
+
 output_dir=$(pwd)
 source_dir=$(dirname "$0")
 working_dir=/tmp/lizardfs_deb_working_directory
@@ -9,6 +12,7 @@ working_dir=/tmp/lizardfs_deb_working_directory
 os_release="$(lsb_release -si)/$(lsb_release -sr)"
 
 # Systemd is added by default, except for the following systems
+
 case "$os_release" in
   Debian*/7*)  use_systemd=0 ;;
   Ubuntu*/12*) use_systemd=0 ;;
@@ -18,14 +22,17 @@ esac
 
 # Create an empty working directory and clone sources there to make
 # sure there are no additional files included in the source package
+
 rm -rf "$working_dir"
 mkdir "$working_dir"
 git clone "$source_dir" "$working_dir/lizardfs"
 
-# Build packages.
+# Build packages
+
 cd "$working_dir/lizardfs"
 
 # Move service files to debian/
+
 cp -P rpm/service-files/* debian/
 
 sed -i '1 s/-devel//g' debian/changelog
@@ -36,5 +43,6 @@ else
 fi
 
 # Copy all the created files and clean up
+
 cp "$working_dir"/lizardfs?* "$output_dir"
 rm -rf "$working_dir"
