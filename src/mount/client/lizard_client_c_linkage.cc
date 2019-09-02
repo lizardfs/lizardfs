@@ -144,7 +144,7 @@ std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(const Context &ctx, In
 	}
 }
 
-int lizardfs_getgoal(const Context &ctx, LizardClient::Inode ino, std::string &goal) {
+int lizardfs_getgoal(const Context &ctx, Inode ino, std::string &goal) {
 	try {
 		goal = LizardClient::getgoal(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -286,7 +286,7 @@ std::pair<int, std::vector<DirEntry>> lizardfs_readdir(const Context &ctx, Inode
 	}
 }
 
-int lizardfs_readlink(const LizardClient::Context &ctx, LizardClient::Inode ino, std::string &link) {
+int lizardfs_readlink(const Context &ctx, Inode ino, std::string &link) {
 	try {
 		link = LizardClient::readlink(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -378,7 +378,7 @@ int lizardfs_rename(const Context &ctx, Inode parent, const char *name, Inode ne
 	}
 }
 
-int lizardfs_update_groups(LizardClient::Context &ctx) {
+int lizardfs_update_groups(Context &ctx) {
 	try {
 		LizardClient::updateGroups(ctx);
 	} catch (const RequestException &e) {
@@ -389,7 +389,7 @@ int lizardfs_update_groups(LizardClient::Context &ctx) {
 	return LIZARDFS_STATUS_OK;
 }
 
-int lizardfs_setxattr(LizardClient::Context ctx, Inode ino, const char *name, const char *value,
+int lizardfs_setxattr(Context ctx, Inode ino, const char *name, const char *value,
 		size_t size, int flags) {
 	try {
 		LizardClient::setxattr(ctx, ino, name, value, size, flags, 0);
@@ -401,8 +401,8 @@ int lizardfs_setxattr(LizardClient::Context ctx, Inode ino, const char *name, co
 	}
 }
 
-std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const LizardClient::Context &ctx,
-	                          LizardClient::Inode ino, uint32_t chunk_index, uint32_t chunk_count) {
+std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const Context &ctx,
+	                          Inode ino, uint32_t chunk_index, uint32_t chunk_count) {
 	try {
 		auto chunks = LizardClient::getchunksinfo(ctx, ino, chunk_index, chunk_count);
 		return {LIZARDFS_STATUS_OK, chunks};
@@ -425,7 +425,7 @@ std::pair<int, std::vector<ChunkserverListEntry>> lizardfs_getchunkservers() {
 }
 
 
-int lizardfs_getlk(const LizardClient::Context &ctx, LizardClient::Inode ino,
+int lizardfs_getlk(const Context &ctx, Inode ino,
 	           LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
 	try {
 		LizardClient::getlk(ctx, ino, fi, lock);
@@ -437,7 +437,7 @@ int lizardfs_getlk(const LizardClient::Context &ctx, LizardClient::Inode ino,
 	}
 }
 
-std::pair<int, uint32_t> lizardfs_setlk_send(const LizardClient::Context &ctx, LizardClient::Inode ino,
+std::pair<int, uint32_t> lizardfs_setlk_send(const Context &ctx, Inode ino,
 	                            LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
 	try {
 		uint32_t reqid = LizardClient::setlk_send(ctx, ino, fi, lock);
@@ -471,7 +471,7 @@ int lizardfs_setlk_interrupt(const lzfs_locks::InterruptData &data) {
 	}
 }
 
-int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name,
+int lizardfs_getxattr(Context ctx, Inode ino, const char *name,
 	              size_t size, LizardClient::XattrReply &xattr_reply) {
 	try {
 		xattr_reply = LizardClient::getxattr(ctx, ino, name, size, 0);
@@ -482,7 +482,7 @@ int lizardfs_getxattr(LizardClient::Context ctx, LizardClient::Inode ino, const 
 		return LIZARDFS_ERROR_IO;
 	}
 }
-int lizardfs_listxattr(LizardClient::Context ctx, LizardClient::Inode ino, size_t size,
+int lizardfs_listxattr(Context ctx, Inode ino, size_t size,
 	               LizardClient::XattrReply &xattr_reply) {
 	try {
 		xattr_reply = LizardClient::listxattr(ctx, ino, size);
@@ -494,7 +494,7 @@ int lizardfs_listxattr(LizardClient::Context ctx, LizardClient::Inode ino, size_
 	}
 }
 
-int lizardfs_removexattr(LizardClient::Context ctx, LizardClient::Inode ino, const char *name) {
+int lizardfs_removexattr(Context ctx, Inode ino, const char *name) {
 	try {
 		LizardClient::removexattr(ctx, ino, name);
 		return LIZARDFS_STATUS_OK;
