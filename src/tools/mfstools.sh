@@ -2,4 +2,4 @@
 
 tool=$(basename $0)
 
-${tool/mfs/lizardfs } "$@"
+${tool/lizardfs/lizardfs } "$@"

@@ -573,7 +573,7 @@ int main(int argc, char *argv[]) try {
 		exit(1);
 
 	if (!gCustomCfg)
-		mfs_opt_parse_cfg_file(DEFAULT_MSFMOUNT_CONFIG_PATH, 1, &defaultargs);
+		mfs_opt_parse_cfg_file(DEFAULT_MFSMOUNT_CONFIG_PATH, 1, &defaultargs);
 
 	if (fuse_opt_parse(&defaultargs, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2))
 		exit(1);

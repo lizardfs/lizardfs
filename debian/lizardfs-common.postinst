@@ -7,13 +7,13 @@ liz_pam_d="/etc/pam.d/lizardfs"
 
 case "${1}" in
 	configure)
-		if ! getent passwd mfs > /dev/null 2>&1
+		if ! getent passwd lizardfs > /dev/null 2>&1
 		then
-			adduser --quiet --system --group --no-create-home --home /var/lib/mfs mfs
+			adduser --quiet --system --group --no-create-home --home /var/lib/lizardfs lizardfs
 		fi
 		if [ ! -f $liz_limits_conf ]; then
-			echo "mfs soft nofile 10000" > $liz_limits_conf
-			echo "mfs hard nofile 10000" >> $liz_limits_conf
+			echo "lizardfs soft nofile 10000" > $liz_limits_conf
+			echo "lizardfs hard nofile 10000" >> $liz_limits_conf
 			chmod 0644 $liz_limits_conf
 		fi
 		if [ ! -f $liz_pam_d ]; then

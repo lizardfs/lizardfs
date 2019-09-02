@@ -1,1 +1,2 @@
-var/lib/mfs
+etc/lizardfs
+var/lib/lizardfs

@@ -1,24 +1,24 @@
 #!/bin/sh
 #
 ### BEGIN INIT INFO
-# Provides: lizardfs-uraft
-# Required-Start: $local_fs $network $syslog $remote_fs
-# Required-Stop: $local_fs $syslog $remote_fs
-# Should-Start: $syslog
-# Should-Stop: $network $syslog
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
-# Short-Description: Start up lizardfs-master managed by lizardfs-uraft high availability daemon
-# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
-#                    This service starts up LizardFS master managed by high availability daemon.
+# Provides:            lizardfs-uraft
+# Required-Start:      $local_fs $network $syslog $remote_fs
+# Required-Stop:       $local_fs $syslog $remote_fs
+# Should-Start:        $syslog
+# Should-Stop:         $network $syslog
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Start up lizardfs-master managed by lizardfs-uraft high availability daemon
+# Description:         LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                      This service starts up LizardFS master managed by high availability daemon.
 ### END INIT INFO
 
 NAME=lizardfs-uraft
 DAEMON=/usr/sbin/lizardfs-uraft
 MASTER=/usr/sbin/mfsmaster
 MASTER_OPTS="-o ha-cluster-managed -o initial-personality=shadow"
-LIZARDFSURAFT_USER=mfs
-LIZARDFSURAFT_GROUP=mfs
+LIZARDFSURAFT_USER=lizardfs
+LIZARDFSURAFT_GROUP=lizardfs
 
 # Exit if executable is not installed
 [ -x $DAEMON ] || exit 0
@@ -41,9 +41,9 @@ if [ -s "$LIZARDFSURAFT_DEFAULTS_FILE" ] ; then
     case "x$LIZARDFSURAFT_ENABLE" in
         xtrue) ;;
         xfalse)
-	    log_warning_msg "lizardfs-uraft not enabled in \"$LIZARDFSURAFT_DEFAULTS_FILE\", exiting..."
-	    exit 0
-	    ;;
+           log_warning_msg "lizardfs-uraft not enabled in \"$LIZARDFSURAFT_DEFAULTS_FILE\", exiting..."
+           exit 0
+           ;;
         *)
             log_failure_msg "value of LIZARDFSURAFT_ENABLE must be either 'true' or 'false';"
             log_failure_msg "not starting lizardfs-uraft."

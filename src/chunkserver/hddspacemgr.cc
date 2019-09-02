@@ -3707,7 +3707,7 @@ static void hdd_folders_reinit(void) {
 	if (!fd) {
 		throw InitializeException("can't open hdd config file " + hddfname +": " +
 				strerr(errno) + " - new file can be created using " +
-				ETC_PATH "/mfshdd.cfg.dist");
+				CHUNKSERVER_EXAMPLES_SUBDIR "/mfshdd.cfg");
 	}
 	lzfs_pretty_syslog(LOG_INFO, "hdd configuration file %s opened", hddfname.c_str());
 

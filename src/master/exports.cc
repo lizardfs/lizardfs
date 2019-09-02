@@ -958,13 +958,13 @@ static void exports_loadexports(void) {
 	exports *newexports,**netail,*arec;
 
 	fd = fopen(ExportsFileName,"r");
-	if (fd==NULL) {
-		if (errno==ENOENT) {
+	if (!fd) {
+		if (errno == ENOENT) {
 			std::string err_msg = std::string("exports "
 				"configuration file (") + ExportsFileName +
-				") not found - please create one (you can "
-				"copy ETC_PATH/mfsexports.cfg.dist to get a "
-				"base configuration)";
+				") not found - please create one (you can copy "
+				MFSMASTER_EXAMPLES_SUBDIR "/mfsexports.cfg to "
+				"get a base configuration)";
 			throw InitializeException(err_msg);
 		} else {
 			std::string err_msg = std::string("can't open exports "

@@ -5,12 +5,12 @@ set -e
 
 case "${1}" in
 	configure)
-		if ! getent passwd mfs > /dev/null 2>&1
+		if ! getent passwd lizardfs > /dev/null 2>&1
 		then
-			adduser --quiet --system --group --no-create-home --home /var/lib/mfs mfs
+			adduser --quiet --system --group --no-create-home --home /var/lib/lizardfs lizardfs
 		fi
-		echo "# Allow mfs user to set floating ip" > $SUDO_URAFT_FILE
-		echo "mfs\tALL=NOPASSWD:/sbin/ip" >> $SUDO_URAFT_FILE
+		echo "# Allow lizardfs user to set floating ip" > $SUDO_URAFT_FILE
+		echo "lizardfs\tALL=NOPASSWD:/sbin/ip" >> $SUDO_URAFT_FILE
 		;;
 	abort-upgrade|abort-remove|abort-deconfigure)
 

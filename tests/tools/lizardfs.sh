@@ -14,8 +14,8 @@ setup_local_empty_lizardfs() {
 	local auto_shadow_master=${AUTO_SHADOW_MASTER:-YES}
 	local cgi_server=${CGI_SERVER:-NO}
 	local ip_address=$(get_ip_addr)
-	local etcdir=$TEMP_DIR/mfs/etc
-	local vardir=$TEMP_DIR/mfs/var
+	local etcdir=$TEMP_DIR/lizardfs/etc
+	local vardir=$TEMP_DIR/lizardfs/var
 	local mntdir=$TEMP_DIR/mnt
 	local master_start_param=${MASTER_START_PARAM:-}
 	local shadow_start_param=${SHADOW_START_PARAM:-}

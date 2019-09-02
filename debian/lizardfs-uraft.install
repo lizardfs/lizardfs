@@ -1,6 +1,2 @@
-etc/mfs/lizardfs-uraft.cfg.dist
 usr/sbin/lizardfs-uraft
 usr/sbin/lizardfs-uraft-helper
-usr/share/man/man8/lizardfs-uraft.8
-usr/share/man/man8/lizardfs-uraft-helper.8
-usr/share/man/man5/lizardfs-uraft.cfg.5

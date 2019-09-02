@@ -18,7 +18,7 @@ BuildRequires:  systemd
 %endif
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%define         liz_project        mfs
+%define         liz_project        lizardfs
 %define         liz_group          %{liz_project}
 %define         liz_user           %{liz_project}
 %define         liz_datadir        %{_localstatedir}/lib/%{liz_project}
@@ -320,8 +320,8 @@ fi
 echo "net.ipv4.conf.all.arp_accept = 1" > /etc/sysctl.d/10-lizardfs-uraft-arp.conf
 chmod 0664 /etc/sysctl.d/10-lizardfs-uraft-arp.conf
 sysctl -p /etc/sysctl.d/10-lizardfs-uraft-arp.conf
-echo "# Allow mfs user to set floating ip" > /etc/sudoers.d/lizardfs-uraft
-echo "mfs    ALL=NOPASSWD:/sbin/ip" >> /etc/sudoers.d/lizardfs-uraft
+echo "# Allow lizardfs user to set floating ip" > /etc/sudoers.d/lizardfs-uraft
+echo "lizardfs    ALL=NOPASSWD:/sbin/ip" >> /etc/sudoers.d/lizardfs-uraft
 echo 'Defaults !requiretty' >> /etc/sudoers
 
 # Prep, build, install, files...
@@ -375,11 +375,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/mfsmetadump.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{_mandir}/man8/mfsrestoremaster.8*
-%{liz_confdir}/mfsexports.cfg.dist
-%{liz_confdir}/mfstopology.cfg.dist
-%{liz_confdir}/mfsgoals.cfg.dist
-%{liz_confdir}/mfsmaster.cfg.dist
-%{liz_confdir}/globaliolimits.cfg.dist
+%{liz_confdir}/mfsexports.cfg
+%{liz_confdir}/mfstopology.cfg
+%{liz_confdir}/mfsgoals.cfg
+%{liz_confdir}/mfsmaster.cfg
+%{liz_confdir}/globaliolimits.cfg
 %attr(644,root,root) %{liz_datadir}/metadata.mfs.empty
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-master
@@ -395,7 +395,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfsmetalogger.cfg.5*
 %{_mandir}/man8/mfsmetalogger.8*
-%{liz_confdir}/mfsmetalogger.cfg.dist
+%{liz_confdir}/mfsmetalogger.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-metalogger
 %endif
@@ -411,8 +411,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man5/mfschunkserver.cfg.5*
 %{_mandir}/man5/mfshdd.cfg.5*
 %{_mandir}/man8/mfschunkserver.8*
-%{liz_confdir}/mfschunkserver.cfg.dist
-%{liz_confdir}/mfshdd.cfg.dist
+%{liz_confdir}/mfschunkserver.cfg
+%{liz_confdir}/mfshdd.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-chunkserver
 %endif
@@ -471,8 +471,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man1/mfsmount.1*
 %{_mandir}/man5/mfsmount.cfg.5*
-%{liz_confdir}/mfsmount.cfg.dist
-%{liz_confdir}/iolimits.cfg.dist
+%{liz_confdir}/mfsmount.cfg
+%{liz_confdir}/iolimits.cfg
 %{_sysconfdir}/bash_completion.d/lizardfs
 
 %files client3
@@ -535,7 +535,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-uraft.8*
 %{_mandir}/man8/lizardfs-uraft-helper.8*
 %{_mandir}/man5/lizardfs-uraft.cfg.5*
-%{liz_confdir}/lizardfs-uraft.cfg.dist
+%{liz_confdir}/lizardfs-uraft.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-uraft
 %endif

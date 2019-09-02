@@ -1,8 +1,8 @@
-usr/lib/liblizardfsmount_shared.so
-usr/lib/liblizardfs-client.so
+usr/include/lizardfs/lizardfs_c_api.h
+usr/include/lizardfs/lizardfs_error_codes.h
 usr/lib/liblizardfs-client-cpp.a
 usr/lib/liblizardfs-client-cpp_pic.a
 usr/lib/liblizardfs-client.a
+usr/lib/liblizardfs-client.so
 usr/lib/liblizardfs-client_pic.a
-usr/include/lizardfs/lizardfs_c_api.h
-usr/include/lizardfs/lizardfs_error_codes.h
+usr/lib/liblizardfsmount_shared.so

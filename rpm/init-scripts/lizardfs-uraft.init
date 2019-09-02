@@ -1,16 +1,16 @@
 #!/bin/sh
 #
 ### BEGIN INIT INFO
-# Provides: lizardfs-uraft
-# Required-Start: $local_fs $network $syslog $remote_fs
-# Required-Stop: $local_fs $syslog $remote_fs
-# Should-Start: $syslog
-# Should-Stop: $network $syslog
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
-# Short-Description: Start up lizardfs-master managed by lizardfs-uraft high availability daemon
-# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
-#                    This service starts up LizardFS master managed by high availability daemon.
+# Provides:            lizardfs-uraft
+# Required-Start:      $local_fs $network $syslog $remote_fs
+# Required-Stop:       $local_fs $syslog $remote_fs
+# Should-Start:        $syslog
+# Should-Stop:         $network $syslog
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Start up lizardfs-master managed by lizardfs-uraft high availability daemon
+# Description:         LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                      This service starts up LizardFS master managed by high availability daemon.
 ### END INIT INFO
 
 # Source function library.
@@ -48,26 +48,26 @@ restart () {
 }
 
 case "$1" in
-  start)
-    start
-    ;;
-  stop)
-    stop
-    ;;
-  restart|reload)
-    restart
-    ;;
-  condrestart)
-    [ -e /var/lock/subsys/$prog ] && restart
-    RETVAL=$?
-    ;;
-  status)
-    status $prog
-    RETVAL=$?
-    ;;
-  *)
-    echo $"Usage: $0 {start|stop|restart|condrestart|status}"
-    RETVAL=1
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+    condrestart)
+        [ -e /var/lock/subsys/$prog ] && restart
+        RETVAL=$?
+        ;;
+    status)
+        status $prog
+        RETVAL=$?
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+        RETVAL=1
 esac
 
 exit $RETVAL

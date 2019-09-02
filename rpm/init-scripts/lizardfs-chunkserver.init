@@ -1,16 +1,16 @@
 #!/bin/sh
 #
 ### BEGIN INIT INFO
-# Provides: lizardfs-chunkserver
-# Required-Start: $local_fs $network $syslog
-# Required-Stop: $local_fs $syslog
-# Should-Start: $syslog
-# Should-Stop: $network $syslog
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
-# Short-Description: Start up the lizardfs-chunkserver server daemon
-# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
-#                    This service starts up the LizardFS chunkserver server daemon.
+# Provides:            lizardfs-chunkserver
+# Required-Start:      $local_fs $network $syslog
+# Required-Stop:       $local_fs $syslog
+# Should-Start:        $syslog
+# Should-Stop:         $network $syslog
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Start up the lizardfs-chunkserver server daemon
+# Description:         LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                      This service starts up the LizardFS chunkserver server daemon.
 ### END INIT INFO
 
 # Source function library.
@@ -25,7 +25,7 @@
 # Check that networking is up.
 [ "${NETWORKING}" == "no" ] && exit 0
 [ -x "@sbindir@/mfschunkserver" ] || exit 1
-[ -r "@sysconfdir@/mfs/mfshdd.cfg" -o -r "@sysconfdir@/mfshdd.cfg" ] || exit 1
+[ -r "@sysconfdir@/lizardfs/mfshdd.cfg" -o -r "@sysconfdir@/mfshdd.cfg" ] || exit 1
 
 RETVAL=0
 prog="mfschunkserver"
@@ -54,26 +54,26 @@ restart () {
 }
 
 case "$1" in
-  start)
-    start
-    ;;
-  stop)
-    stop
-    ;;
-  restart|reload)
-    restart
-    ;;
-  condrestart)
-    [ -e /var/lock/subsys/$prog ] && restart
-    RETVAL=$?
-    ;;
-  status)
-    status $prog
-    RETVAL=$?
-    ;;
-  *)
-    echo $"Usage: $0 {start|stop|restart|condrestart|status}"
-    RETVAL=1
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        restart
+        ;;
+    condrestart)
+        [ -e /var/lock/subsys/$prog ] && restart
+        RETVAL=$?
+        ;;
+    status)
+        status $prog
+        RETVAL=$?
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|restart|condrestart|status}"
+        RETVAL=1
 esac
 
 exit $RETVAL
