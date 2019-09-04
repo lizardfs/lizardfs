@@ -1,4 +1,4 @@
-# LizardFS
+# LizardFS [![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/lizardfs/)
 
 ## Introduction
 
