@@ -1511,7 +1511,8 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 
 	result.reserve(max_entries);
 	for(;it != gDirEntryCache.index_end() && max_entries > 0;++it) {
-		if (!gDirEntryCache.isValid(it) || it->index != entry_index) {
+		if (!gDirEntryCache.isValid(it) || it->index != entry_index ||
+				it->parent_inode != ino || it->uid != ctx.uid || it->gid != ctx.gid) {
 			break;
 		}
 
