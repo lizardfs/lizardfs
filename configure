@@ -41,13 +41,13 @@ cmake .. \
 
 cat >../Makefile <<END
 all:
-	make -C build-pack all
+	+make -C build-pack all
 
 clean:
-	make -C build-pack clean
+	+make -C build-pack clean
 
 install:
-	make -C build-pack install
+	+make -C build-pack install
 
 distclean:
 	rm -rf build-pack
