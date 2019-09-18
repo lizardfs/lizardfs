@@ -32,9 +32,9 @@ TEST(DirEntryCache, Basic) {
 	attributes_with_6[0] = 6;
 	attributes_with_9[0] = 9;
 	auto current_time = cache.updateTime();
-	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 0, std::vector<DirectoryEntry>{{7, "a1", dummy_attributes}, {8, "a2", dummy_attributes}, {9, "a3", dummy_attributes}}, current_time);
-	cache.insertSubsequent(LizardClient::Context(1, 2, 0, 0), 11, 7, std::vector<DirectoryEntry>{{5, "a1", dummy_attributes}, {4, "a2", dummy_attributes}, {3, "a3", dummy_attributes}}, current_time);
-	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 1, std::vector<DirectoryEntry>{{11, "a4", dummy_attributes}, {13, "a3", attributes_with_9}, {12, "a2", attributes_with_6}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 0, std::vector<DirectoryEntry>{{7, 0, 1, "a1", dummy_attributes}, {8, 1, 2, "a2", dummy_attributes}, {9, 2, 3, "a3", dummy_attributes}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(1, 2, 0, 0), 11, 7, std::vector<DirectoryEntry>{{5, 7, 8, "a1", dummy_attributes}, {4, 8, 9, "a2", dummy_attributes}, {3, 9, 10, "a3", dummy_attributes}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 1, std::vector<DirectoryEntry>{{11, 1, 2, "a4", dummy_attributes}, {13, 2, 3, "a3", attributes_with_9}, {12, 3, 4, "a2", attributes_with_6}}, current_time);
 
 	std::vector<std::tuple<int, int, int, std::string>> index_output {
 		std::make_tuple(7, 9, 0, "a1"),
@@ -91,7 +91,7 @@ TEST(DirEntryCache, Repetitions) {
 	dummy_attributes.fill(0);
 	auto current_time = cache.updateTime();
 
-	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 0, std::vector<DirectoryEntry>{{7, "a1", dummy_attributes}}, current_time);
-	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 1, std::vector<DirectoryEntry>{{7, "a1", dummy_attributes}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 0, std::vector<DirectoryEntry>{{7, 0, 1, "a1", dummy_attributes}}, current_time);
+	cache.insertSubsequent(LizardClient::Context(0, 0, 0, 0), 9, 1, std::vector<DirectoryEntry>{{7, 1, 2, "a1", dummy_attributes}}, current_time);
 	cache.removeOldest(5);
 }

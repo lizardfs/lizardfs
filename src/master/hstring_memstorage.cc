@@ -61,6 +61,9 @@ void MemStorage::bind(Handle &handle, const HString &str) {
 #endif
 }
 
+/**
+ * \note Works only on systems with 48-bit user space address (virtual memory).
+ */
 MemStorage::ValueType MemStorage::encode(const char *ptr, HashType hash) {
 	return static_cast<ValueType>(reinterpret_cast<uintptr_t>(ptr))
 			| (static_cast<ValueType>(hash) << kShift);

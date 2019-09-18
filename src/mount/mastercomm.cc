@@ -1918,10 +1918,14 @@ uint8_t fs_getdir(uint32_t inode, uint32_t uid, uint32_t gid, uint64_t first_ent
 				return LIZARDFS_ERROR_IO;
 			}
 			return status;
-		} else if (packet_version == matocl::fuseGetDir::kResponse) {
+		} else if (packet_version == matocl::fuseGetDir::kResponseWithDirentIndex) {
 			matocl::fuseGetDir::deserialize(message, message_id, first_entry,
 			                                dir_entries);
 			return LIZARDFS_STATUS_OK;
+		} else if (packet_version == matocl::fuseGetDirLegacy::kLegacyResponse) {
+			fs_got_inconsistent("LIZ_MATOCL_FUSE_GETDIR", message.size(),
+			                    "legacy version " + std::to_string(packet_version) + " unsupported by this client");
+			return LIZARDFS_ERROR_IO;
 		} else {
 			fs_got_inconsistent("LIZ_MATOCL_FUSE_GETDIR", message.size(),
 			                    "unknown version " + std::to_string(packet_version));

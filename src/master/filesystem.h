@@ -132,8 +132,15 @@ uint8_t fs_rmdir(const FsContext &context,uint32_t parent,const HString &name);
 uint8_t fs_recursive_remove(const FsContext &context, uint32_t parent, const HString &name, const std::function<void(int)> &callback, uint32_t job_id = fs_reserve_job_id());
 uint8_t fs_readdir_size(const FsContext &context,uint32_t inode,uint8_t flags,void **dnode,uint32_t *dbuffsize);
 void fs_readdir_data(const FsContext &context,uint8_t flags,void *dnode,uint8_t *dbuff);
+
+template <typename SerializableDirentType>
 uint8_t fs_readdir(const FsContext &context, uint32_t inode, uint64_t first_entry, uint64_t number_of_entries,
+		std::vector<SerializableDirentType> &dir_entries);
+extern template uint8_t fs_readdir<legacy::DirectoryEntry>(const FsContext &context, uint32_t inode, uint64_t first_entry, uint64_t number_of_entries,
+		std::vector<legacy::DirectoryEntry> &dir_entries);
+extern template uint8_t fs_readdir<DirectoryEntry>(const FsContext &context, uint32_t inode, uint64_t first_entry, uint64_t number_of_entries,
 		std::vector<DirectoryEntry> &dir_entries);
+
 uint8_t fs_checkfile(const FsContext &context,uint32_t inode,uint32_t chunkcount[CHUNK_MATRIX_SIZE]);
 uint8_t fs_opencheck(const FsContext &context,uint32_t inode,uint8_t flags,Attributes& attr);
 uint8_t fs_getgoal(const FsContext &context,uint32_t inode,uint8_t gmode,GoalStatistics &fgtab, GoalStatistics &dgtab);

@@ -23,7 +23,16 @@
 #include "common/serialization_macros.h"
 #include "common/attributes.h"
 
+namespace legacy {
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(DirectoryEntry,
+	uint32_t, inode,
+	std::string, name,
+	Attributes, attributes);
+} // namespace legacy
+
+LIZARDFS_DEFINE_SERIALIZABLE_CLASS(DirectoryEntry,
+	uint64_t, index,
+	uint64_t, next_index,
 	uint32_t, inode,
 	std::string, name,
 	Attributes, attributes);

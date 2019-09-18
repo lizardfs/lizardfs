@@ -414,7 +414,8 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 
 // LIZ_MATOCL_FUSE_GETDIR
 LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDir, kStatus, 0)
-LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDir, kResponse, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDirLegacy, kLegacyResponse, 1)
+LIZARDFS_DEFINE_PACKET_VERSION(matocl, fuseGetDir, kResponseWithDirentIndex, 2)
 
 namespace matocl {
 namespace fuseGetDir {
@@ -427,11 +428,16 @@ LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		uint32_t, messageId,
 		uint8_t, status)
 
-
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
-		matocl, fuseGetDir, LIZ_MATOCL_FUSE_GETDIR, kResponse,
+		matocl, fuseGetDirLegacy, LIZ_MATOCL_FUSE_GETDIR, kLegacyResponse,
 		uint32_t, message_id,
 		uint64_t, first_entry_index,
+		std::vector<legacy::DirectoryEntry>, dir_entry)
+
+LIZARDFS_DEFINE_PACKET_SERIALIZATION(
+		matocl, fuseGetDir, LIZ_MATOCL_FUSE_GETDIR, kResponseWithDirentIndex,
+		uint32_t, message_id,
+		uint64_t, first_entry_index, //TODO remove (not needed)
 		std::vector<DirectoryEntry>, dir_entry)
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(

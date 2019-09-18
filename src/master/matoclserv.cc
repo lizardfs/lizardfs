@@ -2708,27 +2708,54 @@ void matoclserv_fuse_link(matoclserventry *eptr,const uint8_t *data,uint32_t len
 void matoclserv_fuse_getdir(matoclserventry *eptr,const PacketHeader &header, const uint8_t *data) {
 	uint32_t message_id, inode, uid, gid;
 	uint64_t first_entry, number_of_entries;
+	MessageBuffer buffer;
 
-	cltoma::fuseGetDir::deserialize(data, header.length, message_id, inode, uid, gid, first_entry, number_of_entries);
+	PacketVersion packet_version;
+	deserializePacketVersionNoHeader(data, header.length, packet_version);
+
+	if (packet_version == cltoma::fuseGetDir::kClientAbleToProcessDirentIndex) {
+		cltoma::fuseGetDir::deserialize(data, header.length, message_id, inode, uid, gid, first_entry, number_of_entries);
+	} else if (packet_version == cltoma::fuseGetDirLegacy::kLegacyClient) {
+		cltoma::fuseGetDirLegacy::deserialize(data, header.length, message_id, inode, uid, gid, first_entry, number_of_entries);
+	} else {
+		throw IncorrectDeserializationException(
+				"Unknown LIZ_CLTOMA_FUSE_GETDIR version: " + std::to_string(packet_version));
+	}
+
 	number_of_entries = std::min(number_of_entries, matocl::fuseGetDir::kMaxNumberOfDirectoryEntries);
-
-	std::vector<DirectoryEntry> dir_entries;
-
 	uint8_t status = matoclserv_check_group_cache(eptr, gid);
+
 	if (status == LIZARDFS_STATUS_OK) {
 		FsContext context = matoclserv_get_context(eptr, uid, gid);
 
-		status = fs_readdir(context, inode, first_entry, number_of_entries, dir_entries);
+		if (packet_version == cltoma::fuseGetDir::kClientAbleToProcessDirentIndex) {
+			std::vector<DirectoryEntry> dir_entries;
+			status = fs_readdir(context, inode, first_entry, number_of_entries, dir_entries); //<DirectoryEntry>
+
+			if (status != LIZARDFS_STATUS_OK) {
+				matocl::fuseGetDir::serialize(buffer, message_id, status);
+			} else {
+				matocl::fuseGetDir::serialize(buffer, message_id, first_entry, dir_entries);
+			}
+		} else if (packet_version == cltoma::fuseGetDirLegacy::kLegacyClient) {
+			std::vector<legacy::DirectoryEntry> dir_entries;
+			status = fs_readdir(context, inode, first_entry, number_of_entries, dir_entries); //<legacy::DirectoryEntry>
+
+			if (status != LIZARDFS_STATUS_OK) {
+				matocl::fuseGetDir::serialize(buffer, message_id, status);
+			} else {
+				matocl::fuseGetDirLegacy::serialize(buffer, message_id, first_entry, dir_entries);
+			}
+		} else {
+			throw IncorrectDeserializationException(
+					"Unknown LIZ_CLTOMA_FUSE_GETDIR version: " + std::to_string(packet_version));
+		}
+	} else {
+		matocl::fuseGetDir::serialize(buffer, message_id, status);
 	}
 
 	eptr->sesdata->currentopstats[12]++;
-
-	if (status != LIZARDFS_STATUS_OK) {
-		matoclserv_createpacket(eptr, matocl::fuseGetDir::build(message_id, status));
-		return;
-	}
-
-	matoclserv_createpacket(eptr, matocl::fuseGetDir::build(message_id, first_entry, dir_entries));
+	matoclserv_createpacket(eptr, std::move(buffer));
 }
 
 void matoclserv_fuse_getdir(matoclserventry *eptr,const uint8_t *data,uint32_t length) {

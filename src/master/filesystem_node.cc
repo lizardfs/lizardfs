@@ -874,9 +874,17 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 	}
 }
 
+namespace legacy {
+/// Legacy readdir implementation.
+/**
+ * Behaves incorrectly when interleaving readdir and unlink calls.
+ *
+ * This implementation was not removed so as to support pre-3.13 client (mfsmount) using
+ * old LIZ_FUSE_GETDIR packet version (0 = kLegacyClient).
+ */
 void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
 		uint8_t sesflags, FSNodeDirectory *p, uint64_t first_entry,
-		uint64_t number_of_entries, std::vector<DirectoryEntry> &dir_entries) {
+		uint64_t number_of_entries, std::vector<legacy::DirectoryEntry> &dir_entries) { //TODOrmThis we are inside namespace legacy
 	FSNodeDirectory *parent;
 	uint32_t inode;
 	Attributes attr;
@@ -934,6 +942,101 @@ void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t aui
 		dir_entries.emplace_back(std::move(inode), std::move(name), std::move(attr));
 
 		++it;
+		--number_of_entries;
+	}
+}
+
+} // namespace legacy
+
+/// Get entries of directory node \a p.
+/**
+ * Returns directory entries in \a dir_entries container.
+ *
+ * \a first_entry == 0 means the very first entry in the directory.
+ *
+ * \param p directory node to get the entries of
+ * \param first_entry index of the first dirent to get
+ * \param number_of_entries number of dirents to get
+ * \param[out] container into which dirents are inserted
+ */
+void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
+		uint8_t sesflags, FSNodeDirectory *p, uint64_t first_entry,
+		uint64_t number_of_entries, std::vector<DirectoryEntry> &dir_entries) {
+	// special entryIndex values
+	static constexpr uint64_t kDotEntryIndex = 0;
+	static constexpr uint64_t kDotDotEntryIndex = (static_cast<uint64_t>(1) << hstorage::Handle::kHashShift);
+	static constexpr uint64_t kUnusedEntryIndex = (static_cast<uint64_t>(2) << hstorage::Handle::kHashShift);
+
+	FSNodeDirectory *parent;
+	uint32_t inode;
+	Attributes attr;
+
+	if (first_entry == kDotEntryIndex && number_of_entries >= 1) {
+		inode = p->id != rootinode ? p->id : SPECIAL_INODE_ROOT;
+		parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+		        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+		fsnodes_fill_attr(p, parent, uid, gid, auid, agid, sesflags, attr);
+		dir_entries.emplace_back(kDotEntryIndex, kDotDotEntryIndex, std::move(inode), std::string("."), std::move(attr));
+
+		first_entry = kDotDotEntryIndex;
+		--number_of_entries;
+	}
+
+	if (first_entry == kDotDotEntryIndex && number_of_entries >= 1) {
+		if (p->id == rootinode) {
+			inode = SPECIAL_INODE_ROOT;
+			parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+			fsnodes_fill_attr(p, parent, uid, gid, auid, agid, sesflags, attr);
+		} else {
+			if (!p->parent.empty() && p->parent[0] != rootinode) {
+				inode = p->parent[0];
+			} else {
+				inode = SPECIAL_INODE_ROOT;
+			}
+
+			FSNodeDirectory *grandparent;
+			parent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        p->parent.empty() ? SPECIAL_INODE_ROOT : p->parent[0]);
+			grandparent = fsnodes_id_to_node_verify<FSNodeDirectory>(
+			        parent->parent.empty() ? SPECIAL_INODE_ROOT : parent->parent[0]);
+			fsnodes_fill_attr(parent, grandparent, uid, gid, auid, agid, sesflags,
+			                  attr);
+		}
+
+		uint64_t next_index = kUnusedEntryIndex;
+		if (!p->entries.empty()) {
+			auto first_dirent_it = p->find_nth(0);
+			next_index = (*first_dirent_it).first.data();
+		}
+		dir_entries.emplace_back(kDotDotEntryIndex, next_index, std::move(inode), std::string(".."), std::move(attr));
+
+		first_entry = next_index;
+		--number_of_entries;
+	}
+
+	if (number_of_entries == 0) {
+		return;
+	}
+
+	std::string name;
+	hstorage::Handle first_index(first_entry);
+	auto it = p->entries.find(first_index);
+	first_index.unlink(); // do not try to unbind the resource under this possibly-fake handle in destructor
+	while (it != p->entries.end() && number_of_entries > 0) {
+		name = static_cast<std::string>((*it).first);
+		inode = (*it).second->id;
+		fsnodes_fill_attr((*it).second, p, uid, gid, auid, agid, sesflags, attr);
+
+		first_entry = (*it).first.data();
+
+		uint64_t next_index = kUnusedEntryIndex;
+		if (++it != p->entries.end()) {
+			next_index = (*it).first.data();
+		}
+
+		dir_entries.emplace_back(first_entry, next_index, std::move(inode), std::move(name), std::move(attr));
+
 		--number_of_entries;
 	}
 }

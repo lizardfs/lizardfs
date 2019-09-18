@@ -45,8 +45,8 @@ private:
 	ValueType encode(const char *ptr, HashType hash);
 
 	static constexpr const char *kName = "MemStorage";
-	static const ValueType kShift = 64 - 8 * sizeof(HashType);
-	static const ValueType kMask = ((static_cast<ValueType>(1) << kShift) - static_cast<ValueType>(1));
+	static constexpr ValueType kShift = 64 - 8 * sizeof(HashType);
+	static constexpr ValueType kMask = ((static_cast<ValueType>(1) << kShift) - static_cast<ValueType>(1));
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
 	static std::set<char *> *debug_ptr_; /*!< Set with unobfuscated pointers to stored strings.

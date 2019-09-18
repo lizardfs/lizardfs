@@ -1483,34 +1483,42 @@ void opendir(const Context &ctx, Inode ino) {
 	}
 }
 
+/// List DirEntry objects in the directory described by \a ino inode.
+/**
+ * \param ino parent directory inode
+ * \param off offset (index) of the first dir entry to list
+ * \param max_entries max number of dir entries to list
+ * \return std::vector of directory entries
+ */
 std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t max_entries) {
 	static constexpr int kBatchSize = 1000;
+	const uint64_t start_off = static_cast<std::make_unsigned<off_t>::type>(off);
+	// type to cast to should be the same size to avoid potential sign-extension
+	// (LizardFS's offset can be interpreted as negative on signed integer types (e.g. off_t used by libfuse),
+	// as it is 64bit unsigned int on master)
 
 	stats_inc(OP_READDIR);
 	if (debug_mode) {
 		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") ...",
-				(unsigned long int)ino,
-				(uint64_t)max_entries,
-				(uint64_t)off);
+				static_cast<unsigned long int>(ino),
+				static_cast<uint64_t>(max_entries),
+				start_off);
 	}
-	if (off<0) {
-		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 "): %s",
-				(unsigned long int)ino,
-				(uint64_t)max_entries,
-				(uint64_t)off,
-				lizardfs_error_string(LIZARDFS_ERROR_EINVAL));
-		throw RequestException(LIZARDFS_ERROR_EINVAL);
-	}
+
+	// for more detailed oplogging
+	size_t initial_max_entries = max_entries;
+	size_t entries_from_cache = 0;
+	size_t entries_from_master = 0;
 
 	std::vector<DirEntry> result;
 	shared_lock<shared_mutex> access_guard(gDirEntryCache.rwlock());
 	gDirEntryCache.updateTime();
 
-	uint64_t entry_index = off;
+	uint64_t entry_index = start_off;
 	auto it = gDirEntryCache.find(ctx, ino, entry_index);
 
 	result.reserve(max_entries);
-	for(;it != gDirEntryCache.index_end() && max_entries > 0;++it) {
+	for(; it != gDirEntryCache.index_end() && max_entries > 0; ++it) {
 		if (!gDirEntryCache.isValid(it) || it->index != entry_index ||
 				it->parent_inode != ino || it->uid != ctx.uid || it->gid != ctx.gid) {
 			break;
@@ -1523,15 +1531,26 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 			break;
 		}
 
-		++entry_index;
+		entry_index = it->next_index;
 		--max_entries;
+		++entries_from_cache;
 
 		struct stat stats;
 		attr_to_stat(it->inode,it->attr,&stats);
-		result.emplace_back(it->name, stats, entry_index);
+		result.emplace_back(it->name, stats, entry_index); // nextEntryOffset = entry_index
 	}
 
 	if (max_entries == 0) {
+		if (debug_mode) {
+			oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") returned %zu dirents all from direntrycache; index of next dirent is %" PRIu64
+				" (%#" PRIx64 ")",
+					static_cast<unsigned long int>(ino),
+					static_cast<uint64_t>(initial_max_entries),
+					start_off,
+					entries_from_cache,
+					entry_index,
+					entry_index);
+		}
 		return result;
 	}
 
@@ -1552,11 +1571,19 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 	std::unique_lock<shared_mutex> write_guard(gDirEntryCache.rwlock());
 	gDirEntryCache.updateTime();
 
+	// dir_entries.front().index must be equal to entry_index
 	gDirEntryCache.insertSubsequent(ctx, ino, entry_index, dir_entries, data_acquire_time);
 	if (dir_entries.size() < request_size) {
 		// insert 'no more entries' marker
-		gDirEntryCache.insert(ctx, ino, 0, entry_index + dir_entries.size(), "", Attributes{{}}, data_acquire_time);
-		gDirEntryCache.invalidate(ctx,ino,entry_index + dir_entries.size() + 1);
+		auto marker_index = entry_index;
+		if (!dir_entries.empty()) {
+			marker_index = dir_entries.back().next_index;
+		}
+
+		gDirEntryCache.insert(ctx, ino, 0, marker_index, marker_index, "", Attributes{{}}, data_acquire_time);
+		if (marker_index != std::numeric_limits<uint64_t>::max()) {
+			gDirEntryCache.invalidate(ctx, ino, marker_index + 1);
+		}
 	}
 
 	if (gDirEntryCache.size() > gDirEntryCacheMaxSize) {
@@ -1567,11 +1594,35 @@ std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t m
 
 	for(auto it = dir_entries.begin(); it != dir_entries.end() && max_entries > 0; ++it) {
 		--max_entries;
-		++entry_index;
+		entry_index = it->next_index;
+		++entries_from_master;
 
 		struct stat stats;
 		attr_to_stat(it->inode,it->attributes,&stats);
-		result.emplace_back(it->name, stats, entry_index);
+		result.emplace_back(it->name, stats, it->next_index);
+
+		if (debug_mode) {
+			oplog_printf(ctx, "readdir (%lu ,%" PRIu64 ",%#" PRIx64 ") from master: entry index: %#" PRIx64 ", next: %#" PRIx64 ", name: %s",
+					static_cast<unsigned long int>(ino),
+					static_cast<uint64_t>(initial_max_entries),
+					start_off,
+					it->index,
+					it->next_index,
+					it->name.c_str());
+		}
+	}
+
+	if (debug_mode) {
+		oplog_printf(ctx, "readdir (%lu,%" PRIu64 ",%" PRIu64 ") returned %zu dirents (%zu from cache, %zu from master); index of next dirent is %" PRIu64
+			" (%#" PRIx64 ")",
+				static_cast<unsigned long int>(ino),
+				static_cast<uint64_t>(initial_max_entries),
+				start_off,
+				result.size(),
+				entries_from_cache,
+				entries_from_master,
+				entry_index,
+				entry_index);
 	}
 
 	return result;

@@ -162,6 +162,16 @@ uint32_t fsnodes_getdirsize(const FSNodeDirectory *p, uint8_t withattr);
 void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
 	uint32_t agid, uint8_t sesflags, FSNodeDirectory *p, uint8_t *dbuff,
 	uint8_t withattr);
+namespace legacy {
+/**
+ * This implementation was not removed so as to support pre-3.13 client (mfsmount) using
+ * old LIZ_FUSE_GETDIR packet version (0 = kLegacyClient).
+ */
+void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
+		uint32_t agid, uint8_t sesflags, FSNodeDirectory *p,
+		uint64_t first_entry, uint64_t number_of_entries,
+		std::vector<legacy::DirectoryEntry> &dir_entries);
+} // namespace legacy
 void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid,
 		uint32_t agid, uint8_t sesflags, FSNodeDirectory *p,
 		uint64_t first_entry, uint64_t number_of_entries,
