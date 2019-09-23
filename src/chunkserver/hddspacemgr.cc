@@ -527,7 +527,7 @@ static int hdd_chunk_getattr(Chunk *c) {
 bool hdd_chunk_trylock(Chunk *c) {
 	assert(hashlock.try_lock() == false);
 	bool ret = false;
-	TRACETHIS1(chunkid);
+	TRACETHIS1(c->chunkid);
 	if (c != nullptr && c->state == CH_AVAIL) {
 		c->state = CH_LOCKED;
 		ret = true;
