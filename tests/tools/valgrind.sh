@@ -11,6 +11,12 @@ valgrind_enabled() {
 # Enables valgrind, can be called at the beginning of a test case.
 valgrind_enable() {
 	assert_program_installed valgrind
+	valgrind_version=$(valgrind --version | cut -d'-' -f 2)
+	if ! version_compare_gte "$valgrind_version" "3.15.0" ; then
+		echo " --- Error: Minimum valgrind version supported is 3.15.0 but yours is $valgrind_version --- "
+		echo " --- valgrind won't be enabled --- "
+		return 1
+	fi
 	if [[ -z $valgrind_enabled_ ]]; then
 		valgrind_enabled_=1
 
@@ -30,6 +36,9 @@ valgrind_enable() {
 
 		# Valgrind errors will generate suppresions:
 		valgrind_command+=" --gen-suppressions=all"
+
+		# Valgrind will show filepaths with module subdirectories on errors:
+		valgrind_command+=" --fullpath-after=src/"
 
 		# Create a script which will run processes on valgrind. This to make it possible
 		# to modify this script to stop spawning new valgrind processes in valgrind_terminate.

@@ -1,9 +1,9 @@
 {
-	nsswitch reading its configuration from /etc/nsswitch.conf
-	Memcheck:Leak
-	fun:malloc
-	fun:nss_parse_service_list
-	fun:__nss_database_lookup
+   nsswitch reading its configuration from /etc/nsswitch.conf
+   Memcheck:Leak
+   fun:malloc
+   fun:nss_parse_service_list
+   fun:__nss_database_lookup
 }
 
 {
@@ -35,22 +35,24 @@
    ...
    fun:main
 }
+
 {
-  pam library leaks v2
-  Memcheck:Leak
-  fun:malloc
-  ...
-  fun:pam_modutil_getpwnam
-  ...
-  fun:main
+   pam library leaks v2
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:pam_modutil_getpwnam
+   ...
+   fun:main
 }
+
 {
-  pam library leaks v3
-  Memcheck:Leak
-  fun:malloc
-  ...
-  fun:_Z16open_pam_sessionv
-  fun:main
+   pam library leaks v3
+   Memcheck:Leak
+   fun:malloc
+   ...
+   fun:_Z16open_pam_sessionv
+   fun:main
 }
 
 {
@@ -83,5 +85,26 @@
    fun:__db_close_pp
    fun:_ZN8hstorage10BDBStorageD1Ev
    fun:_ZN8hstorage10BDBStorageD0Ev
-   fun:_Z18eventloop_destructv
+}
+
+{
+   For ShortSystemTests.test_legacy_ec_upgrade: Unititialized values used in std::sort in old LizardFS version (3.11)
+   Memcheck:Cond
+   ...
+   src:matocsserv.cc:362
+   src:chunks.cc:1933
+   src:chunks.cc:2585
+   src:chunks.cc:2668
+   src:event_loop.cc:249
+   src:main.cc:1022
+}
+
+{
+   For ShortSystemTests.test_legacy_ec_upgrade: Unititialized values used in std::stable_sort in old LizardFS version (3.11)
+   Memcheck:Cond
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm2ELm3EE6__lessERKS1_S4_
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm1ELm3EE6__lessERKS1_S4_
+   fun:_ZNSt15__tuple_compareISt5tupleIJllhEES1_Lm0ELm3EE6__lessERKS1_S4_
+   fun:_ZStltIJllhEJllhEEbRKSt5tupleIJDpT_EERKS0_IJDpT0_EE
+   src:get_servers_for_new_chunk.cc:69
 }
