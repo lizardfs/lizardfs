@@ -1433,7 +1433,7 @@ int fs_lock_op(const FsContext &context, FileLocks &locks, uint32_t inode,
 		});
 		start = 0;
 		end   = std::numeric_limits<uint64_t>::max();
-		/* no break */
+		/* fallthrough */
 	case lzfs_locks::kUnlock:
 		success = locks.unlock(inode, start, end,
 				FileLocks::Owner{owner, sessionid, reqid, msgid});

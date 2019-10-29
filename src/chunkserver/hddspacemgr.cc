@@ -914,11 +914,11 @@ void hdd_check_folders() {
 				break;
 			case SCST_SCANFINISHED:
 				f->scanthread.join();
-				// no break - it's ok !!!
+				/* fallthrough */
 			case SCST_SENDNEEDED:
 			case SCST_SCANNEEDED:
 				f->scanstate = SCST_WORKING;
-				// no break - it's ok !!!
+				/* fallthrough */
 			case SCST_WORKING:
 				hdd_senddata(f,1);
 				changed = 1;

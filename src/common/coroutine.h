@@ -102,6 +102,7 @@ private:
 		goto terminate_coroutine;            \
 	else                                         \
 		for (;;)                             \
+		/* fallthrough */                    \
 		case 1:                              \
 	if (_coro_value)                             \
 		goto bail_out_of_coroutine;          \
