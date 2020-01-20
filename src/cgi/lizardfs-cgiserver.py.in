@@ -1,8 +1,8 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
-import cStringIO
 import datetime
 import getopt
+import io
 import mimetypes
 import os
 import pwd
@@ -10,7 +10,7 @@ import select
 import socket
 import sys
 import traceback
-import urlparse
+import urllib.parse
 
 
 # Http server based on recipes 511453,511454 from code.activestate.com by
@@ -54,8 +54,9 @@ class ClientHandler(object):
         self.client_socket = client_socket
         self.client_socket.setblocking(0)
         self.host = socket.getfqdn(client_address[0])
-        self.incoming = ''  # receives incoming data
-        self.outgoing = ''
+        #self.incoming_bytes = b''
+        self.incoming = b''  # receives incoming data
+        self.outgoing = b''
         self.writable = False
         self.close_when_done = True
         self.response = None
@@ -71,6 +72,7 @@ class ClientHandler(object):
                 self.close()
             # buffer the data in self.incoming
             self.incoming += buff  # .write(buff)
+            #self.incoming_bytes += buff
             self.process_incoming()
         except socket.error:
             self.close()
@@ -78,10 +80,11 @@ class ClientHandler(object):
     def process_incoming(self):
         """Test if request is complete ; if so, build the response
         and set self.writable to True"""
+        #self.incoming = self.incoming_bytes.decode('utf-8')
         if not self.request_complete():
             return
         self.response = self.make_response()
-        self.outgoing = ''
+        self.outgoing = b''
         self.writable = True
 
     def request_complete(self):
@@ -93,15 +96,15 @@ class ClientHandler(object):
         """Return the list of strings or file objects whose content will
         be sent to the client
         Override this method in subclasses"""
-        return ["xxx"]
+        return [b"xxx"]
 
     def handle_write(self):
         """Send (a part of) the response on the socket
         Finish the request if the whole response has been sent
         self.response is a list of strings or file objects
         """
-        if self.outgoing == '' and self.response:
-            if isinstance(self.response[0], str):
+        if self.outgoing == b'' and self.response:
+            if isinstance(self.response[0], bytes):
                 self.outgoing = self.response.pop(0)
             else:
                 self.outgoing = self.response[0].read(self.blocksize)  # pylint: disable=E1101
@@ -116,14 +119,15 @@ class ClientHandler(object):
             if sent < len(self.outgoing):
                 self.outgoing = self.outgoing[sent:]
             else:
-                self.outgoing = ''
-        if self.outgoing == '' and not self.response:
+                self.outgoing = b''
+        if self.outgoing == b'' and not self.response:
             if self.close_when_done:
                 self.close()  # close socket
             else:
                 # reset for next request
                 self.writable = False
-                self.incoming = ''
+                #self.incoming_bytes = b''
+                self.incoming = b''
 
     def close(self):
         del CLIENT_HANDLERS[self.client_socket]
@@ -140,31 +144,34 @@ class ClientHandler(object):
 
 
 def loop(server, handler, timeout=30):
-    while True:
-        k = CLIENT_HANDLERS.keys()
-        # w = sockets to which there is something to send
-        # we must test if we can send data
-        w = [cl for cl in CLIENT_HANDLERS if CLIENT_HANDLERS[cl].writable]
-        # the heart of the program ! "r" will have the sockets that have sent
-        # data, and the server socket if a new client has tried to connect
-        r, w, e = select.select(k + [server.socket], w, k, timeout)
-        for e_socket in e:
-            CLIENT_HANDLERS[e_socket].handle_error()
-        for r_socket in r:
-            if r_socket is server.socket:
-                # server socket readable means a new connection request
-                try:
-                    client_socket, client_address = server.socket.accept()
-                    CLIENT_HANDLERS[client_socket] = handler(
-                        server, client_socket, client_address)
-                except socket.error:
-                    pass
-            else:
-                # the client connected on r_socket has sent something
-                CLIENT_HANDLERS[r_socket].handle_read()
-        w = set(w) & set(CLIENT_HANDLERS.keys())  # remove deleted sockets
-        for w_socket in w:
-            CLIENT_HANDLERS[w_socket].handle_write()
+    try:
+        while True:
+            k = list(CLIENT_HANDLERS.keys())
+            # w = sockets to which there is something to send
+            # we must test if we can send data
+            w = [cl for cl in CLIENT_HANDLERS if CLIENT_HANDLERS[cl].writable]
+            # the heart of the program ! "r" will have the sockets that have sent
+            # data, and the server socket if a new client has tried to connect
+            r, w, e = select.select(k + [server.socket], w, k, timeout)
+            for e_socket in e:
+                CLIENT_HANDLERS[e_socket].handle_error()
+            for r_socket in r:
+                if r_socket is server.socket:
+                    # server socket readable means a new connection request
+                    try:
+                        client_socket, client_address = server.socket.accept()
+                        CLIENT_HANDLERS[client_socket] = handler(
+                            server, client_socket, client_address)
+                    except socket.error:
+                        pass
+                else:
+                    # the client connected on r_socket has sent something
+                    CLIENT_HANDLERS[r_socket].handle_read()
+            w = set(w) & set(CLIENT_HANDLERS.keys())  # remove deleted sockets
+            for w_socket in w:
+                CLIENT_HANDLERS[w_socket].handle_write()
+    except KeyboardInterrupt:
+        pass
 
 
 # =============================================================
@@ -176,7 +183,7 @@ class HTTP(ClientHandler):
     # parameters to override if necessary
     root = os.getcwd()                              # the directory to serve files from
     # index files for directories
-    index_files = ['index.cgi', 'index.html']
+    index_files = [b'index.cgi', b'index.html']
     # print logging info for each request ?
     logging = True
     # size of blocks to read from files and send
@@ -199,46 +206,46 @@ class HTTP(ClientHandler):
         sequence ('\r\n\r\n') has been received
         If the request is POST, stores the request body in a StringIO before
         returning True"""
-        terminator = self.incoming.find('\r\n\r\n')
+        terminator = self.incoming.find(b'\r\n\r\n')
         if terminator == -1:
             return False
-        lines = self.incoming[:terminator].split('\r\n')
+        lines = self.incoming[:terminator].split(b'\r\n')
         self.requestline = lines[0]
         try:
             self.method, self.url, self.protocol = lines[0].strip().split()
-            if (not self.protocol.startswith("HTTP/1") or
-                    (self.protocol[7] != '0' and self.protocol[7] != '1') or
+            if (not self.protocol.startswith(b"HTTP/1") or
+                    (self.protocol[7] != ord('0') and self.protocol[7] != ord('1')) or
                     len(self.protocol) != 8):
                 self.method = None
-                self.protocol = "HTTP/1.1"
+                self.protocol = b"HTTP/1.1"
                 return True
         except Exception:
             self.method = None
-            self.protocol = "HTTP/1.1"
+            self.protocol = b"HTTP/1.1"
             return True
         # put request headers in a dictionary
         self.headers = {}
         for line in lines[1:]:
-            k, v = line.split(':', 1)
+            k, v = line.split(b':', 1)
             self.headers[k.lower().strip()] = v.strip()
         # persistent connection
-        close_conn = self.headers.get("connection", "")
-        if (self.protocol == "HTTP/1.1" and close_conn.lower() == "keep-alive"):
+        close_conn = self.headers.get(b"connection", b"")
+        if (self.protocol == b"HTTP/1.1" and close_conn.lower() == b"keep-alive"):
             self.close_when_done = False
         # parse the url
-        _, _, path, params, query, fragment = urlparse.urlparse(
+        _, _, path, params, query, fragment = urllib.parse.urlparse(
             self.url)
         self.path, self.rest = path, (params, query, fragment)
 
-        if self.method == 'POST':
+        if self.method == b'POST':
             # for POST requests, read the request body
             # its length must be specified in the content-length header
-            content_length = int(self.headers.get('content-length', 0))
+            content_length = int(self.headers.get(b'content-length', 0))
             body = self.incoming[terminator + 4:]
             # request is incomplete if not all message body received
             if len(body) < content_length:
                 return False
-            f_body = cStringIO.StringIO(body)
+            f_body = io.BytesIO(body)
             f_body.seek(0)
             sys.stdin = f_body  # compatibility with CGI
 
@@ -248,37 +255,37 @@ class HTTP(ClientHandler):
         """Build the response: a list of strings or files"""
         try:
             if self.method is None:  # bad request
-                return self.err_resp(400, 'Bad request : %s' % self.requestline)
-            resp_headers, _, resp_file = '', '', None
-            if self.method not in ['GET', 'POST', 'HEAD']:
-                return self.err_resp(501, 'Unsupported method (%s)' % self.method)
+                return self.err_resp(400, b'Bad request : %s' % self.requestline)
+            resp_headers, resp_file = b'', None
+            if self.method not in [b'GET', b'POST', b'HEAD']:
+                return self.err_resp(501, b'Unsupported method (%s)' % self.method)
             else:
                 file_name = self.file_name = self.translate_path()
-                if not file_name.startswith(HTTP.root + os.path.sep) and not file_name == HTTP.root:
-                    return self.err_resp(403, 'Forbidden')
+                if not file_name.startswith(HTTP.root.encode('utf-8') + os.path.sep.encode('utf-8')) and not file_name == HTTP.root.encode('utf-8'):
+                    return self.err_resp(403, b'Forbidden')
                 elif not os.path.exists(file_name):
-                    return self.err_resp(404, 'File not found')
+                    return self.err_resp(404, b'File not found')
                 elif self.managed():
                     response = self.mngt_method()
                 elif not os.access(file_name, os.R_OK):
-                    return self.err_resp(403, 'Forbidden')
+                    return self.err_resp(403, b'Forbidden')
                 else:
                     fstatdata = os.stat(file_name)
-                    if (fstatdata.st_mode & 0170000) == 0040000:    # directory
+                    if (fstatdata.st_mode & 0o170000) == 0o040000:    # directory
                         for index in self.index_files:
-                            if (os.path.exists(file_name + '/' + index) and
-                                    os.access(file_name + '/' + index, os.R_OK)):
+                            if (os.path.exists(file_name + b'/' + index) and
+                                    os.access(file_name + b'/' + index, os.R_OK)):
                                 return self.redirect_resp(index)
-                    if (fstatdata.st_mode & 0170000) != 0100000:
-                        return self.err_resp(403, 'Forbidden')
+                    if (fstatdata.st_mode & 0o170000) != 0o100000:
+                        return self.err_resp(403, b'Forbidden')
                     ext = os.path.splitext(file_name)[1]
-                    c_type = mimetypes.types_map.get(ext, 'text/plain')
-                    resp_line = "%s 200 Ok\r\n" % self.protocol
+                    c_type = mimetypes.types_map.get(ext.decode('utf-8'), 'text/plain').encode('utf-8')
+                    resp_line = b"%s 200 Ok\r\n" % self.protocol
                     size = fstatdata.st_size
-                    resp_headers = "Content-Type: %s\r\n" % c_type
-                    resp_headers += "Content-Length: %s\r\n" % size
-                    resp_headers += '\r\n'
-                    if self.method == "HEAD":
+                    resp_headers = b"Content-Type: %s\r\n" % c_type
+                    resp_headers += b"Content-Length: %d\r\n" % size
+                    resp_headers += b'\r\n'
+                    if self.method == b"HEAD":
                         resp_string = resp_line + resp_headers
                     elif size > HTTP.blocksize:
                         resp_string = resp_line + resp_headers
@@ -292,11 +299,11 @@ class HTTP(ClientHandler):
             self.log(200)
             return response
         except Exception:
-            return self.err_resp(500, 'Internal Server Error')
+            return self.err_resp(500, b'Internal Server Error')
 
     def translate_path(self):
         """Translate URL path into a path in the file system"""
-        return os.path.realpath(os.path.join(HTTP.root, *self.path.split('/')))
+        return os.path.realpath(os.path.join(HTTP.root.encode('utf-8'), *self.path.split(b'/')))
 
     def managed(self):
         """Test if the request can be processed by a specific method
@@ -309,42 +316,48 @@ class HTTP(ClientHandler):
 
     def is_cgi(self):
         """Test if url points to cgi script"""
-        if self.path.endswith(".cgi"):
+        if self.path.endswith(b".cgi"):
             return True
         return False
 
+    class StrWritableBytesIO(io.BytesIO):
+        def write(self, str_or_byteslike):
+            if isinstance(str_or_byteslike, str):
+                return super().write(str_or_byteslike.encode('utf-8'))
+            else:
+                return super().write(str_or_byteslike)
+
     def run_cgi(self):
         if not os.access(self.file_name, os.X_OK):
-            return self.err_resp(403, 'Forbidden')
+            return self.err_resp(403, b'Forbidden')
         # set CGI environment variables
         self.make_cgi_env()
-        # redirect print statements to a cStringIO
         save_stdout = sys.stdout
-        output_buffer = cStringIO.StringIO()
+        output_buffer = self.StrWritableBytesIO()
         sys.stdout = output_buffer
         # run the script
         try:
-            execfile(self.file_name, {})
+            exec(compile(open(self.file_name, "rb").read(), self.file_name, 'exec'), {})
         except SystemExit:
             pass
         except Exception:
-            output_buffer = cStringIO.StringIO()
-            output_buffer.write("Content-type:text/plain\r\n\r\n")
+            output_buffer = self.StrWritableBytesIO()
+            output_buffer.write(b"Content-type:text/plain\r\n\r\n")
             traceback.print_exc(file=output_buffer)
         sys.stdout = save_stdout  # restore sys.stdout
         response = output_buffer.getvalue()
-        if self.method == "HEAD":
+        if self.method == b"HEAD":
             # for HEAD request, don't send message body even if the script
             # returns one (RFC 3875)
             head_lines = []
-            for line in response.split('\n'):
+            for line in response.split(b'\n'):
                 if not line:
                     break
                 head_lines.append(line)
-            response = '\n'.join(head_lines)
+            response = b'\n'.join(head_lines)
         # close connection in case there is no content-length header
         self.close_when_done = True
-        resp_line = "%s 200 Ok\r\n" % self.protocol
+        resp_line = b"%s 200 Ok\r\n" % self.protocol
         return [resp_line + response]
 
     def make_cgi_env(self):
@@ -357,26 +370,26 @@ class HTTP(ClientHandler):
         env['SERVER_PROTOCOL'] = "HTTP/1.1"
         env['SERVER_PORT'] = str(self.server.port)
 
-        env['REQUEST_METHOD'] = self.method
-        env['REQUEST_URI'] = self.url
-        env['PATH_TRANSLATED'] = self.translate_path()
-        env['SCRIPT_NAME'] = self.path
-        env['PATH_INFO'] = urlparse.urlunparse(
-            ("", "", "", self.rest[0], "", ""))
-        env['QUERY_STRING'] = self.rest[1]
+        env['REQUEST_METHOD'] = self.method.decode('utf-8')
+        env['REQUEST_URI'] = self.url.decode('utf-8')
+        env['PATH_TRANSLATED'] = self.translate_path().decode('utf-8')
+        env['SCRIPT_NAME'] = self.path.decode('utf-8')
+        env['PATH_INFO'] = urllib.parse.urlunparse(
+            ("", "", "", self.rest[0].decode('utf-8'), "", ""))
+        env['QUERY_STRING'] = self.rest[1].decode('utf-8')
         if not self.host == self.client_address[0]:
             env['REMOTE_HOST'] = self.host
         env['REMOTE_ADDR'] = self.client_address[0]
-        env['CONTENT_LENGTH'] = str(self.headers.get('content-length', ''))
-        for k in ['USER_AGENT', 'COOKIE', 'ACCEPT', 'ACCEPT_CHARSET',
-                  'ACCEPT_ENCODING', 'ACCEPT_LANGUAGE', 'CONNECTION']:
-            hdr = k.lower().replace("_", "-")
-            env['HTTP_%s' % k.upper()] = str(self.headers.get(hdr, ''))
+        env['CONTENT_LENGTH'] = str(self.headers.get(b'content-length', b''), 'utf-8')
+        for k in [b'USER_AGENT', b'COOKIE', b'ACCEPT', b'ACCEPT_CHARSET',
+                  b'ACCEPT_ENCODING', b'ACCEPT_LANGUAGE', b'CONNECTION']:
+            hdr = k.lower().replace(b"_", b"-")
+            env['HTTP_%s' % k.upper().decode('utf-8')] = str(self.headers.get(hdr, b''), 'utf-8')
         os.environ.update(env)
 
     def redirect_resp(self, redirurl):
         """Return redirect message"""
-        resp_line = "%s 301 Moved Permanently\r\nLocation: %s\r\n" % (
+        resp_line = b"%s 301 Moved Permanently\r\nLocation: %s\r\n" % (
             self.protocol, redirurl)
         self.close_when_done = True
         self.log(301)
@@ -384,7 +397,7 @@ class HTTP(ClientHandler):
 
     def err_resp(self, code, msg):
         """Return an error message"""
-        resp_line = "%s %s %s\r\n" % (self.protocol, code, msg)
+        resp_line = b"%s %d %s\r\n" % (self.protocol, code, msg)
         self.close_when_done = True
         self.log(code)
         return [resp_line]
@@ -394,7 +407,7 @@ class HTTP(ClientHandler):
         if HTTP.logging:
             date_str = datetime.datetime.now().strftime('[%d/%b/%Y %H:%M:%S]')
             sys.stderr.write('%s - - %s "%s" %s\n' %
-                             (self.host, date_str, self.requestline, code))
+                             (self.host, date_str, self.requestline.decode('utf-8'), code))
 
 
 # =======================================================================
@@ -471,13 +484,13 @@ if __name__ == "__main__":
     OPTS, ARGS = getopt.getopt(sys.argv[1:], "vhH:P:R:p:u:")
     for opt, val in OPTS:
         if opt == '-h':
-            print "usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0]
-            print "-H bind_host : local address to listen on (default: any)"
-            print "-P bind_port : port to listen on (default: 9425)"
-            print "-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)"
-            print "-v : log requests on stderr"
-            print "-p : pidfile path, setting it triggers manual daemonization"
-            print "-u : username of server owner, used in manual daemonization"
+            print("usage: %s [-H bind_host] [-P bind_port] [-R rootpath] [-v]\n" % sys.argv[0])
+            print("-H bind_host : local address to listen on (default: any)")
+            print("-P bind_port : port to listen on (default: 9425)")
+            print("-R rootpath : local path to use as HTTP document root (default: @CGI_PATH@)")
+            print("-v : log requests on stderr")
+            print("-p : pidfile path, setting it triggers manual daemonization")
+            print("-u : username of server owner, used in manual daemonization")
             sys.exit(0)
         elif opt == '-H':
             HOST = val
@@ -495,9 +508,9 @@ if __name__ == "__main__":
     # launch the server on the specified port
     SERVER = Server(HOST, PORT)
     if HOST != 'any':
-        print "Asynchronous HTTP server running on %s:%s" % (HOST, PORT)
+        print("Asynchronous HTTP server running on %s:%s" % (HOST, PORT))
     else:
-        print "Asynchronous HTTP server running on port %s" % PORT
+        print("Asynchronous HTTP server running on port %s" % PORT)
     HTTP.logging = bool(VERBOSE)
     HTTP.root = os.path.realpath(ROOTPATH)
     if PIDFILE:

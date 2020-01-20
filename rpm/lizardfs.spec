@@ -108,7 +108,7 @@ LizardFS fsal plugin for nfs-ganesha.
 %package cgi
 Summary:        LizardFS CGI Monitor
 Group:          System Environment/Daemons
-Requires:       python
+Requires:       python3
 
 %description cgi
 LizardFS CGI Monitor.

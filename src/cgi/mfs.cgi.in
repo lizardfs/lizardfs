@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import cgi
 import cgitb
@@ -8,7 +8,7 @@ import struct
 import sys
 import time
 import traceback
-import urllib
+import urllib.request, urllib.parse, urllib.error
 from datetime import datetime
 
 PROTO_BASE = @PROTO_BASE@
@@ -135,7 +135,7 @@ def deserialize(buffer, tree, return_tuple=False):
         head_len = 3
     else:
         raise RuntimeError("Unknown tree to deserialize: {0}".format(tree))
-    if (len(tree) > head_len):
+    if len(tree) > head_len:
         tail = deserialize(buffer, tree[head_len:], True)
         return (head,) + tail
     else:
@@ -153,7 +153,7 @@ def deserialize_primitive(buffer, format):
 def deserialize_tuple(bytebuffer, format):
     """ Deserialize a tuple described in format string and remove it from buffer """
     size = struct.calcsize(">" + format)
-    ret = struct.unpack_from(">" + format, buffer(bytebuffer))
+    ret = struct.unpack_from(">" + format, memoryview(bytebuffer))
     del bytebuffer[0:size]
     return ret
 
@@ -163,7 +163,10 @@ def deserialize_string(buffer):
     length = deserialize_primitive(buffer, "L")
     if len(buffer) < length or buffer[length - 1] != 0:
         raise RuntimeError("malformed message; cannot deserialize")
-    ret = str(buffer[0:length - 1])
+    if isinstance(buffer, (bytearray, bytes)):
+        ret = str(buffer[0:length - 1], 'utf-8')
+    else:
+        ret = str(buffer[0:length - 1])
     del buffer[0:length]
     return ret
 
@@ -171,14 +174,14 @@ def deserialize_string(buffer):
 def deserialize_list(buffer, element_tree):
     """ Deserialize a list of elements and remove it from buffer """
     length = deserialize_primitive(buffer, "L")
-    return [deserialize(buffer, element_tree) for i in xrange(length)]
+    return [deserialize(buffer, element_tree) for i in range(length)]
 
 
 def deserialize_dict(buffer, key_tree, value_tree):
     """ Deserialize a dict and remove it from buffer """
     length = deserialize_primitive(buffer, "L")
     ret = {}
-    for i in xrange(length):
+    for i in range(length):
         key = deserialize(buffer, key_tree)
         val = deserialize(buffer, value_tree)
         ret[key] = val
@@ -199,10 +202,10 @@ def make_liz_message(type, version, data):
 def cltoma_list_goals():
     if masterversion < LIZARDFS_VERSION_WITH_CUSTOM_GOALS:
         # For old servers just return the default 10 goals
-        return [(i, str(i), str(i) + "*_") for i in xrange(1, 10)]
+        return [(i, str(i), str(i) + "*_") for i in range(1, 10)]
     else:
         # For new servers, use LIZ_CLTOMA_LIST_GOALS to fetch the list of goal definitions
-        request = make_liz_message(LIZ_CLTOMA_LIST_GOALS, 0, "\1")
+        request = make_liz_message(LIZ_CLTOMA_LIST_GOALS, 0, b"\1")
         response = send_and_receive(
             masterhost, masterport, request, LIZ_MATOCL_LIST_GOALS, 0)
         goals = deserialize(response, List(Primitive("H") + 2 * String))
@@ -236,7 +239,7 @@ def cltoma_chunks_health(only_regular):
 
 
 def cltoma_hostname(host, port):
-    request = make_liz_message(LIZ_CLTOMA_HOSTNAME, 0, "")
+    request = make_liz_message(LIZ_CLTOMA_HOSTNAME, 0, b"")
     response = send_and_receive(host, port, request, LIZ_MATOCL_HOSTNAME, 0)
     return deserialize(response, String)
 
@@ -261,7 +264,7 @@ def cltoma_metadataserver_status(host, port):
 
 
 def cltoma_metadataservers_list():
-    request = make_liz_message(LIZ_CLTOMA_METADATASERVERS_LIST, 0, "")
+    request = make_liz_message(LIZ_CLTOMA_METADATASERVERS_LIST, 0, b"")
     response = send_and_receive(
         masterhost, masterport, request, LIZ_MATOCL_METADATASERVERS_LIST, 0)
     _, shadows = deserialize(response, Primitive("L") + List(Tuple("LHHBB")))
@@ -270,7 +273,7 @@ def cltoma_metadataservers_list():
     for (addr, port, v1, v2, v3) in servers:
         # for shadow masters, addr is int (4 bytes) -- convert it to string.
         # for the active master we use "masterhost" to connect with it and we don't know the real IP
-        ip = addr_to_host(addr) if isinstance(addr, (int, long)) else "-"
+        ip = addr_to_host(addr) if isinstance(addr, int) else "-"
         version = "%u.%u.%u" % (v1, v2, v3)
         if port == 0:
             # shadow didn't register its port yet
@@ -306,7 +309,7 @@ def htmlentities(str):
 
 
 def urlescape(str):
-    return urllib.quote_plus(str)
+    return urllib.parse.quote_plus(str)
 
 
 def mysend(socket, msg):
@@ -319,10 +322,10 @@ def mysend(socket, msg):
 
 
 def myrecv(socket, leng):
-    msg = ''
+    msg = b''
     while len(msg) < leng:
         chunk = socket.recv(leng - len(msg))
-        if chunk == '':
+        if chunk == b'':
             raise RuntimeError("socket connection broken")
         msg = msg + chunk
     return msg
@@ -330,7 +333,7 @@ def myrecv(socket, leng):
 
 def addr_to_host(addr):
     """ Convert IP address ('xxx.xxx.xxx.xxx' or 'hostname' or a 4-byte integer) to string """
-    if isinstance(addr, (int, long)):
+    if isinstance(addr, int):
         return socket.inet_ntoa(struct.pack(">L", addr))
     elif isinstance(addr, str):
         return addr
@@ -433,44 +436,44 @@ try:
         elif length == 68 or length == 76:
             masterversion = struct.unpack(">HBB", data[:4])
 except Exception:
-    print "Content-Type: text/html; charset=UTF-8"
-    print
-    print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
-    print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
-    print """<head>"""
-    print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-    print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
-    print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-    print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
-    print """<script type="text/javascript">changemaster = function() {
+    print("Content-Type: text/html; charset=UTF-8")
+    print()
+    print("""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">""")
+    print("""<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">""")
+    print("""<head>""")
+    print("""<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />""")
+    print("""<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername)))
+    print("""<link href="favicon.ico" rel="icon" type="image/x-icon" />""")
+    print("""<link rel="stylesheet" href="mfs.css" type="text/css" />""")
+    print("""<script type="text/javascript">changemaster = function() {
         window.location="mfs.cgi?masterhost=" + document.getElementById("masterhost").value + "&masterport=" + document.getElementById("masterport").value }
-        </script>"""
-    print """</head>"""
-    print """<body>"""
-    print """<h1 align="center">Can't connect to LizardFS master (IP:%s ; PORT:%u)</h1>""" % (
-        htmlentities(masterhost), masterport)
-    print """<h2 align="center">Please enter alternative master address:"""
-    print """<input type="text" id="masterhost" value="mfsmaster" size="32" /><input type="number" id="masterport" size="6" value="9421" />"""
-    print """<input type="button" value="Go" onclick="changemaster()" /></h2>"""
-    print """</body>"""
-    print """</html>"""
+        </script>""")
+    print("""</head>""")
+    print("""<body>""")
+    print("""<h1 align="center">Can't connect to LizardFS master (IP:%s ; PORT:%u)</h1>""" % (
+        htmlentities(masterhost), masterport))
+    print("""<h2 align="center">Please enter alternative master address:""")
+    print("""<input type="text" id="masterhost" value="mfsmaster" size="32" /><input type="number" id="masterport" size="6" value="9421" />""")
+    print("""<input type="button" value="Go" onclick="changemaster()" /></h2>""")
+    print("""</body>""")
+    print("""</html>""")
     exit()
 
 if masterversion == (0, 0, 0):
-    print "Content-Type: text/html; charset=UTF-8"
-    print
-    print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
-    print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
-    print """<head>"""
-    print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-    print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
-    print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-    print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
-    print """</head>"""
-    print """<body>"""
-    print """<h1 align="center">Can't detect LizardFS master version</h1>"""
-    print """</body>"""
-    print """</html>"""
+    print("Content-Type: text/html; charset=UTF-8")
+    print()
+    print("""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">""")
+    print("""<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">""")
+    print("""<head>""")
+    print("""<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />""")
+    print("""<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername)))
+    print("""<link href="favicon.ico" rel="icon" type="image/x-icon" />""")
+    print("""<link rel="stylesheet" href="mfs.css" type="text/css" />""")
+    print("""</head>""")
+    print("""<body>""")
+    print("""<h1 align="center">Can't detect LizardFS master version</h1>""")
+    print("""</body>""")
+    print("""</html>""")
     exit()
 
 
@@ -479,7 +482,7 @@ def createlink(update):
     for k in fields:
         if k not in update:
             c.append("%s=%s" % (k, urlescape(fields.getvalue(k))))
-    for k, v in update.iteritems():
+    for k, v in update.items():
         if v != "":
             c.append("%s=%s" % (k, urlescape(v)))
     return "mfs.cgi?%s" % ("&amp;".join(c))
@@ -508,7 +511,7 @@ if "CSremove" in fields:
     try:
         serverdata = fields.getvalue("CSremove").split(":")
         if len(serverdata) == 2:
-            csip = map(int, serverdata[0].split("."))
+            csip = list(map(int, serverdata[0].split(".")))
             csport = int(serverdata[1])
             if len(csip) == 4:
                 s = socket.socket()
@@ -523,45 +526,45 @@ if "CSremove" in fields:
         tracedata = traceback.format_exc()
     url = createlink({"CSremove": ""})
     if cmd_success:
-        print "Status: 302 Found"
-        print "Location: %s" % url.replace("&amp;", "&")
-        print "Content-Type: text/html; charset=UTF-8"
-        print
-        print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
-        print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
-        print """<head>"""
-        print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-        print """<meta http-equiv="Refresh" content="0; url=%s" />""" % url
-        print """<title>LizardFS Info (%s)</title>""" % (
-            htmlentities(mastername))
-        print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-        print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
-        print """</head>"""
-        print """<body>"""
-        print """<h1 align="center"><a href="%s">If you see this then it means that redirection didn't work, so click here</a></h1>"""
-        print """</body>"""
-        print """</html>"""
+        print("Status: 302 Found")
+        print("Location: %s" % url.replace("&amp;", "&"))
+        print("Content-Type: text/html; charset=UTF-8")
+        print()
+        print("""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">""")
+        print("""<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">""")
+        print("""<head>""")
+        print("""<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />""")
+        print("""<meta http-equiv="Refresh" content="0; url=%s" />""" % url)
+        print("""<title>LizardFS Info (%s)</title>""" % (
+            htmlentities(mastername)))
+        print("""<link href="favicon.ico" rel="icon" type="image/x-icon" />""")
+        print("""<link rel="stylesheet" href="mfs.css" type="text/css" />""")
+        print("""</head>""")
+        print("""<body>""")
+        print("""<h1 align="center"><a href="%s">If you see this then it means that redirection didn't work, so click here</a></h1>""")
+        print("""</body>""")
+        print("""</html>""")
     else:
-        print "Content-Type: text/html; charset=UTF-8"
-        print
-        print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
-        print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
-        print """<head>"""
-        print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-        print """<meta http-equiv="Refresh" content="5; url=%s" />""" % url
-        print """<title>LizardFS Info (%s)</title>""" % (
-            htmlentities(mastername))
-        print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-        print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
-        print """</head>"""
-        print """<body>"""
-        print """<h3 align="center">Can't remove server (%s) from list - wait 5 seconds for refresh</h3>""" % fields.getvalue(
-            "CSremove")
+        print("Content-Type: text/html; charset=UTF-8")
+        print()
+        print("""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">""")
+        print("""<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">""")
+        print("""<head>""")
+        print("""<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />""")
+        print("""<meta http-equiv="Refresh" content="5; url=%s" />""" % url)
+        print("""<title>LizardFS Info (%s)</title>""" % (
+            htmlentities(mastername)))
+        print("""<link href="favicon.ico" rel="icon" type="image/x-icon" />""")
+        print("""<link rel="stylesheet" href="mfs.css" type="text/css" />""")
+        print("""</head>""")
+        print("""<body>""")
+        print("""<h3 align="center">Can't remove server (%s) from list - wait 5 seconds for refresh</h3>""" % fields.getvalue(
+            "CSremove"))
         if tracedata:
-            print """<hr />"""
-            print """<pre>%s</pre>""" % tracedata
-        print """</body>"""
-        print """</html>"""
+            print("""<hr />""")
+            print("""<pre>%s</pre>""" % tracedata)
+        print("""</body>""")
+        print("""</html>""")
     exit()
 
 if "sections" in fields:
@@ -611,51 +614,51 @@ else:
                     "EX", "MS", "MO", "MC", "CC", "HELP"]
 
 
-print "Content-Type: text/html; charset=UTF-8"
-print
+print("Content-Type: text/html; charset=UTF-8")
+print()
 # print """<!-- Put IE into quirks mode -->
-print """<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">"""
-print """<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">"""
-print """<head>"""
-print """<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />"""
-print """<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername))
-print """<link href="favicon.ico" rel="icon" type="image/x-icon" />"""
-print """<link rel="stylesheet" href="mfs.css" type="text/css" />"""
-print """</head>"""
-print """<body>"""
+print("""<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">""")
+print("""<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">""")
+print("""<head>""")
+print("""<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />""")
+print("""<title>LizardFS Info (%s)</title>""" % (htmlentities(mastername)))
+print("""<link href="favicon.ico" rel="icon" type="image/x-icon" />""")
+print("""<link rel="stylesheet" href="mfs.css" type="text/css" />""")
+print("""</head>""")
+print("""<body>""")
 
 # MENUBAR
 
-print """<div id="header">"""
-print """<table class="HDR" cellpadding="0" cellspacing="0" border="0" summary="Page header">"""
-print """<tr>"""
-print """<td class="LOGO"><a href="http://www.lizardfs.org"><img src="logomini.png" alt="logo" style="border:0;width:123px;height:47px" /></a></td>"""
-print """<td class="MENU"><table class="MENU" cellspacing="0" summary="Header menu">"""
-print """<tr>"""
+print("""<div id="header">""")
+print("""<table class="HDR" cellpadding="0" cellspacing="0" border="0" summary="Page header">""")
+print("""<tr>""")
+print("""<td class="LOGO"><a href="http://www.lizardfs.org"><img src="logomini.png" alt="logo" style="border:0;width:123px;height:47px" /></a></td>""")
+print("""<td class="MENU"><table class="MENU" cellspacing="0" summary="Header menu">""")
+print("""<tr>""")
 last = "U"
 for k in sectionorder:
     if k == sectionorder[-1]:
         last = "L%s" % last
     if k in sectionset:
         if len(sectionset) <= 1:
-            print """<td class="%sS">%s &#8722;</td>""" % (last, sectiondef[k])
+            print("""<td class="%sS">%s &#8722;</td>""" % (last, sectiondef[k]))
         else:
-            print """<td class="%sS"><a href="%s">%s</a> <a href="%s">&#8722;</a></td>""" % (last, createlink(
-                {"sections": k}), sectiondef[k], createlink({"sections": "|".join(sectionset - set([k]))}))
+            print("""<td class="%sS"><a href="%s">%s</a> <a href="%s">&#8722;</a></td>""" % (last, createlink(
+                {"sections": k}), sectiondef[k], createlink({"sections": "|".join(sectionset - set([k]))})))
         last = "S"
     else:
-        print """<td class="%sU"><a href="%s">%s</a> <a href="%s">+</a></td>""" % (last, createlink(
-            {"sections": k}), sectiondef[k], createlink({"sections": "|".join(sectionset | set([k]))}))
+        print("""<td class="%sU"><a href="%s">%s</a> <a href="%s">+</a></td>""" % (last, createlink(
+            {"sections": k}), sectiondef[k], createlink({"sections": "|".join(sectionset | set([k]))})))
         last = "U"
-print """</tr>"""
-print """</table></td>"""
-print """<td class="FILLER" style="white-space:nowrap;">"""
-print """</td>"""
-print """</tr>"""
-print """</table>"""
-print """</div>"""
+print("""</tr>""")
+print("""</table></td>""")
+print("""<td class="FILLER" style="white-space:nowrap;">""")
+print("""</td>""")
+print("""</tr>""")
+print("""</table>""")
+print("""</div>""")
 
-print """<div id="container">"""
+print("""<div id="container">""")
 
 if "IN" in sectionset:
     try:
@@ -842,15 +845,15 @@ if "IN" in sectionset:
                 """	<tr><td align="left">unrecognized answer from LizardFS master</td></tr>""")
             out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
     if masterversion >= (1, 5, 13):
         try:
@@ -865,7 +868,7 @@ if "IN" in sectionset:
             cmd, length = struct.unpack(">LL", header)
             if cmd == MATOCL_CHUNKS_MATRIX and length == 484:
                 matrix = []
-                for i in xrange(11):
+                for i in range(11):
                     data = myrecv(s, 44)
                     matrix.append(list(struct.unpack(">LLLLLLLLLLL", data)))
                 out.append(
@@ -898,14 +901,14 @@ if "IN" in sectionset:
                 out.append("""	</tr>""")
                 classsum = 7 * [0]
                 sumlist = 11 * [0]
-                for neededCopies in xrange(11):
+                for neededCopies in range(11):
                     out.append("""	<tr>""")
                     if neededCopies == 10:
                         out.append("""		<td align="center">10+</td>""")
                     else:
                         out.append("""		<td align="center">%u</td>""" %
                                    neededCopies)
-                    for vc in xrange(11):
+                    for vc in range(11):
                         if neededCopies == 0:
                             if vc == 0:
                                 cl = "DELETEREADY"
@@ -947,7 +950,7 @@ if "IN" in sectionset:
                             a + b for (a, b) in zip(sumlist, matrix[neededCopies])]
                 out.append("""	<tr>""")
                 out.append("""		<td align="center">all 1+</td>""")
-                for vc in xrange(11):
+                for vc in range(11):
                     out.append("""		<td align="right">%u</td>""" % sumlist[vc])
                 out.append("""		<td align="right">%u</td>""" % sum(sumlist))
                 out.append("""	</tr>""")
@@ -955,15 +958,15 @@ if "IN" in sectionset:
                     1, "ENDANGERED", "endangered"), (2, "UNDERGOAL", "undergoal"), (3, "NORMAL", "stable"), (4, "OVERGOAL", "overgoal"), (5, "DELETEPENDING", "pending&nbsp;deletion"), (6, "DELETEREADY", "ready&nbsp;to&nbsp;be&nbsp;removed")]]) + """</td></tr>""")
                 out.append("""</table>""")
             s.close()
-            print "\n".join(out)
+            print("\n".join(out))
         except Exception:
-            print """<table class="FR" cellspacing="0" summary="Exception">"""
-            print """<tr><td align="left"><pre>"""
+            print("""<table class="FR" cellspacing="0" summary="Exception">""")
+            print("""<tr><td align="left"><pre>""")
             traceback.print_exc(file=sys.stdout)
-            print """</pre></td></tr>"""
-            print """</table>"""
+            print("""</pre></td></tr>""")
+            print("""</table>""")
 
-        print """<br/>"""
+        print("""<br/>""")
 
     try:
         out = []
@@ -1019,15 +1022,15 @@ if "IN" in sectionset:
                 out.append("""	</tr>""")
             out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
     try:
         out = []
@@ -1076,7 +1079,7 @@ if "IN" in sectionset:
                             """	<tr><th colspan="8">Important messages:</th></tr>""")
                     out.append("""	<tr>""")
                     out.append("""		<td colspan="8" align="left"><small><pre>%s</pre></small></td>""" % (
-                        urllib.unquote(data[36:]).replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")))
+                        urllib.parse.unquote(data[36:]).replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")))
                     out.append("""	</tr>""")
             else:
                 out.append("""	<tr>""")
@@ -1084,15 +1087,15 @@ if "IN" in sectionset:
                 out.append("""	</tr>""")
             out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "CH" in sectionset:
     try:
@@ -1119,7 +1122,7 @@ if "CH" in sectionset:
         out.append(make_table_row('<th class="PERC20">', '</th>', headers))
         sums = 3 * [0]
         i = 0
-        for goal, safe, endangered, lost in filter(lambda row: sum(row[1:]) > 0, availability):
+        for goal, safe, endangered, lost in [row for row in availability if sum(row[1:]) > 0]:
             out.append("""	<tr class="%s">""" % ("C1" if i % 2 == 0 else "C2"))
             i += 1
             out.append(
@@ -1132,8 +1135,8 @@ if "CH" in sectionset:
                     make_cell(lost, "MISSING"))
             )
             out.append("""	</tr>""")
-            sums = map(
-                sum, zip(sums, [safe, endangered, lost]))  # add row to the summary
+            sums = list(map(
+                sum, list(zip(sums, [safe, endangered, lost]))))  # add row to the summary
         # Add summary and end the table
         out.append("""	<tr>""")
         out.append(
@@ -1160,7 +1163,7 @@ if "CH" in sectionset:
             )
             i = 0
             sums = 11 * [0]
-            for row in filter(lambda row: sum(row[1:]) > 0, table):
+            for row in [row for row in table if sum(row[1:]) > 0]:
                 out.append("""	<tr class="%s">""" %
                            ("C1" if i % 2 == 0 else "C2"))
                 i += 1
@@ -1169,7 +1172,7 @@ if "CH" in sectionset:
                     ((row[0], make_cell(row[1], "NORMAL")) + tuple(map(make_cell, row[2:])))
                 )
                 out.append("""	</tr>""")
-                sums = map(sum, zip(sums, row[1:]))  # add row to the summary
+                sums = list(map(sum, list(zip(sums, row[1:]))))  # add row to the summary
             # Add summary and end the table
             out.append("""	<tr>""")
             out.append(("""		<th>all</th>""" + 11 * """<th>%s</th>""") %
@@ -1181,14 +1184,14 @@ if "CH" in sectionset:
         add_repl_del_state(out, "replicat", replication)
         out.append("""<br/>""")
         add_repl_del_state(out, "delet", deletion)
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
-    print """<br/>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
+    print("""<br/>""")
 
 if "CS" in sectionset:
     if masterversion >= LIZARDFS_VERSION_WITH_LIST_OF_SHADOWS:
@@ -1233,14 +1236,14 @@ if "CS" in sectionset:
                 out.append(make_table_row('<td>', '</td>', (i,) + row))
                 i += 1
             out.append("""</table>""")
-            print "\n".join(out)
+            print("\n".join(out))
         except Exception:
-            print """<table class="FR" cellspacing="0" summary="Exception">"""
-            print """<tr><td align="left"><pre>"""
+            print("""<table class="FR" cellspacing="0" summary="Exception">""")
+            print("""<tr><td align="left"><pre>""")
             traceback.print_exc(file=sys.stdout)
-            print """</pre></td></tr>"""
-            print """</table>"""
-        print """<br/>"""
+            print("""</pre></td></tr>""")
+            print("""</table>""")
+        print("""<br/>""")
 
     out = []
 
@@ -1314,11 +1317,11 @@ if "CS" in sectionset:
         else:
             vector_size = length / 54
             pos = 0
-        for i in xrange(vector_size):
+        for i in range(vector_size):
             if cmd == LIZ_MATOCL_CSERV_LIST:
                 disconnected, v1, v2, v3, ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt, label_length = struct.unpack(
                     ">BBBBBBBBHQQLQQLLL", data[pos:pos + 58])
-                label = data[pos + 58:pos + 58 + label_length - 1]
+                label = data[pos + 58:pos + 58 + label_length - 1].decode('utf-8')
                 pos = pos + 58 + label_length
             else:
                 disconnected, v1, v2, v3, ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt = struct.unpack(
@@ -1401,15 +1404,15 @@ if "CS" in sectionset:
 
         out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
     if masterversion >= (1, 6, 5):
         out = []
@@ -1445,9 +1448,9 @@ if "CS" in sectionset:
             cmd, length = struct.unpack(">LL", header)
             if cmd == MATOCL_MLOG_LIST and (length % 8) == 0:
                 data = myrecv(s, length)
-                n = length / 8
+                n = int(length / 8)
                 servers = []
-                for i in xrange(n):
+                for i in range(n):
                     d = data[i * 8:(i + 1) * 8]
                     v1, v2, v3, ip1, ip2, ip3, ip4 = struct.unpack(
                         ">HBBBBBB", d)
@@ -1475,15 +1478,15 @@ if "CS" in sectionset:
                     i += 1
             out.append("""</table>""")
             s.close()
-            print "\n".join(out)
+            print("\n".join(out))
         except Exception:
-            print """<table class="FR" cellspacing="0" summary="Exception">"""
-            print """<tr><td align="left"><pre>"""
+            print("""<table class="FR" cellspacing="0" summary="Exception">""")
+            print("""<tr><td align="left"><pre>""")
             traceback.print_exc(file=sys.stdout)
-            print """</pre></td></tr>"""
-            print """</table>"""
+            print("""</pre></td></tr>""")
+            print("""</table>""")
 
-        print """<br/>"""
+        print("""<br/>""")
 
 if "HD" in sectionset:
     out = []
@@ -1519,9 +1522,9 @@ if "HD" in sectionset:
         cmd, length = struct.unpack(">LL", header)
         if cmd == MATOCL_CSERV_LIST and masterversion >= (1, 5, 13) and (length % 54) == 0:
             data = myrecv(s, length)
-            n = length / 54
+            n = int(length / 54)
             servers = []
-            for i in xrange(n):
+            for i in range(n):
                 d = data[i * 54:(i + 1) * 54]
                 disconnected, v1, v2, v3, ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt = struct.unpack(
                     ">BBBBBBBBHQQLQQLL", d)
@@ -1529,9 +1532,9 @@ if "HD" in sectionset:
                     hostlist.append((v1, v2, v3, ip1, ip2, ip3, ip4, port))
         elif cmd == MATOCL_CSERV_LIST and masterversion < (1, 5, 13) and (length % 50) == 0:
             data = myrecv(s, length)
-            n = length / 50
+            n = int(length / 50)
             servers = []
-            for i in xrange(n):
+            for i in range(n):
                 d = data[i * 50:(i + 1) * 50]
                 ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt = struct.unpack(
                     ">BBBBHQQLQQLL", d)
@@ -1556,13 +1559,13 @@ if "HD" in sectionset:
                     if cmd == CSTOCL_HDD_LIST_V1:
                         data = myrecv(s, length)
                         while length > 0:
-                            plen = ord(data[0])
+                            plen = data[0]
                             if HDaddrname == 1:
                                 path = "%s:%u:%s" % (
-                                    hoststr, port, data[1:plen + 1])
+                                    hoststr, port, data[1:plen + 1].decode('utf-8'))
                             else:
                                 path = "%s:%u:%s" % (
-                                    hostip, port, data[1:plen + 1])
+                                    hostip, port, data[1:plen + 1].decode('utf-8'))
                             flags, errchunkid, errtime, used, total, chunkscnt = struct.unpack(
                                 ">BQLQQL", data[plen + 1:plen + 34])
                             length -= plen + 34
@@ -1603,13 +1606,13 @@ if "HD" in sectionset:
                             data = data[2 + entrysize:]
                             length -= 2 + entrysize
 
-                            plen = ord(entry[0])
+                            plen = entry[0]
                             if HDaddrname == 1:
                                 path = "%s:%u:%s" % (
-                                    hoststr, port, entry[1:plen + 1])
+                                    hoststr, port, entry[1:plen + 1].decode('utf-8'))
                             else:
                                 path = "%s:%u:%s" % (
-                                    hostip, port, entry[1:plen + 1])
+                                    hostip, port, entry[1:plen + 1].decode('utf-8'))
                             flags, errchunkid, errtime, used, total, chunkscnt = struct.unpack(
                                 ">BQLQQL", entry[plen + 1:plen + 34])
                             rbytes, wbytes, usecreadsum, usecwritesum, usecfsyncsum, rops, wops, fsyncops, usecreadmax, usecwritemax, usecfsyncmax = (
@@ -1826,15 +1829,15 @@ if "HD" in sectionset:
                 i += 1
             out.append("""</table>""")
 
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "EX" in sectionset:
     out = []
@@ -1920,7 +1923,7 @@ if "EX" in sectionset:
                 ipfrom = "%d.%d.%d.%d" % (fip1, fip2, fip3, fip4)
                 ipto = "%d.%d.%d.%d" % (tip1, tip2, tip3, tip4)
                 pos += 12
-                path = data[pos:pos + pleng]
+                path = data[pos:pos + pleng].decode('utf-8')
                 pos += pleng
                 if masterversion >= (1, 6, 26):
                     v1, v2, v3, exportflags, sesflags, rootuid, rootgid, mapalluid, mapallgid, mingoal, maxgoal, mintrashtime, maxtrashtime = struct.unpack(
@@ -2073,11 +2076,11 @@ if "EX" in sectionset:
         out.append("""</table>""")
         out.append("""<br/>""")
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
     try:
         goals = cltoma_list_goals()
@@ -2100,15 +2103,15 @@ if "EX" in sectionset:
             out.append("""	<tr class="C%u"><td>%s</td><td class="LEFT">%s</td><td class="LEFT">%s</td>""" %
                        (row_class, id, name, definition))
         out.append("""</table>""")
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "ML" in sectionset:
     out = []
@@ -2179,9 +2182,9 @@ if "ML" in sectionset:
         cmd, length = struct.unpack(">LL", header)
         if cmd == MATOCL_SESSION_LIST and masterversion <= (1, 5, 13) and (length % 136) == 0:
             data = myrecv(s, length)
-            n = length / 136
+            n = int(length / 136)
             servers = []
-            for i in xrange(n):
+            for i in range(n):
                 d = data[i * 136:(i + 1) * 136]
                 addrdata = d[0:8]
                 stats_c = []
@@ -2198,7 +2201,7 @@ if "ML" in sectionset:
                         ver = "unknown"
                 else:
                     ver = "%d.%d.%d" % (v1, v2, v3)
-                for i in xrange(16):
+                for i in range(16):
                     stats_c.append(struct.unpack(">L", d[i * 4 + 8:i * 4 + 12]))
                     stats_l.append(struct.unpack(">L", d[i * 4 + 72:i * 4 + 76]))
                 try:
@@ -2228,27 +2231,27 @@ if "ML" in sectionset:
                     """		<td align="center" rowspan="2">%s</td>""" % ipnum)
                 out.append(
                     """		<td align="center" rowspan="2">%s</td>""" % ver)
-                for st in xrange(16):
+                for st in range(16):
                     out.append("""		<td align="right">%u</td>""" %
                                (stats_c[st]))
                 out.append("""	</tr>""")
                 out.append("""	<tr class="C%u">""" % (((i - 1) % 2) * 2 + 2))
-                for st in xrange(16):
+                for st in range(16):
                     out.append("""		<td align="right">%u</td>""" %
                                (stats_l[st]))
                 out.append("""	</tr>""")
                 i += 1
         out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "MS" in sectionset:
     out = []
@@ -2342,11 +2345,11 @@ if "MS" in sectionset:
                 ipnum = "%d.%d.%d.%d" % (ip1, ip2, ip3, ip4)
                 ver = "%d.%d.%d" % (v1, v2, v3)
                 pos += 16
-                info = data[pos:pos + ileng]
+                info = data[pos:pos + ileng].decode('utf-8')
                 pos += ileng
                 pleng = struct.unpack(">L", data[pos:pos + 4])[0]
                 pos += 4
-                path = data[pos:pos + pleng]
+                path = data[pos:pos + pleng].decode('utf-8')
                 pos += pleng
                 if masterversion >= (1, 6, 26):
                     sesflags, rootuid, rootgid, mapalluid, mapallgid, mingoal, maxgoal, mintrashtime, maxtrashtime = struct.unpack(
@@ -2511,15 +2514,15 @@ if "MS" in sectionset:
                 i += 1
         out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "MO" in sectionset:
     out = []
@@ -2609,11 +2612,11 @@ if "MO" in sectionset:
                 ipnum = "%d.%d.%d.%d" % (ip1, ip2, ip3, ip4)
                 ver = "%d.%d.%d" % (v1, v2, v3)
                 pos += 16
-                info = data[pos:pos + ileng]
+                info = data[pos:pos + ileng].decode('utf-8')
                 pos += ileng
                 pleng = struct.unpack(">L", data[pos:pos + 4])[0]
                 pos += 4
-                path = data[pos:pos + pleng]
+                path = data[pos:pos + pleng].decode('utf-8')
                 pos += pleng
                 # sesflags,rootuid,rootgid,mapalluid,mapallgid = struct.unpack(">BLLLL",data[pos:pos+17])
                 if masterversion >= (1, 6, 0):
@@ -2663,13 +2666,13 @@ if "MO" in sectionset:
                 out.append(
                     """		<td align="center" rowspan="2">%s</td>""" % ipnum)
                 out.append("""		<td align="left" rowspan="2">%s</td>""" % info)
-                for st in xrange(16):
+                for st in range(16):
                     out.append("""		<td align="right">%u</td>""" %
                                (stats_c[st]))
                 out.append("""		<td align="right">%u</td>""" % (sum(stats_c)))
                 out.append("""	</tr>""")
                 out.append("""	<tr class="C%u">""" % (((i - 1) % 2) * 2 + 2))
-                for st in xrange(16):
+                for st in range(16):
                     out.append("""		<td align="right">%u</td>""" %
                                (stats_l[st]))
                 out.append("""		<td align="right">%u</td>""" % (sum(stats_l)))
@@ -2677,15 +2680,15 @@ if "MO" in sectionset:
                 i += 1
         out.append("""</table>""")
         s.close()
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "MC" in sectionset:
     out = []
@@ -2835,7 +2838,7 @@ if "MC" in sectionset:
         out.append("""</table>""")
         out.append(
             """<table class="FR" cellspacing="0" summary="Master charts view">""")
-        for i in xrange(2):
+        for i in range(2):
             out.append("""	<tr>""")
             out.append("""		<td align="center" colspan="4">""")
             out.append("""			<div id="ma_desc%u">%s</div>""" %
@@ -2857,15 +2860,15 @@ if "MC" in sectionset:
             out.append("""		</td>""")
             out.append("""	</tr>""")
         out.append("""</table>""")
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 if "CC" in sectionset:
     out = []
@@ -2888,8 +2891,8 @@ if "CC" in sectionset:
         cmd, length = struct.unpack(">LL", header)
         if cmd == MATOCL_CSERV_LIST and (length % 54) == 0:
             data = myrecv(s, length)
-            n = length / 54
-            for i in xrange(n):
+            n = int(length / 54)
+            for i in range(n):
                 d = data[i * 54:(i + 1) * 54]
                 disconnected, v1, v2, v3, ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt = struct.unpack(
                     ">BBBBBBBBHQQLQQLL", d)
@@ -2897,8 +2900,8 @@ if "CC" in sectionset:
                     hostlist.append((ip1, ip2, ip3, ip4, port))
         elif cmd == MATOCL_CSERV_LIST and (length % 50) == 0:
             data = myrecv(s, length)
-            n = length / 50
-            for i in xrange(n):
+            n = int(length / 50)
+            for i in range(n):
                 d = data[i * 50:(i + 1) * 50]
                 ip1, ip2, ip3, ip4, port, used, total, chunks, tdused, tdtotal, tdchunks, errcnt = struct.unpack(
                     ">BBBBHQQLQQLL", d)
@@ -3083,7 +3086,7 @@ if "CC" in sectionset:
             out.append("""</table>""")
             out.append(
                 """<table class="FR" cellspacing="0" summary="Server charts view">""")
-            for i in xrange(2):
+            for i in range(2):
                 out.append("""	<tr>""")
                 out.append("""		<td align="center" colspan="4">""")
                 out.append("""			<div id="cs_desc%u">%s</div>""" %
@@ -3168,37 +3171,37 @@ if "CC" in sectionset:
                     out.append("""		</td>""")
                     out.append("""	</tr>""")
                 out.append("""</table>""")
-        print "\n".join(out)
+        print("\n".join(out))
     except Exception:
-        print """<table class="FR" cellspacing="0" summary="Exception">"""
-        print """<tr><td align="left"><pre>"""
+        print("""<table class="FR" cellspacing="0" summary="Exception">""")
+        print("""<tr><td align="left"><pre>""")
         traceback.print_exc(file=sys.stdout)
-        print """</pre></td></tr>"""
-        print """</table>"""
+        print("""</pre></td></tr>""")
+        print("""</table>""")
 
-    print """<br/>"""
+    print("""<br/>""")
 
 
 def print_file(name):
     f = open(name)
     for line in f:
-        print line
+        print(line)
 
 
 if "HELP" in sectionset:
     # FIXME(kulek@lizardfs.org) - it should be in separate file help.html however we are waiting for CMAKE to make it happen.
     # print_file("@CGI_PATH@/help.html")
-    print """please contact with help@lizardfs.com"""
-    print """<br/>"""
+    print("""please contact with help@lizardfs.com""")
+    print("""<br/>""")
 
-print """</div> <!-- end of container -->"""
+print("""</div> <!-- end of container -->""")
 
-print """<div id="footer">"""
-print """<div id="footer-left">Python %u.%u.%u</div>""" % (
-    sys.version_info.major, sys.version_info.minor, sys.version_info.micro)
-print """<div id="footer-center"></div>"""
-print """<div id="footer-right">Generated: %s</div>""" % datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-print """</div>"""
+print("""<div id="footer">""")
+print("""<div id="footer-left">Python %u.%u.%u</div>""" % (
+    sys.version_info.major, sys.version_info.minor, sys.version_info.micro))
+print("""<div id="footer-center"></div>""")
+print("""<div id="footer-right">Generated: %s</div>""" % datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+print("""</div>""")
 
-print """</body>"""
-print """</html>"""
+print("""</body>""")
+print("""</html>""")

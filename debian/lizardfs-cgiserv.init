@@ -14,7 +14,7 @@
 ### END INIT INFO
 
 NAME=lizardfs-cgiserv
-EXEC=/usr/bin/python
+EXEC=/usr/bin/python3
 DAEMON=/usr/sbin/lizardfs-cgiserver
 LIZARDFSCGISERV_USER=nobody
 LIZARDFSCGISERV_GROUP=nogroup

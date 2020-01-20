@@ -8,7 +8,7 @@ Build-Depends: asciidoc (>= 8.6.6),
                libfuse-dev,
                pkg-config,
                zlib1g-dev,
-               python,
+               python3,
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
@@ -93,7 +93,7 @@ Description: LizardFS administration tools
 Package: lizardfs-cgi
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},
-         python
+         python3
 Conflicts: mfs-cgi
 Replaces: mfs-cgi
 Provides: mfs-cgi
@@ -103,7 +103,7 @@ Description: LizardFS CGI Monitor
 Package: lizardfs-cgiserv
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-cgi,
-         python
+         python3
 Conflicts: mfs-cgiserv
 Replaces: mfs-cgiserv
 Provides: mfs-cgiserv
