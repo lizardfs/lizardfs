@@ -4,9 +4,7 @@
 
 LizardFS is a highly reliable, scalable and efficient distributed file system. It spreads data over a number of physical servers, making it visible to an end user as a single file system.
 
-More info can be found at www.lizardfs.org.
-
-For support please contact sales@lizardfs.com or visit www.lizardfs.com.
+For support please contact contact@lizardfs.com or visit www.lizardfs.com.
 
 ## Useful links
 
