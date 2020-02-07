@@ -1,3 +1,7 @@
+is_centos_system() {
+    lsb_release --all | grep Distributor | grep CentOS > /dev/null
+}
+
 # Load config file with machine-specific configuration
 if [[ -f /etc/lizardfs_tests.conf ]]; then
 	. /etc/lizardfs_tests.conf
