@@ -68,8 +68,12 @@ test_end() {
 	if [[ $errors ]]; then
 		exit 1
 	else
-		# Remove syslog.log from ERROR_DIR, because it would cause the test to fail
-		rm -f "$ERROR_DIR/syslog.log"
+		# Remove log file from ERROR_DIR, because it would cause the test to fail
+		if is_centos_system; then
+			rm --force "$ERROR_DIR/messages"
+		else
+			rm --force "$ERROR_DIR/syslog.log"
+		fi
 		exit 0
 	fi
 }
