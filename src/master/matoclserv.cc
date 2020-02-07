@@ -16,13 +16,12 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common/platform.h"
-#include "master/matoclserv.h"
-
 #include <errno.h>
 #include <fcntl.h>
+#include <fstream>
 #include <inttypes.h>
 #include <math.h>
+#include <memory>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,8 +32,6 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-#include <fstream>
-#include <memory>
 
 #include "common/cfg.h"
 #include "common/charts.h"
@@ -56,6 +53,7 @@
 #include "common/metadata.h"
 #include "common/moosefs_vector.h"
 #include "common/network_address.h"
+#include "common/platform.h"
 #include "common/random.h"
 #include "common/serialized_goal.h"
 #include "common/slogger.h"
@@ -71,13 +69,14 @@
 #include "master/filesystem_periodic.h"
 #include "master/filesystem_snapshot.h"
 #include "master/masterconn.h"
+#include "master/matoclserv.h"
 #include "master/matocsserv.h"
 #include "master/matomlserv.h"
 #include "master/personality.h"
 #include "master/settrashtime_task.h"
+#include "protocol/MFSCommunication.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
-#include "protocol/MFSCommunication.h"
 
 #define MaxPacketSize 1000000
 
@@ -90,8 +89,6 @@ enum {
 	FUSE_TRUNCATE_BEGIN, // reply to FUSE_TRUNCATE which does require writing is delayed
 	FUSE_TRUNCATE_END    // reply to FUSE_TRUNCATE_END is delayed
 };
-
-#define SESSION_STATS 16
 
 const uint32_t kMaxNumberOfChunkCopies = 100U;
 
@@ -113,62 +110,6 @@ typedef struct chunklist {
 	const PacketSerializer* serializer;
 	struct chunklist *next;
 } chunklist;
-
-// opened files
-typedef struct filelist {
-	uint32_t inode;
-	struct filelist *next;
-} filelist;
-
-struct session {
-	typedef GenericLruCache<uint32_t, FsContext::GroupsContainer, 1024> GroupCache;
-
-	uint32_t sessionid;
-	char *info;
-	uint32_t peerip;
-	uint8_t newsession;
-	uint8_t sesflags;
-	uint8_t mingoal;
-	uint8_t maxgoal;
-	uint32_t mintrashtime;
-	uint32_t maxtrashtime;
-	uint32_t rootuid;
-	uint32_t rootgid;
-	uint32_t mapalluid;
-	uint32_t mapallgid;
-	uint32_t rootinode;
-	uint32_t disconnected;  // 0 = connected ; other = disconnection timestamp
-	uint32_t nsocks;        // >0 - connected (number of active connections) ; 0 - not connected
-	std::array<uint32_t,SESSION_STATS> currentopstats;
-	std::array<uint32_t,SESSION_STATS> lasthouropstats;
-	GroupCache group_cache;
-	filelist *openedfiles;
-	struct session *next;
-
-	session()
-	    : sessionid(),
-	      info(),
-	      peerip(),
-	      newsession(),
-	      sesflags(),
-	      mingoal(GoalId::kMin),
-	      maxgoal(GoalId::kMax),
-	      mintrashtime(),
-	      maxtrashtime(std::numeric_limits<uint32_t>::max()),
-	      rootuid(),
-	      rootgid(),
-	      mapalluid(),
-	      mapallgid(),
-	      rootinode(SPECIAL_INODE_ROOT),
-	      disconnected(),
-	      nsocks(),
-	      currentopstats(),
-	      lasthouropstats(),
-	      group_cache(),
-	      openedfiles(),
-	      next() {
-	}
-};
 
 typedef struct packetstruct {
 	struct packetstruct *next;
