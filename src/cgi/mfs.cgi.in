@@ -295,8 +295,34 @@ def cltoma_metadataservers_list():
 # Other things
 
 
+class LessThanComparableNone:
+    """
+    A class which instance is meant to be used
+    as a LessThan-Comparable special (None-like) value.
+    This class was added to mimic the behaviour of NoneType from Python2
+    which is used for sorting of tuples which can contain value None.
+    When using None in Python3 the sorting fails and a TypeError exception
+    is raised.
+    Use instance of this class instead of None in the aforementioned scenario.
+    """
+    def __eq__(self, other):
+        """ Every instance of this type is equal. """
+        return isinstance(other, LessThanComparableNone)
+
+    def __lt__(self, other):
+        """ Instance of this class is less than any value of other type. """
+        return not self == other
+
+    def __gt__(self, other):
+        return False
+
+
+LT_COMP_NONE = LessThanComparableNone()
+
+
 def make_table_row(cell_begin, cell_end, cell_contents):
-    """ Returns a string representation of a html table row
+    """
+    Returns a string representation of a html table row
     cell_begin - tag which opens each cell
     cell_end   - tag which ends each cell
     cell_contents - collection of values for the row
@@ -1079,7 +1105,7 @@ if "IN" in sectionset:
                             """	<tr><th colspan="8">Important messages:</th></tr>""")
                     out.append("""	<tr>""")
                     out.append("""		<td colspan="8" align="left"><small><pre>%s</pre></small></td>""" % (
-                        urllib.parse.unquote(data[36:]).replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")))
+                        urllib.parse.unquote(data[36:].decode('utf-8')).replace("&", "&amp;").replace(">", "&gt;").replace("<", "&lt;")))
                     out.append("""	</tr>""")
             else:
                 out.append("""	<tr>""")
@@ -1930,28 +1956,28 @@ if "EX" in sectionset:
                         ">HBBBBLLLLBBLL", data[pos:pos + 32])
                     pos += 32
                     if mingoal <= 1 and maxgoal >= 20:
-                        mingoal = None
-                        maxgoal = None
+                        mingoal = LT_COMP_NONE
+                        maxgoal = LT_COMP_NONE
                     if mintrashtime == 0 and maxtrashtime == 0xFFFFFFFF:
-                        mintrashtime = None
-                        maxtrashtime = None
+                        mintrashtime = LT_COMP_NONE
+                        maxtrashtime = LT_COMP_NONE
                 elif masterversion >= (1, 6, 1):
                     v1, v2, v3, exportflags, sesflags, rootuid, rootgid, mapalluid, mapallgid = struct.unpack(
                         ">HBBBBLLLL", data[pos:pos + 22])
-                    mingoal = None
-                    maxgoal = None
-                    mintrashtime = None
-                    maxtrashtime = None
+                    mingoal = LT_COMP_NONE
+                    maxgoal = LT_COMP_NONE
+                    mintrashtime = LT_COMP_NONE
+                    maxtrashtime = LT_COMP_NONE
                     pos += 22
                 else:
                     v1, v2, v3, exportflags, sesflags, rootuid, rootgid = struct.unpack(
                         ">HBBBBLL", data[pos:pos + 14])
                     mapalluid = 0
                     mapallgid = 0
-                    mingoal = None
-                    maxgoal = None
-                    mintrashtime = None
-                    maxtrashtime = None
+                    mingoal = LT_COMP_NONE
+                    maxgoal = LT_COMP_NONE
+                    mintrashtime = LT_COMP_NONE
+                    maxtrashtime = LT_COMP_NONE
                     pos += 14
                 ver = "%d.%d.%d" % (v1, v2, v3)
                 if path == '.':
@@ -1968,7 +1994,7 @@ if "EX" in sectionset:
                     sf = (v1, v2, v3)
                 elif EXorder == 5:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = exportflags & 1
                 elif EXorder == 6:
@@ -1979,32 +2005,32 @@ if "EX" in sectionset:
                     sf = 2 - (sesflags & 2)
                 elif EXorder == 9:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = sesflags & 4
                 elif EXorder == 10:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = sesflags & 8
                 elif EXorder == 11:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = rootuid
                 elif EXorder == 12:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = rootgid
                 elif EXorder == 13:
                     if meta or (sesflags & 16) == 0:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = mapalluid
                 elif EXorder == 14:
                     if meta or (sesflags & 16) == 0:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = mapalluid
                 elif EXorder == 15:
@@ -2057,13 +2083,13 @@ if "EX" in sectionset:
                     out.append("""		<td align="right">%u</td>""" % mapalluid)
                     out.append("""		<td align="right">%u</td>""" % mapallgid)
                 if masterversion >= (1, 6, 26):
-                    if mingoal is not None and maxgoal is not None:
+                    if mingoal is not LT_COMP_NONE and maxgoal is not LT_COMP_NONE:
                         out.append("""		<td align="right">%u</td>""" % mingoal)
                         out.append("""		<td align="right">%u</td>""" % maxgoal)
                     else:
                         out.append("""		<td align="center">-</td>""")
                         out.append("""		<td align="center">-</td>""")
-                    if mintrashtime is not None and maxtrashtime is not None:
+                    if mintrashtime is not LT_COMP_NONE and maxtrashtime is not LT_COMP_NONE:
                         out.append("""		<td align="right"><a style="cursor:default" title="%s">%s</a></td>""" % (
                             timeduration_to_fullstr(mintrashtime), timeduration_to_shortstr(mintrashtime)))
                         out.append("""		<td align="right"><a style="cursor:default" title="%s">%s</a></td>""" % (
@@ -2356,28 +2382,28 @@ if "MS" in sectionset:
                         ">BLLLLBBLL", data[pos:pos + 27])
                     pos += 27
                     if mingoal <= 1 and maxgoal >= 20:
-                        mingoal = None
-                        maxgoal = None
+                        mingoal = LT_COMP_NONE
+                        maxgoal = LT_COMP_NONE
                     if mintrashtime == 0 and maxtrashtime == 0xFFFFFFFF:
-                        mintrashtime = None
-                        maxtrashtime = None
+                        mintrashtime = LT_COMP_NONE
+                        maxtrashtime = LT_COMP_NONE
                 elif masterversion >= (1, 6, 1):
                     sesflags, rootuid, rootgid, mapalluid, mapallgid = struct.unpack(
                         ">BLLLL", data[pos:pos + 17])
-                    mingoal = None
-                    maxgoal = None
-                    mintrashtime = None
-                    maxtrashtime = None
+                    mingoal = LT_COMP_NONE
+                    maxgoal = LT_COMP_NONE
+                    mintrashtime = LT_COMP_NONE
+                    maxtrashtime = LT_COMP_NONE
                     pos += 17
                 else:
                     sesflags, rootuid, rootgid = struct.unpack(
                         ">BLL", data[pos:pos + 9])
                     mapalluid = 0
                     mapallgid = 0
-                    mingoal = None
-                    maxgoal = None
-                    mintrashtime = None
-                    maxtrashtime = None
+                    mingoal = LT_COMP_NONE
+                    maxgoal = LT_COMP_NONE
+                    mintrashtime = LT_COMP_NONE
+                    maxtrashtime = LT_COMP_NONE
                     pos += 9
                 pos += 8 * statscnt		# skip stats
                 if path == '.':
@@ -2406,32 +2432,32 @@ if "MS" in sectionset:
                     sf = 2 - (sesflags & 2)
                 elif MSorder == 9:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = sesflags & 4
                 elif MSorder == 10:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = sesflags & 8
                 elif MSorder == 11:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = rootuid
                 elif MSorder == 12:
                     if meta:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = rootgid
                 elif MSorder == 13:
                     if meta or (sesflags & 16) == 0:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = mapalluid
                 elif MSorder == 14:
                     if meta or (sesflags & 16) == 0:
-                        sf = None
+                        sf = LT_COMP_NONE
                     else:
                         sf = mapallgid
                 elif MSorder == 15:
@@ -2496,13 +2522,13 @@ if "MS" in sectionset:
                     out.append("""		<td align="right">%u</td>""" % mapalluid)
                     out.append("""		<td align="right">%u</td>""" % mapallgid)
                 if masterversion >= (1, 6, 26):
-                    if mingoal is not None and maxgoal is not None:
+                    if mingoal is not LT_COMP_NONE and maxgoal is not LT_COMP_NONE:
                         out.append("""		<td align="right">%u</td>""" % mingoal)
                         out.append("""		<td align="right">%u</td>""" % maxgoal)
                     else:
                         out.append("""		<td align="center">-</td>""")
                         out.append("""		<td align="center">-</td>""")
-                    if mintrashtime is not None and maxtrashtime is not None:
+                    if mintrashtime is not LT_COMP_NONE and maxtrashtime is not LT_COMP_NONE:
                         out.append("""		<td align="right"><a style="cursor:default" title="%s">%s</a></td>""" % (
                             timeduration_to_fullstr(mintrashtime), timeduration_to_shortstr(mintrashtime)))
                         out.append("""		<td align="right"><a style="cursor:default" title="%s">%s</a></td>""" % (
