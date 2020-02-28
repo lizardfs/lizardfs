@@ -12,8 +12,7 @@ USE_RAMDISK=YES \
 # Create a directory with many files on mountpoint
 cd "${info[mount0]}"
 mkdir goal3
-mfssetgoal 2 goal3
-
+lizardfs setgoal 2 goal3
 
 for file in {1..1000}; do
 	FILE_SIZE=1K file-generate goal3/test_${file}

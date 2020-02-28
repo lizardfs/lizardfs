@@ -1,7 +1,7 @@
 timeout_set 3 minutes
 USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
-cat /tmp/LizardFS-autotests/mfs/etc/mfsmetalogger.cfg
+cat $TEMP_DIR/lizardfs/etc/mfsmetalogger.cfg
 lizardfs_metalogger_daemon start
 
 # Create 100 files and save 5 metadata files containing 20, 40, 60, 80 and 100 of them. Remove all
