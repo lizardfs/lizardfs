@@ -190,6 +190,9 @@ add_definitions(-DLIZARDFS_HAVE_CONFIG_H)
 add_definitions(-D__STDC_LIMIT_MACROS)
 add_definitions(-D__STDC_CONSTANT_MACROS)
 add_definitions(-D__STDC_FORMAT_MACROS)
+# Disable default stdout logger, enabling it breaks some features of LizardFS
+# Enable it on your own responsibility
+add_definitions(-DSPDLOG_DISABLE_DEFAULT_LOGGER)
 if(MINGW)
   add_definitions(-DWINVER=0x0602)
   add_definitions(-D_WIN32_WINNT=0x0602)
