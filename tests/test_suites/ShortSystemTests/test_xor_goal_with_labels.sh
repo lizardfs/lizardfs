@@ -24,7 +24,7 @@ USE_RAMDISK=YES \
 	MASTER_CUSTOM_GOALS="10 xor2_ssd: \$xor2 {ssd ssd ssd}`
 			`|11 xor3_hdd: \$xor3 {hdd hdd hdd hdd}`
 			`|12 xor5_mix: \$xor5 {hdd ssd hdd ssd}" \
-	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
 			`|CHUNKS_LOOP_MAX_CPU = 90`
 			`|CHUNKS_SOFT_DEL_LIMIT = 10`
 			`|CHUNKS_WRITE_REP_LIMIT = 10`

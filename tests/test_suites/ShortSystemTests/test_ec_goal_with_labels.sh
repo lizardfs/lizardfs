@@ -25,7 +25,7 @@ USE_RAMDISK=YES \
 			`|11 ec33_hdd: \$ec(3,3) {hdd hdd hdd hdd}`
 			`|12 ec22_mix: \$ec(2,2) {hdd ssd hdd ssd}`
 			`|13 ec36_mix: \$ec(3,6) {ssd ssd ssd floppy floppy floppy hdd hdd hdd}" \
-	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1`
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
 			`|CHUNKS_LOOP_MAX_CPU = 90`
 			`|CHUNKS_SOFT_DEL_LIMIT = 10`
 			`|CHUNKS_WRITE_REP_LIMIT = 10`
