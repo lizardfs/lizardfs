@@ -3,8 +3,9 @@ assert_program_installed setfacl
 touch "$TEMP_DIR/f"
 MESSAGE="Testing ACL support in $TEMP_DIR/" assert_success setfacl -m group:fuse:rw "$TEMP_DIR/f"
 
-MOUNT_EXTRA_CONFIG="mfsacl" \
-	USE_RAMDISK=YES setup_local_empty_lizardfs info
+USE_RAMDISK=YES \
+	setup_local_empty_lizardfs info
+
 lizdir="${info[mount0]}/subdir"
 tmpdir="$TEMP_DIR/subdir"
 mkdir -p "$lizdir" "$tmpdir"

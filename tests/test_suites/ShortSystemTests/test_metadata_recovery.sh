@@ -8,7 +8,7 @@ master_cfg+="|EMPTY_RESERVED_INODES_PERIOD = 1"
 CHUNKSERVERS=3 \
 	MOUNTS=2 \
 	USE_RAMDISK="YES" \
-	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsreportreservedperiod=1,mfsdirentrycacheto=0" \
+	MOUNT_0_EXTRA_CONFIG="mfscachemode=NEVER,mfsreportreservedperiod=1,mfsdirentrycacheto=0" \
 	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \

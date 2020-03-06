@@ -23,7 +23,7 @@ CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
 	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = $TEMP_DIR/aclcache.log|LOG_FLUSH_ON=DEBUG" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsacl|mfsaclcachesize=2|mfsaclcacheto=5.0" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsaclcachesize=2|mfsaclcacheto=5.0" \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}

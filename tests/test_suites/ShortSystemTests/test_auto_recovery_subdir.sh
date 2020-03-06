@@ -3,7 +3,7 @@ timeout_set 3 minutes
 CHUNKSERVERS=1 \
 	MOUNTS=2 \
 	USE_RAMDISK="YES" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MASTER_EXTRA_CONFIG="MAGIC_DISABLE_METADATA_DUMPS = 1|AUTO_RECOVERY = 1" \
 	setup_local_empty_lizardfs info

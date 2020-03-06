@@ -5,7 +5,7 @@ MOUNTS=2 \
 	MASTERSERVERS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsacl" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MOUNT_0_EXTRA_EXPORTS="ro,allcanchangequota" \
 	MOUNT_1_EXTRA_EXPORTS="rw,alldirs,allcanchangequota,maxtrashtime=1234567,mapall=lizardfstest_6:lizardfstest_4" \
 	setup_local_empty_lizardfs info

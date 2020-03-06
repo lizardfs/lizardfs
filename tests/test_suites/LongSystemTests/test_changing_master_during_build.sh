@@ -5,7 +5,7 @@ MASTERSERVERS=$metaservers_nr \
 	CHUNKSERVERS=2 \
 	CHUNKSERVER_EXTRA_CONFIG="MASTER_RECONNECTION_DELAY = 1" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="MAGIC_AUTO_FILE_REPAIR = 1" \
 	setup_local_empty_lizardfs info
 

@@ -3,7 +3,7 @@ timeout_set 2 minutes
 MOUNTS=2 \
 	CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER,mfsacl" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MOUNT_1_EXTRA_EXPORTS="allcanchangequota,mapall=lizardfstest_6:lizardfstest_4" \
 	setup_local_empty_lizardfs info
 

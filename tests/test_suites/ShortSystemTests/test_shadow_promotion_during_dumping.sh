@@ -6,7 +6,7 @@ CHUNKSERVERS=1 \
 	MASTERSERVERS=2 \
 	USE_RAMDISK="YES" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota" \
-	MOUNT_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER"
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER"
 	MASTER_EXTRA_CONFIG="$master_cfg" \
 	setup_local_empty_lizardfs info
 

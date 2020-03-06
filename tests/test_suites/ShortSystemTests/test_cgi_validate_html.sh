@@ -8,7 +8,7 @@ CHUNKSERVERS=3 \
 	USE_RAMDISK="YES" \
 	CHUNKSERVER_LABELS="0,1:de|2:us" \
 	MASTER_CUSTOM_GOALS="11 11: de de|12 12: us us|13 13: us de|18 18: us _ _|19 19: _ us de" \
-	MOUNT_0_EXTRA_CONFIG="mfsacl,mfscachemode=NEVER,mfsreportreservedperiod=1,mfsdirentrycacheto=0" \
+	MOUNT_0_EXTRA_CONFIG="mfscachemode=NEVER,mfsreportreservedperiod=1,mfsdirentrycacheto=0" \
 	MOUNT_1_EXTRA_CONFIG="mfsmeta" \
 	MFSEXPORTS_EXTRA_OPTIONS="allcanchangequota,ignoregid" \
 	MFSEXPORTS_META_EXTRA_OPTIONS="nonrootmeta" \
