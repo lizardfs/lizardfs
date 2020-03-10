@@ -9,9 +9,9 @@ count_misses() {
 }
 
 check_misses() {
-	assert_equals "$(count_misses file1)" "$1"
-	assert_equals "$(count_misses file2)" "$2"
-	assert_equals "$(count_misses file3)" "$3"
+	assert_equals "$1" "$(count_misses file1)"
+	assert_equals "$2" "$(count_misses file2)"
+	assert_equals "$3" "$(count_misses file3)"
 }
 
 function get_facl() {
@@ -23,7 +23,7 @@ CHUNKSERVERS=1 \
 	USE_RAMDISK=YES \
 	MFSEXPORTS_EXTRA_OPTIONS=nomasterpermcheck,ignoregid \
 	MASTER_EXTRA_CONFIG="MAGIC_DEBUG_LOG = $TEMP_DIR/aclcache.log|LOG_FLUSH_ON=DEBUG" \
-	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsaclcachesize=2|mfsaclcacheto=5.0" \
+	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER|mfsaclcachesize=2|mfsaclcacheto=5.0|mfsattrcacheto=50" \
 	setup_local_empty_lizardfs info
 
 cd ${info[mount0]}
