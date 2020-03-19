@@ -10,6 +10,10 @@ CHUNKSERVERS=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
 
+MINIMUM_PARALLEL_JOBS=4
+MAXIMUM_PARALLEL_JOBS=16
+PARALLEL_JOBS=$(get_nproc_clamped_between ${MINIMUM_PARALLEL_JOBS} ${MAXIMUM_PARALLEL_JOBS})
+
 # Start Polonaise
 lizardfs-polonaise-server \
 	--master-host=localhost \
@@ -27,4 +31,4 @@ assert_success git clone https://github.com/lizardfs/lizardfs.git
 mkdir lizardfs/build
 cd lizardfs/build
 assert_success cmake .. -DCMAKE_INSTALL_PREFIX="$mnt"
-make -j4 install
+make -j${PARALLEL_JOBS} install

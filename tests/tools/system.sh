@@ -14,3 +14,10 @@ system_init() {
 inode_of() {
 	ls -i $1 | cut -d' ' -f1
 }
+
+get_nproc_clamped_between() {
+	local minimum=$1
+	local maximum=$2
+	local procs_num=$(nproc)
+	echo $(( (procs_num < minimum) ? minimum : (maximum < procs_num) ? maximum : procs_num ))
+}

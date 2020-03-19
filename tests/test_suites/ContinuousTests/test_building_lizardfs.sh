@@ -3,6 +3,10 @@ continuous_test_begin
 lizardfs setgoal 2 .
 workspace=$(pwd)
 
+MINIMUM_PARALLEL_JOBS=4
+MAXIMUM_PARALLEL_JOBS=16
+PARALLEL_JOBS=$(get_nproc_clamped_between ${MINIMUM_PARALLEL_JOBS} ${MAXIMUM_PARALLEL_JOBS})
+
 # Prepare a reasonably up-to-date copy of LizardFS sources from GitHub
 if [[ ! -d lizardfs ]]; then
 	assert_success git clone "https://github.com/lizardfs/lizardfs.git" lizardfs
@@ -33,6 +37,6 @@ for i in {0..4}; do
 	assert_success mkdir -p build
 	cd build
 	assert_success cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=../install_prefix
-	assert_success make -j4
+	assert_success make -j${PARALLEL_JOBS}
 	assert_success make install
 done

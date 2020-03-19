@@ -14,6 +14,9 @@ CHUNKSERVERS=5 \
 	CHUNKSERVER_EXTRA_CONFIG="READ_AHEAD_KB = 1024|MAX_READ_BEHIND_KB = 2048"
 	setup_local_empty_lizardfs info
 
+MINIMUM_PARALLEL_JOBS=4
+MAXIMUM_PARALLEL_JOBS=16
+PARALLEL_JOBS=$(get_nproc_clamped_between ${MINIMUM_PARALLEL_JOBS} ${MAXIMUM_PARALLEL_JOBS})
 
 test_error_cleanup() {
 	sudo umount $TEMP_DIR/mnt/nfs3
@@ -38,13 +41,13 @@ ln -s ../../ntirpc-1.5 nfs-ganesha-2.5-stable/src/libntirpc
 mkdir nfs-ganesha-2.5-stable/src/build
 cd nfs-ganesha-2.5-stable/src/build
 CC="ccache gcc" cmake -DCMAKE_INSTALL_PREFIX=${info[mount0]} ..
-make -j4 install
+make -j${PARALLEL_JOBS} install
 cp ${LIZARDFS_ROOT}/lib/ganesha/libfsallizardfs* ${info[mount0]}/lib/ganesha
 
 # mkdir ${info[mount0]}/ntirpc-1.5/build
 # cd ${info[mount0]}/ntirpc-1.5/build
 # CC="ccache gcc" cmake -DCMAKE_INSTALL_PREFIX=${info[mount0]} ..
-# make -j4 install
+# make -j${PARALLEL_JOBS} install
 
 cd ${info[mount0]}
 

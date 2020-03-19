@@ -10,6 +10,10 @@ CHUNKSERVERS=2 \
 	USE_RAMDISK="YES" \
 	setup_local_empty_lizardfs info
 
+MINIMUM_PARALLEL_JOBS=5
+MAXIMUM_PARALLEL_JOBS=16
+PARALLEL_JOBS=$(get_nproc_clamped_between ${MINIMUM_PARALLEL_JOBS} ${MAXIMUM_PARALLEL_JOBS})
+
 master_kill_loop() {
 	while true; do
 		lizardfs_stop_master_without_saving_metadata
@@ -28,4 +32,4 @@ lizardfs setgoal -r 2 lizardfs
 mkdir lizardfs/build
 cd lizardfs/build
 assert_success cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=../install
-assert_success make -j5 install
+assert_success make -j${PARALLEL_JOBS} install
