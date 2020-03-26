@@ -46,7 +46,7 @@ chmod 0777 "${ERROR_DIR}"
 # Run the tests
 cd "$(dirname "$0")"
 stop_tests
-test_script="source tools/test_main.sh; test_begin; source '$1'; test_end"
+test_script="source tools/test_main.sh; test_begin; trap test_end INT; source '$1'; test_end"
 nice nice sudo -HEu lizardfstest bash -c "$test_script"
 status=$?
 stop_tests
