@@ -1,6 +1,6 @@
 # TODO Fix this test
 
-exit 0
+test_end
 
 # Create an installation where the default goal (id=1) is "30 copies" and 20 servers
 USE_RAMDISK=YES \
