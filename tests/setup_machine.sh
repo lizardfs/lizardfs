@@ -28,7 +28,7 @@ shift
 set -eux
 
 echo ; echo Add group fuse
-groupadd fuse
+groupadd -f fuse
 
 echo ; echo Add user lizardfstest
 if ! getent passwd lizardfstest > /dev/null; then
