@@ -193,6 +193,10 @@ void master_stats_add(uint8_t id,uint64_t s) {
 static inline void setDisconnect(bool value) {
 	std::unique_lock<std::mutex> fdLock(fdMutex);
 	disconnect = value;
+	if(value) {
+		LizardClient::masterDisconnectedCallback();
+		lzfs_pretty_syslog(LOG_WARNING,"master: disconnected");
+	}
 }
 
 void fs_inc_acnt(uint32_t inode) {

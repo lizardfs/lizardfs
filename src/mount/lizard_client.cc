@@ -144,6 +144,10 @@ void updateGroups(Context &ctx) {
 	ctx.gid = gid;
 }
 
+void masterDisconnectedCallback() {
+	gGroupCache.reset();
+}
+
 Inode getSpecialInodeByName(const char *name) {
 	assert(name);
 

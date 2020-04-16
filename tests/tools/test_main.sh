@@ -19,6 +19,7 @@ done
 . tools/lizardfs.sh
 . tools/lizardfsXX.sh
 . tools/network.sh
+. tools/permissions.sh
 . tools/random.sh
 . tools/system.sh
 . tools/test.sh

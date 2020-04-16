@@ -86,6 +86,12 @@ public:
 		return (it == cache_.end()) ? Groups() : it->first;
 	}
 
+	void reset() {
+		std::lock_guard<std::mutex> guard(mutex_);
+		cache_.clear();
+		index_ = 0;
+	}
+
 protected:
 	uint32_t index_;
 	std::mutex mutex_;

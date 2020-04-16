@@ -301,6 +301,8 @@ struct RequestException : public std::exception {
 
 void updateGroups(Context &ctx);
 
+void masterDisconnectedCallback();
+
 // TODO what about this one? Will decide when writing non-fuse client
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
