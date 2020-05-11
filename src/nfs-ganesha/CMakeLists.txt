@@ -23,5 +23,4 @@ add_library(fsallizardfs MODULE ${NFS_GANESHA_PLUGIN_MAIN} ${NFS_GANESHA_PLUGIN_
 
 target_link_libraries(fsallizardfs lizardfs-client_pic)
 
-set_target_properties(fsallizardfs PROPERTIES VERSION 4.2.0 SOVERSION 4)
 install(TARGETS fsallizardfs COMPONENT fsal DESTINATION ${LIB_SUBDIR}/ganesha )

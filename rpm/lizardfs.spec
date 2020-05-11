@@ -13,7 +13,7 @@ BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
 BuildRequires:  asciidoc
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 BuildRequires:  systemd
 %endif
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -26,6 +26,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %define         liz_limits_conf    /etc/security/limits.d/10-lizardfs.conf
 %define         liz_pam_d          /etc/pam.d/lizardfs
 %define         _unpackaged_files_terminate_build 0
+%define         debug_package      %{nil}
 
 %description
 LizardFS is an Open Source, easy to deploy and maintain, distributed,
@@ -39,7 +40,7 @@ http://lizardfs.com
 %package master
 Summary:        LizardFS master server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -51,7 +52,7 @@ LizardFS master (metadata) server together with metarestore utility.
 %package metalogger
 Summary:        LizardFS metalogger server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -63,7 +64,7 @@ LizardFS metalogger (metadata replication) server.
 %package chunkserver
 Summary:        LizardFS data server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -117,7 +118,7 @@ LizardFS CGI Monitor.
 Summary:        Simple CGI-capable HTTP server to run LizardFS CGI Monitor
 Group:          System Environment/Daemons
 Requires:       %{name}-cgi = %{version}-%{release}
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
@@ -168,7 +169,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-master
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_post lizardfs-master.service
 %endif
 
@@ -179,7 +180,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-master
 fi
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-master.service
 %endif
 
@@ -187,7 +188,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-master condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-master.service
 %endif
 
@@ -207,7 +208,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-metalogger
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_post lizardfs-metalogger.service
 %endif
 
@@ -218,7 +219,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-metalogger
 fi
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-metalogger.service
 %endif
 
@@ -226,7 +227,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-metalogger condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-metalogger.service
 %endif
 
@@ -254,7 +255,7 @@ exit 0
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-chunkserver
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_post lizardfs-chunkserver.service
 %endif
 
@@ -265,7 +266,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-chunkserver
 fi
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-chunkserver.service
 %endif
 
@@ -273,7 +274,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-chunkserver condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-chunkserver.service
 %endif
 
@@ -284,7 +285,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/chkconfig --add lizardfs-cgiserv
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_post lizardfs-cgiserv.service
 %endif
 
@@ -295,7 +296,7 @@ if [ "$1" = 0 ] ; then
 	/sbin/chkconfig --del lizardfs-cgiserv
 fi
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-cgiserv.service
 %endif
 
@@ -303,7 +304,7 @@ fi
 %if "%{distro}" == "el6"
 /sbin/service lizardfs-cgiserv condrestart > /dev/null 2>&1 || :
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-cgiserv.service
 %endif
 
@@ -311,7 +312,7 @@ fi
 ############################################################
 
 %post client3
-/bin/ln -s %{_mandir}/man1/mfsmount.1 %{_mandir}/man1/mfsmount3.1
+/bin/ln -sf %{_mandir}/man1/mfsmount.1 %{_mandir}/man1/mfsmount3.1
 
 # Scriptlets - uraft
 ############################################################
@@ -345,7 +346,7 @@ for f in rpm/init-scripts/*.init ; do
                 s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
 done
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 install -d -m755 $RPM_BUILD_ROOT/%{_unitdir}
 for f in rpm/service-files/*.service ; do
 	install -m644 "$f" $RPM_BUILD_ROOT/%{_unitdir}/$(basename "$f")
@@ -356,6 +357,7 @@ done
 rm -rf $RPM_BUILD_ROOT
 
 %files master
+%define liz_master_examples %{_docdir}/lizardfs-master/examples
 %defattr(644,root,root,755)
 %doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmaster
@@ -375,35 +377,37 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/mfsmetadump.8*
 %{_mandir}/man8/mfsmetarestore.8*
 %{_mandir}/man8/mfsrestoremaster.8*
-%{liz_confdir}/mfsexports.cfg
-%{liz_confdir}/mfstopology.cfg
-%{liz_confdir}/mfsgoals.cfg
-%{liz_confdir}/mfsmaster.cfg
-%{liz_confdir}/globaliolimits.cfg
+%{liz_master_examples}/mfsexports.cfg
+%{liz_master_examples}/mfstopology.cfg
+%{liz_master_examples}/mfsgoals.cfg
+%{liz_master_examples}/mfsmaster.cfg
+%{liz_master_examples}/globaliolimits.cfg
 %attr(644,root,root) %{liz_datadir}/metadata.mfs.empty
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-master
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-master.service
 %endif
 
 %files metalogger
+%define liz_metalogger_examples %{_docdir}/lizardfs-metalogger/examples
 %defattr(644,root,root,755)
 %doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfsmetalogger
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfsmetalogger.cfg.5*
 %{_mandir}/man8/mfsmetalogger.8*
-%{liz_confdir}/mfsmetalogger.cfg
+%{liz_metalogger_examples}/mfsmetalogger.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-metalogger
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-metalogger.service
 %endif
 
 %files chunkserver
+%define liz_chunkserver_examples %{_docdir}/lizardfs-chunkserver/examples
 %defattr(644,root,root,755)
 %doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfschunkserver
@@ -411,16 +415,17 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man5/mfschunkserver.cfg.5*
 %{_mandir}/man5/mfshdd.cfg.5*
 %{_mandir}/man8/mfschunkserver.8*
-%{liz_confdir}/mfschunkserver.cfg
-%{liz_confdir}/mfshdd.cfg
+%{liz_chunkserver_examples}/mfschunkserver.cfg
+%{liz_chunkserver_examples}/mfshdd.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-chunkserver
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-chunkserver.service
 %endif
 
 %files client
+%define liz_client_examples %{_docdir}/lizardfs-client/examples
 %defattr(644,root,root,755)
 %doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_bindir}/lizardfs
@@ -471,8 +476,8 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man7/moosefs.7*
 %{_mandir}/man1/mfsmount.1*
 %{_mandir}/man5/mfsmount.cfg.5*
-%{liz_confdir}/mfsmount.cfg
-%{liz_confdir}/iolimits.cfg
+%{liz_client_examples}/iolimits.cfg
+%{liz_client_examples}/mfsmount.cfg
 %{_sysconfdir}/bash_completion.d/lizardfs
 
 %files client3
@@ -491,8 +496,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %files nfs-ganesha
 %{_libdir}/ganesha/libfsallizardfs.so
-%{_libdir}/ganesha/libfsallizardfs.so.4
-%{_libdir}/ganesha/libfsallizardfs.so.4.2.0
 
 %files cgi
 %defattr(644,root,root,755)
@@ -515,7 +518,7 @@ rm -rf $RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-cgiserv
 %endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
+%if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-cgiserv.service
 %endif
 
@@ -528,6 +531,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-probe.8*
 
 %files uraft
+%define liz_uraft_examples %{_docdir}/lizardfs-uraft/examples
 %defattr(644,root,root,755)
 %attr(755,root,root) %{_sbindir}/lizardfs-uraft
 %attr(755,root,root) %{_sbindir}/lizardfs-uraft-helper
@@ -535,11 +539,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/lizardfs-uraft.8*
 %{_mandir}/man8/lizardfs-uraft-helper.8*
 %{_mandir}/man5/lizardfs-uraft.cfg.5*
-%{liz_confdir}/lizardfs-uraft.cfg
+%{liz_uraft_examples}/lizardfs-uraft.cfg
 %if "%{distro}" == "el6"
 %attr(754,root,root) %{_initrddir}/lizardfs-uraft
 %endif
-%if "%{distro}" == "el7"
+%if "%{distro}" == "el7" || "%{distro}" == "el8"
 %attr(644,root,root) %{_unitdir}/lizardfs-uraft.service
 %attr(644,root,root) %{_unitdir}/lizardfs-ha-master.service
 %endif

@@ -6,7 +6,7 @@ if(ENABLE_TESTS)
 endif()
 
 # Find spdlog
-
+find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 
 # Find standard libraries

@@ -185,7 +185,7 @@ case "$release" in
 		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
 		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools
+		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev
 		;;
 	CentOS/6)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
