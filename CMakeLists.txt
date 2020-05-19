@@ -39,6 +39,7 @@ option(ENABLE_CRC               "Enable checksums"                              
 option(ENABLE_REQUEST_LOG       "Enable logging request times"                           OFF)
 option(USE_LEGACY_READ_MESSAGES "Enable sending old type of messages by mount"           OFF)
 option(ENABLE_NFS_GANESHA       "Enable nfs-ganesha plugin"                              OFF)
+option(ENABLE_CCACHE            "Enable ccache during compilation"                       ON)
 
 get_property(LIB64 GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS)
 if (LIB64)
@@ -47,6 +48,15 @@ else()
   set(LIBSUFFIX "")
 endif()
 message(STATUS "LIB64: ${LIB64}")
+
+find_program(CCACHE_FOUND ccache)
+message(STATUS "ENABLE_CCACHE: ${ENABLE_CCACHE}")
+message(STATUS "CCACHE_FOUND: ${CCACHE_FOUND}")
+if(ENABLE_CCACHE AND CCACHE_FOUND)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+  message(STATUS "Using ccache")
+endif()
+
 
 if(ENABLE_DEBIAN_PATHS)
   if (NOT CMAKE_INSTALL_PREFIX STREQUAL "/")
