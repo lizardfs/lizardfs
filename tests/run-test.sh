@@ -10,6 +10,49 @@
 #   ALL ALL = (lizardfstest) NOPASSWD: ALL
 #   ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u lizardfstest
 
+start_test() {
+	local test_name=$1
+	local test_env=$2
+
+	if [[ -n $test_env ]]; then
+		test_env=$test_env;
+	fi
+
+	test_script="source tools/test_main.sh; test_begin; trap test_end INT; $test_env source '$test_name'; test_end"
+	nice nice sudo -HEu lizardfstest bash -c "$test_script"
+	status=$?
+	stop_tests
+}
+
+# If you want to run a test multiple times with different values.
+# Include a generator statement inside of the test's source file.
+# Example:
+# @generator
+# _wrapper() {
+#     @callback@
+# }
+# @endgenerator
+# If you want to pass additional parameters pass:
+# _wrapper() {
+#     @callback@ "key='your own long value'"
+# }
+unwrap_generators() {
+	local start=$(cat $1 | grep -n "# @generator" | cut -d: -f1)
+	local end=$(cat $1 | grep -n "# @endgenerator" | cut -d: -f1)
+	if [[ $start ]] && [[ $end ]]; then
+		start=$((start + 1))
+		end=$((end - 1))
+		wrapper_src=$(cat $1 | sed -ne "s+@callback@+start_test $1+g;${start},${end}s/#//p")
+		echo "Using generator statement:"
+		echo "$1:[$start, $end]:"
+		echo "$wrapper_src"
+		eval "$wrapper_src"
+		_wrapper
+	else
+		start_test $1
+	fi
+}
+
 stop_tests() {
 	local users=$(echo lizardfstest lizardfstest_{0..9})
 	local users_list=${users// /,}
@@ -48,10 +91,8 @@ chmod 0777 /tmp/test_err
 # Run the tests
 cd "$(dirname "$0")"
 stop_tests
-test_script="source tools/test_main.sh; test_begin; trap test_end INT; source '$1'; test_end"
-nice nice sudo -HEu lizardfstest bash -c "$test_script"
-status=$?
-stop_tests
+
+unwrap_generators $1
 
 nice nice sudo -HEu lizardfstest sh -c "chmod -Rf a+rwX ${ERROR_DIR}"
 for log_file in "$ERROR_DIR"/* ; do

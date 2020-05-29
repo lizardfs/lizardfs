@@ -81,3 +81,28 @@ pseudorandom() {
 	local result=$(( min + (pass1 + pass2) % (max - min + 1) ))
 	echo $result
 }
+
+# random_subsets <n> <k> <count> -- echoes 'count' random (n,k)-combinations
+random_subsets_of_fixed_size() {
+	local n=$1
+	local k=$2
+	local count=${3:-1}
+
+	python3 ${SOURCE_DIR}/tests/tools/combinations.py --porcelain --random_subsets_of_fixed_size $n $k $count
+}
+
+# selected_combinations <n> <k> -- echos selected (n+k, k)-combinations
+selected_combinations() {
+	local n=$1
+	local k=$2
+
+	python3 ${SOURCE_DIR}/tests/tools/combinations.py --porcelain --selected_combinations $n $k
+}
+
+# all_subsets_of_fixed_size <n> <k>
+all_subsets_of_fixed_size() {
+	local n=$1
+	local k=$2
+
+	python3 ${SOURCE_DIR}/tests/tools/combinations.py --porcelain --all_combinations $n $k
+}
