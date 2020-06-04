@@ -8,17 +8,17 @@ For support please contact contact@lizardfs.com or visit www.lizardfs.com.
 
 ## Useful links
 
-- [Main code repository](http://cr.skytechnology.pl:8081/#/admin/projects/lizardfs)
+- [Main code repository](https://cr.skytechnology.pl/admin/repos/lizardfs)
 
 - [GitHub repository mirror](https://github.com/lizardfs/lizardfs)
 
 - [Documentation Source](https://github.com/lizardfs/documentation)
 
-- [Code review system](http://cr.skytechnology.pl:8081/)
+- [Code review system](https://cr.skytechnology.pl/)
 
-- [Continuous integration system](http://jenkins.lizardfs.org/)
+- [Continuous integration system](https://jenkins.lizardfs.org/)
 
-- [Documentation](http://docs.lizardfs.com/)
+- [Documentation](https://docs.lizardfs.com/)
 
 - [Mailing List](https://sourceforge.net/p/lizardfs/mailman/lizardfs-users/)
 
