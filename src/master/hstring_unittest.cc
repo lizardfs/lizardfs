@@ -95,58 +95,73 @@ TEST(HStringTest, MemCopy) {
  */
 #ifdef LIZARDFS_HAVE_DB
 TEST(HStringTest, BDBComparison) {
-	Storage::reset(new BDBStorage("/tmp/db.db", 1024*1024, 1));
-	HString str1("Good morning");
-	HString str2("Good evening");
-	Handle handle(str1);
+	const char DB_FILEPATH[] = "/tmp/db.db";
+	{
+		Storage::reset(new BDBStorage(DB_FILEPATH, 1024*1024, 1));
+		HString str1("Good morning");
+		HString str2("Good evening");
+		Handle handle(str1);
 
-	EXPECT_TRUE(str1 == handle);
-	EXPECT_TRUE(handle == str1);
-	EXPECT_FALSE(str1 != handle);
-	EXPECT_FALSE(handle != str1);
-	EXPECT_FALSE(str2 == handle);
-	EXPECT_FALSE(handle == str2);
+		EXPECT_TRUE(str1 == handle);
+		EXPECT_TRUE(handle == str1);
+		EXPECT_FALSE(str1 != handle);
+		EXPECT_FALSE(handle != str1);
+		EXPECT_FALSE(str2 == handle);
+		EXPECT_FALSE(handle == str2);
 
-	EXPECT_TRUE(str1 >= handle);
-	EXPECT_TRUE(handle <= str1);
-	EXPECT_TRUE(str2 < handle);
-	EXPECT_TRUE(handle > str2);
-	EXPECT_TRUE(str1 <= handle);
-	EXPECT_TRUE(handle >= str1);
-	EXPECT_TRUE(handle > str2);
-	EXPECT_TRUE(str2 < handle);
+		EXPECT_TRUE(str1 >= handle);
+		EXPECT_TRUE(handle <= str1);
+		EXPECT_TRUE(str2 < handle);
+		EXPECT_TRUE(handle > str2);
+		EXPECT_TRUE(str1 <= handle);
+		EXPECT_TRUE(handle >= str1);
+		EXPECT_TRUE(handle > str2);
+		EXPECT_TRUE(str2 < handle);
 
-	EXPECT_TRUE(str1 > str2);
-	EXPECT_TRUE(str1 >= str2);
-	EXPECT_TRUE(str2 < str1);
-	EXPECT_TRUE(str2 <= str1);
+		EXPECT_TRUE(str1 > str2);
+		EXPECT_TRUE(str1 >= str2);
+		EXPECT_TRUE(str2 < str1);
+		EXPECT_TRUE(str2 <= str1);
 
-	EXPECT_TRUE(str1 >= str1);
-	EXPECT_TRUE(str1 <= str1);
-	EXPECT_TRUE(str2 >= str2);
-	EXPECT_TRUE(str2 <= str2);
+		EXPECT_TRUE(str1 >= str1);
+		EXPECT_TRUE(str1 <= str1);
+		EXPECT_TRUE(str2 >= str2);
+		EXPECT_TRUE(str2 <= str2);
+	} // destroy all Handle objects
+	Storage::reset();
+	std::remove(DB_FILEPATH);
 }
 
 TEST(HStringTest, BDBGet) {
-	Storage::reset(new BDBStorage("/tmp/db.db", 1024*1024, 2));
-	HString strs[]{HString("Good morning"), HString("Good evening"), HString()};
-	for (auto &str : strs) {
-		Handle handle(str);
-		EXPECT_TRUE(str == handle);
-	}
-	Handle handle(strs[0] + strs[1] + strs[2]);
-	EXPECT_TRUE(strs[0] + strs[1] + strs[2] == handle.get());
+	const char DB_FILEPATH[] = "/tmp/db.db";
+	{
+		Storage::reset(new BDBStorage(DB_FILEPATH, 1024*1024, 2));
+		HString strs[]{HString("Good morning"), HString("Good evening"), HString()};
+		for (auto &str : strs) {
+			Handle handle(str);
+			EXPECT_TRUE(str == handle);
+		}
+		Handle handle(strs[0] + strs[1] + strs[2]);
+		EXPECT_TRUE(strs[0] + strs[1] + strs[2] == handle.get());
+	} // destroy all Handle objects
+	Storage::reset();
+	std::remove(DB_FILEPATH);
 }
 
 TEST(HStringTest, BDBHash) {
-	Storage::reset(new BDBStorage("/tmp/db.db", 1024*1024, 3));
-	HString str("Good morning");
-	Handle h1(str);
-	Handle h2(str);
+	const char DB_FILEPATH[] = "/tmp/db.db";
+	{
+		Storage::reset(new BDBStorage(DB_FILEPATH, 1024*1024, 3));
+		HString str("Good morning");
+		Handle h1(str);
+		Handle h2(str);
 
-	EXPECT_EQ(BDBStorage::hash(h1), BDBStorage::hash(h2));
-	EXPECT_EQ(BDBStorage::hash(h1), static_cast<BDBStorage::HashType>(::std::hash< ::std::string>()(str)));
-	EXPECT_EQ(BDBStorage::hash(h1), h1.hash());
+		EXPECT_EQ(BDBStorage::hash(h1), BDBStorage::hash(h2));
+		EXPECT_EQ(BDBStorage::hash(h1), static_cast<BDBStorage::HashType>(::std::hash< ::std::string>()(str)));
+		EXPECT_EQ(BDBStorage::hash(h1), h1.hash());
+	} // destroy all Handle objects
+	Storage::reset();
+	std::remove(DB_FILEPATH);
 }
 
 TEST(HStringTest, BDBCopy) {

@@ -39,9 +39,11 @@ export SOURCE_DIR=$(readlink -m "$(dirname "$0")/..")
 export ERROR_DIR=/tmp/lizardfs_error_dir
 export LIZARDFS_LOG_ORIGIN=yes # adds file:line:function to debug logs
 umask 0022
-rm -rf "${ERROR_DIR}"
+sudo rm -rf "${ERROR_DIR}" /tmp/test_err
 mkdir "${ERROR_DIR}"
 chmod 0777 "${ERROR_DIR}"
+touch /tmp/test_err
+chmod 0777 /tmp/test_err
 
 # Run the tests
 cd "$(dirname "$0")"

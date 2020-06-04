@@ -1,5 +1,12 @@
 # Load config file with machine-specific configuration
-if [[ -f /etc/lizardfs_tests.conf ]]; then
+if [[ ! -z "${LIZARDFS_TESTS_CONF:-}" && -f "${LIZARDFS_TESTS_CONF}" ]]; then
+	echo "Using \"${LIZARDFS_TESTS_CONF}\" tests configuration file"
+	. "${LIZARDFS_TESTS_CONF}"
+elif [[ -f /home/${SUDO_USER}/etc/lizardfs/tests.conf ]]; then
+	echo "Using \"/home/${SUDO_USER}/etc/lizardfs/tests.conf\" tests configuration file"
+	. /home/${SUDO_USER}/etc/lizardfs/tests.conf
+elif [[ -f /etc/lizardfs_tests.conf ]]; then
+	echo "Using the default \"/etc/lizardfs_tests.conf\" tests configuration file"
 	. /etc/lizardfs_tests.conf
 fi
 

@@ -14,7 +14,7 @@ To prepare the testing environment safely, please use the following script:
 You will need root permissions to use it. When running it, you may want to provide
 directories which will be used by chunkservers during the tests to store any
 generated data as arguments for this script, eg:
-    
+
     sudo setup_machine.sh setup /mnt/hdb /mnt/hdc /mnt/hdd /mnt/hde
 
 These directories may be located on one physical disk. Long tests, however, may not work
@@ -52,6 +52,12 @@ After that, the tests are ready to be run.
 
 How to launch the tests?
 ========================
+
+The testing framework configuration is read from one of multiple possible sources,
+either:
+- /etc/lizardfs_tests.conf
+- ${HOME}/etc/lizardfs/tests.conf
+- ${LIZARDFS_TESTS_CONF}
 
 Test binary is installed together with the file system. The path leading to it
 is the following:
