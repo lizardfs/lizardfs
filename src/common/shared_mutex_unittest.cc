@@ -20,6 +20,7 @@
 #include "common/shared_mutex.h"
 
 #include <unistd.h>
+#include <atomic>
 #include <list>
 #include <thread>
 
@@ -27,8 +28,8 @@
 
 TEST(SharedMutex, LockTest) {
 	shared_mutex m;
-	volatile int shared_count = 0;
-	volatile int exclusive_count = 0;
+	std::atomic_int shared_count{0};
+	int exclusive_count = 0;
 	std::list<std::thread> threads;
 
 	for(int i = 0; i < 100; ++i) {
