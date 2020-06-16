@@ -22,16 +22,19 @@
 
 int main(int argc, char** argv) {
 	if (argc < 2) {
-		std::cerr << "Usage:" << std::endl
-				<< "    " << argv[0] << " <file>..." << std::endl
-				<< "Command uses the following environment variables: " << std::endl
-				<< "* FILE_SIZE" << std::endl
-				<< "* BLOCK_SIZE" << std::endl;
+		std::cerr << "Usage:\n"
+			"    " << argv[0] << " <file>...\n"
+			"Command uses the following environment variables:\n"
+			"* FILE_SIZE\n"
+			"* BLOCK_SIZE\n"
+			"* SEED" << std::endl;
 		return 1;
 	}
 
+	const size_t FILE_SIZE = UtilsConfiguration::fileSize();
+	DataGenerator generator(UtilsConfiguration::seed());
 	for (int i = 1; i < argc; ++i) {
-		DataGenerator::createFile(argv[i], UtilsConfiguration::fileSize());
+		generator.createFile(argv[i], FILE_SIZE);
 	}
 	return 0;
 }

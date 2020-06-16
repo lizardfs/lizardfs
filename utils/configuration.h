@@ -30,14 +30,22 @@
 class UtilsConfiguration : public Configuration {
 public:
 	static size_t blockSize() {
-		return getIntOr("BLOCK_SIZE", 64 * 1024);
+		return getIntWithUnitOr("BLOCK_SIZE", 64 * 1024);
 	}
 
 	static size_t fileSize() {
-		return getIntOr("FILE_SIZE", 1024 * 1024 * 100);
+		return getIntWithUnitOr("FILE_SIZE", 1024 * 1024 * 100);
 	}
 
 	static size_t repeatAfter_ms() {
 		return getIntOr("REPEAT_AFTER_MS", 0);
 	}
+
+	static int seed() {
+		return getIntOr("SEED", 0);
+	}
+
+public:
+	using Configuration::parseIntWithUnit;
+	using Configuration::parseInt;
 };

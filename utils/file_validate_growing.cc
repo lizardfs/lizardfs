@@ -24,14 +24,18 @@
 
 int main(int argc, char** argv) {
 	if (argc != 3) {
-		std::cerr << "Usage:" << std::endl
-				<< "    " << argv[0] << " <file name> <size>" << std::endl;
+		std::cerr << "Usage:\n"
+			"    " << argv[0] << " <file name> <size>\n"
+			"Command uses the following environment variables:\n"
+			"* SEED" << std::endl;
 		return 1;
 	}
 	signal(SIGPIPE, SIG_IGN);
 
+	const long FILE_SIZE = UtilsConfiguration::parseIntWithUnit(argv[2]);
+	DataGenerator generator(UtilsConfiguration::seed());
 	try {
-		DataGenerator::validateGrowingFile(argv[1], std::stoi(argv[2]));
+		generator.validateGrowingFile(argv[1], FILE_SIZE);
 	} catch (std::exception& ex) {
 		std::cerr << "File " << argv[1] << ": " << ex.what() << std::endl;
 		return 2;

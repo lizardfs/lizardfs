@@ -33,25 +33,31 @@
 #include "utils/asserts.h"
 #include "utils/configuration.h"
 
-/*
+/**
  * This class generates files in the following format:
  * - first 8 bytes: size of the file (thus the minimal size is 8 bytes)
  * - then a sequence of 8-byte blocks, each block contains a value
- *     (offset + 0x0807060504030201) % 2^64
+ *     if seed == 0 => (offset + 0x0807060504030201) % 2^64
+ *     else         => (offset + (rand << 32 | rand)) % 2^64
  * If the file size does not divide by 8 the last block is truncated.
  * All numbers (uint64) are in big endian format
  * (it is easier for a human to read the hexdump -C of such file)
  */
 class DataGenerator {
 public:
-	static void createFile(const std::string& name, uint64_t size) {
+	/**
+	 * \param seed seed to initiate pseudorandom generation of the data pattern
+	 */
+	explicit DataGenerator(int seed = 0) noexcept : seed_(seed) {}
+
+	void createFile(const std::string& name, uint64_t size) const {
 		int fd = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, (mode_t)0644);
 		utils_passert(fd >= 0);
 		fillFileWithProperData(fd, size);
 		utils_zassert(close(fd));
 	}
 
-	static void overwriteFile(const std::string& name) {
+	void overwriteFile(const std::string& name) const {
 		struct stat fileInformation;
 		utils_zassert(stat(name.c_str(), &fileInformation));
 		int fd = open(name.c_str(), O_WRONLY, (mode_t)0644);
@@ -60,7 +66,7 @@ public:
 		utils_zassert(close(fd));
 	}
 
-	static void validateFile(int fd, const std::string &name, uint64_t file_size = 0) {
+	void validateFile(int fd, const std::string &name, uint64_t file_size = 0) const {
 		std::string error;
 
 		struct stat file_information;
@@ -109,7 +115,7 @@ public:
 				if (actual_buffer[i] != proper_buffer[i]) {
 					std::stringstream ss;
 					ss << "(inode " << file_information.st_ino << ")"
-							<< " data mismatch at offset " << i << ". Expected/actual:\n";
+							<< " data mismatch at offset " << i << ", seed " << seed_ << ". Expected/actual:\n";
 					for (size_t j = i; j < (size_t)bytes_read && j < i + 32; ++j) {
 						ss << std::hex << std::setfill('0') << std::setw(2)
 								<< static_cast<int>(static_cast<unsigned char>(proper_buffer[j]))
@@ -137,7 +143,7 @@ public:
 	 * in case of the data is corrupted. If 'repeat_after' is set, validation
 	 * should be repeated after given time (for testing various caches).
 	 */
-	static void validateFile(const std::string& name, size_t repeat_after_ms) {
+	void validateFile(const std::string& name, size_t repeat_after_ms) const {
 		int fd = open(name.c_str(), O_RDONLY);
 		utils_passert(fd != -1);
 		if (repeat_after_ms > 0) {
@@ -154,7 +160,7 @@ public:
 		utils_zassert(close(fd));
 	}
 
-	static void validateGrowingFile(const std::string& name, size_t file_size) {
+	void validateGrowingFile(const std::string& name, size_t file_size) const {
 		int fd = open(name.c_str(), O_RDONLY);
 		utils_passert(fd != -1);
 		validateFile(fd, name, file_size);
@@ -162,7 +168,7 @@ public:
 	}
 
 protected:
-	static void fillBufferWithProperData(std::vector<char>& buffer, off_t offset) {
+	void fillBufferWithProperData(std::vector<char>& buffer, off_t offset) const {
 		size_t size = buffer.size();
 		if (offset % 8 == 0 && size % 8 == 0) {
 			fillAlignedBufferWithProperData(buffer, offset);
@@ -182,21 +188,32 @@ protected:
 
 	/**
 	 * This function requires both offset and size to be multiples of 8
+	 *
+	 * Not thread-safe (as it uses std::rand).
 	 */
-	static void fillAlignedBufferWithProperData(std::vector<char>& buffer, off_t offset) {
-		typedef uint64_t BlockType;
+	void fillAlignedBufferWithProperData(std::vector<char>& buffer, off_t offset) const {
+		using BlockType = uint64_t;
 		utils_massert(sizeof(BlockType) == 8);
 		utils_massert(offset % sizeof(BlockType) == 0);
 		utils_massert(buffer.size() % sizeof(BlockType) == 0);
 		BlockType *blocks = (BlockType*)buffer.data();
+		BlockType dataPattern = 0x0807060504030201ULL;
+		if (seed_ != 0) {
+			static_assert(
+				sizeof(decltype(std::rand())) == sizeof(int32_t),
+				"This implementation requires 32bit-sized return type of std::rand but its size on your platform is different"
+			);
+			std::srand(seed_);
+			dataPattern = static_cast<BlockType>(std::rand()) << 32 | static_cast<uint32_t>(std::rand());
+		}
 		for (size_t i = 0; i < buffer.size() / sizeof(BlockType); ++i) {
-			BlockType block = htobe64(0x0807060504030201ULL + offset);
+			BlockType block = htobe64(dataPattern + offset);
 			blocks[i] = block;
 			offset += sizeof(BlockType);
 		}
 	}
 
-	static void fillFileWithProperData(int fd, uint64_t size) {
+	void fillFileWithProperData(int fd, uint64_t size) const {
 		utils_massert(fd >= 0);
 
 		/* Write the size of the file */
@@ -220,4 +237,7 @@ protected:
 			currentOffset += bytesToWrite;
 		}
 	}
+
+private:
+	int seed_;
 };

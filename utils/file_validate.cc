@@ -24,17 +24,21 @@
 
 int main(int argc, char** argv) {
 	if (argc == 1) {
-		std::cerr << "Usage:" << std::endl
-				<< "    " << argv[0] << " <file>..." << std::endl;
+		std::cerr << "Usage:\n"
+			"    " << argv[0] << " <file>...\n"
+			"Command uses the following environment variables:\n"
+			"* SEED" << std::endl;
 		return 1;
 	}
 	signal(SIGPIPE, SIG_IGN);
 
+	const size_t REPEAT_AFTER_MS = UtilsConfiguration::repeatAfter_ms();
+	DataGenerator generator(UtilsConfiguration::seed());
 	int error = 0;
 	for (int i = 1; i < argc; ++i) {
 		std::string file = argv[i];
 		try {
-			DataGenerator::validateFile(file, UtilsConfiguration::repeatAfter_ms());
+			generator.validateFile(file, REPEAT_AFTER_MS);
 		} catch (std::exception& ex) {
 			std::cerr << "File " << file << ": " << ex.what() << std::endl;
 			error = 2;
