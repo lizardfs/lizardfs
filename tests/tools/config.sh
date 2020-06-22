@@ -47,7 +47,7 @@ fi
 check_configuration() {
 	for prog in \
 			$LIZARDFS_ROOT/sbin/{mfsmaster,mfschunkserver} \
-			$LIZARDFS_ROOT/bin/{mfsmount,lizardfs} \
+			$LIZARDFS_ROOT/bin/lizardfs \
 			$LIZARDFS_ROOT/bin/file-generate \
 			$LIZARDFS_ROOT/bin/file-validate
 	do
@@ -55,6 +55,10 @@ check_configuration() {
 			test_fail "Configuration error, executable $prog not found"
 		fi
 	done
+
+	if [[ ! -x $LIZARDFS_ROOT/bin/mfsmount ]] && [[ ! -x $LIZARDFS_ROOT/bin/mfsmount3 ]]; then
+		test_fail "Configuration error, mfsmount executable ($LIZARDFS_ROOT/bin/mfsmount or $LIZARDFS_ROOT/bin/mfsmount3) not found"
+	fi
 
 	if ! df -T "$RAMDISK_DIR" | grep "tmpfs\|ramfs" >/dev/null; then
 		test_fail "Configuration error, ramdisk ($RAMDISK_DIR) is missing"

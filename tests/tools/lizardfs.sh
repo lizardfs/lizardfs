@@ -492,6 +492,10 @@ add_mount_() {
 	local mount_id=$1
 	local mount_dir=$mntdir/mfs${mount_id}
 	local mount_cfg=$etcdir/mfsmount${mount_id}.cfg
+	local mfsmount_available=false
+	local mfsmount3_available=false
+	if $(which mfsmount &>/dev/null); then mfsmount_available=true; fi
+	if $(which mfsmount3 &>/dev/null); then mfsmount3_available=true; fi
 	create_mfsmount_cfg_ ${mount_id} > "$mount_cfg"
 	mkdir -p "$mount_dir"
 	lizardfs_info_[mount${mount_id}]="$mount_dir"
@@ -499,11 +503,24 @@ add_mount_() {
 	max_tries=30
 
 	if [ -z ${LZFS_MOUNT_COMMAND+x} ]; then
-		if (($RANDOM % 2)); then
+		if [ "$mfsmount3_available" = true ] && [ "$mfsmount_available" = true ]; then
+			echo "Both versions of mfsmount are available so choose one randomly."
+			if (($RANDOM % 2)); then
+				LZFS_MOUNT_COMMAND=mfsmount3
+				echo "Random chose libfuse3 for mounting filesystem."
+			else
+				LZFS_MOUNT_COMMAND=mfsmount
+				echo "Random chose libfuse2 for mounting filesystem."
+			fi
+		elif [ "$mfsmount3_available" = true ]; then
 			LZFS_MOUNT_COMMAND=mfsmount3
 			echo "Using libfuse3 for mounting filesystem."
-		else
+		elif [ "$mfsmount_available" = true ]; then
 			LZFS_MOUNT_COMMAND=mfsmount
+			echo "Using libfuse2 for mounting filesystem."
+		else
+			echo "No mfsmount executable available, exiting"
+			exit 2
 		fi
 	fi
 
