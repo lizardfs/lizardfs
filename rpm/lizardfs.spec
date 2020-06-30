@@ -339,14 +339,15 @@ make %{?_smp_mflags}
 rm -rf $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
 %if "%{distro}" == "el6"
-install -d $RPM_BUILD_ROOT%{_initrddir}
+install -d -m755 $RPM_BUILD_ROOT/%{_initrddir}
 for f in rpm/init-scripts/*.init ; do
         sed -e 's,@sysconfdir@,%{_sysconfdir},;
                 s,@sbindir@,%{_sbindir},;
-                s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
+                s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT/%{_initrddir}/$(basename $f .init)
 done
 %endif
 %if "%{distro}" == "el7" || "%{distro}" == "el8" || "%{distro}" == "fc24"
+install -d -m755 $RPM_BUILD_ROOT/%{liz_confdir}
 install -d -m755 $RPM_BUILD_ROOT/%{_unitdir}
 for f in rpm/service-files/*.service ; do
 	install -m644 "$f" $RPM_BUILD_ROOT/%{_unitdir}/$(basename "$f")
@@ -364,6 +365,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/mfsrestoremaster
 %attr(755,root,root) %{_sbindir}/mfsmetadump
 %attr(755,root,root) %{_sbindir}/mfsmetarestore
+%dir %{liz_confdir}
+%attr(755,%{liz_user},%{liz_group}) %dir %{liz_confdir}
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfsexports.cfg.5*
 %{_mandir}/man5/mfstopology.cfg.5*
@@ -411,6 +414,8 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(644,root,root,755)
 %doc NEWS README.md UPGRADE
 %attr(755,root,root) %{_sbindir}/mfschunkserver
+%dir %{liz_confdir}
+%attr(755,%{liz_user},%{liz_group}) %dir %{liz_confdir}
 %attr(755,%{liz_user},%{liz_group}) %dir %{liz_datadir}
 %{_mandir}/man5/mfschunkserver.cfg.5*
 %{_mandir}/man5/mfshdd.cfg.5*

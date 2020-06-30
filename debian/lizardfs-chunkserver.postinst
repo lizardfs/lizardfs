@@ -1,0 +1,21 @@
+#! /bin/sh
+
+# Ensure proper permissions on data dir and run dir.
+
+LIZARDFS_USER="lizardfs"
+LIZARDFS_GROUP="lizardfs"
+LIZARDFS_DATA_PATH="/var/lib/lizardfs"
+
+check_dirs() {
+	# check that the metadata dir exists
+	if [ ! -d "$LIZARDFS_DATA_PATH" ]; then
+		mkdir -p "$LIZARDFS_DATA_PATH"
+	fi
+	chmod 0755 "$LIZARDFS_DATA_PATH"
+	chown -R $LIZARDFS_USER:$LIZARDFS_GROUP "$LIZARDFS_DATA_PATH"
+}
+
+check_dirs
+#DEBHELPER#
+
+# vim: ft=sh
