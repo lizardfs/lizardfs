@@ -963,7 +963,7 @@ static void exports_loadexports(void) {
 			std::string err_msg = std::string("exports "
 				"configuration file (") + ExportsFileName +
 				") not found - please create one (you can copy "
-				MFSMASTER_EXAMPLES_SUBDIR "/mfsexports.cfg to "
+				APP_EXAMPLES_SUBDIR "/mfsexports.cfg to "
 				"get a base configuration)";
 			throw InitializeException(err_msg);
 		} else {

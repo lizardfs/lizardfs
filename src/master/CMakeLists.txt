@@ -1,5 +1,5 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_definitions(-DAPPNAME=mfsmaster)
+add_definitions(-DAPPNAME=mfsmaster -DAPP_EXAMPLES_SUBDIR="${MFSMASTER_EXAMPLES_SUBDIR}")
 
 collect_sources(MASTER)
 

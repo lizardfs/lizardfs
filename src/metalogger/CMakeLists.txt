@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_definitions(-DMETALOGGER)
-add_definitions(-DAPPNAME=mfsmetalogger)
+add_definitions(-DAPPNAME=mfsmetalogger -DAPP_EXAMPLES_SUBDIR="${METALOGGER_EXAMPLES_SUBDIR}")
 
 collect_sources(METALOGGER)
 

@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ../master)
 add_definitions(-DMETARESTORE)
-add_definitions(-DAPPNAME=mfsmetarestore)
+add_definitions(-DAPPNAME=mfsmetarestore -DAPP_EXAMPLES_SUBDIR="${USR_SHARE_DOC}")
 
 collect_sources(METARESTORE)
 

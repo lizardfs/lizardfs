@@ -75,6 +75,10 @@
 #  include <security/pam_misc.h>
 #endif
 
+#ifndef CFGNAME
+#define CFGNAME APPNAME
+#endif
+
 #ifndef LIZARDFS_MAX_FILES
 #  define LIZARDFS_MAX_FILES 5000
 #endif
@@ -901,7 +905,7 @@ int main(int argc,char **argv) {
 				"configuration file %s not found - using "
 				"defaults; please create one to remove this "
 				"warning (you can copy sample configuration "
-				"from '" USR_SHARE_DOC "' to get a base "
+				"from '" APP_EXAMPLES_SUBDIR "/" STR(CFGNAME) ".cfg' to get a base "
 				"configuration)",
 				cfgfile.c_str());
 	} else if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
