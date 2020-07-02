@@ -23,7 +23,7 @@ done
 . tools/random.sh
 . tools/system.sh
 . tools/test.sh
-. tools/timeout.sh
+. tools/timeout.sh # has to be sourced after assert.sh
 . tools/valgrind.sh
 . tools/time.sh
 . tools/quota.sh

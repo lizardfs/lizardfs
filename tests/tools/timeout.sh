@@ -1,4 +1,12 @@
 timeout_killer_thread() {
+	# Python3 is used here to perform floating-point multiplication in timeout computation
+	assert_program_installed python3
+
+	local machine_environment_multiplier=1
+	if [[ ! -z "${LIZARDFS_TEST_TIMEOUT_MULTIPLIER:-}" ]]; then
+		machine_environment_multiplier="$LIZARDFS_TEST_TIMEOUT_MULTIPLIER"
+	fi
+
 	while ! test_frozen; do
 		sleep 1
 		if test_frozen; then
@@ -17,14 +25,24 @@ timeout_killer_thread() {
 			continue
 		fi
 
-		local end_ts=$(($begin_ts + $value * $multiplier))
+		local total_timeout=$(python3 -c "print(int($value * $multiplier * $machine_environment_multiplier))")
+		local end_ts=$(($begin_ts + $total_timeout))
 
 		if (( now_ts >= end_ts )); then
-			if (( multiplier != 1 )); then
-				test_add_failure "Test timed out (${multiplier} * ${value_string})"
-			else
-				test_add_failure "Test timed out (${value_string})"
-			fi
+			local format=$(cat <<-END
+				Test timed out (Timeout: %d seconds)
+				   Timeout components: TEST TIMEOUT VALUE | MACHINE'S MULTIPLIER | FRAMEWORK'S MULTIPLIER (e.g. for running under Valgrind)
+				         [in seconds]  %18s | %20s | %22s
+				 timeout_set argument: %18s |
+			END
+			)
+
+			local test_timeout_message=$( printf "$format" \
+				"$total_timeout" \
+				"$value" "$machine_environment_multiplier" "$multiplier" \
+				"$value_string" )
+
+			test_add_failure "$test_timeout_message"
 			test_freeze_result
 			killall -9 -u $(whoami)
 		fi
