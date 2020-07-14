@@ -181,6 +181,9 @@ void masterconn_sendregister(masterconn *eptr) {
 	std::vector<ChunkWithVersionAndType> chunks;
 	std::vector<ChunkWithType> recheck_list;
 
+	//TODO This logic should be encapsulated in a single function call.
+	// acquiring hashlock, iteration over hashtab (with creating of packets) and releasing hashlock
+	// should be done in a single function instead of 3 separate ones
 	hdd_get_chunks_begin();
 	hdd_get_chunks_next_list_data(chunks, recheck_list);
 	while (!chunks.empty()) {
@@ -188,6 +191,7 @@ void masterconn_sendregister(masterconn *eptr) {
 		hdd_get_chunks_next_list_data(chunks, recheck_list);
 	}
 	hdd_get_chunks_end();
+	//^^^
 
 	hdd_get_chunks_next_list_data_recheck(chunks, recheck_list);
 	while (!chunks.empty()) {

@@ -130,7 +130,6 @@ public:
 	static std::string getSubfolderNameGivenChunkId(uint64_t chunkId, int layout_version = 0);
 
 	Chunk *testnext, **testprev;
-	Chunk *next;
 	cntcond *ccond;
 	struct folder *owner;
 	uint64_t chunkid;

@@ -30,7 +30,6 @@
 Chunk::Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state)
 	: testnext(NULL),
 	  testprev(NULL),
-	  next(NULL),
 	  ccond(NULL),
 	  owner(NULL),
 	  chunkid(chunkId),
