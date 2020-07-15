@@ -1,4 +1,8 @@
+assert_program_installed python3
 timeout_set 1 minute
+
+mypyfile="$ERROR_DIR/mypy.log"
+touch $mypyfile && chmod 777 $mypyfile
 
 verify_file() {
 	local file="$1"
@@ -24,6 +28,18 @@ verify_file() {
 	if [[ $file =~ [.](cc|h)$ ]] && $grep '( \| )' "$file"; then
 		test_add_failure "File '$file' has spaces around parens"
 	fi
+	# TODO fixme make_dissector should be statically typed and formatted
+	if [[ $file =~ [.](py)$ ]] && [[ $file != *make_dissector.py* ]] ; then
+		if ! python3 -m mypy --config $SOURCE_DIR/utils/mypy.ini $file >> $mypyfile ; then
+			test_add_failure "File '$file' has failed mypy style check."
+		else
+			sed -i '$d' $mypyfile
+		fi
+
+		if ! python3 -m black --quiet --check $file ; then
+			test_add_failure "File '$file' has failed black formatting check."
+		fi
+	fi
 }
 
 cd "$SOURCE_DIR"
@@ -32,10 +48,14 @@ if ! git rev-parse; then
 	test_end
 fi
 git ls-tree -r --name-only HEAD \
-		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in|cfg)$' \
+		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in|cfg|py)$' \
 		| grep -v 'mfs[.]cgi[.]in' \
 		| grep -v 'lizardfs_c_api[.]h' \
 		| grep -v 'lizardfs_error_codes[.]h' \
 		| grep -v '^external/' \
 		| grep -v 'src/nfs-ganesha' \
 		| while read file; do verify_file "$file"; done
+
+if [ ! -s $mypyfile ]; then
+	rm -f $mypyfile
+fi

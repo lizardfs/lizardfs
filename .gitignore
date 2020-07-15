@@ -55,3 +55,7 @@ compile_commands.json
 /debian/lizardfs-nfs-ganesha/
 /debian/lizardfs-uraft/
 /debian/tmp/
+
+# Mypy #
+########
+.mypy_cache
