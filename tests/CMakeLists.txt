@@ -1,6 +1,10 @@
 include_directories(${GTEST_INCLUDE_DIRS})
 
 # Create automatically generated list of test cases
+
+if ( NOT ( ENABLE_POLONAISE AND POLONAISE_FOUND ) )
+  set ( filter_out "|" "grep" "-v" "polonaise" )
+endif ()
 add_custom_target(list_of_test_cases
   COMMAND ls ${CMAKE_CURRENT_SOURCE_DIR}/test_suites
     | xargs -IXXX echo "class XXX : public BashTestingSuite {};"
@@ -8,6 +12,7 @@ add_custom_target(list_of_test_cases
   COMMAND ${CMAKE_COMMAND} -E copy_if_different test_suites.h.tmp test_suites.h
 
   COMMAND find ${CMAKE_CURRENT_SOURCE_DIR}/test_suites/ -name test_*.sh
+    ${filter_out}
     | sed -e "s/[.]sh$//"
     | awk -F/ "{print $(NF-1) \",\" $NF}"
     | xargs -IXXX echo "add_test_case(XXX)"
