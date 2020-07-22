@@ -38,18 +38,34 @@ protected:
 
 	static long parseIntWithUnit(const std::string &text) {
 		long mult = 1;
+		bool textContainsSuffix = true;
 		char last = text[text.size() - 1];
-		if (last == 'k' || last == 'K') {
-			mult = 1024L;
-		} else if (last == 'm' || last == 'M') {
-			mult = 1024L * 1024;
-		} else if (last == 'g' || last == 'G') {
-			mult = 1024L * 1024 * 1024;
-		} else if (last == 't' || last == 'T') {
-			mult = 1024L * 1024 * 1024 * 1024;
+
+		switch (last) {
+			case 'b':
+			case 'B':
+				break;
+			case 'k':
+			case 'K':
+				mult = 1024L;
+				break;
+			case 'm':
+			case 'M':
+				mult = 1024L * 1024;
+				break;
+			case 'g':
+			case 'G':
+				mult = 1024L * 1024 * 1024;
+				break;
+			case 't':
+			case 'T':
+				mult = 1024L * 1024 * 1024 * 1024;
+				break;
+			default:
+				textContainsSuffix = false;
 		}
 
-		std::string intString = (mult > 1)
+		std::string intString = textContainsSuffix
 			? text.substr(0, text.size() - 1)
 			: text;
 		long intValue = 0;
