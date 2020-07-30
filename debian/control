@@ -73,7 +73,7 @@ Description: LizardFS client
 
 Package: lizardfs-client3
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-client
+Depends: ${shlibs:Depends}, ${misc:Depends}, lizardfs-client, fuse3
 Description: LizardFS client using FUSE3
  LizardFS client: mfsmount3.
 
