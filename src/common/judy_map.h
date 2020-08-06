@@ -109,6 +109,10 @@ public:
 	judy_iterator(const Pvoid_t *data, Word_t i, T2 *v) : data_(data), index_(i), pvalue_(v) {
 	}
 
+	/*!
+	 * Can create const iterator from non-const iterator but not the other way around
+	 * (const-ness cannot be relaxed).
+	 */
 	template <bool _IsConst,
 	          typename = typename std::enable_if<IsConst || (IsConst == _IsConst)>::type>
 	judy_iterator(const judy_iterator<T1, T2, _IsConst> &iter)
@@ -140,7 +144,13 @@ public:
 		return reference(index_, *pvalue_);
 	}
 
-	judy_iterator &operator=(const judy_iterator &other) {
+	/*!
+	 * Can copy-assign non-const iterator to const iterator but not the other way around
+	 * (const-ness cannot be relaxed).
+	 */
+	template <bool _IsConst,
+	          typename = typename std::enable_if<IsConst || (IsConst == _IsConst)>::type>
+	judy_iterator &operator=(const judy_iterator<T1, T2, _IsConst> &other) {
 		data_ = other.data_;
 		index_ = other.index_;
 		pvalue_ = other.pvalue_;

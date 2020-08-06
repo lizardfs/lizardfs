@@ -208,5 +208,5 @@ std::unique_ptr<ReadPlan> SliceReadPlanner::buildPlanFor(uint32_t first_block,
 		addExtraParts(plan.get(), first_block, block_count, offset);
 	}
 
-	return std::move(plan);
+	return plan;
 }

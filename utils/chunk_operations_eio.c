@@ -31,13 +31,13 @@ typedef int (*fsync_t)(int);
 // * pread fails with EIO if offset>FAR_OFFSET_THRESHOLD and file name contains "pread_far_EIO"
 // * pwrite fails with EIO if offset>FAR_OFFSET_THRESHOLD and file name contains "pwrite_far_EIO"
 
-static char *read_filename(int fd, char *buf, int bufsize) {
+// returns -1 on failure and sets errno (via readlink call)
+ssize_t read_filename(int fd, char *buf, int bufsize) {
 	char fdpath[COMMAND_BUFSIZE] = {0};
 
 	sprintf(fdpath, "/proc/self/fd/%d", fd);
 	memset(buf, 0, bufsize);
-	readlink(fdpath, buf, bufsize);
-	return buf;
+	return readlink(fdpath, buf, bufsize);
 }
 
 static int err_on_operation(int fd, const char* opname, size_t offset) {
@@ -45,7 +45,11 @@ static int err_on_operation(int fd, const char* opname, size_t offset) {
 	char always_eio_trigger[COMMAND_BUFSIZE] = {0};
 	char far_eio_trigger[COMMAND_BUFSIZE] = {0};
 
-	read_filename(fd, filename, FILENAME_BUFSIZE);
+	ssize_t result = read_filename(fd, filename, FILENAME_BUFSIZE);
+	if (result == -1) {
+		// cannot read filename, so we assume this file doesn't satisfy the EIO pattern
+		return 0;
+	}
 	if (!strstr(filename, FILENAME_TRIGGER)) {
 		return 0;
 	}
