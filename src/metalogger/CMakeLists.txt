@@ -4,7 +4,7 @@ add_definitions(-DAPPNAME=mfsmetalogger -DAPP_EXAMPLES_SUBDIR="${METALOGGER_EXAM
 
 collect_sources(METALOGGER)
 
-add_library(metalogger ${METALOGGER_SOURCES} ../master/changelog.cc ../master/masterconn.cc)
+add_library(metalogger STATIC ${METALOGGER_SOURCES} ../master/changelog.cc ../master/masterconn.cc)
 target_link_libraries(metalogger mfscommon)
 
 create_unittest(metalogger ${METALOGGER_TESTS})

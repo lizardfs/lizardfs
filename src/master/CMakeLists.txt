@@ -7,7 +7,7 @@ if(NOT DB_FOUND)
   list(REMOVE_ITEM MASTER_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/hstring_bdbstorage.cc")
 endif()
 
-add_library(master ${MASTER_SOURCES})
+add_library(master STATIC ${MASTER_SOURCES})
 target_link_libraries(master mfscommon ${ADDITIONAL_LIBS})
 if(JUDY_LIBRARY)
   target_link_libraries(master ${JUDY_LIBRARY})

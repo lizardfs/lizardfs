@@ -23,7 +23,7 @@ function(create_unittest TEST_NAME)
 
   include_directories(${GTEST_INCLUDE_DIRS})
 
-  add_library(${TEST_LIBRARY_NAME} ${ARGV})
+  add_library(${TEST_LIBRARY_NAME} STATIC ${ARGV})
 
   list(FIND UNITTEST_TEST_NAMES ${TEST_NAME} result)
   if (${result} EQUAL -1)

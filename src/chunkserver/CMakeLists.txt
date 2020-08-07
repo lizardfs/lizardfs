@@ -3,7 +3,7 @@ add_definitions(-DLIZARDFS_MAX_FILES=10000)
 add_definitions(-DAPPNAME=mfschunkserver -DAPP_EXAMPLES_SUBDIR="${CHUNKSERVER_EXAMPLES_SUBDIR}")
 
 collect_sources(CHUNKSERVER)
-add_library(chunkserver ${CHUNKSERVER_SOURCES})
+add_library(chunkserver STATIC ${CHUNKSERVER_SOURCES})
 target_link_libraries(chunkserver lzfsprotocol mfscommon ${ADDITIONAL_LIBS})
 create_unittest(chunkserver ${CHUNKSERVER_TESTS})
 link_unittest(chunkserver chunkserver mfscommon)

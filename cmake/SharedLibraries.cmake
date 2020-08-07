@@ -17,9 +17,9 @@
 function(shared_add_library NAME ...)
 	list(REMOVE_AT ARGV 0)
 
-	add_library(${NAME} ${ARGV})
+	add_library(${NAME} STATIC ${ARGV})
 	if(ENABLE_PIC_TARGETS)
-		add_library(${NAME}_pic ${ARGV})
+		add_library(${NAME}_pic STATIC ${ARGV})
 		if("${CMAKE_VERSION}" VERSION_GREATER 2.8.9)
 			set_property(TARGET ${NAME}_pic PROPERTY POSITION_INDEPENDENT_CODE ON)
 		else()

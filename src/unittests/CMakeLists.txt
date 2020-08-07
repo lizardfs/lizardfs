@@ -3,7 +3,7 @@ include_directories(${GTEST_INCLUDE_DIRS})
 add_subdirectory(mocks)
 
 collect_sources(UNITTESTS)
-add_library(unittests-helpers ${UNITTESTS_SOURCES})
+add_library(unittests-helpers STATIC ${UNITTESTS_SOURCES})
 
 if(APPLE)
   set(ENABLE_WHOLE_ARCHIVE "-Wl,-force_load")

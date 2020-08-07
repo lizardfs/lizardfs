@@ -1,6 +1,6 @@
 collect_sources(LIZARDFS_ADMIN)
 
-add_library(lizardfs-admin-lib ${LIZARDFS_ADMIN_SOURCES})
+add_library(lizardfs-admin-lib STATIC ${LIZARDFS_ADMIN_SOURCES})
 target_link_libraries(lizardfs-admin-lib mfscommon)
 create_unittest(lizardfs-admin-lib ${LIZARDFS_ADMIN_TESTS})
 link_unittest(lizardfs-admin-lib mfscommon)

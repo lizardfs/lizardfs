@@ -18,7 +18,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 collect_sources(PROTOCOL)
 
-add_library(lzfsprotocol ${PROTOCOL_SOURCES})
+add_library(lzfsprotocol STATIC ${PROTOCOL_SOURCES})
 
 create_unittest(lzfsprotocol ${PROTOCOL_TESTS})
 link_unittest(lzfsprotocol mfscommon)
