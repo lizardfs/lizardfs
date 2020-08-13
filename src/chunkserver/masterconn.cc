@@ -178,26 +178,9 @@ void masterconn_sendregister(masterconn *eptr) {
 	myport = mainNetworkThreadGetListenPort();
 	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
 
-	std::vector<ChunkWithVersionAndType> chunks;
-	std::vector<ChunkWithType> recheck_list;
-
-	//TODO This logic should be encapsulated in a single function call.
-	// acquiring gChunkRegistryLock, iteration over gChunkRegistry (with creating of packets) and releasing gChunkRegistryLock
-	// should be done in a single function instead of 3 separate ones
-	hdd_get_chunks_begin();
-	hdd_get_chunks_next_list_data(chunks, recheck_list);
-	while (!chunks.empty()) {
-		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
-		hdd_get_chunks_next_list_data(chunks, recheck_list);
-	}
-	hdd_get_chunks_end();
-	//^^^
-
-	hdd_get_chunks_next_list_data_recheck(chunks, recheck_list);
-	while (!chunks.empty()) {
-		masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunks));
-		hdd_get_chunks_next_list_data_recheck(chunks, recheck_list);
-	}
+	hdd_foreach_chunk_in_bulks([eptr](const std::vector<ChunkWithVersionAndType> &chunksBulk) {
+			masterconn_create_attached_packet(eptr, cstoma::registerChunks::build(chunksBulk));
+		});
 
 	hdd_get_space(&usedspace,&totalspace,&chunkcount,&tdusedspace,&tdtotalspace,&tdchunkcount);
 	auto registerSpace = cstoma::registerSpace::build(

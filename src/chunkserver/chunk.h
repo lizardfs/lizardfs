@@ -106,13 +106,13 @@ public:
 	enum { kCurrentDirectoryLayout = 0, kMooseFSDirectoryLayout };
 
 	Chunk(uint64_t chunkId, ChunkPartType type, ChunkState state);
-	virtual ~Chunk() {};
+	virtual ~Chunk() {}
 
 	std::string filename() const {
 		return filename_layout_ >= kCurrentDirectoryLayout
 		               ? generateFilenameForVersion(version, filename_layout_)
 		               : std::string();
-	};
+	}
 
 	std::string generateFilenameForVersion(uint32_t version, int layout_version = kCurrentDirectoryLayout) const;
 	int renameChunkFile(uint32_t new_version, int new_layout_version = kCurrentDirectoryLayout);
@@ -121,7 +121,7 @@ public:
 	virtual off_t getBlockOffset(uint16_t blockNumber) const = 0;
 	virtual off_t getFileSizeFromBlockCount(uint32_t blockCount) const = 0;
 	virtual bool isFileSizeValid(off_t fileSize) const = 0;
-	virtual ChunkFormat chunkFormat() const { return ChunkFormat::IMPROPER; };
+	virtual ChunkFormat chunkFormat() const { return ChunkFormat::IMPROPER; }
 	uint32_t maxBlocksInFile() const;
 	virtual void setBlockCountFromFizeSize(off_t fileSize) = 0;
 	ChunkPartType type() const { return type_; }
@@ -167,7 +167,7 @@ public:
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
 	bool isFileSizeValid(off_t fileSize) const override;
 	void setBlockCountFromFizeSize(off_t fileSize) override;
-	ChunkFormat chunkFormat() const override { return ChunkFormat::MOOSEFS; };
+	ChunkFormat chunkFormat() const override { return ChunkFormat::MOOSEFS; }
 	off_t getSignatureOffset() const;
 	void readaheadHeader() const;
 	size_t getHeaderSize() const;
@@ -182,7 +182,7 @@ public:
 	off_t getFileSizeFromBlockCount(uint32_t blockCount) const override;
 	bool isFileSizeValid(off_t fileSize) const override;
 	void setBlockCountFromFizeSize(off_t fileSize) override;
-	ChunkFormat chunkFormat() const override { return ChunkFormat::INTERLEAVED; };
+	ChunkFormat chunkFormat() const override { return ChunkFormat::INTERLEAVED; }
 };
 
 #define IF_MOOSEFS_CHUNK(mc, chunk) \

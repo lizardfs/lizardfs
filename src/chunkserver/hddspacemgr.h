@@ -45,11 +45,11 @@ void hdd_diskinfo_v1_data(uint8_t *buff);
 uint32_t hdd_diskinfo_v2_size();
 void hdd_diskinfo_v2_data(uint8_t *buff);
 
-/* lock/unlock pair */
-void hdd_get_chunks_begin();
-void hdd_get_chunks_end();
-void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType>& chunks, std::vector<ChunkWithType>& recheck_list);
-void hdd_get_chunks_next_list_data_recheck(std::vector<ChunkWithVersionAndType>& chunks, std::vector<ChunkWithType>& recheck_list);
+const std::size_t CHUNK_BULK_SIZE = 1000;
+/** \brief Executes the given callback for each bulk of at most \p chunk_bulk_size chunks.
+ */
+void hdd_foreach_chunk_in_bulks(std::function<void(std::vector<ChunkWithVersionAndType>&)> chunk_bulk_callback,
+		std::size_t chunk_bulk_size = CHUNK_BULK_SIZE);
 
 int hdd_spacechanged(void);
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount);
@@ -142,8 +142,7 @@ int hdd_init(void);
  * In most cases functions above are prefered.
 */
 
-/**
- * \brief Create new chunk on disk
+/** \brief Create new chunk on disk
  *
  * \param chunkid - id of created chunk
  * \param version - version of created chunk
