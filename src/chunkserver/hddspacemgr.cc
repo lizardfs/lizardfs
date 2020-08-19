@@ -155,7 +155,7 @@ using chunk_registry_t = std::unordered_map<ChunkWithType, std::unique_ptr<Chunk
 
 /** \brief Global registry of all chunks stored on chunkserver.
  */
-chunk_registry_t hashtab;
+chunk_registry_t gChunkRegistry;
 
 inline ChunkWithType makeChunkKey(uint64_t id, ChunkPartType type) {
 	return {id, type};
@@ -183,8 +183,12 @@ static std::atomic<uint8_t> testerreset(0);
 // master reports = damaged chunks, lost chunks, new chunks
 static std::mutex gMasterReportsLock;
 
-// hashtab - only hash tab, chunks have their own separate locks
-static std::mutex hashlock;
+/** \brief gChunkRegistry mutex
+ *
+ * This mutex only guards access to gChunkRegistry.
+ * Chunk objects stored in the registry have their own separate locks.
+ */
+static std::mutex gChunkRegistryLock;
 static cntcond *cclist = NULL;
 
 // folderhead + all data in structures (except folder::cstat)
@@ -561,9 +565,9 @@ void hdd_diskinfo_movestats(void) {
 
 static inline void hdd_chunk_remove(Chunk *c) {
 	TRACETHIS();
-	auto chunkIter = hashtab.find(chunkToKey(*c));
+	auto chunkIter = gChunkRegistry.find(chunkToKey(*c));
 	//TODO reverse logic of this if, add logging on early exit (chunk not found)
-	if (chunkIter != hashtab.end()) {
+	if (chunkIter != gChunkRegistry.end()) {
 		const Chunk *cp = chunkIter->second.get();
 		gOpenChunks.purge(cp->fd);
 		if (cp->owner) {
@@ -576,13 +580,13 @@ static inline void hdd_chunk_remove(Chunk *c) {
 			}
 			*(cp->testprev) = cp->testnext;
 		}
-		hashtab.erase(chunkIter);
+		gChunkRegistry.erase(chunkIter);
 	}
 }
 
 void hdd_chunk_release(Chunk *c) {
 	TRACETHIS();
-	std::lock_guard<std::mutex> hashlock_guard(hashlock);
+	std::lock_guard<std::mutex> registryLockGuard(gChunkRegistryLock);
 //      syslog(LOG_WARNING,"hdd_chunk_release got chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
 	if (c->state==CH_LOCKED) {
 		c->state = CH_AVAIL;
@@ -619,7 +623,7 @@ static int hdd_chunk_getattr(Chunk *c) {
 }
 
 bool hdd_chunk_trylock(Chunk *c) {
-	assert(hashlock.try_lock() == false);
+	assert(gChunkRegistryLock.try_lock() == false);
 	bool ret = false;
 	TRACETHIS1(c->chunkid);
 	if (c != nullptr && c->state == CH_AVAIL) {
@@ -675,8 +679,8 @@ static Chunk *hdd_chunk_recreate(Chunk *c, uint64_t chunkid, ChunkPartType type,
 		c = new InterleavedChunk(chunkid, type, CH_LOCKED);
 	}
 	passert(c);
-	bool success = hashtab.insert({makeChunkKey(chunkid, type), std::unique_ptr<Chunk>(c)}).second;
-	massert(success, "Cannot insert new chunk to hashtab as a chunk with its chunkId and chunkPartType already exists");
+	bool success = gChunkRegistry.insert({makeChunkKey(chunkid, type), std::unique_ptr<Chunk>(c)}).second;
+	massert(success, "Cannot insert new chunk to the registry as a chunk with its chunkId and chunkPartType already exists");
 
 	c->ccond = waiting;
 	if (waiting) {
@@ -695,9 +699,9 @@ static Chunk* hdd_chunk_get(
 	Chunk *c = nullptr;
 	cntcond *cc = nullptr;
 
-	std::unique_lock<std::mutex> hashlock_guard(hashlock);
-	auto chunkIter = hashtab.find(makeChunkKey(chunkid, chunkType));
-	if (chunkIter == hashtab.end()) {
+	std::unique_lock<std::mutex> registryLockGuard(gChunkRegistryLock);
+	auto chunkIter = gChunkRegistry.find(makeChunkKey(chunkid, chunkType));
+	if (chunkIter == gChunkRegistry.end()) {
 		if (cflag!=CH_NEW_NONE) {
 			c = hdd_chunk_recreate(nullptr, chunkid, chunkType, format);
 		}
@@ -714,12 +718,12 @@ static Chunk* hdd_chunk_get(
 		case CH_AVAIL:
 			c->state = CH_LOCKED;
 //                      syslog(LOG_WARNING,"hdd_chunk_get returns chunk: %016" PRIX64 " (c->state:%u)",c->chunkid,c->state);
-			hashlock_guard.unlock();
+			registryLockGuard.unlock();
 			if (c->validattr==0) {
 				if (hdd_chunk_getattr(c) == -1) {
 					if (cflag != CH_NEW_NONE) {
 						unlink(c->filename().c_str());
-						hashlock_guard.lock();
+						registryLockGuard.lock();
 						c = hdd_chunk_recreate(c, chunkid, chunkType, format);
 						return c;
 					}
@@ -759,7 +763,7 @@ static Chunk* hdd_chunk_get(
 				c->ccond = cc;
 			}
 			cc->wcnt++;
-			cc->cond.wait(hashlock_guard);
+			cc->cond.wait(registryLockGuard);
 			// Chunk could be recreated (different address)
 			// so we need to get it's new address.
 			c = cc->owner;
@@ -777,7 +781,7 @@ static void hdd_chunk_delete(Chunk *c) {
 	TRACETHIS();
 	folder *f;
 	{
-		std::lock_guard<std::mutex> hashlock_guard(hashlock);
+		std::lock_guard<std::mutex> registryLockGuard(gChunkRegistryLock);
 		f = c->owner;
 		if (c->ccond) {
 			c->state = CH_DELETED;
@@ -931,17 +935,17 @@ void hdd_senddata(folder *f,int rmflag) {
 	TRACETHIS();
 	uint8_t todel = f->todel;
 
-	std::lock_guard<std::mutex> hashlock_guard(hashlock);
+	std::lock_guard<std::mutex> registryLockGuard(gChunkRegistryLock);
 	std::lock_guard<std::mutex> testlock_guard(testlock);
 
 	// Until C++14 the order of the elements that are not erased is not guaranteed to be preserved in std::unordered_map.
-	// Thus, to be truly portable, all elements to be removed from hashtab are first stored in an auxiliary container
-	// and then each is erased from hashtab outside the loop over hashtab's entries.
+	// Thus, to be truly portable, all elements to be removed from gChunkRegistry are first stored in an auxiliary container
+	// and then each is erased from gChunkRegistry outside the loop over gChunkRegistry's entries.
 	std::vector<Chunk *> chunksToRemove;
 	if (rmflag) {
 		chunksToRemove.reserve(f->chunkcount);
 	}
-	for (const auto &chunkEntry : hashtab) {
+	for (const auto &chunkEntry : gChunkRegistry) {
 		Chunk *c = chunkEntry.second.get();
 		if (c->owner==f) {
 			c->todel = todel;
@@ -963,7 +967,7 @@ void hdd_senddata(folder *f,int rmflag) {
 				c->owner->testtail = c->testprev;
 			}
 			*(c->testprev) = c->testnext;
-			hashtab.erase(chunkToKey(*c));
+			gChunkRegistry.erase(chunkToKey(*c));
 		} else if (c->state==CH_LOCKED) {
 			c->state = CH_TOBEDELETED;
 		}
@@ -1128,21 +1132,21 @@ chunk_registry_t::const_iterator hdd_get_chunks_sanity_enditer;
 
 void hdd_get_chunks_begin() {
 	TRACETHIS();
-	hashlock.lock();
-	hdd_get_chunks_iter = hashtab.cbegin();
-	hdd_get_chunks_sanity_enditer = hashtab.cend();
+	gChunkRegistryLock.lock();
+	hdd_get_chunks_iter = gChunkRegistry.cbegin();
+	hdd_get_chunks_sanity_enditer = gChunkRegistry.cend();
 }
 
 void hdd_get_chunks_end() {
 	TRACETHIS();
-	hashlock.unlock();
+	gChunkRegistryLock.unlock();
 }
 
 /**
  * All consecutive calls to this function must happen between hdd_get_chunks_begin
  * and hdd_get_chunks_end function calls.
  *
- * \pre hashlock is acquired by the calling thread
+ * \pre gChunkRegistryLock is acquired by the calling thread
  */
 void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType> &chunks,
 		std::vector<ChunkWithType> &recheck_list) {
@@ -1151,9 +1155,9 @@ void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType> &chunks,
 	chunks.reserve(CHUNKS_CUT_COUNT);
 
 	// a simple sanity check for some added security
-	massert(hdd_get_chunks_sanity_enditer == hashtab.cend(), "Hashtab was modified since last call to hdd_get_chunks_begin which breaks the preconditions");
+	massert(hdd_get_chunks_sanity_enditer == gChunkRegistry.cend(), "Chunk registry was modified since last call to hdd_get_chunks_begin which breaks the preconditions");
 
-	for (; chunks.size() < CHUNKS_CUT_COUNT && hdd_get_chunks_iter != hashtab.cend(); ++hdd_get_chunks_iter) {
+	for (; chunks.size() < CHUNKS_CUT_COUNT && hdd_get_chunks_iter != gChunkRegistry.cend(); ++hdd_get_chunks_iter) {
 		const Chunk *c = hdd_get_chunks_iter->second.get();
 		if (c->state != CH_AVAIL) {
 				recheck_list.push_back(ChunkWithType(c->chunkid, c->type()));
@@ -1322,7 +1326,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 		gOpenChunks.acquire(c->fd);
 		if (c->fd < 0) {
 			// Try to free some long unused descriptors
-			gOpenChunks.freeUnused(eventloop_time(), hashlock);
+			gOpenChunks.freeUnused(eventloop_time(), gChunkRegistryLock);
 			for (int i = 0; i < kOpenRetryCount; ++i) {
 				if (newflag) {
 					c->fd = open(c->filename().c_str(), O_RDWR | O_TRUNC | O_CREAT, 0666);
@@ -1342,7 +1346,7 @@ static int hdd_io_begin(Chunk *c,int newflag, uint32_t chunk_version = std::nume
 				} else { // c->fd < 0 && errno == ENFILE
 					usleep((kOpenRetry_ms * 1000) << i);
 					// Force free unused descriptors
-					gOpenChunks.freeUnused(std::numeric_limits<uint32_t>::max(), hashlock, 4);
+					gOpenChunks.freeUnused(std::numeric_limits<uint32_t>::max(), gChunkRegistryLock, 4);
 				}
 			}
 			if (c->fd < 0) {
@@ -3042,7 +3046,7 @@ void hdd_tester_thread() {
 		version = 0;
 		{
 			std::lock_guard<std::mutex> folderlock_guard(folderlock);
-			std::lock_guard<std::mutex> hashlock_guard(hashlock);
+			std::lock_guard<std::mutex> registryLockGuard(gChunkRegistryLock);
 			std::lock_guard<std::mutex> testlock_guard(testlock);
 			uint8_t testerresetExpected = 1;
 			if (testerreset.compare_exchange_strong(testerresetExpected, 0)) {
@@ -3171,7 +3175,7 @@ static inline void hdd_add_chunk(folder *f,
 	}
 
 	if (c->chunkFormat() != chunkFormat || !new_chunk) {
-		std::lock_guard<std::mutex> hashlock_guard(hashlock);
+		std::lock_guard<std::mutex> registryLockGuard(gChunkRegistryLock);
 		c = hdd_chunk_recreate(c, chunkId, chunkType, chunkFormat);
 	}
 
@@ -3522,7 +3526,7 @@ void hdd_free_resources_thread() {
 	TRACETHIS();
 
 	while (!term) {
-		gOpenChunks.freeUnused(eventloop_time(), hashlock, kMaxFreeUnused);
+		gOpenChunks.freeUnused(eventloop_time(), gChunkRegistryLock, kMaxFreeUnused);
 		sleep(kDelayedStep);
 	}
 }
@@ -3581,12 +3585,12 @@ void hdd_term(void) {
 	}
 
 	// Until C++14 the order of the elements that are not erased is not guaranteed to be preserved in std::unordered_map.
-	// Thus, to be truly portable, all elements to be removed from hashtab are first stored in an auxiliary container
-	// and then each is erased from hashtab outside the loop over hashtab's entries.
+	// Thus, to be truly portable, all elements to be removed from gChunkRegistry are first stored in an auxiliary container
+	// and then each is erased from gChunkRegistry outside the loop over gChunkRegistry's entries.
 	std::vector<Chunk *> chunksToRemove;
-	chunksToRemove.reserve(hashtab.size());
+	chunksToRemove.reserve(gChunkRegistry.size());
 
-	for (auto &chunkEntry : hashtab) {
+	for (auto &chunkEntry : gChunkRegistry) {
 		Chunk *c = chunkEntry.second.get();
 		if (c->state==CH_AVAIL) {
 			MooseFSChunk* mc = dynamic_cast<MooseFSChunk*>(c);
@@ -3603,13 +3607,13 @@ void hdd_term(void) {
 			lzfs_pretty_syslog(LOG_WARNING,"hdd_term: locked chunk !!!");
 		}
 	}
-	//TODO There's no need to explicitly erase the chunks from hashtab, as its destructor will do it automatically
+	//TODO There's no need to explicitly erase the chunks from gChunkRegistry, as its destructor will do it automatically
 	// and this function is called at the termination of the chunkserver program. This step is left here for now
-	// to minimize changes in the commit intended only to change hashtab implementation.
+	// to minimize changes in the commit intended only to change gChunkRegistry implementation.
 	for (auto chunk : chunksToRemove) {
-		hashtab.erase(chunkToKey(*chunk));
+		gChunkRegistry.erase(chunkToKey(*chunk));
 	}
-	gOpenChunks.freeUnused(eventloop_time(), hashlock);
+	gOpenChunks.freeUnused(eventloop_time(), gChunkRegistryLock);
 
 	for (f=folderhead ; f ; f=fn) {
 		fn = f->next;
