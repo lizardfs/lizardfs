@@ -47,6 +47,15 @@ if ! git rev-parse; then
 	echo "'$SOURCE_DIR' is not a git repo or git not installed -- code style will not be checked!"
 	test_end
 fi
+
+if ! python3 -m black --version > /dev/null 2>&1; then
+	test_add_failure "Environment is misconfigured. User can not use the module black. HINT: sudo pip3 install black"
+fi
+
+if ! python3 -m mypy --version > /dev/null 2>&1; then
+	test_add_failure "Environment is misconfigured. User can not use the module mypy. HINT: sudo pip3 install mypy"
+fi
+
 git ls-tree -r --name-only HEAD \
 		| egrep '[.](cmake|txt|cc|c|h|sh|inc|in|cfg|py)$' \
 		| grep -v 'mfs[.]cgi[.]in' \
