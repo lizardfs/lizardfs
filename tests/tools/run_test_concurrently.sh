@@ -23,6 +23,7 @@
 # RUN_UNITTEST  - 'true' if we want to run them.
 # NODES_COUNT   - number of machines on which we run tests concurrently
 # NODE_NUMBER   - number of current machine (integer from [1..NODES_COUNT])
+# VALGRIND      - "Yes" <=> we want to run all tests under valgrind
 
 set -o errexit -o nounset -o errtrace -o pipefail
 
@@ -38,6 +39,7 @@ do
 		RUN_UNITTESTS)  RUN_UNITTESTS=${VALUE} ;;
 		NODES_COUNT)    NODES_COUNT=${VALUE} ;;
 		NODE_NUMBER)    NODE_NUMBER=${VALUE} ;;
+		VALGRIND)       VALGRIND=${VALUE} ;;
 		*)
 	esac
 done
@@ -47,10 +49,15 @@ EXCLUDE_TESTS=${EXCLUDE_TESTS:-'""'}
 NODES_COUNT=${NODES_COUNT:-1}
 NODE_NUMBER=${NODE_NUMBER:-1}
 RUN_UNITTESTS=${RUN_UNITTESTS:-'false'}
+VALGRIND=${VALGRIND:-'No'}
 
 export LIZARDFS_ROOT=$WORKSPACE/install/lizardfs
 export TEST_OUTPUT_DIR=$WORKSPACE/test_output
 export TERM=xterm
+
+if [ $VALGRIND == "Yes" ]; then
+	export USE_VALGRIND=YES;
+fi
 
 # TODO: maybe somehow implement the following lines, to not run compilation,
 # when it's unnecessary.
