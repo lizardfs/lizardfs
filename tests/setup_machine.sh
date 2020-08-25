@@ -15,17 +15,25 @@ Specifically:
 * creates 6 files mounted using loop device
 
 Example:
-$0 setup /mnt /mnt /mnt /mnt /mnt /mnt
+$0 setup /mnt
+$0 setup /mnt/hda /mnt/hdb
 
 You need root permissions to run this script
 EOF
 	exit 1
 }
 
-if [[ $1 != setup ]]; then
+minumum_number_of_args=2
+if [ $1 != setup ] || [ $# -lt $minumum_number_of_args ]; then
 	usage >&2
 fi
 shift
+
+if grep lizardfstest_loop /etc/fstab >/dev/null; then
+	echo The machine is at least partialy configured
+	echo Run revert-setup-machine.sh to revert the current configuration
+	exit 1
+fi
 
 # Make this script safe and bug-free ;)
 set -eux
@@ -141,13 +149,13 @@ if ! grep /mnt/ramdisk /etc/fstab >/dev/null; then
 fi
 
 echo ; echo Prepare loop devices
-if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
-	i=0
-	devices=6
-	loops=()
-	echo "# Loop devices used in LizardFS tests" >> /etc/fstab
-	for disk in "$@" "$@" "$@" "$@" "$@" "$@"; do
-		if (( i == devices )); then
+#creating loop devices more or less evenly distributed between available disks
+i=0
+devices=6
+loops=()
+while [ $i -lt $devices ] ; do
+	for disk in "$@"; do
+		if (( i == devices )); then #stop if we have enough devices
 			break
 		fi
 		mkdir -p "$disk/lizardfstest_images"
@@ -164,12 +172,8 @@ if ! grep lizardfstest_loop /etc/fstab >/dev/null; then
 		loops+=(/mnt/lizardfstest_loop_$i)
 		(( ++i ))
 	done
-	if (( i > 0 )) ; then
-		echo ': ${LIZARDFS_LOOP_DISKS:="'"${loops[*]}"'"}'
-	else
-		echo ': ${LIZARDFS_LOOP_DISKS:=}'
-	fi >> /etc/lizardfs_tests.conf
-fi
+done
+echo ': ${LIZARDFS_LOOP_DISKS:="'"${loops[*]}"'"}' >> /etc/lizardfs_tests.conf
 
 echo ; echo Install necessary programs
 # lsb_release is required by both build scripts and this script -- install it first
@@ -190,7 +194,10 @@ case "$release" in
 		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
 		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
 		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev
+		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
+		apt-get install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
+		apt-get install libgtest-dev
+		pip3 install mypy black
 		;;
 	CentOS/7*)
 		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
