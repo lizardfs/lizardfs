@@ -69,6 +69,7 @@
 #include "chunkserver/iostat.h"
 #include "chunkserver/open_chunk.h"
 #include "common/cfg.h"
+#include "common/chunk_version_with_todel_flag.h"
 #include "common/cwrap.h"
 #include "common/crc.h"
 #include "common/cwrap.h"
@@ -259,10 +260,11 @@ void hdd_get_lost_chunks(std::vector<ChunkWithType>& buffer, std::size_t limit) 
 	gLostChunks.erase(gLostChunks.begin(), gLostChunks.begin() + size);
 }
 
-void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, ChunkPartType type) {
+void hdd_report_new_chunk(uint64_t chunkid, uint32_t version, bool todel, ChunkPartType type) {
 	TRACETHIS();
+	uint32_t versionWithTodelFlag = common::combineVersionWithTodelFlag(version, todel);
 	std::lock_guard<std::mutex> lock_guard(gMasterReportsLock);
-	gNewChunks.push_back(ChunkWithVersionAndType(chunkid, version, type));
+	gNewChunks.push_back(ChunkWithVersionAndType(chunkid, versionWithTodelFlag, type));
 }
 
 void hdd_get_new_chunks(std::vector<ChunkWithVersionAndType>& buffer, std::size_t limit) {
@@ -953,7 +955,7 @@ void hdd_senddata(folder *f,int rmflag) {
 				chunksToRemove.push_back(c);
 			} else {
 				hdd_report_new_chunk(c->chunkid,
-					c->version|((c->todel)?0x80000000:0), c->type());
+					c->version, c->todel, c->type());
 			}
 		}
 	}
@@ -1160,14 +1162,11 @@ void hdd_get_chunks_next_list_data(std::vector<ChunkWithVersionAndType> &chunks,
 	for (; chunks.size() < CHUNKS_CUT_COUNT && hdd_get_chunks_iter != gChunkRegistry.cend(); ++hdd_get_chunks_iter) {
 		const Chunk *c = hdd_get_chunks_iter->second.get();
 		if (c->state != CH_AVAIL) {
-				recheck_list.push_back(ChunkWithType(c->chunkid, c->type()));
-				continue;
-			}
-			uint32_t v = c->version;
-			if (c->todel) {
-				v |= 0x80000000;
-			}
-			chunks.push_back(ChunkWithVersionAndType(c->chunkid, v, c->type()));
+			recheck_list.push_back(ChunkWithType(c->chunkid, c->type()));
+			continue;
+		}
+		common::chunk_version_t versionWithTodelFlag = common::combineVersionWithTodelFlag(c->version, c->todel);
+		chunks.push_back(ChunkWithVersionAndType(c->chunkid, versionWithTodelFlag, c->type()));
 	}
 }
 
@@ -1179,16 +1178,14 @@ void hdd_get_chunks_next_list_data_recheck(std::vector<ChunkWithVersionAndType> 
 	while (chunks.size() < CHUNKS_CUT_COUNT && !recheck_list.empty()) {
 		Chunk *c = hdd_chunk_find(recheck_list.back().id, recheck_list.back().type);
 		if (c) {
-			uint32_t v = c->version;
-			if (c->todel) {
-				v |= 0x80000000;
-			}
-			chunks.push_back(ChunkWithVersionAndType(c->chunkid, v, c->type()));
+			common::chunk_version_t versionWithTodelFlag = common::combineVersionWithTodelFlag(c->version, c->todel);
+			chunks.push_back(ChunkWithVersionAndType(c->chunkid, versionWithTodelFlag, c->type()));
 			hdd_chunk_release(c);
 		}
 		recheck_list.pop_back();
 	}
 }
+
 
 void hdd_get_space(uint64_t *usedspace,uint64_t *totalspace,uint32_t *chunkcount,uint64_t *tdusedspace,uint64_t *tdtotalspace,uint32_t *tdchunkcount) {
 	TRACETHIS();
@@ -3192,7 +3189,7 @@ static inline void hdd_add_chunk(folder *f,
 		f->testtail = &(c->testnext);
 	}
 	if (new_chunk) {
-		hdd_report_new_chunk(c->chunkid, c->version | (todel ? 0x80000000 : 0), c->type());
+		hdd_report_new_chunk(c->chunkid, c->version, c->todel, c->type());
 	}
 
 	hdd_chunk_release(c);

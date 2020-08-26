@@ -74,7 +74,7 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 		uint32_t maxNumberOfChunkCopies, std::vector<ChunkTypeWithAddress>& serversList);
 int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t& version,
 		uint32_t maxNumberOfChunkCopies, std::vector<ChunkPartWithAddressAndLabel>& serversList);
-void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkPartType chunkType);
+void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t versionWithTodelFlag, ChunkPartType chunkType);
 void chunk_damaged(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunk_type);
 void chunk_lost(matocsserventry *ptr, uint64_t chunkid, ChunkPartType chunk_type);
 void chunk_server_disconnected(matocsserventry *ptr, const MediaLabel &label);

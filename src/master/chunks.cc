@@ -34,6 +34,7 @@
 
 #include "common/chunks_availability_state.h"
 #include "common/chunk_copies_calculator.h"
+#include "common/chunk_version_with_todel_flag.h"
 #include "common/compact_vector.h"
 #include "common/counting_sort.h"
 #include "common/coroutine.h"
@@ -1495,10 +1496,10 @@ int chunk_getversionandlocations(uint64_t chunkid, uint32_t currentIp, uint32_t&
 	return LIZARDFS_STATUS_OK;
 }
 
-void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t version, ChunkPartType chunkType) {
+void chunk_server_has_chunk(matocsserventry *ptr, uint64_t chunkid, uint32_t versionWithTodelFlag, ChunkPartType chunkType) {
 	Chunk *c;
-	const uint32_t new_version = version & 0x7FFFFFFF;
-	const bool todel = version & 0x80000000;
+	const uint32_t new_version = common::getChunkVersion(versionWithTodelFlag);
+	const bool todel = common::getTodelFlag(versionWithTodelFlag);
 	c = chunk_find(chunkid);
 	if (c==NULL) {
 		// chunkserver has nonexistent chunk, so create it for future deletion
