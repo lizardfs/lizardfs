@@ -38,6 +38,48 @@ fi
 # Make this script safe and bug-free ;)
 set -eux
 
+echo ; echo Install necessary programs
+# lsb_release is required by both build scripts and this script -- install it first
+if ! command -v lsb_release; then
+	if command -v dnf; then
+		dnf install redhat-lsb-core
+	elif command -v yum; then
+		yum install redhat-lsb-core
+	elif command -v apt-get; then
+		apt-get install lsb-release
+	fi
+fi
+# determine which OS we are running and choose the right set of packages to be installed
+release="$(lsb_release -si)/$(lsb_release -sr)"
+case "$release" in
+	LinuxMint/*|Ubuntu/*|Debian/*)
+		apt-get install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
+		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
+		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
+		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
+		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
+		apt-get install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
+		apt-get install libgtest-dev
+		pip3 install mypy black
+		;;
+	CentOS/7*)
+		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
+		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
+		yum install pam-devel libdb-devel nfs4-acl-tools
+		;;
+	CentOS/8*)
+		dnf install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		dnf install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
+		dnf install boost-program-options boost-system boost-filesystem boost-iostreams
+		dnf install pam-devel libdb-devel nfs4-acl-tools gtest-devel fuse3 fuse3-devel
+		;;
+	*)
+		set +x
+		echo "Installation of required packages SKIPPED, '$release' isn't supported by this script"
+		;;
+esac
+
 echo ; echo Add group fuse
 groupadd -f fuse
 
@@ -174,48 +216,6 @@ while [ $i -lt $devices ] ; do
 	done
 done
 echo ': ${LIZARDFS_LOOP_DISKS:="'"${loops[*]}"'"}' >> /etc/lizardfs_tests.conf
-
-echo ; echo Install necessary programs
-# lsb_release is required by both build scripts and this script -- install it first
-if ! command -v lsb_release; then
-	if command -v dnf; then
-		dnf install redhat-lsb-core
-	elif command -v yum; then
-		yum install redhat-lsb-core
-	elif command -v apt-get; then
-		apt-get install lsb-release
-	fi
-fi
-# determine which OS we are running and choose the right set of packages to be installed
-release="$(lsb_release -si)/$(lsb_release -sr)"
-case "$release" in
-	LinuxMint/*|Ubuntu/*|Debian/*)
-		apt-get install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
-		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
-		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
-		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
-		apt-get install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
-		apt-get install libgtest-dev
-		pip3 install mypy black
-		;;
-	CentOS/7*)
-		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
-		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
-		yum install pam-devel libdb-devel nfs4-acl-tools
-		;;
-	CentOS/8*)
-		dnf install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		dnf install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
-		dnf install boost-program-options boost-system boost-filesystem boost-iostreams
-		dnf install pam-devel libdb-devel nfs4-acl-tools gtest-devel fuse3 fuse3-devel
-		;;
-	*)
-		set +x
-		echo "Installation of required packages SKIPPED, '$release' isn't supported by this script"
-		;;
-esac
 
 set +x
 echo Machine configured successfully
