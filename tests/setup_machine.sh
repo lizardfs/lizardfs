@@ -64,7 +64,7 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 	cat >/etc/sudoers.d/lizardfstest <<-END
 		ALL ALL = (lizardfstest) NOPASSWD: ALL
 		ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u lizardfstest
-		ALL ALL = NOPASSWD: /bin/rm -rf /tmp/lizardfs_error_dir /tmp/test_err
+		ALL ALL = NOPASSWD: /bin/rm -rf /tmp/lizardfs_error_dir /tmp/LizardFS-autotests
 		lizardfstest ALL = NOPASSWD: /bin/sh -c echo\ 1\ >\ /proc/sys/vm/drop_caches
 	END
 	chmod 0440 /etc/sudoers.d/lizardfstest

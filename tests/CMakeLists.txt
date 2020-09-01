@@ -34,5 +34,5 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}) # test_cases.h is located here
 add_definitions(-DTEST_DATA_PATH=${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(lizardfs-tests lizardfs-tests.cc)
 add_dependencies(lizardfs-tests list_of_test_cases)
-target_link_libraries(lizardfs-tests ${GTEST_BOTH_LIBRARIES})
+target_link_libraries(lizardfs-tests ${GTEST_BOTH_LIBRARIES} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
 install(TARGETS lizardfs-tests RUNTIME DESTINATION ${BIN_SUBDIR})

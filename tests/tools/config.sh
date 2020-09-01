@@ -29,6 +29,7 @@ fi
 # This has to be an absolute path!
 TEMP_DIR=$(readlink -m "$TEMP_DIR")
 mkdir -p "$TEMP_DIR"
+chmod 777 "$TEMP_DIR"
 
 # Prepare important environment variables
 export PATH="$LIZARDFS_ROOT/sbin:$LIZARDFS_ROOT/bin:$PATH"
@@ -64,7 +65,7 @@ check_configuration() {
 		test_fail "Configuration error, ramdisk ($RAMDISK_DIR) is missing"
 	fi
 
-	for dir in "$TEMP_DIR" "$RAMDISK_DIR" "$TEST_OUTPUT_DIR" $LIZARDFS_DISKS $LIZARDFS_LOOP_DISKS; do
+	for dir in "$TEMP_DIR" "$RAMDISK_DIR" "$TEST_OUTPUT_DIR" $LIZARDFS_LOOP_DISKS; do
 		if [[ ! -w $dir ]]; then
 			test_fail "Configuration error, cannot create files in $dir"
 		fi
