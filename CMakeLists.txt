@@ -163,7 +163,7 @@ if(MINGW)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat=0")
 endif()
 string(REPLACE "-DNDEBUG" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -std=${CXX_STD} -pthread -Wall -Wextra -fwrapv")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe -std=${CXX_STD} -pthread -Wall -Wextra -Werror -Wpedantic -fwrapv")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -g")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -ftree-vectorize -g -fno-omit-frame-pointer")
@@ -196,25 +196,12 @@ include(Libraries)
 include(CollectSources)
 include(CreateUnitTest)
 
-# Disable -pedantic for old gcc because of unfounded
-# "no comma at end of enumerator list" warning during crcutil compilation
-execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion OUTPUT_VARIABLE COMPILER_VERSION)
-if(ENABLE_WERROR AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND COMPILER_VERSION VERSION_LESS 4.7)
-  message(STATUS "Flag '-pedantic' disabled for GCC < 4.7")
-else()
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
-endif()
-
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
 endif()
 
 if(CXX_HAS_WNOGNU)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu")
-endif()
-
-if(ENABLE_WERROR)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
 endif()
 
 if(ENABLE_TESTS AND NOT THROW_INSTEAD_OF_ABORT)
