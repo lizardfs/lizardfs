@@ -72,7 +72,9 @@ case "$release" in
 		dnf install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		dnf install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		dnf install boost-program-options boost-system boost-filesystem boost-iostreams
-		dnf install pam-devel libdb-devel nfs4-acl-tools gtest-devel fuse3 fuse3-devel
+		dnf install pam-devel libdb-devel nfs4-acl-tools fuse3 fuse3-devel
+		dnf install fmt-devel spdlog-devel boost-devel
+		dnf install --enablerepo=PowerTools gtest-devel
 		;;
 	*)
 		set +x
