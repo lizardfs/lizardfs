@@ -1,7 +1,9 @@
 valgrind_enable
 
+number_of_mounts=2
+
 CHUNKSERVERS=1 \
-	MOUNTS=2 \
+	MOUNTS=${number_of_mounts} \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	setup_local_empty_lizardfs info
@@ -35,3 +37,14 @@ rm "$mnt0dir1/file2"
 lizardfs_master_daemon restart
 lizardfs_chunkserver_daemon 0 restart
 lizardfs_wait_for_all_ready_chunkservers
+
+# Valgrind does not unmount the mounts correctly
+# so we need to do it here
+# to avoid false positive detections
+for ((mntid=0 ; mntid<number_of_mounts; ++mntid)); do
+	lizardfs_mount_unmount $mntid
+done
+
+# Here we need to wait for unmount asynchronic tasks
+# the long timeout is set to detect deadlocks
+wait_for '! pgrep -f -u lizardfstest mfsmount >/dev/null' '30 minutes' || true
