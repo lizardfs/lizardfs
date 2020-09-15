@@ -11,6 +11,8 @@ add_custom_target(list_of_test_cases
     > test_suites.h.tmp
   COMMAND ${CMAKE_COMMAND} -E copy_if_different test_suites.h.tmp test_suites.h
 
+  COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && bash tools/generate_tests_from_templates.sh
+
   COMMAND find ${CMAKE_CURRENT_SOURCE_DIR}/test_suites/ -name test_*.sh
     ${filter_out}
     | sed -e "s/[.]sh$//"

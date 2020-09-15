@@ -3,23 +3,6 @@ assert_program_installed python3 tee
 # This timeout is only for launching the environment, it is renewed at each iteration.
 timeout_set 40 seconds
 
-# @generator
-# _wrapper() {
-#     failed_file=$ERROR_DIR/first_failing_combinations.log
-#     touch $failed_file && chmod 777 $failed_file
-#     for n in {2..21}; do
-#         for k in {1..16}; do
-#             @callback@ "n=$n k=$k failed_file='$failed_file'"
-#         done
-#     done
-#     echo "Failing configurations are saved in $failed_file"
-#     if [ ! -s "$failed_file" ]; then
-#         echo "No errors detected, removing file $failed_file"
-#         rm -f $failed_file
-#     fi
-# }
-# @endgenerator
-
 get_ec_chunk_part_from_filename() {
 	local name=$1
 	echo $name | grep -Po '(?<=ec2_).*' | awk -F _ '{print $1}'

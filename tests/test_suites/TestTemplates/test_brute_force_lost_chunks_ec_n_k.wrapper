@@ -1,0 +1,12 @@
+_wrapper() {
+    failed_file=$ERROR_DIR/first_failing_combinations.log
+    touch $failed_file && chmod 777 $failed_file
+    for k in {1..16}; do
+        k=${k} failed_file='$failed_file' $callback
+    done
+    echo "Failing configurations are saved in $failed_file"
+    if [ ! -s "$failed_file" ]; then
+        echo "No errors detected, removing file $failed_file"
+        rm -f $failed_file
+    fi
+}
