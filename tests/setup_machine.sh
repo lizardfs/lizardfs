@@ -23,17 +23,20 @@ EOF
 	exit 1
 }
 
-minumum_number_of_args=2
-if [ $1 != setup ] || [ $# -lt $minumum_number_of_args ]; then
+minimum_number_of_args=2
+if [[ ( ( "${1}" != "setup" ) && ( "${1}" != "setup-force" ) ) || ( ${#} -lt ${minimum_number_of_args} ) ]]; then
 	usage >&2
 fi
-shift
 
-if grep lizardfstest_loop /etc/fstab >/dev/null; then
+grep -q lizardfstest_loop /etc/fstab
+if [[ ( "${1}" != "setup-force" ) && ( ${?} == 0 ) ]]; then
 	echo The machine is at least partialy configured
 	echo Run revert-setup-machine.sh to revert the current configuration
 	exit 1
 fi
+
+shift
+umask 0022
 
 # Make this script safe and bug-free ;)
 set -eux
@@ -59,7 +62,7 @@ case "$release" in
 		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
 		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
 		apt-get install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
-		apt-get install libgtest-dev
+		apt-get install libgtest-dev libspdlog-dev
 		pip3 install mypy black
 		;;
 	CentOS/7*)
@@ -116,7 +119,7 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 	cat >/etc/sudoers.d/lizardfstest <<-END
 		ALL ALL = (lizardfstest) NOPASSWD: ALL
 		ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u lizardfstest
-		ALL ALL = NOPASSWD: /bin/rm -rf /tmp/lizardfs_error_dir /tmp/LizardFS-autotests
+		ALL ALL = NOPASSWD: /bin/rm -rf /tmp/lizardfs_error_dir
 		lizardfstest ALL = NOPASSWD: /bin/sh -c echo\ 1\ >\ /proc/sys/vm/drop_caches
 	END
 	chmod 0440 /etc/sudoers.d/lizardfstest
@@ -202,6 +205,11 @@ while [ $i -lt $devices ] ; do
 		if (( i == devices )); then #stop if we have enough devices
 			break
 		fi
+		loops+=(/mnt/lizardfstest_loop_$i)
+		if grep -q lizardfstest_loop_$i /etc/fstab; then
+			(( ++i ))
+			continue
+		fi
 		mkdir -p "$disk/lizardfstest_images"
 		# Create image file
 		image="$disk/lizardfstest_images/image_$i"
@@ -213,7 +221,6 @@ while [ $i -lt $devices ] ; do
 		# Mount and set permissions
 		mount /mnt/lizardfstest_loop_$i
 		chmod 1777 /mnt/lizardfstest_loop_$i
-		loops+=(/mnt/lizardfstest_loop_$i)
 		(( ++i ))
 	done
 done
