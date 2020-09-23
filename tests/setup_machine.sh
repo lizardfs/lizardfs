@@ -45,39 +45,45 @@ echo ; echo Install necessary programs
 # lsb_release is required by both build scripts and this script -- install it first
 if ! command -v lsb_release; then
 	if command -v dnf; then
-		dnf install redhat-lsb-core
+		dnf -y install redhat-lsb-core
 	elif command -v yum; then
-		yum install redhat-lsb-core
+		yum -y install redhat-lsb-core
 	elif command -v apt-get; then
-		apt-get install lsb-release
+		apt-get -y install lsb-release
 	fi
 fi
 # determine which OS we are running and choose the right set of packages to be installed
 release="$(lsb_release -si)/$(lsb_release -sr)"
 case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
-		apt-get install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
-		apt-get install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
-		apt-get install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
-		apt-get install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
-		apt-get install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
-		apt-get install libgtest-dev libspdlog-dev
+		apt-get -y install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
+		apt-get -y install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
+		apt-get -y install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
+		apt-get -y install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
+		apt-get -y install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
+		apt-get -y install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
+		apt-get -y install libgtest-dev libspdlog-dev
 		pip3 install mypy black
 		;;
 	CentOS/7*)
-		yum install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		yum install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
-		yum install boost-program-options boost-system libboost-filesystem libboost-iostreams
-		yum install pam-devel libdb-devel nfs4-acl-tools
+		yum -y install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		yum -y install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
+		yum -y install boost-program-options boost-system libboost-filesystem libboost-iostreams
+		yum -y install pam-devel libdb-devel nfs4-acl-tools
 		;;
 	CentOS/8*)
-		dnf install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
-		dnf install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
-		dnf install boost-program-options boost-system boost-filesystem boost-iostreams
-		dnf install pam-devel libdb-devel nfs4-acl-tools fuse3 fuse3-devel
-		dnf install fmt-devel spdlog-devel boost-devel
-		dnf install --enablerepo=PowerTools gtest-devel
+		dnf -y install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
+		dnf -y install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
+		dnf -y install boost-program-options boost-system boost-filesystem boost-iostreams
+		dnf -y install pam-devel libdb-devel nfs4-acl-tools fuse3 fuse3-devel
+		dnf -y install fmt-devel spdlog-devel boost-devel
+		dnf -y install --enablerepo=PowerTools gtest-devel
+		pip3 install black mypy
+		;;
+	Fedora/32*)
+		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse3-devel boost-devel
+		dnf -y install Judy-devel pam-devel libdb-devel thrift-devel valgrind pylint
+		pip3 install black mypy
 		;;
 	*)
 		set +x
