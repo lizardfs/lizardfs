@@ -57,12 +57,12 @@ release="$(lsb_release -si)/$(lsb_release -sr)"
 case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
 		apt-get -y install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
-		apt-get -y install pkg-config zlib1g-dev libboost-program-options-dev libboost-system-dev
-		apt-get -y install acl attr dbench netcat-openbsd pylint python3 rsync socat tidy wget
-		apt-get -y install libgoogle-perftools-dev libboost-filesystem-dev libboost-iostreams-dev
-		apt-get -y install libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev python3-pip valgrind
-		apt-get -y install ccache libfmt-dev nfs4-acl-tools libisal-dev libcrcutil-dev curl
-		apt-get -y install libgtest-dev libspdlog-dev
+		apt-get -y install libfuse-dev pkg-config zlib1g-dev libboost-program-options-dev
+		apt-get -y install libboost-system-dev acl attr dbench netcat-openbsd pylint python3 rsync
+		apt-get -y install socat tidy wget libgoogle-perftools-dev libboost-filesystem-dev
+		apt-get -y install libboost-iostreams-dev libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev
+		apt-get -y install python3-pip valgrind ccache libfmt-dev libisal-dev libcrcutil-dev curl
+		apt-get -y install libgtest-dev libspdlog-dev libjudy-dev
 		pip3 install mypy black
 		;;
 	CentOS/7*)
