@@ -226,6 +226,8 @@ void uRaft::heartbeat(const boost::system::error_code &error) {
 	state_.local_time++;
 	node_[state_.id].heartbeat = state_.local_time;
 
+	// Roll back from being the leader if there are less than quorum
+	// loyal nodes alive
 	if (state_.president) {
 		assert(state_.type != kFollower);
 		if (voteCount(true) < opt_.quorum) {

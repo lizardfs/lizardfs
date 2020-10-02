@@ -181,6 +181,10 @@ lizardfs_drop_ip() {
 	fi
 }
 
+lizardfs_dead() {
+	lizardfs_drop_ip
+}
+
 print_help() {
 	echo "LizardFS uraft helper script"
 	echo "Available commands:"
@@ -191,6 +195,7 @@ print_help() {
 	echo "demote"
 	echo "assign-ip"
 	echo "drop-ip"
+	echo "dead"
 }
 
 case "$1" in
@@ -201,6 +206,7 @@ case "$1" in
 	demote)            lizardfs_demote;;
 	assign-ip)         lizardfs_assign_ip;;
 	drop-ip)           lizardfs_drop_ip;;
+	dead)              lizardfs_dead;;
 	*)                 print_help;;
 
 esac

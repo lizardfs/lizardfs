@@ -11,7 +11,7 @@ TimeoutSec=0
 ExecStart=/usr/sbin/lizardfs-uraft
 ExecStopPost=/usr/sbin/lizardfs-uraft-helper demote
 Restart=no
-User=mfs
+User=lizardfs
 
 [Install]
 WantedBy=multi-user.target
