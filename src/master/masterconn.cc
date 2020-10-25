@@ -1104,7 +1104,7 @@ void masterconn_reconnect(void) {
 		return;
 	}
 	masterconn *eptr = masterconnsingleton;
-	if (eptr->mode==FREE) {
+	if (eptr->mode == FREE && gExitingStatus == ExitingStatus::kRunning) {
 		masterconn_initconnect(eptr);
 	}
 	if ((eptr->mode == HEADER || eptr->mode == DATA) && eptr->state == MasterConnectionState::kLimbo) {
