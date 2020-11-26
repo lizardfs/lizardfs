@@ -2115,7 +2115,7 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 		}
 		if (status != LIZARDFS_STATUS_OK) {
 			err = status == LIZARDFS_ERROR_EPERM ? LIZARDFS_ERROR_EPERM : LIZARDFS_ERROR_IO;
-			oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+			oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): (logical) %s",
 							(unsigned long int)ino,
 							(uint64_t)size,
 							(uint64_t)off,
@@ -2146,7 +2146,7 @@ BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, 
 	err = write_data(fileinfo->data,off,size,(const uint8_t*)buf);
 	gDirEntryCache.lockAndInvalidateInode(ino);
 	if (err != LIZARDFS_STATUS_OK) {
-		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): %s",
+		oplog_printf(ctx, "write (%lu,%" PRIu64 ",%" PRIu64 "): (physical) %s",
 				(unsigned long int)ino,
 				(uint64_t)size,
 				(uint64_t)off,
