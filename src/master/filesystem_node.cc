@@ -962,6 +962,8 @@ void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t aui
 void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
 		uint8_t sesflags, FSNodeDirectory *p, uint64_t first_entry,
 		uint64_t number_of_entries, std::vector<DirectoryEntry> &dir_entries) {
+	uint64_t const SIGN_BIT_64(1ULL << 63ULL);
+	sassert(!(first_entry & SIGN_BIT_64));
 	// special entryIndex values
 	static constexpr uint64_t kDotEntryIndex = 0;
 	static constexpr uint64_t kDotDotEntryIndex = (static_cast<uint64_t>(1) << hstorage::Handle::kHashShift);
@@ -1007,7 +1009,7 @@ void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t aui
 		uint64_t next_index = kUnusedEntryIndex;
 		if (!p->entries.empty()) {
 			auto first_dirent_it = p->find_nth(0);
-			next_index = (*first_dirent_it).first.data();
+			next_index = (*first_dirent_it).first.data() & ~SIGN_BIT_64;
 		}
 		dir_entries.emplace_back(kDotDotEntryIndex, next_index, std::move(inode), std::string(".."), std::move(attr));
 
@@ -1022,17 +1024,24 @@ void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t aui
 	std::string name;
 	hstorage::Handle first_index(first_entry);
 	auto it = p->entries.find(first_index);
+	if (it == p->entries.end()) {
+		// We assume that we received hash that had its most significant bit stripped
+		// so we try new find with this supposedly stripped bit set again.
+		first_index.unlink(); // do not try to unbind the resource under this possibly-fake handle in destructor
+		first_index = hstorage::Handle(first_entry | SIGN_BIT_64);
+		it = p->entries.find(first_index);
+	}
 	first_index.unlink(); // do not try to unbind the resource under this possibly-fake handle in destructor
 	while (it != p->entries.end() && number_of_entries > 0) {
 		name = static_cast<std::string>((*it).first);
 		inode = (*it).second->id;
 		fsnodes_fill_attr((*it).second, p, uid, gid, auid, agid, sesflags, attr);
 
-		first_entry = (*it).first.data();
+		first_entry = (*it).first.data() & ~SIGN_BIT_64;
 
 		uint64_t next_index = kUnusedEntryIndex;
 		if (++it != p->entries.end()) {
-			next_index = (*it).first.data();
+			next_index = (*it).first.data() & ~SIGN_BIT_64;
 		}
 
 		dir_entries.emplace_back(first_entry, next_index, std::move(inode), std::move(name), std::move(attr));
