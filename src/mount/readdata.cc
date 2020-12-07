@@ -371,6 +371,7 @@ int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret) 
 		result.inputBuffer().clear();
 		return err;
 	}
+	result.entries.back()->reset_timer();
 
 	ret = std::move(result);
 	return LIZARDFS_STATUS_OK;
