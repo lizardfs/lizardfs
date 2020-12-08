@@ -78,6 +78,10 @@ public:
 			assert(refcount > 0);
 			refcount--;
 		}
+
+		void reset_timer() {
+			timer.reset();
+		}
 	};
 
 	typedef boost::intrusive::set<Entry,
