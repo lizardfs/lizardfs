@@ -60,6 +60,7 @@
 #include "common/serialized_goal.h"
 #include "common/slogger.h"
 #include "common/sockets.h"
+#include "common/user_groups.h"
 #include "master/changelog.h"
 #include "master/chartsdata.h"
 #include "master/chunks.h"
@@ -948,14 +949,12 @@ static inline void matoclserv_ugid_remap(matoclserventry *eptr,uint32_t *auid,ui
 }
 
 static inline uint8_t matoclserv_check_group_cache(matoclserventry *eptr, uint32_t gid) {
-	static constexpr uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31;
-
-	if ((gid & kSecondaryGroupsBit) == 0) {
+	if (!user_groups::isGroupCacheId(gid)) {
 		return LIZARDFS_STATUS_OK;
 	}
 
 	assert(eptr && eptr->sesdata);
-	auto it = eptr->sesdata->group_cache.find(gid ^ kSecondaryGroupsBit);
+	auto it = eptr->sesdata->group_cache.find(user_groups::decodeGroupCacheId(gid));
 	return it == eptr->sesdata->group_cache.end() ? LIZARDFS_ERROR_GROUPNOTREGISTERED : LIZARDFS_STATUS_OK;
 }
 
@@ -971,12 +970,10 @@ static inline FsContext matoclserv_get_context(matoclserventry *eptr) {
  * Returns FsContext with session data and uid/gid data
  */
 static inline FsContext matoclserv_get_context(matoclserventry *eptr, uint32_t uid, uint32_t gid) {
-	static constexpr uint32_t kSecondaryGroupsBit = (uint32_t)1 << 31;
-
 	assert(eptr && eptr->sesdata);
 
-	if (gid & kSecondaryGroupsBit) {
-		auto it = eptr->sesdata->group_cache.find(gid ^ kSecondaryGroupsBit);
+	if (user_groups::isGroupCacheId(gid)) {
+		auto it = eptr->sesdata->group_cache.find(user_groups::decodeGroupCacheId(gid));
 		if (it == eptr->sesdata->group_cache.end()) {
 			throw std::runtime_error("Missing group data in session cache");
 		}

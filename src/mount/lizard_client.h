@@ -307,9 +307,9 @@ void masterDisconnectedCallback();
 // void fsinit(void *userdata, struct fuse_conn_info *conn);
 bool isSpecialInode(LizardClient::Inode ino);
 
-EntryParam lookup(const Context &ctx, Inode parent, const char *name);
+EntryParam lookup(Context &ctx, Inode parent, const char *name);
 
-AttrReply getattr(const Context &ctx, Inode ino);
+AttrReply getattr(Context &ctx, Inode ino);
 
 #define LIZARDFS_SET_ATTR_MODE      (1 << 0)
 #define LIZARDFS_SET_ATTR_UID       (1 << 1)
@@ -319,73 +319,73 @@ AttrReply getattr(const Context &ctx, Inode ino);
 #define LIZARDFS_SET_ATTR_MTIME     (1 << 5)
 #define LIZARDFS_SET_ATTR_ATIME_NOW (1 << 7)
 #define LIZARDFS_SET_ATTR_MTIME_NOW (1 << 8)
-AttrReply setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set);
+AttrReply setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set);
 
-std::string readlink(const Context &ctx, Inode ino);
+std::string readlink(Context &ctx, Inode ino);
 
-EntryParam mknod(const Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev);
+EntryParam mknod(Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev);
 
-EntryParam mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode);
+EntryParam mkdir(Context &ctx, Inode parent, const char *name, mode_t mode);
 
-void unlink(const Context &ctx, Inode parent, const char *name);
+void unlink(Context &ctx, Inode parent, const char *name);
 
-void undel(const Context &ctx, Inode ino);
+void undel(Context &ctx, Inode ino);
 
-void rmdir(const Context &ctx, Inode parent, const char *name);
+void rmdir(Context &ctx, Inode parent, const char *name);
 
-EntryParam symlink(const Context &ctx, const char *link, Inode parent, const char *name);
+EntryParam symlink(Context &ctx, const char *link, Inode parent, const char *name);
 
-void rename(const Context &ctx, Inode parent, const char *name, Inode newparent, const char *newname);
+void rename(Context &ctx, Inode parent, const char *name, Inode newparent, const char *newname);
 
-EntryParam link(const Context &ctx, Inode ino, Inode newparent, const char *newname);
+EntryParam link(Context &ctx, Inode ino, Inode newparent, const char *newname);
 
-void open(const Context &ctx, Inode ino, FileInfo* fi);
+void open(Context &ctx, Inode ino, FileInfo* fi);
 
-std::vector<uint8_t> read_special_inode(const Context &ctx, Inode ino, size_t size, off_t off,
+std::vector<uint8_t> read_special_inode(Context &ctx, Inode ino, size_t size, off_t off,
 				        FileInfo* fi);
 
-ReadCache::Result read(const Context &ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
+ReadCache::Result read(Context &ctx, Inode ino, size_t size, off_t off, FileInfo* fi);
 
 typedef size_t BytesWritten;
-BytesWritten write(const Context &ctx, Inode ino, const char *buf, size_t size, off_t off,
+BytesWritten write(Context &ctx, Inode ino, const char *buf, size_t size, off_t off,
 		FileInfo* fi);
 
-void flush(const Context &ctx, Inode ino, FileInfo* fi);
+void flush(Context &ctx, Inode ino, FileInfo* fi);
 
 void release(Inode ino, FileInfo* fi);
 
-void fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi);
+void fsync(Context &ctx, Inode ino, int datasync, FileInfo* fi);
 
-void opendir(const Context &ctx, Inode ino);
+void opendir(Context &ctx, Inode ino);
 
-std::vector<DirEntry> readdir(const Context &ctx, Inode ino, off_t off, size_t max_entries);
+std::vector<DirEntry> readdir(Context &ctx, Inode ino, off_t off, size_t max_entries);
 
-std::vector<NamedInodeEntry> readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+std::vector<NamedInodeEntry> readreserved(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 
-std::vector<NamedInodeEntry> readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+std::vector<NamedInodeEntry> readtrash(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 
 void releasedir(Inode ino);
 
-struct statvfs statfs(const Context &ctx, Inode ino);
+struct statvfs statfs(Context &ctx, Inode ino);
 
-void setxattr(const Context &ctx, Inode ino, const char *name, const char *value,
+void setxattr(Context &ctx, Inode ino, const char *name, const char *value,
 		size_t size, int flags, uint32_t position);
 
-XattrReply getxattr(const Context &ctx, Inode ino, const char *name, size_t size, uint32_t position);
+XattrReply getxattr(Context &ctx, Inode ino, const char *name, size_t size, uint32_t position);
 
-XattrReply listxattr(const Context &ctx, Inode ino, size_t size);
+XattrReply listxattr(Context &ctx, Inode ino, size_t size);
 
-void removexattr(const Context &ctx, Inode ino, const char *name);
+void removexattr(Context &ctx, Inode ino, const char *name);
 
-void access(const Context &ctx, Inode ino, int mask);
+void access(Context &ctx, Inode ino, int mask);
 
-EntryParam create(const Context &ctx, Inode parent, const char *name,
+EntryParam create(Context &ctx, Inode parent, const char *name,
 		mode_t mode, FileInfo* fi);
 
-void getlk(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
-uint32_t setlk_send(const Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+void getlk(Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
+uint32_t setlk_send(Context &ctx, Inode ino, FileInfo* fi, struct lzfs_locks::FlockWrapper &lock);
 void setlk_recv();
-uint32_t flock_send(const Context &ctx, Inode ino, FileInfo* fi, int op);
+uint32_t flock_send(Context &ctx, Inode ino, FileInfo* fi, int op);
 void flock_recv();
 
 void flock_interrupt(const lzfs_locks::InterruptData &data);
@@ -394,14 +394,14 @@ void setlk_interrupt(const lzfs_locks::InterruptData &data);
 void remove_file_info(FileInfo *f);
 void remove_dir_info(FileInfo *f);
 
-JobId makesnapshot(const Context &ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
+JobId makesnapshot(Context &ctx, Inode ino, Inode dst_parent, const std::string &dst_name,
 	          bool can_overwrite);
-std::string getgoal(const Context &ctx, Inode ino);
-void setgoal(const Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode);
+std::string getgoal(Context &ctx, Inode ino);
+void setgoal(Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode);
 
 void statfs(uint64_t *totalspace, uint64_t *availspace, uint64_t *trashspace, uint64_t *reservedspace, uint32_t *inodes);
 
-std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+std::vector<ChunkWithAddressAndLabel> getchunksinfo(Context &ctx, Inode ino,
 	                                                uint32_t chunk_index, uint32_t chunk_count);
 
 std::vector<ChunkserverListEntry> getchunkservers();

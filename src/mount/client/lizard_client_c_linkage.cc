@@ -40,7 +40,7 @@ int lizardfs_fs_init(LizardClient::FsInitParams &params) {
 	}
 }
 
-int lizardfs_lookup(const Context &ctx, Inode parent, const char *name, EntryParam &param) {
+int lizardfs_lookup(Context &ctx, Inode parent, const char *name, EntryParam &param) {
 	try {
 		param = LizardClient::lookup(ctx, parent, name);
 		return LIZARDFS_STATUS_OK;
@@ -51,7 +51,7 @@ int lizardfs_lookup(const Context &ctx, Inode parent, const char *name, EntryPar
 	}
 }
 
-int lizardfs_mknod(const Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev,
+int lizardfs_mknod(Context &ctx, Inode parent, const char *name, mode_t mode, dev_t rdev,
 		EntryParam &param) {
 	try {
 		param = LizardClient::mknod(ctx, parent, name, mode, rdev);
@@ -87,7 +87,7 @@ int lizardfs_symlink(Context ctx, const char *link, Inode parent, const char *na
 	}
 }
 
-int lizardfs_unlink(const Context &ctx, Inode parent, const char *name) {
+int lizardfs_unlink(Context &ctx, Inode parent, const char *name) {
 	try {
 		LizardClient::unlink(ctx, parent, name);
 		return LIZARDFS_STATUS_OK;
@@ -98,7 +98,7 @@ int lizardfs_unlink(const Context &ctx, Inode parent, const char *name) {
 	}
 }
 
-int lizardfs_undel(const Context &ctx, Inode ino) {
+int lizardfs_undel(Context &ctx, Inode ino) {
 	try {
 		LizardClient::undel(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -109,7 +109,7 @@ int lizardfs_undel(const Context &ctx, Inode ino) {
 	}
 }
 
-int lizardfs_open(const Context &ctx, Inode ino, FileInfo *fi) {
+int lizardfs_open(Context &ctx, Inode ino, FileInfo *fi) {
 	try {
 		LizardClient::open(ctx, ino, fi);
 		return LIZARDFS_STATUS_OK;
@@ -120,7 +120,7 @@ int lizardfs_open(const Context &ctx, Inode ino, FileInfo *fi) {
 	}
 }
 
-int lizardfs_getattr(const Context &ctx, Inode ino, AttrReply &reply) {
+int lizardfs_getattr(Context &ctx, Inode ino, AttrReply &reply) {
 	try {
 		reply = LizardClient::getattr(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -131,7 +131,7 @@ int lizardfs_getattr(const Context &ctx, Inode ino, AttrReply &reply) {
 	}
 }
 
-std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(const Context &ctx, Inode ino, Inode dst_parent,
+std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(Context &ctx, Inode ino, Inode dst_parent,
 	                                       const std::string &dst_name, bool can_overwrite) {
 	try {
 		LizardClient::JobId job_id = LizardClient::makesnapshot(ctx, ino, dst_parent,
@@ -144,7 +144,7 @@ std::pair<int, LizardClient::JobId> lizardfs_makesnapshot(const Context &ctx, In
 	}
 }
 
-int lizardfs_getgoal(const Context &ctx, Inode ino, std::string &goal) {
+int lizardfs_getgoal(Context &ctx, Inode ino, std::string &goal) {
 	try {
 		goal = LizardClient::getgoal(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -155,7 +155,7 @@ int lizardfs_getgoal(const Context &ctx, Inode ino, std::string &goal) {
 	}
 }
 
-int lizardfs_setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+int lizardfs_setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &reply) {
 	try {
 		reply = LizardClient::setattr(ctx, ino, stbuf, to_set);
@@ -167,7 +167,7 @@ int lizardfs_setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_s
 	}
 }
 
-int lizardfs_setgoal(const Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
+int lizardfs_setgoal(Context &ctx, Inode ino, const std::string &goal_name, uint8_t smode) {
 	try {
 		LizardClient::setgoal(ctx, ino, goal_name, smode);
 		return LIZARDFS_STATUS_OK;
@@ -178,7 +178,7 @@ int lizardfs_setgoal(const Context &ctx, Inode ino, const std::string &goal_name
 	}
 }
 
-std::pair<int, ReadCache::Result> lizardfs_read(const Context &ctx, Inode ino, size_t size,
+std::pair<int, ReadCache::Result> lizardfs_read(Context &ctx, Inode ino, size_t size,
 	                                        off_t off, FileInfo *fi) {
 	try {
 		return std::pair<int, ReadCache::Result>(
@@ -192,7 +192,7 @@ std::pair<int, ReadCache::Result> lizardfs_read(const Context &ctx, Inode ino, s
 	}
 }
 
-std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(const Context &ctx, Inode ino,
+std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(Context &ctx, Inode ino,
 		size_t size, off_t off, FileInfo *fi) {
 	try {
 		return std::pair<int, std::vector<uint8_t>>(
@@ -207,7 +207,7 @@ std::pair<int, std::vector<uint8_t>> lizardfs_read_special_inode(const Context &
 	}
 }
 
-std::pair<int, ssize_t> lizardfs_write(const Context &ctx, Inode ino, const char *buf, size_t size,
+std::pair<int, ssize_t> lizardfs_write(Context &ctx, Inode ino, const char *buf, size_t size,
 		off_t off, FileInfo *fi) {
 	try {
 		auto write_ret = LizardClient::write(ctx, ino, buf, size, off, fi);
@@ -230,7 +230,7 @@ int lizardfs_release(Inode ino, FileInfo *fi) {
 	}
 }
 
-int lizardfs_flush(const Context &ctx, Inode ino, FileInfo *fi) {
+int lizardfs_flush(Context &ctx, Inode ino, FileInfo *fi) {
 	try {
 		LizardClient::flush(ctx, ino, fi);
 		return LIZARDFS_STATUS_OK;
@@ -241,7 +241,7 @@ int lizardfs_flush(const Context &ctx, Inode ino, FileInfo *fi) {
 	}
 }
 
-int lizardfs_fsync(const Context &ctx, Inode ino, int datasync, FileInfo* fi) {
+int lizardfs_fsync(Context &ctx, Inode ino, int datasync, FileInfo* fi) {
 	try {
 		LizardClient::fsync(ctx, ino, datasync, fi);
 		return LIZARDFS_STATUS_OK;
@@ -274,7 +274,7 @@ bool lizardfs_isSpecialInode(Inode ino) {
 	return LizardClient::isSpecialInode(ino);
 }
 
-std::pair<int, std::vector<DirEntry>> lizardfs_readdir(const Context &ctx, Inode ino, off_t off,
+std::pair<int, std::vector<DirEntry>> lizardfs_readdir(Context &ctx, Inode ino, off_t off,
 		size_t max_entries) {
 	try {
 		auto ret = LizardClient::readdir(ctx, ino, off, max_entries);
@@ -286,7 +286,7 @@ std::pair<int, std::vector<DirEntry>> lizardfs_readdir(const Context &ctx, Inode
 	}
 }
 
-int lizardfs_readlink(const Context &ctx, Inode ino, std::string &link) {
+int lizardfs_readlink(Context &ctx, Inode ino, std::string &link) {
 	try {
 		link = LizardClient::readlink(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -297,7 +297,7 @@ int lizardfs_readlink(const Context &ctx, Inode ino, std::string &link) {
 	}
 }
 
-std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readreserved(const Context &ctx,
+std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readreserved(Context &ctx,
 		LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries) {
 	try {
 		auto ret = LizardClient::readreserved(ctx, off, max_entries);
@@ -309,7 +309,7 @@ std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readreserved(const Context
 	}
 }
 
-std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readtrash(const Context &ctx,
+std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readtrash(Context &ctx,
 		LizardClient::NamedInodeOffset off, LizardClient::NamedInodeOffset max_entries) {
 	try {
 		auto ret = LizardClient::readtrash(ctx, off, max_entries);
@@ -321,7 +321,7 @@ std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readtrash(const Context &c
 	}
 }
 
-int lizardfs_opendir(const Context &ctx, Inode ino) {
+int lizardfs_opendir(Context &ctx, Inode ino) {
 	try {
 		LizardClient::opendir(ctx, ino);
 		return LIZARDFS_STATUS_OK;
@@ -343,7 +343,7 @@ int lizardfs_releasedir(Inode ino) {
 	}
 }
 
-int lizardfs_mkdir(const Context &ctx, Inode parent, const char *name, mode_t mode,
+int lizardfs_mkdir(Context &ctx, Inode parent, const char *name, mode_t mode,
 		EntryParam &entry_param) {
 	try {
 		entry_param = LizardClient::mkdir(ctx, parent, name, mode);
@@ -355,7 +355,7 @@ int lizardfs_mkdir(const Context &ctx, Inode parent, const char *name, mode_t mo
 	}
 }
 
-int lizardfs_rmdir(const Context &ctx, Inode parent, const char *name) {
+int lizardfs_rmdir(Context &ctx, Inode parent, const char *name) {
 	try {
 		LizardClient::rmdir(ctx, parent, name);
 		return LIZARDFS_STATUS_OK;
@@ -366,7 +366,7 @@ int lizardfs_rmdir(const Context &ctx, Inode parent, const char *name) {
 	}
 }
 
-int lizardfs_rename(const Context &ctx, Inode parent, const char *name, Inode new_parent,
+int lizardfs_rename(Context &ctx, Inode parent, const char *name, Inode new_parent,
 	            const char *new_name) {
 	try {
 		LizardClient::rename(ctx, parent, name, new_parent, new_name);
@@ -401,7 +401,7 @@ int lizardfs_setxattr(Context ctx, Inode ino, const char *name, const char *valu
 	}
 }
 
-std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(const Context &ctx,
+std::pair<int,std::vector<ChunkWithAddressAndLabel>> lizardfs_getchunksinfo(Context &ctx,
 	                          Inode ino, uint32_t chunk_index, uint32_t chunk_count) {
 	try {
 		auto chunks = LizardClient::getchunksinfo(ctx, ino, chunk_index, chunk_count);
@@ -425,7 +425,7 @@ std::pair<int, std::vector<ChunkserverListEntry>> lizardfs_getchunkservers() {
 }
 
 
-int lizardfs_getlk(const Context &ctx, Inode ino,
+int lizardfs_getlk(Context &ctx, Inode ino,
 	           LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
 	try {
 		LizardClient::getlk(ctx, ino, fi, lock);
@@ -437,7 +437,7 @@ int lizardfs_getlk(const Context &ctx, Inode ino,
 	}
 }
 
-std::pair<int, uint32_t> lizardfs_setlk_send(const Context &ctx, Inode ino,
+std::pair<int, uint32_t> lizardfs_setlk_send(Context &ctx, Inode ino,
 	                            LizardClient::FileInfo *fi, lzfs_locks::FlockWrapper &lock) {
 	try {
 		uint32_t reqid = LizardClient::setlk_send(ctx, ino, fi, lock);

@@ -76,97 +76,97 @@ public:
 	void updateGroups(Context &ctx, std::error_code &ec);
 
 	/*! \brief Find inode in parent directory by name */
-	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param);
-	void lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param,
+	void lookup(Context &ctx, Inode parent, const std::string &path, EntryParam &param);
+	void lookup(Context &ctx, Inode parent, const std::string &path, EntryParam &param,
 	            std::error_code &ec);
 
 	/*! \brief Create a file with given parent and name */
-	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	void mknod(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	           dev_t rdev, EntryParam &param);
-	void mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	void mknod(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	           dev_t rdev, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Create a link with a given parent and name */
-	void link(const Context &ctx, Inode inode, Inode parent,
+	void link(Context &ctx, Inode inode, Inode parent,
 	             const std::string &name, EntryParam &param);
-	void link(const Context &ctx, Inode inode, Inode parent,
+	void link(Context &ctx, Inode inode, Inode parent,
 	             const std::string &name, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Create a symbolic link with a given parent and name */
-	void symlink(const Context &ctx, const std::string &link, Inode parent,
+	void symlink(Context &ctx, const std::string &link, Inode parent,
 	             const std::string &name, EntryParam &param);
-	void symlink(const Context &ctx, const std::string &link, Inode parent,
+	void symlink(Context &ctx, const std::string &link, Inode parent,
 	             const std::string &name, EntryParam &param, std::error_code &ec);
 
 	/*! \brief Open a file by inode */
-	FileInfo *open(const Context &ctx, Inode inode, int flags);
-	FileInfo *open(const Context &ctx, Inode inode, int flags, std::error_code &ec);
+	FileInfo *open(Context &ctx, Inode inode, int flags);
+	FileInfo *open(Context &ctx, Inode inode, int flags, std::error_code &ec);
 
 	/*! \brief Open a directory by inode */
-	FileInfo *opendir(const Context &ctx, Inode ino);
-	FileInfo *opendir(const Context &ctx, Inode ino, std::error_code &ec);
+	FileInfo *opendir(Context &ctx, Inode ino);
+	FileInfo *opendir(Context &ctx, Inode ino, std::error_code &ec);
 
 	/*! \brief Release a previously open directory */
 	void releasedir(FileInfo* fileinfo);
 	void releasedir(FileInfo* fileinfo, std::error_code &ec);
 
 	/*! \brief Remove a directory */
-	void rmdir(const Context &ctx, Inode parent, const std::string &path);
-	void rmdir(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
+	void rmdir(Context &ctx, Inode parent, const std::string &path);
+	void rmdir(Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
 
 	/*! \brief Read directory contents */
-	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+	ReadDirReply readdir(Context &ctx, FileInfo* fileinfo, off_t offset,
 	                     size_t max_entries);
-	ReadDirReply readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+	ReadDirReply readdir(Context &ctx, FileInfo* fileinfo, off_t offset,
 	                     size_t max_entries, std::error_code &ec);
 
 	/*! \brief Read link contents */
-	std::string readlink(const Context &ctx, Inode inode);
-	std::string readlink(const Context &ctx, Inode inode, std::error_code &ec);
+	std::string readlink(Context &ctx, Inode inode);
+	std::string readlink(Context &ctx, Inode inode, std::error_code &ec);
 
 	/*! \brief Read reserved contents */
-	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
-	ReadReservedReply readreserved(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
+	ReadReservedReply readreserved(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+	ReadReservedReply readreserved(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
 
 	/*! \brief Read trash contents */
-	ReadTrashReply readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
-	ReadTrashReply readtrash(const Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
+	ReadTrashReply readtrash(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
+	ReadTrashReply readtrash(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries, std::error_code &ec);
 
 	/*! \brief Create a directory */
-	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	void mkdir(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	           EntryParam &entry_param);
-	void mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+	void mkdir(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	           EntryParam &entry_param, std::error_code &ec);
 
 	/*! \brief Unlink a file by parent and name entry */
-	void unlink(const Context &ctx, Inode parent, const std::string &path);
-	void unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
+	void unlink(Context &ctx, Inode parent, const std::string &path);
+	void unlink(Context &ctx, Inode parent, const std::string &path, std::error_code &ec);
 
 	/*! \brief Undelete file from trash */
-	void undel(const Context &ctx, Inode ino);
-	void undel(const Context &ctx, Inode ino, std::error_code &ec);
+	void undel(Context &ctx, Inode ino);
+	void undel(Context &ctx, Inode ino, std::error_code &ec);
 
 	/*! \brief Rename a file */
-	void rename(const Context &ctx, Inode parent, const std::string &path, Inode new_parent,
+	void rename(Context &ctx, Inode parent, const std::string &path, Inode new_parent,
 	            const std::string &new_path);
-	void rename(const Context &ctx, Inode parent, const std::string &path, Inode new_parent,
+	void rename(Context &ctx, Inode parent, const std::string &path, Inode new_parent,
 	            const std::string &new_path, std::error_code &ec);
 
 	/*! \brief Set inode attributes */
-	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	void setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &attr_reply);
-	void setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+	void setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &attr_reply, std::error_code &ec);
 
 	/*! \brief Read bytes from open file, returns read cache result that holds cache lock */
-	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
-	ReadResult read(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	ReadResult read(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size);
+	ReadResult read(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 	                std::error_code &ec);
 
 	/*! \brief Write bytes to open file */
-	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	std::size_t write(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 	                  const char *buffer);
-	std::size_t write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+	std::size_t write(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 	                  const char *buffer, std::error_code &ec);
 
 	/*! \brief Release a previously open file */
@@ -174,72 +174,72 @@ public:
 	void release(FileInfo *fileinfo, std::error_code &ec);
 
 	/*! \brief Flush data written to an open file */
-	void flush(const Context &ctx, FileInfo *fileinfo);
-	void flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
+	void flush(Context &ctx, FileInfo *fileinfo);
+	void flush(Context &ctx, FileInfo *fileinfo, std::error_code &ec);
 
 	/*! \brief Get attributes by inode */
-	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply);
-	void getattr(const Context &ctx, Inode ino, AttrReply &attr_reply, std::error_code &ec);
+	void getattr(Context &ctx, Inode ino, AttrReply &attr_reply);
+	void getattr(Context &ctx, Inode ino, AttrReply &attr_reply, std::error_code &ec);
 
 	/*! \brief Create a snapshot of a file */
-	JobId makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	JobId makesnapshot(Context &ctx, Inode src_inode, Inode dst_inode,
 	                  const std::string &dst_name, bool can_overwrite);
-	JobId makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+	JobId makesnapshot(Context &ctx, Inode src_inode, Inode dst_inode,
 	                  const std::string &dst_name, bool can_overwrite, std::error_code &ec);
 
 	/*! \brief Get replication goal for a file */
-	std::string getgoal(const Context &ctx, Inode ino);
-	std::string getgoal(const Context &ctx, Inode ino, std::error_code &ec);
+	std::string getgoal(Context &ctx, Inode ino);
+	std::string getgoal(Context &ctx, Inode ino, std::error_code &ec);
 
 	/*! \brief Set replication goal for a file */
-	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode);
-	void setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode,
+	void setgoal(Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode);
+	void setgoal(Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode,
 	             std::error_code &ec);
 
-	void fsync(const Context &ctx, FileInfo *fileinfo);
-	void fsync(const Context &ctx, FileInfo *fileinfo, std::error_code &ec);
+	void fsync(Context &ctx, FileInfo *fileinfo);
+	void fsync(Context &ctx, FileInfo *fileinfo, std::error_code &ec);
 
 	void statfs(Stats &stats);
 	void statfs(Stats &stats, std::error_code &ec);
 
-	void setxattr(const Context &ctx, Inode ino, const std::string &name,
+	void setxattr(Context &ctx, Inode ino, const std::string &name,
 	              const XattrBuffer &value, int flags);
-	void setxattr(const Context &ctx, Inode ino, const std::string &name,
+	void setxattr(Context &ctx, Inode ino, const std::string &name,
 	              const XattrBuffer &value, int flags, std::error_code &ec);
 
-	XattrBuffer getxattr(const Context &ctx, Inode ino, const std::string &name);
-	XattrBuffer getxattr(const Context &ctx, Inode ino, const std::string &name,
+	XattrBuffer getxattr(Context &ctx, Inode ino, const std::string &name);
+	XattrBuffer getxattr(Context &ctx, Inode ino, const std::string &name,
 	                     std::error_code &ec);
 
-	XattrBuffer listxattr(const Context &ctx, Inode ino);
-	XattrBuffer listxattr(const Context &ctx, Inode ino, std::error_code &ec);
+	XattrBuffer listxattr(Context &ctx, Inode ino);
+	XattrBuffer listxattr(Context &ctx, Inode ino, std::error_code &ec);
 
-	void removexattr(const Context &ctx, Inode ino, const std::string &name);
-	void removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec);
+	void removexattr(Context &ctx, Inode ino, const std::string &name);
+	void removexattr(Context &ctx, Inode ino, const std::string &name, std::error_code &ec);
 
-	void setacl(const Context &ctx, Inode ino, const RichACL &acl);
-	void setacl(const Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec);
+	void setacl(Context &ctx, Inode ino, const RichACL &acl);
+	void setacl(Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec);
 
-	RichACL getacl(const Context &ctx, Inode ino);
-	RichACL getacl(const Context &ctx, Inode ino, std::error_code &ec);
+	RichACL getacl(Context &ctx, Inode ino);
+	RichACL getacl(Context &ctx, Inode ino, std::error_code &ec);
 
 	static std::vector<std::string> toXattrList(const XattrBuffer &buffer);
 
-	std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	std::vector<ChunkWithAddressAndLabel> getchunksinfo(Context &ctx, Inode ino,
 	                                      uint32_t chunk_index, uint32_t chunk_count);
-	std::vector<ChunkWithAddressAndLabel> getchunksinfo(const Context &ctx, Inode ino,
+	std::vector<ChunkWithAddressAndLabel> getchunksinfo(Context &ctx, Inode ino,
 	                                      uint32_t chunk_index, uint32_t chunk_count,
 	                                      std::error_code &ec);
 
 	std::vector<ChunkserverListEntry> getchunkservers();
 	std::vector<ChunkserverListEntry> getchunkservers(std::error_code &ec);
 
-	void getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock);
-	void getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	void getlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock);
+	void getlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 	           std::error_code &ec);
-	void setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	void setlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 	               std::function<int(const lzfs_locks::InterruptData &)> handler);
-	void setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+	void setlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 	               std::function<int(const lzfs_locks::InterruptData &)> handler,
 	               std::error_code &ec);
 	void setlk_interrupt(const lzfs_locks::InterruptData &data);

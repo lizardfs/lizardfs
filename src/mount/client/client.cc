@@ -172,7 +172,7 @@ void Client::updateGroups(Context &ctx, std::error_code &ec) {
 }
 
 
-void Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
+void Client::lookup(Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
 	std::error_code ec;
 	lookup(ctx, parent, path, param, ec);
 	if (ec) {
@@ -180,13 +180,13 @@ void Client::lookup(const Context &ctx, Inode parent, const std::string &path, E
 	}
 }
 
-void Client::lookup(const Context &ctx, Inode parent, const std::string &path, EntryParam &param,
+void Client::lookup(Context &ctx, Inode parent, const std::string &path, EntryParam &param,
 		std::error_code &ec) {
 	int ret = lizardfs_lookup_(ctx, parent, path.c_str(), param);
 	ec = make_error_code(ret);
 }
 
-void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+void Client::mknod(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 		dev_t rdev, EntryParam &param) {
 	std::error_code ec;
 	mknod(ctx, parent, path, mode, rdev, param, ec);
@@ -195,13 +195,13 @@ void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mo
 	}
 }
 
-void Client::mknod(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+void Client::mknod(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 		dev_t rdev, EntryParam &param, std::error_code &ec) {
 	int ret = lizardfs_mknod_(ctx, parent, path.c_str(), mode, rdev, param);
 	ec = make_error_code(ret);
 }
 
-void Client::link(const Context &ctx, Inode inode, Inode parent,
+void Client::link(Context &ctx, Inode inode, Inode parent,
 		const std::string &name, EntryParam &param) {
 	std::error_code ec;
 	link(ctx, inode, parent, name, param, ec);
@@ -210,13 +210,13 @@ void Client::link(const Context &ctx, Inode inode, Inode parent,
 	}
 }
 
-void Client::link(const Context &ctx, Inode inode, Inode parent,
+void Client::link(Context &ctx, Inode inode, Inode parent,
 		const std::string &name, EntryParam &param, std::error_code &ec) {
 	int ret = lizardfs_link_(ctx, inode, parent, name.c_str(), param);
 	ec = make_error_code(ret);
 }
 
-void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
+void Client::symlink(Context &ctx, const std::string &link, Inode parent,
 		const std::string &name, EntryParam &param) {
 	std::error_code ec;
 	symlink(ctx, link, parent, name, param, ec);
@@ -225,13 +225,13 @@ void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
 	}
 }
 
-void Client::symlink(const Context &ctx, const std::string &link, Inode parent,
+void Client::symlink(Context &ctx, const std::string &link, Inode parent,
 		const std::string &name, EntryParam &param, std::error_code &ec) {
 	int ret = lizardfs_symlink_(ctx, link.c_str(), parent, name.c_str(), param);
 	ec = make_error_code(ret);
 }
 
-Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+Client::ReadDirReply Client::readdir(Context &ctx, FileInfo* fileinfo, off_t offset,
 		size_t max_entries) {
 	std::error_code ec;
 	auto dir_entries = readdir(ctx, fileinfo, offset, max_entries, ec);
@@ -241,14 +241,14 @@ Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off
 	return dir_entries;
 }
 
-Client::ReadDirReply Client::readdir(const Context &ctx, FileInfo* fileinfo, off_t offset,
+Client::ReadDirReply Client::readdir(Context &ctx, FileInfo* fileinfo, off_t offset,
 		size_t max_entries, std::error_code &ec) {
 	auto ret = lizardfs_readdir_(ctx, fileinfo->inode, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
 }
 
-std::string Client::readlink(const Context &ctx, Inode inode) {
+std::string Client::readlink(Context &ctx, Inode inode) {
 	std::error_code ec;
 	std::string link = readlink(ctx, inode);
 	if (ec) {
@@ -257,14 +257,14 @@ std::string Client::readlink(const Context &ctx, Inode inode) {
 	return link;
 }
 
-std::string Client::readlink(const Context &ctx, Inode inode, std::error_code &ec) {
+std::string Client::readlink(Context &ctx, Inode inode, std::error_code &ec) {
 	std::string link;
 	int ret = lizardfs_readlink_(ctx, inode, link);
 	ec = make_error_code(ret);
 	return link;
 }
 
-Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOffset offset,
+Client::ReadReservedReply Client::readreserved(Context &ctx, NamedInodeOffset offset,
 	                                       NamedInodeOffset max_entries) {
 	std::error_code ec;
 	auto reserved_entries = readreserved(ctx, offset, max_entries, ec);
@@ -274,14 +274,14 @@ Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOff
 	return reserved_entries;
 }
 
-Client::ReadReservedReply Client::readreserved(const Context &ctx, NamedInodeOffset offset,
+Client::ReadReservedReply Client::readreserved(Context &ctx, NamedInodeOffset offset,
 	                                       NamedInodeOffset max_entries, std::error_code &ec) {
 	auto ret = lizardfs_readreserved_(ctx, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
 }
 
-Client::ReadTrashReply Client::readtrash(const Context &ctx, NamedInodeOffset offset,
+Client::ReadTrashReply Client::readtrash(Context &ctx, NamedInodeOffset offset,
 	                                 NamedInodeOffset max_entries) {
 	std::error_code ec;
 	auto trash_entries = readtrash(ctx, offset, max_entries, ec);
@@ -291,14 +291,14 @@ Client::ReadTrashReply Client::readtrash(const Context &ctx, NamedInodeOffset of
 	return trash_entries;
 }
 
-Client::ReadTrashReply Client::readtrash(const Context &ctx, NamedInodeOffset offset,
+Client::ReadTrashReply Client::readtrash(Context &ctx, NamedInodeOffset offset,
 	                                 NamedInodeOffset max_entries, std::error_code &ec) {
 	auto ret = lizardfs_readtrash_(ctx, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
 }
 
-Client::FileInfo *Client::opendir(const Context &ctx, Inode inode) {
+Client::FileInfo *Client::opendir(Context &ctx, Inode inode) {
 	std::error_code ec;
 	auto fileinfo = opendir(ctx, inode, ec);
 	if (ec) {
@@ -308,7 +308,7 @@ Client::FileInfo *Client::opendir(const Context &ctx, Inode inode) {
 	return fileinfo;
 }
 
-Client::FileInfo *Client::opendir(const Context &ctx, Inode inode, std::error_code &ec) {
+Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec) {
 	int ret = lizardfs_opendir_(ctx, inode);
 	ec = make_error_code(ret);
 	if (ec) {
@@ -339,7 +339,7 @@ void Client::releasedir(FileInfo* fileinfo, std::error_code &ec) {
 	delete fileinfo;
 }
 
-void Client::rmdir(const Context &ctx, Inode parent, const std::string &path) {
+void Client::rmdir(Context &ctx, Inode parent, const std::string &path) {
 	std::error_code ec;
 	rmdir(ctx, parent, path, ec);
 	if (ec) {
@@ -347,24 +347,24 @@ void Client::rmdir(const Context &ctx, Inode parent, const std::string &path) {
 	}
 }
 
-void Client::rmdir(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
+void Client::rmdir(Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
 	int ret = lizardfs_rmdir_(ctx, parent, path.c_str());
 	ec = make_error_code(ret);
 }
 
-void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+void Client::mkdir(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	          Client::EntryParam &entry_param) {
 	std::error_code ec;
 	mkdir(ctx, parent, path, mode, entry_param, ec);
 }
 
-void Client::mkdir(const Context &ctx, Inode parent, const std::string &path, mode_t mode,
+void Client::mkdir(Context &ctx, Inode parent, const std::string &path, mode_t mode,
 	          Client::EntryParam &entry_param, std::error_code &ec) {
 	int ret = lizardfs_mkdir_(ctx, parent, path.c_str(), mode, entry_param);
 	ec = make_error_code(ret);
 }
 
-void Client::unlink(const Context &ctx, Inode parent, const std::string &path) {
+void Client::unlink(Context &ctx, Inode parent, const std::string &path) {
 	std::error_code ec;
 	unlink(ctx, parent, path, ec);
 	if (ec) {
@@ -372,12 +372,12 @@ void Client::unlink(const Context &ctx, Inode parent, const std::string &path) {
 	}
 }
 
-void Client::unlink(const Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
+void Client::unlink(Context &ctx, Inode parent, const std::string &path, std::error_code &ec) {
 	int ret = lizardfs_unlink_(ctx, parent, path.c_str());
 	ec = make_error_code(ret);
 }
 
-void Client::undel(const Context &ctx, Inode ino) {
+void Client::undel(Context &ctx, Inode ino) {
 	std::error_code ec;
 	undel(ctx, ino, ec);
 	if (ec) {
@@ -385,12 +385,12 @@ void Client::undel(const Context &ctx, Inode ino) {
 	}
 }
 
-void Client::undel(const Context &ctx, Inode ino, std::error_code &ec) {
+void Client::undel(Context &ctx, Inode ino, std::error_code &ec) {
 	int ret = lizardfs_undel_(ctx, ino);
 	ec = make_error_code(ret);
 }
 
-void Client::rename(const Context &ctx, Inode parent, const std::string &path, Inode newparent,
+void Client::rename(Context &ctx, Inode parent, const std::string &path, Inode newparent,
 	            const std::string &new_path) {
 	std::error_code ec;
 	rename(ctx, parent, path, newparent, new_path, ec);
@@ -399,13 +399,13 @@ void Client::rename(const Context &ctx, Inode parent, const std::string &path, I
 	}
 }
 
-void Client::rename(const Context &ctx, Inode parent, const std::string &path, Inode newparent,
+void Client::rename(Context &ctx, Inode parent, const std::string &path, Inode newparent,
 	            const std::string &new_path, std::error_code &ec) {
 	int ret = lizardfs_rename_(ctx, parent, path.c_str(), newparent, new_path.c_str());
 	ec = make_error_code(ret);
 }
 
-Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags) {
+Client::FileInfo *Client::open(Context &ctx, Inode inode, int flags) {
 	std::error_code ec;
 	auto fileinfo = open(ctx, inode, flags, ec);
 	if (ec) {
@@ -415,7 +415,7 @@ Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags) {
 	return fileinfo;
 }
 
-Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags, std::error_code &ec) {
+Client::FileInfo *Client::open(Context &ctx, Inode inode, int flags, std::error_code &ec) {
 	FileInfo *fileinfo = new FileInfo(inode);
 	fileinfo->flags = flags;
 
@@ -430,7 +430,7 @@ Client::FileInfo *Client::open(const Context &ctx, Inode inode, int flags, std::
 	return fileinfo;
 }
 
-void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply) {
+void Client::getattr(Context &ctx, Inode inode, AttrReply &attr_reply) {
 	std::error_code ec;
 	getattr(ctx, inode, attr_reply, ec);
 	if (ec) {
@@ -438,13 +438,13 @@ void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply) {
 	}
 }
 
-void Client::getattr(const Context &ctx, Inode inode, AttrReply &attr_reply,
+void Client::getattr(Context &ctx, Inode inode, AttrReply &attr_reply,
 		std::error_code &ec) {
 	int ret = lizardfs_getattr_(ctx, inode, attr_reply);
 	ec = make_error_code(ret);
 }
 
-void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+void Client::setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &attr_reply) {
 	std::error_code ec;
 	setattr(ctx, ino, stbuf, to_set, attr_reply, ec);
@@ -453,13 +453,13 @@ void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_s
 	}
 }
 
-void Client::setattr(const Context &ctx, Inode ino, struct stat *stbuf, int to_set,
+void Client::setattr(Context &ctx, Inode ino, struct stat *stbuf, int to_set,
 	             AttrReply &attr_reply, std::error_code &ec) {
 	int ret = lizardfs_setattr_(ctx, ino, stbuf, to_set, attr_reply);
 	ec = make_error_code(ret);
 }
 
-Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
+Client::ReadResult Client::read(Context &ctx, FileInfo *fileinfo,
 	                       off_t offset, std::size_t size) {
 	std::error_code ec;
 	auto ret = read(ctx, fileinfo, offset, size, ec);
@@ -469,7 +469,7 @@ Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
 	return ret;
 }
 
-Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
+Client::ReadResult Client::read(Context &ctx, FileInfo *fileinfo,
 	                       off_t offset, std::size_t size, std::error_code &ec) {
 	if (lizardfs_isSpecialInode_(fileinfo->inode)) {
 		auto ret = lizardfs_read_special_inode_(ctx, fileinfo->inode, size, offset, fileinfo);
@@ -488,7 +488,7 @@ Client::ReadResult Client::read(const Context &ctx, FileInfo *fileinfo,
 	}
 }
 
-std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+std::size_t Client::write(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 		const char *buffer) {
 	std::error_code ec;
 	auto write_size = write(ctx, fileinfo, offset, size, buffer, ec);
@@ -498,7 +498,7 @@ std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, 
 	return write_size;
 }
 
-std::size_t Client::write(const Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
+std::size_t Client::write(Context &ctx, FileInfo *fileinfo, off_t offset, std::size_t size,
 		const char *buffer, std::error_code &ec) {
 	std::pair<int, ssize_t> ret =
 	        lizardfs_write_(ctx, fileinfo->inode, buffer, size, offset, fileinfo);
@@ -522,7 +522,7 @@ void Client::release(FileInfo *fileinfo, std::error_code &ec) {
 	ec = make_error_code(ret);
 }
 
-void Client::flush(const Context &ctx, FileInfo *fileinfo) {
+void Client::flush(Context &ctx, FileInfo *fileinfo) {
 	std::error_code ec;
 	flush(ctx, fileinfo, ec);
 	if (ec) {
@@ -530,12 +530,12 @@ void Client::flush(const Context &ctx, FileInfo *fileinfo) {
 	}
 }
 
-void Client::flush(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
+void Client::flush(Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
 	int ret = lizardfs_flush_(ctx, fileinfo->inode, fileinfo);
 	ec = make_error_code(ret);
 }
 
-void Client::fsync(const Context &ctx, FileInfo *fileinfo) {
+void Client::fsync(Context &ctx, FileInfo *fileinfo) {
 	std::error_code ec;
 	fsync(ctx, fileinfo);
 	if (ec) {
@@ -543,12 +543,12 @@ void Client::fsync(const Context &ctx, FileInfo *fileinfo) {
 	}
 }
 
-void Client::fsync(const Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
+void Client::fsync(Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
 	int ret = lizardfs_fsync_(ctx, fileinfo->inode, 0, fileinfo);
 	ec = make_error_code(ret);
 }
 
-LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+LizardClient::JobId Client::makesnapshot(Context &ctx, Inode src_inode, Inode dst_inode,
 	                                 const std::string &dst_name, bool can_overwrite) {
 	std::error_code ec;
 	JobId job_id = makesnapshot(ctx, src_inode, dst_inode, dst_name, can_overwrite, ec);
@@ -558,7 +558,7 @@ LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, In
 	return job_id;
 }
 
-LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, Inode dst_inode,
+LizardClient::JobId Client::makesnapshot(Context &ctx, Inode src_inode, Inode dst_inode,
 	                                 const std::string &dst_name, bool can_overwrite,
 	                                 std::error_code &ec) {
 	auto ret = lizardfs_makesnapshot_(ctx, src_inode, dst_inode, dst_name, can_overwrite);
@@ -566,7 +566,7 @@ LizardClient::JobId Client::makesnapshot(const Context &ctx, Inode src_inode, In
 	return ret.second;
 }
 
-std::string Client::getgoal(const Context &ctx, Inode inode) {
+std::string Client::getgoal(Context &ctx, Inode inode) {
 	std::error_code ec;
 	std::string res = getgoal(ctx, inode, ec);
 	if (ec) {
@@ -575,14 +575,14 @@ std::string Client::getgoal(const Context &ctx, Inode inode) {
 	return res;
 }
 
-std::string Client::getgoal(const Context &ctx, Inode inode, std::error_code &ec) {
+std::string Client::getgoal(Context &ctx, Inode inode, std::error_code &ec) {
 	std::string goal;
 	int ret = lizardfs_getgoal_(ctx, inode, goal);
 	ec = make_error_code(ret);
 	return goal;
 }
 
-void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode) {
+void Client::setgoal(Context &ctx, Inode inode, const std::string &goal_name, uint8_t smode) {
 	std::error_code ec;
 	setgoal(ctx, inode, goal_name, smode, ec);
 	if (ec) {
@@ -590,7 +590,7 @@ void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_na
 	}
 }
 
-void Client::setgoal(const Context &ctx, Inode inode, const std::string &goal_name,
+void Client::setgoal(Context &ctx, Inode inode, const std::string &goal_name,
 	             uint8_t smode, std::error_code &ec) {
 	int ret = lizardfs_setgoal_(ctx, inode, goal_name, smode);
 	ec = make_error_code(ret);
@@ -610,7 +610,7 @@ void Client::statfs(Stats &stats, std::error_code &ec) {
 	ec = make_error_code(ret);
 }
 
-void Client::setxattr(const Context &ctx, Inode ino, const std::string &name,
+void Client::setxattr(Context &ctx, Inode ino, const std::string &name,
 	             const XattrBuffer &value, int flags) {
 	std::error_code ec;
 	setxattr(ctx, ino, name, value, flags, ec);
@@ -619,14 +619,14 @@ void Client::setxattr(const Context &ctx, Inode ino, const std::string &name,
 	}
 }
 
-void Client::setxattr(const Context &ctx, Inode ino, const std::string &name,
+void Client::setxattr(Context &ctx, Inode ino, const std::string &name,
 	              const XattrBuffer &value, int flags, std::error_code &ec) {
 	int ret = lizardfs_setxattr_(ctx, ino, name.c_str(),
 	                             (const char *)value.data(), value.size(), flags);
 	ec = make_error_code(ret);
 }
 
-Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::string &name) {
+Client::XattrBuffer Client::getxattr(Context &ctx, Inode ino, const std::string &name) {
 	std::error_code ec;
 	auto ret = getxattr(ctx, ino, name, ec);
 	if (ec) {
@@ -635,7 +635,7 @@ Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::s
 	return ret;
 }
 
-Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::string &name,
+Client::XattrBuffer Client::getxattr(Context &ctx, Inode ino, const std::string &name,
 	                                  std::error_code &ec) {
 	LizardClient::XattrReply reply;
 	int ret = lizardfs_getxattr_(ctx, ino, name.c_str(), kMaxXattrRequestSize, reply);
@@ -643,7 +643,7 @@ Client::XattrBuffer Client::getxattr(const Context &ctx, Inode ino, const std::s
 	return reply.valueBuffer;
 }
 
-Client::XattrBuffer Client::listxattr(const Context &ctx, Inode ino) {
+Client::XattrBuffer Client::listxattr(Context &ctx, Inode ino) {
 	std::error_code ec;
 	auto ret = listxattr(ctx, ino, ec);
 	if (ec) {
@@ -652,14 +652,14 @@ Client::XattrBuffer Client::listxattr(const Context &ctx, Inode ino) {
 	return ret;
 }
 
-Client::XattrBuffer Client::listxattr(const Context &ctx, Inode ino, std::error_code &ec) {
+Client::XattrBuffer Client::listxattr(Context &ctx, Inode ino, std::error_code &ec) {
 	LizardClient::XattrReply reply;
 	int ret = lizardfs_listxattr_(ctx, ino, kMaxXattrRequestSize, reply);
 	ec = make_error_code(ret);
 	return reply.valueBuffer;
 }
 
-void Client::removexattr(const Context &ctx, Inode ino, const std::string &name) {
+void Client::removexattr(Context &ctx, Inode ino, const std::string &name) {
 	std::error_code ec;
 	removexattr(ctx, ino, name, ec);
 	if (ec) {
@@ -667,12 +667,12 @@ void Client::removexattr(const Context &ctx, Inode ino, const std::string &name)
 	}
 }
 
-void Client::removexattr(const Context &ctx, Inode ino, const std::string &name, std::error_code &ec) {
+void Client::removexattr(Context &ctx, Inode ino, const std::string &name, std::error_code &ec) {
 	int ret = lizardfs_removexattr_(ctx, ino, name.c_str());
 	ec = make_error_code(ret);
 }
 
-void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl) {
+void Client::setacl(Context &ctx, Inode ino, const RichACL &acl) {
 	std::error_code ec;
 	setacl(ctx, ino, std::move(acl), ec);
 	if (ec) {
@@ -680,7 +680,7 @@ void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl) {
 	}
 }
 
-void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec) {
+void Client::setacl(Context &ctx, Inode ino, const RichACL &acl, std::error_code &ec) {
 	try {
 		std::vector<uint8_t> xattr = richAclConverter::objectToRichACLXattr(acl);
 		setxattr(ctx, ino, kRichAclXattrName, xattr, 0, ec);
@@ -689,7 +689,7 @@ void Client::setacl(const Context &ctx, Inode ino, const RichACL &acl, std::erro
 	}
 }
 
-RichACL Client::getacl(const Context &ctx, Inode ino) {
+RichACL Client::getacl(Context &ctx, Inode ino) {
 	std::error_code ec;
 	auto ret = getacl(ctx, ino, ec);
 	if (ec) {
@@ -698,7 +698,7 @@ RichACL Client::getacl(const Context &ctx, Inode ino) {
 	return ret;
 }
 
-RichACL Client::getacl(const Context &ctx, Inode ino, std::error_code &ec) {
+RichACL Client::getacl(Context &ctx, Inode ino, std::error_code &ec) {
 	try {
 		auto buffer = getxattr(ctx, ino, kRichAclXattrName, ec);
 		if (ec) {
@@ -729,7 +729,7 @@ std::vector<std::string> Client::toXattrList(const XattrBuffer &buffer) {
 	return xattr_list;
 }
 
-std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(const Context &ctx, Inode ino,
+std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(Context &ctx, Inode ino,
 	                                          uint32_t chunk_index, uint32_t chunk_count) {
 	std::error_code ec;
 	auto ret = getchunksinfo(ctx, ino, chunk_index, chunk_count, ec);
@@ -739,7 +739,7 @@ std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(const Context &ctx, 
 	return ret;
 }
 
-std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(const Context &ctx, Inode ino,
+std::vector<ChunkWithAddressAndLabel> Client::getchunksinfo(Context &ctx, Inode ino,
 	                             uint32_t chunk_index, uint32_t chunk_count, std::error_code &ec) {
 	auto ret = lizardfs_getchunksinfo_(ctx, ino, chunk_index, chunk_count);
 	ec = make_error_code(ret.first);
@@ -761,7 +761,7 @@ std::vector<ChunkserverListEntry> Client::getchunkservers(std::error_code &ec) {
 	return ret.second;
 }
 
-void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock) {
+void Client::getlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock) {
 	std::error_code ec;
 	getlk(ctx, ino, fileinfo, lock, ec);
 	if (ec) {
@@ -769,13 +769,13 @@ void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapp
 	}
 }
 
-void Client::getlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+void Client::getlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 		std::error_code &ec) {
 	int ret = lizardfs_getlk_(ctx, ino, fileinfo, lock);
 	ec = make_error_code(ret);
 }
 
-void Client::setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+void Client::setlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 	           std::function<int(const lzfs_locks::InterruptData &)> handler) {
 	std::error_code ec;
 	setlk(ctx, ino, fileinfo, lock, handler, ec);
@@ -784,7 +784,7 @@ void Client::setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapp
 	}
 }
 
-void Client::setlk(const Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
+void Client::setlk(Context &ctx, Inode ino, FileInfo *fileinfo, FlockWrapper &lock,
 	                    std::function<int(const lzfs_locks::InterruptData &)> handler,
 	                    std::error_code &ec) {
 	auto ret = lizardfs_setlk_send_(ctx, ino, fileinfo, lock);
