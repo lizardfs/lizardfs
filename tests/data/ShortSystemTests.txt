@@ -123,6 +123,7 @@ test_redundancy_level=29745
 test_replication_bandwidth_limiting=59251
 test_replication_delay_disconnect=26000
 test_replication_with_endangered_chunks_priority=15643
+test_restart_consistency=232136
 test_richacl=70933
 test_secondary_groups=2723
 test_shadow_checksum_error_recovery=3063

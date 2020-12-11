@@ -1,4 +1,4 @@
-timeout_set '200 seconds'
+timeout_set 5 minutes
 assert_program_installed setfacl getfacl python3
 touch "$TEMP_DIR/f"
 MESSAGE="Testing ACL support in $TEMP_DIR/" assert_success setfacl -m group:fuse:rw "$TEMP_DIR/f"
