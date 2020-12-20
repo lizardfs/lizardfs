@@ -32,11 +32,11 @@ cmake .. \
 	-DENABLE_OFFICIAL_BUILD=$LIZARDFS_OFFICIAL_BUILD \
 	-DSET_RC_BUILD_NUMBER=$LIZARDFS_SET_RC_BUILD_NUMBER \
 	-DENABLE_CLIENT_LIB=YES \
-	-DENABLE_NFS_GANESHA=YES
+	-DENABLE_NFS_GANESHA=NO
 
 cat >../Makefile <<END
 all:
-	make -C build-pack all
+	make -C build-pack -j$(nproc) all
 
 clean:
 	make -C build-pack clean

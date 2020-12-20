@@ -13,9 +13,7 @@ BuildRequires:  cmake
 BuildRequires:  pkgconfig
 BuildRequires:  zlib-devel
 BuildRequires:  asciidoc
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 BuildRequires:  systemd
-%endif
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %define         liz_project        mfs
@@ -38,11 +36,9 @@ http://lizardfs.com
 %package master
 Summary:        LizardFS master server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
-%endif
 
 %description master
 LizardFS master (metadata) server together with metarestore utility.
@@ -50,11 +46,9 @@ LizardFS master (metadata) server together with metarestore utility.
 %package metalogger
 Summary:        LizardFS metalogger server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
-%endif
 
 %description metalogger
 LizardFS metalogger (metadata replication) server.
@@ -62,11 +56,9 @@ LizardFS metalogger (metadata replication) server.
 %package chunkserver
 Summary:        LizardFS data server
 Group:          System Environment/Daemons
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
-%endif
 
 %description chunkserver
 LizardFS data server.
@@ -88,13 +80,14 @@ Group:          Development/Libraries
 %description lib-client
 LizardFS client library for C/C++ bindings.
 
-%package nfs-ganesha
-Summary:        LizardFS plugin for nfs-ganesha
-Group:          System Environment/Libraries
-Requires:       lizardfs-lib-client
-
-%description nfs-ganesha
-LizardFS fsal plugin for nfs-ganesha.
+### Uncomment lines below to re-enable ganesha build.
+# %package nfs-ganesha
+# Summary:        LizardFS plugin for nfs-ganesha
+# Group:          System Environment/Libraries
+# Requires:       lizardfs-lib-client
+#
+# %description nfs-ganesha
+# LizardFS fsal plugin for nfs-ganesha.
 
 %package cgi
 Summary:        LizardFS CGI Monitor
@@ -108,11 +101,9 @@ LizardFS CGI Monitor.
 Summary:        Simple CGI-capable HTTP server to run LizardFS CGI Monitor
 Group:          System Environment/Daemons
 Requires:       %{name}-cgi = %{version}-%{release}
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 Requires(post): systemd-units
 Requires(preun): systemd-units
 Requires(postun): systemd-units
-%endif
 
 %description cgiserv
 Simple CGI-capable HTTP server to run LizardFS CGI Monitor.
@@ -145,31 +136,13 @@ fi
 exit 0
 
 %post master
-%if "%{distro}" == "el6"
-/sbin/chkconfig --add lizardfs-master
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-master.service
-%endif
 
 %preun master
-%if "%{distro}" == "el6"
-if [ "$1" = 0 ] ; then
-	/sbin/service lizardfs-master stop > /dev/null 2>&1 || :
-	/sbin/chkconfig --del lizardfs-master
-fi
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-master.service
-%endif
 
 %postun master
-%if "%{distro}" == "el6"
-/sbin/service lizardfs-master condrestart > /dev/null 2>&1 || :
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-master.service
-%endif
 
 # Scriptlets - metalogger
 ############################################################
@@ -184,31 +157,13 @@ fi
 exit 0
 
 %post metalogger
-%if "%{distro}" == "el6"
-/sbin/chkconfig --add lizardfs-metalogger
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-metalogger.service
-%endif
 
 %preun metalogger
-%if "%{distro}" == "el6"
-if [ "$1" = 0 ] ; then
-	/sbin/service lizardfs-metalogger stop > /dev/null 2>&1 || :
-	/sbin/chkconfig --del lizardfs-metalogger
-fi
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-metalogger.service
-%endif
 
 %postun metalogger
-%if "%{distro}" == "el6"
-/sbin/service lizardfs-metalogger condrestart > /dev/null 2>&1 || :
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-metalogger.service
-%endif
 
 # Scriptlets - chunkserver
 ############################################################
@@ -231,61 +186,25 @@ fi
 exit 0
 
 %post chunkserver
-%if "%{distro}" == "el6"
-/sbin/chkconfig --add lizardfs-chunkserver
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-chunkserver.service
-%endif
 
 %preun chunkserver
-%if "%{distro}" == "el6"
-if [ "$1" = 0 ] ; then
-	/sbin/service lizardfs-chunkserver stop > /dev/null 2>&1 || :
-	/sbin/chkconfig --del lizardfs-chunkserver
-fi
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-chunkserver.service
-%endif
 
 %postun chunkserver
-%if "%{distro}" == "el6"
-/sbin/service lizardfs-chunkserver condrestart > /dev/null 2>&1 || :
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-chunkserver.service
-%endif
 
 # Scriptlets - CGI server
 ############################################################
 
 %post cgiserv
-%if "%{distro}" == "el6"
-/sbin/chkconfig --add lizardfs-cgiserv
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_post lizardfs-cgiserv.service
-%endif
 
 %preun cgiserv
-%if "%{distro}" == "el6"
-if [ "$1" = 0 ] ; then
-	/sbin/service lizardfs-cgiserv stop > /dev/null 2>&1 || :
-	/sbin/chkconfig --del lizardfs-cgiserv
-fi
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_preun lizardfs-cgiserv.service
-%endif
 
 %postun cgiserv
-%if "%{distro}" == "el6"
-/sbin/service lizardfs-cgiserv condrestart > /dev/null 2>&1 || :
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %systemd_postun_with_restart lizardfs-cgiserv.service
-%endif
 
 # Prep, build, install, files...
 ############################################################
@@ -300,20 +219,10 @@ make %{?_smp_mflags}
 %install
 rm -rf $RPM_BUILD_ROOT
 make install DESTDIR=$RPM_BUILD_ROOT
-%if "%{distro}" == "el6"
-install -d $RPM_BUILD_ROOT%{_initrddir}
-for f in rpm/init-scripts/*.init ; do
-        sed -e 's,@sysconfdir@,%{_sysconfdir},;
-                s,@sbindir@,%{_sbindir},;
-                s,@initddir@,%{_initrddir},' $f > $RPM_BUILD_ROOT%{_initrddir}/$(basename $f .init)
-done
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 install -d -m755 $RPM_BUILD_ROOT/%{_unitdir}
 for f in rpm/service-files/*.service ; do
 	install -m644 "$f" $RPM_BUILD_ROOT/%{_unitdir}/$(basename "$f")
 done
-%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -344,12 +253,7 @@ rm -rf $RPM_BUILD_ROOT
 %{liz_confdir}/mfsmaster.cfg.dist
 %{liz_confdir}/globaliolimits.cfg.dist
 %attr(644,root,root) %{liz_datadir}/metadata.mfs.empty
-%if "%{distro}" == "el6"
-%attr(754,root,root) %{_initrddir}/lizardfs-master
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-master.service
-%endif
 
 %files metalogger
 %defattr(644,root,root,755)
@@ -359,12 +263,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man5/mfsmetalogger.cfg.5*
 %{_mandir}/man8/mfsmetalogger.8*
 %{liz_confdir}/mfsmetalogger.cfg.dist
-%if "%{distro}" == "el6"
-%attr(754,root,root) %{_initrddir}/lizardfs-metalogger
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-metalogger.service
-%endif
 
 %files chunkserver
 %defattr(644,root,root,755)
@@ -376,12 +275,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_mandir}/man8/mfschunkserver.8*
 %{liz_confdir}/mfschunkserver.cfg.dist
 %{liz_confdir}/mfshdd.cfg.dist
-%if "%{distro}" == "el6"
-%attr(754,root,root) %{_initrddir}/lizardfs-chunkserver
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-chunkserver.service
-%endif
 
 %files client
 %defattr(644,root,root,755)
@@ -448,10 +342,11 @@ rm -rf $RPM_BUILD_ROOT
 %{_includedir}/lizardfs/lizardfs_c_api.h
 %{_includedir}/lizardfs/lizardfs_error_codes.h
 
-%files nfs-ganesha
-%{_libdir}/ganesha/libfsallizardfs.so
-%{_libdir}/ganesha/libfsallizardfs.so.4
-%{_libdir}/ganesha/libfsallizardfs.so.4.2.0
+### Uncomment lines below to re-enable ganesha build.
+#%files nfs-ganesha
+#%{_libdir}/ganesha/libfsallizardfs.so
+#%{_libdir}/ganesha/libfsallizardfs.so.4
+#%{_libdir}/ganesha/libfsallizardfs.so.4.2.0
 
 %files cgi
 %defattr(644,root,root,755)
@@ -471,12 +366,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(755,root,root) %{_sbindir}/mfscgiserv
 %{_mandir}/man8/lizardfs-cgiserver.8*
 %{_mandir}/man8/mfscgiserv.8*
-%if "%{distro}" == "el6"
-%attr(754,root,root) %{_initrddir}/lizardfs-cgiserv
-%endif
-%if "%{distro}" == "el7" || "%{distro}" == "fc24"
 %attr(644,root,root) %{_unitdir}/lizardfs-cgiserv.service
-%endif
 
 %files adm
 %defattr(644,root,root,755)

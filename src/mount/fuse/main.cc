@@ -673,6 +673,6 @@ int main(int argc, char *argv[]) try {
 	free(mountpoint);
 	stats_term();
 	return res;
-} catch (std::bad_alloc ex) {
+} catch (std::bad_alloc const&) {
 	mabort("run out of memory");
 }

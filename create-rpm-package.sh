@@ -3,9 +3,9 @@ set -eux
 
 os_release="$(cat /etc/redhat-release | tr -dc '0-9' | cut -b 1-2)"
 case "$os_release" in
-  6*) distro=el6 ;;
   7*) distro=el7 ;;
-  24*) distro=fc24 ;;
+  8*) distro=el8 ;;
+  32*) distro=fc32 ;;
 esac
 echo "Building packages for '$distro'"
 
