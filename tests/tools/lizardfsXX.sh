@@ -1,40 +1,24 @@
-build_lizardfsXX_or_use_cache() {
-	LIZARDFS_TESTS_DIR=$(pwd)
-	# Exit if LizardFS was already configured and installed, assume it was
-	# configured properly
-	(cd "$LIZARDFSXX_DIR/src/lizardfs/build" && make install) && return || true
+# Legacy version of LizardFS used in tests and sources of its packages
+LIZARDFSXX_TAG="3.12.0"
+LIZARDFSXX_PKG_FILE="/home/trzysiek/lizardfs-3.12.0.tar.gz"
 
+install_lizardfsXX() {
 	rm -rf "$LIZARDFSXX_DIR"
 	mkdir -p "$LIZARDFSXX_DIR"
-	pushd "$LIZARDFSXX_DIR"
-	mkdir src
-	cd src
-	git clone https://github.com/lizardfs/lizardfs.git
-	cd lizardfs
-	git checkout v$LIZARDFSXX_TAG
-	for patch_name in "$LIZARDFS_TESTS_DIR"/patches/$LIZARDFSXX_TAG-*.patch; do
-		if [ -f "$patch_name" ]; then
-			patch -p1 < "$patch_name"
-		fi
+	tar -xf $LIZARDFSXX_PKG_FILE --directory $LIZARDFSXX_DIR_BASE
+	cd $LIZARDFSXX_DIR_BASE
+	for pkg in *.deb; do
+		echo "Installing $pkg"
+		dpkg -x $pkg install
 	done
-	mkdir build
-	cd build
-	sed -i 's:add_subdirectory(src/mount/polonaise):# Polonaise disabled:g' ../CMakeLists.txt
-	cmake .. -DCMAKE_INSTALL_PREFIX="$LIZARDFSXX_DIR" -DENABLE_POLONAISE=OFF
-	make
-	make install
-	popd
+	echo "Legacy LizardFS packages installed."
+	test_lizardfsXX_executables
 }
 
 test_lizardfsXX_executables() {
 	test -x "$LIZARDFSXX_DIR/bin/mfsmount"
 	test -x "$LIZARDFSXX_DIR/sbin/mfschunkserver"
 	test -x "$LIZARDFSXX_DIR/sbin/mfsmaster"
-}
-
-build_lizardfsXX() {
-	build_lizardfsXX_or_use_cache
-	test_lizardfsXX_executables
 }
 
 lizardfsXX_chunkserver_daemon() {

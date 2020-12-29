@@ -4,7 +4,7 @@
 # is created and it contains information about the filestystem
 setup_local_empty_lizardfs() {
 	local use_moosefs=${USE_MOOSEFS:-}
-	local use_lizardfsXX=${LIZARDFSXX_TAG:-}
+	local use_lizardfsXX=${START_WITH_LEGACY_LIZARDFS:-}
 	local use_ramdisk=${USE_RAMDISK:-}
 	local use_loop=${USE_LOOP_DISKS:-}
 	local number_of_masterservers=${MASTERSERVERS:-1}
@@ -40,14 +40,12 @@ setup_local_empty_lizardfs() {
 	fi
 
 	if [[ $use_lizardfsXX ]]; then
-		if version_compare_gte "$LIZARDFSXX_TAG" "3.11.0" ; then
-			use_new_goal_config="true"
-		else
-			use_new_goal_config="false"
-		fi
-		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/lizardfs-${LIZARDFSXX_TAG}
+		# In old suite, when legacy version was >= 3.11, we set `use_new_goal_config`=true
+		# Maybe that's not what we want? (look at if above)
+		use_new_goal_config="true"
+		LIZARDFSXX_DIR=${LIZARDFSXX_DIR_BASE}/install/usr
 		export PATH="${LIZARDFSXX_DIR}/bin:${LIZARDFSXX_DIR}/sbin:$PATH"
-		build_lizardfsXX
+		install_lizardfsXX
 	fi
 
 	# Prepare configuration for metadata servers

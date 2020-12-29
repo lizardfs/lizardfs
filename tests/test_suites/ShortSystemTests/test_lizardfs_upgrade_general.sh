@@ -1,9 +1,13 @@
-timeout_set 12 minutes
+timeout_set 90 seconds
+
+# A long scenario of LizardFS upgrade from legacy to current version,
+# checking if multiple mini-things work properly, in one test.
 
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
 	MASTERSERVERS=2 \
 	LZFS_MOUNT_COMMAND="mfsmount" \
+	START_WITH_LEGACY_LIZARDFS=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	CHUNKSERVER_1_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_TIME = 1|OPERATIONS_DELAY_INIT = 0" \
@@ -11,10 +15,13 @@ CHUNKSERVERS=2 \
 
 REPLICATION_TIMEOUT='30 seconds'
 
-cd "${info[mount0]}"
+# Start the test with master, 2 chunkservers and mount running old LizardFS code
 # Ensure that we work on legacy version
-assert_equals $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l) 1
+assert_equals 1 $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l)
+assert_equals 2 $(lizardfs_admin_master list-chunkservers | grep $LIZARDFSXX_TAG | wc -l)
+assert_equals 1 $(lizardfs_admin_master list-mounts | grep $LIZARDFSXX_TAG | wc -l)
 
+cd "${info[mount0]}"
 mkdir dir
 assert_success lizardfsXX mfssetgoal 2 dir
 cd dir
@@ -28,14 +35,14 @@ function generate_file {
 assert_success generate_file file0
 assert_success file-validate file0
 
-# Start shadows
+# Start shadow
 lizardfs_master_n 1 restart
 assert_eventually "lizardfs_shadow_synchronized 1"
 
 # Replace old LizardFS master with LizardFS master:
 lizardfs_master_daemon restart
 # Ensure that versions are switched
-assert_equals $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l) 0
+assert_equals 0 $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l)
 lizardfs_wait_for_all_ready_chunkservers
 # Check if files can still be read:
 assert_success file-validate file0
@@ -44,7 +51,7 @@ assert_success mkdir dir
 for goal in {1..9}; do
 	assert_equals "dir: $goal" "$(lizardfsXX mfssetgoal "$goal" dir || echo FAILED)"
 	assert_equals "dir: $goal" "$(lizardfsXX mfsgetgoal dir || echo FAILED)"
-	expected=" files with goal        $goal :          1"
+	expected="dir:"$'\n'" directories with goal  $goal :          1"
 	assert_equals "$expected" "$(lizardfsXX mfsgetgoal -r dir || echo FAILED)"
 done
 

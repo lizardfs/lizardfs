@@ -1,1 +1,0 @@
-LIZARDFSXX_TAG=3.11.0 source test_suites/TestTemplates/test_lizardfs_new_mount_old_lizardfs.inc
