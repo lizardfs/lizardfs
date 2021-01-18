@@ -117,6 +117,7 @@ test_quota_permissions=2223
 test_read_corrupted_file_with_goal_1=5139
 test_read_only=44098
 test_read_write_during_scan=22850
+test_readdir_faulty_master_parallel=17687
 test_readdir_unlink_loop=3458
 test_recursive_remove=12734
 test_redundancy_level=29745

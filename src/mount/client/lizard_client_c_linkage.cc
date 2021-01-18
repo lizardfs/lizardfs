@@ -274,11 +274,13 @@ bool lizardfs_isSpecialInode(Inode ino) {
 	return LizardClient::isSpecialInode(ino);
 }
 
-std::pair<int, std::vector<DirEntry>> lizardfs_readdir(Context &ctx, Inode ino, off_t off,
-		size_t max_entries) {
+std::pair<int, std::vector<DirEntry>> lizardfs_readdir(Context &ctx, uint64_t opendirSessionID,
+		Inode ino, off_t off, size_t max_entries) {
 	try {
-		auto ret = LizardClient::readdir(ctx, ino, off, max_entries);
-		return {LIZARDFS_STATUS_OK, ret};
+		auto fsDirEntries = LizardClient::readdir(ctx, opendirSessionID, ino, off, max_entries);
+		uint64_t nextEntryIno = (fsDirEntries.empty()) ? 0 : fsDirEntries.back().attr.st_ino;
+		LizardClient::update_readdir_session(opendirSessionID, nextEntryIno);
+		return {LIZARDFS_STATUS_OK, fsDirEntries};
 	} catch (const RequestException &e) {
 		return {e.lizardfs_error_code, std::vector<DirEntry>()};
 	} catch (...) {
@@ -332,9 +334,10 @@ int lizardfs_opendir(Context &ctx, Inode ino) {
 	}
 }
 
-int lizardfs_releasedir(Inode ino) {
+int lizardfs_releasedir(Inode ino, uint64_t opendirSessionID) {
 	try {
 		LizardClient::releasedir(ino);
+		LizardClient::drop_readdir_session(opendirSessionID);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;

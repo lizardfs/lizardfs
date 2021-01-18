@@ -19,6 +19,7 @@
 #include "common/platform.h"
 #include "mount/fuse/mfs_fuse.h"
 
+#include <atomic>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -411,6 +412,9 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 	try {
 		auto ctx = get_context(req);
 		LizardClient::opendir(ctx, ino);
+		//opendir can be called asynchronously
+		static std::atomic<std::uint64_t> opendirSessionID{0};
+		fi->fh = opendirSessionID++;
 		fuse_reply_open(req, fi);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
@@ -418,7 +422,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 }
 
 void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
-		struct fuse_file_info */*fi*/) {
+		struct fuse_file_info* fi) {
 	try {
 		char buffer[READDIR_BUFFSIZE];
 		if (size > READDIR_BUFFSIZE) {
@@ -426,6 +430,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 		}
 		size_t bytesInBuffer = 0;
 		bool end = false;
+		uint64_t nextEntryIno = 0;
 		while (!end) {
 			// Calculate approximated number of entries which will fit in the buffer. If this
 			// number is smaller than the actual value, LizardClient::readdir will be called more
@@ -440,7 +445,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 			size_t maxEntries = 1 + size / 32;
 			// Now extract some entries and rewrite them into the buffer.
 			auto ctx = get_context(req);
-			auto fsDirEntries = LizardClient::readdir(ctx, ino, off, maxEntries);
+			auto fsDirEntries = LizardClient::readdir(ctx, fi->fh, ino, off, maxEntries);
 			if (fsDirEntries.empty()) {
 				break; // no more entries (we don't need to set 'end = true' here to end the loop)
 			}
@@ -448,6 +453,7 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 				size_t entrySize = fuse_add_direntry(req,
 						buffer + bytesInBuffer, size,
 						e.name.c_str(), &(e.attr), e.nextEntryOffset);
+				nextEntryIno = e.attr.st_ino;
 				if (entrySize > size) {
 					end = true; // buffer is full
 					break;
@@ -457,15 +463,17 @@ void mfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off,
 				size -= entrySize; // decrease remaining buffer size
 			}
 		}
+		LizardClient::update_readdir_session(fi->fh, nextEntryIno);
 		fuse_reply_buf(req, buffer, bytesInBuffer);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
 	}
 }
 
-void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info */*fi*/) {
+void mfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info* fi) {
 	try {
 		LizardClient::releasedir(ino);
+		LizardClient::drop_readdir_session(fi->fh);
 		fuse_reply_err(req, 0);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);

@@ -77,12 +77,14 @@ void *Client::linkLibrary() {
 	return ret;
 }
 
-Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint) {
+Client::Client(const std::string &host, const std::string &port, const std::string &mountpoint)
+	: nextOpendirSessionID_(1) {
 	FsInitParams params("", host, port, mountpoint);
 	init(params);
 }
 
-Client::Client(FsInitParams &params) {
+Client::Client(FsInitParams &params)
+	: nextOpendirSessionID_(1) {
 	init(params);
 }
 
@@ -243,7 +245,7 @@ Client::ReadDirReply Client::readdir(Context &ctx, FileInfo* fileinfo, off_t off
 
 Client::ReadDirReply Client::readdir(Context &ctx, FileInfo* fileinfo, off_t offset,
 		size_t max_entries, std::error_code &ec) {
-	auto ret = lizardfs_readdir_(ctx, fileinfo->inode, offset, max_entries);
+	auto ret = lizardfs_readdir_(ctx, fileinfo->opendirSessionID, fileinfo->inode, offset, max_entries);
 	ec = make_error_code(ret.first);
 	return ret.second;
 }
@@ -314,7 +316,7 @@ Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec
 	if (ec) {
 		return nullptr;
 	}
-	FileInfo *fileinfo = new FileInfo(inode);
+	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.push_front(*fileinfo);
 	return fileinfo;
@@ -330,7 +332,7 @@ void Client::releasedir(FileInfo* fileinfo) {
 
 void Client::releasedir(FileInfo* fileinfo, std::error_code &ec) {
 	assert(fileinfo != nullptr);
-	int ret = lizardfs_releasedir_(fileinfo->inode);
+	int ret = lizardfs_releasedir_(fileinfo->inode, fileinfo->opendirSessionID);
 	ec = make_error_code(ret);
 	{
 		std::lock_guard<std::mutex> guard(mutex_);

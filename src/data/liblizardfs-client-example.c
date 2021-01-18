@@ -16,9 +16,10 @@
 /* Function that copies lizardfs lock interrupt data to provided buffer */
 int register_interrupt(liz_lock_interrupt_info_t *info, void *priv) {
 	memcpy(priv, info, sizeof(*info));
+	return 0;
 }
 
-int main() {
+int main(int argc, char **argv) {
 	int err;
 	liz_err_t liz_err = LIZARDFS_STATUS_OK;
 	int i, r;
@@ -34,7 +35,7 @@ int main() {
 
 	/* Create a connection */
 	ctx = liz_create_context();
-	liz_set_default_init_params(&params, "localhost", "9421", "test123");
+	liz_set_default_init_params(&params, "localhost", (argc > 1) ? argv[1] : "9421", "test123");
 	liz = liz_init_with_params(&params);
 	if (!liz) {
 		fprintf(stderr, "Connection failed\n");

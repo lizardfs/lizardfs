@@ -44,6 +44,9 @@ typedef uint32_t Inode;
 typedef uint32_t JobId;
 typedef uint32_t NamedInodeOffset;
 
+void update_readdir_session(uint64_t sessId, uint64_t entryIno);
+void drop_readdir_session(uint64_t opendirSessionID);
+
 struct FsInitParams {
 	static constexpr const char *kDefaultSubfolder = DEFAULT_MOUNTED_SUBFOLDER;
 	static constexpr bool     kDefaultDoNotRememberPassword = false;
@@ -358,7 +361,7 @@ void fsync(Context &ctx, Inode ino, int datasync, FileInfo* fi);
 
 void opendir(Context &ctx, Inode ino);
 
-std::vector<DirEntry> readdir(Context &ctx, Inode ino, off_t off, size_t max_entries);
+std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, size_t max_entries);
 
 std::vector<NamedInodeEntry> readreserved(Context &ctx, NamedInodeOffset offset, NamedInodeOffset max_entries);
 

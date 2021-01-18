@@ -98,6 +98,20 @@ namespace LizardClient {
 
 static GroupCache gGroupCache;
 
+struct ReaddirSession {
+	uint64_t lastReadIno;
+	bool restarted;
+	ReaddirSession(uint64_t ino = 0)
+		: lastReadIno(ino)
+		, restarted(false) {
+	}
+};
+
+using ReaddirSessions = std::map<std::uint64_t, ReaddirSession>;
+
+std::mutex gReaddirMutex;
+ReaddirSessions gReaddirSessions;
+
 static void update_credentials(Context::IdType index, const GroupCache::Groups &groups);
 static void registerGroupsInMaster(Context &ctx);
 
@@ -151,6 +165,10 @@ static void registerGroupsInMaster(Context &ctx) {
 
 void masterDisconnectedCallback() {
 	gGroupCache.reset();
+	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
+	for (auto& rs : gReaddirSessions) {
+		rs.second.restarted = true;
+	}
 }
 
 Inode getSpecialInodeByName(const char *name) {
@@ -212,6 +230,53 @@ static std::mutex lock_request_mutex;
 
 
 static std::unique_ptr<AclCache> acl_cache;
+
+void update_readdir_session(uint64_t sessId, uint64_t entryIno) {
+	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
+	gReaddirSessions[sessId].lastReadIno = entryIno;
+}
+
+void drop_readdir_session(uint64_t opendirSessionID) {
+	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
+	gReaddirSessions.erase(opendirSessionID);
+}
+
+static void updateNextReaddirEntryIndexIfMasterRestarted(uint64_t &nextEntryIndex,
+		Context &ctx, Inode parentInode, uint64_t opendirSessionId, uint64_t requestSize) {
+	std::lock_guard<std::mutex> sessions_guard(gReaddirMutex);
+	ReaddirSessions::iterator sessionIt = gReaddirSessions.find(opendirSessionId);
+	if ((sessionIt == gReaddirSessions.end()) || !(sessionIt->second.restarted)) {
+		return;
+	}
+	std::vector<DirectoryEntry> dirEntries;
+	uint8_t status = 0;
+	ReaddirSession& rs = sessionIt->second;
+	rs.restarted = false;
+	nextEntryIndex = 0;
+	while (true) {
+		dirEntries.clear();
+		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(
+			status, ctx,
+			fs_getdir(parentInode, ctx.uid, ctx.gid, nextEntryIndex, requestSize, dirEntries)
+		);
+		if (dirEntries.empty()) {
+			break;
+		}
+		std::vector<DirectoryEntry>::const_iterator direntIt = find_if(
+				dirEntries.cbegin(),
+				dirEntries.cend(),
+				[&rs](DirectoryEntry const& de) {
+					return (de.inode == rs.lastReadIno);
+				}
+			);
+		if (direntIt != dirEntries.end()) {
+			nextEntryIndex = direntIt->index;
+			dirEntries.clear();
+			break;
+		}
+		nextEntryIndex = dirEntries.back().next_index;
+	}
+}
 
 inline void eraseAclCache(Inode inode) {
 	acl_cache->erase(
@@ -1499,7 +1564,7 @@ void opendir(Context &ctx, Inode ino) {
  * \param max_entries max number of dir entries to list
  * \return std::vector of directory entries
  */
-std::vector<DirEntry> readdir(Context &ctx, Inode ino, off_t off, size_t max_entries) {
+std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, size_t max_entries) {
 	static constexpr int kBatchSize = 1000;
 	const uint64_t start_off = static_cast<std::make_unsigned<off_t>::type>(off);
 	// type to cast to should be the same size to avoid potential sign-extension
@@ -1569,8 +1634,13 @@ std::vector<DirEntry> readdir(Context &ctx, Inode ino, off_t off, size_t max_ent
 	uint8_t status;
 	uint64_t request_size = std::min<std::size_t>(std::max<std::size_t>(kBatchSize, max_entries),
 	                                              matocl::fuseGetDir::kMaxNumberOfDirectoryEntries);
-	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx,
-		fs_getdir(ino, ctx.uid, ctx.gid, entry_index, request_size, dir_entries));
+
+	updateNextReaddirEntryIndexIfMasterRestarted(entry_index, ctx, ino, fh, request_size);
+
+	RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(
+		status, ctx,
+		fs_getdir(ino, ctx.uid, ctx.gid, entry_index, request_size, dir_entries)
+	);
 	auto data_acquire_time = gDirEntryCache.updateTime();
 
 	if(status != LIZARDFS_STATUS_OK) {

@@ -61,8 +61,12 @@ public:
 
 	struct FileInfo : public LizardClient::FileInfo, public boost::intrusive::list_base_hook<> {
 		FileInfo() {}
-		FileInfo(Inode inode) : inode(inode) {}
+		FileInfo(Inode inode, uint64_t opendirSessionID = 0)
+			: inode(inode)
+			, opendirSessionID(opendirSessionID) {
+		}
 		Inode inode;
+		uint64_t opendirSessionID;
 	};
 	typedef boost::intrusive::list<FileInfo> FileInfoList;
 
@@ -340,6 +344,7 @@ protected:
 	void *dl_handle_;
 	FileInfoList fileinfos_;
 	std::mutex mutex_;
+	std::atomic<uint64_t> nextOpendirSessionID_;
 
 	static std::atomic<int> instance_count_;
 
