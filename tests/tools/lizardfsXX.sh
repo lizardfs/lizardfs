@@ -43,3 +43,16 @@ lizardfsXX() {
 	"$LIZARDFSXX_DIR/"*bin"/$command" "$@" | cat
 	return ${PIPESTATUS[0]}
 }
+
+assert_lizardfsXX_services_count_equals() {
+	local mas_expected=$1
+	local cli_expected=$2
+	local cs_expected=$3
+	assert_equals $mas_expected $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l)
+	assert_equals $cli_expected $(lizardfs_admin_master list-mounts | grep $LIZARDFSXX_TAG | wc -l)
+	assert_equals $cs_expected $(lizardfs_admin_master list-chunkservers | grep $LIZARDFSXX_TAG | wc -l)
+}
+
+assert_no_lizardfsXX_services_active() {
+	assert_lizardfsXX_services_count_equals 0 0 0
+}

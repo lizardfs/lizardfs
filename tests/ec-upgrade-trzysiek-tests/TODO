@@ -1,0 +1,26 @@
+- assert_legacy_services_count_equals 0 0 0
+
+FILE_SIZES="..."
+FILE_COUNTS="..."
+FILE_CHUNKSNR="..."
+
+- CN_
+
+- generate_files_various_filesizes
+  subfuncitons _generate_one_dir() only locally
+
+TestTemplate parametryzowany:
+a) chunk formatem
+b) goalem: 2, ec21, ec32, etc
+c) liczbą chunkserverów (b/c zależne od siebie)
+
+
+pogadać z Amokiem o:
+- ocb z paczkami, jak to dokładnie będzie
+- co zrobić by mieć paczki i móc testować na jenkinsie
+
+
+TODO:
+- pomyslec gdzie te wszystkie funkcje najlepiej powrzucac
+- pozmieniać .sh na .inc w TestTemplates
+- zmienić timeouty

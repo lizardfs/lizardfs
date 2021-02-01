@@ -3,10 +3,11 @@ timeout_set 45 seconds
 # Test checks if both legacy, and new LizardFS mount
 # work with legacy versions of master and chunkservers
 
+export LZFS_MOUNT_COMMAND="mfsmount"
+
 CHUNKSERVERS=2 \
 	MOUNTS=2 \
 	START_WITH_LEGACY_LIZARDFS=YES \
-	LZFS_MOUNT_COMMAND="mfsmount" \
 	USE_RAMDISK=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	CHUNKSERVER_1_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0" \

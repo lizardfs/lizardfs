@@ -3,10 +3,11 @@ timeout_set 90 seconds
 # A long scenario of LizardFS upgrade from legacy to current version,
 # checking if multiple mini-things work properly, in one test.
 
+export LZFS_MOUNT_COMMAND="mfsmount"
+
 CHUNKSERVERS=2 \
 	USE_RAMDISK=YES \
 	MASTERSERVERS=2 \
-	LZFS_MOUNT_COMMAND="mfsmount" \
 	START_WITH_LEGACY_LIZARDFS=YES \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	CHUNKSERVER_1_EXTRA_CONFIG="CREATE_NEW_CHUNKS_IN_MOOSEFS_FORMAT = 0" \

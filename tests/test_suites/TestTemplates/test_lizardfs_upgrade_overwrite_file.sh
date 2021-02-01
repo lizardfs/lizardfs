@@ -1,11 +1,15 @@
 timeout_set 1000 minutes
 
-# We create file in goal '2'.
-# We close one of two chunkservers, so that this file is in undergoal.
+# We create file in some custom goal, e.g. '2', or ec21, or ec32.
+# We close $CHUNKSERVERS_DOWN_N chunkservers, so that this file is in undergoal,
+# and only minimal number of chunkservers for files to be readable remains on.
+# (e.g. we close 2 chunkservers when goal=ec32, or 1 when goal=ec21/2).
 # We overwrite the file, then restart and upgrade all LizardFS services.
-# New version should then remain, and be replicated to second chunkserver.
+# New version should then remain, and be replicated to previously closed chunkservers.
 
 export LZFS_MOUNT_COMMAND="mfsmount"
+
+source test_utils/upgrade.sh
 
 CHUNKSERVERS=3
 	START_WITH_LEGACY_LIZARDFS=YES \
@@ -26,102 +30,27 @@ CN_100M=2
 CN_1G=16
 CN_2G=32
 
-function generate_file {
-	local name=$1
-	local seed=$2
-	local size=$3
-	echo "Generating $name"
-	FILE_SIZE=$size SEED=$seed file-generate $name
-}
-
-function generate_one_dir {
-	local dirname=$1
-	local n_files=$2
-	local seed_shift=$3
-	cd $dirname
-	echo "Generating files in directory: $dirname"
-	for i in $(seq $n_files); do
-		generate_file $i $((i + seed_shift)) $dirname
-	done
-	cd -
-}
-
-function generate_all_files {
-	local seed_shift=$1
-	mkdir 10M 100M 1G 2G
-	generate_one_dir 10M $N_10M $seed_shift
-	generate_one_dir 100M $N_100M $seed_shift
-	generate_one_dir 1G $N_1G $seed_shift
-	generate_one_dir 2G $N_2G $seed_shift
-}
-
-function overwrite_half_files {
-	local seed_shift=1000
-	generate_one_dir 10M $(((N_10M + 1) / 2)) $seed_shift
-	generate_one_dir 100M $(((N_100M + 1) / 2)) $seed_shift
-	generate_one_dir 1G $(((N_1G + 1) / 2)) $seed_shift
-	generate_one_dir 2G $(((N_2G + 1) / 2)) $seed_shift
-}
-
-function validate_one_dir {
-	local dirname=$1
-	local n_files=$2
-	local n_overwritten=$(((n_files + 1) / 2))
-	cd $dirname
-	for i in $(seq 1 $n_overwritten); do
-		SEED=$((1000 + $i)) assert_success file-validate $i
-	done
-	# normal, old files, seed=default
-	for i in $(seq $((n_overwritten + 1)) n_files); do
-		SEED=$i assert_success file-validate $i
-	done
-	cd -
-}
-
-function validate_all_files {
-	validate_one_dir 10M $N_10M
-	validate_one_dir 100M $N_100M
-	validate_one_dir 1G $N_1G
-	validate_one_dir 2G $N_2G
-}
-
-function check_one_dir_replicated {
-	local dirname=$1
-	local n_chunks=$2
-	cd $dirname
-	for f in *; do
-		[ -f $f ] || continue
-		echo $dirname $f
-		echo "Checking if replicated properly, dir: $dirname, file: $f"
-		lizardfs checkfile $f
-		lizardfs fileinfo $f
-		assert_eventually '[[ $(lizardfs fileinfo $f | grep "copy" | wc -l) == $(( n_chunks * 3 )) ]]' "$REPLICATION_TIMEOUT"
-	done
-	cd -
-}
-
-function check_all_files_replicated {
-	check_one_dir_replicated 10M $CN_10M
-	check_one_dir_replicated 100M $CN_100M
-	check_one_dir_replicated 1G $CN_1G
-	check_one_dir_replicated 2G $CN_2G
-}
 
 # Start the test with master, two chunkservers and mount running old LizardFS code
 # Ensure that we work on legacy version
-assert_equals 1 $(lizardfs_admin_master info | grep $LIZARDFSXX_TAG | wc -l)
-assert_equals 3 $(lizardfs_admin_master list-chunkservers | grep $LIZARDFSXX_TAG | wc -l)
-assert_equals 1 $(lizardfs_admin_master list-mounts | grep $LIZARDFSXX_TAG | wc -l)
+
+assert_lizardfsXX_services_count_equals 1 1 $CHUNKSERVERS_N
 
 cd "${info[mount0]}"
 mkdir dir
-assert_success lizardfsXX mfssetgoal ec21 dir
+assert_success lizardfsXX mfssetgoal $GOAL dir
 cd dir
 
-echo "Starting test"
+# map file_size -> cnt, e.g. 20M -> 5 (5 files of file_size 20M)
+declare -A file_sizes
+fill_array_default_file_sizes file_sizes # always that, or add some custom values here by yourself
+assert_success generate_files_various_filesizes file_sizes
+echo "Generated, sleeping."
+sleep 10m
+exit
 
-assert_success generate_all_files 0
-echo "All files generated"
+#assert_success generate_all_files 0
+#echo "All files generated"
 
 # Wait until chunk has been replicated
 assert_success check_all_files_replicated
@@ -204,3 +133,84 @@ assert_success validate_all_files
 
 sleep 25m
 assert_success validate_all_files
+
+function generate_file {
+	local name=$1
+	local seed=$2
+	local size=$3
+	echo "Generating $name"
+	FILE_SIZE=$size SEED=$seed file-generate $name
+}
+
+function generate_one_dir {
+	local dirname=$1
+	local n_files=$2
+	local seed_shift=$3
+	cd $dirname
+	echo "Generating files in directory: $dirname"
+	for i in $(seq $n_files); do
+		generate_file $i $((i + seed_shift)) $dirname
+	done
+	cd -
+}
+
+function generate_all_files {
+	local seed_shift=$1
+	mkdir 10M 100M 1G 2G
+	generate_one_dir 10M $N_10M $seed_shift
+	generate_one_dir 100M $N_100M $seed_shift
+	generate_one_dir 1G $N_1G $seed_shift
+	generate_one_dir 2G $N_2G $seed_shift
+}
+
+function overwrite_half_files {
+	local seed_shift=1000
+	generate_one_dir 10M $(((N_10M + 1) / 2)) $seed_shift
+	generate_one_dir 100M $(((N_100M + 1) / 2)) $seed_shift
+	generate_one_dir 1G $(((N_1G + 1) / 2)) $seed_shift
+	generate_one_dir 2G $(((N_2G + 1) / 2)) $seed_shift
+}
+
+function validate_one_dir {
+	local dirname=$1
+	local n_files=$2
+	local n_overwritten=$(((n_files + 1) / 2))
+	cd $dirname
+	for i in $(seq 1 $n_overwritten); do
+		SEED=$((1000 + $i)) assert_success file-validate $i
+	done
+	# normal, old files, seed=default
+	for i in $(seq $((n_overwritten + 1)) n_files); do
+		SEED=$i assert_success file-validate $i
+	done
+	cd -
+}
+
+function validate_all_files {
+	validate_one_dir 10M $N_10M
+	validate_one_dir 100M $N_100M
+	validate_one_dir 1G $N_1G
+	validate_one_dir 2G $N_2G
+}
+
+function check_one_dir_replicated {
+	local dirname=$1
+	local n_chunks=$2
+	cd $dirname
+	for f in *; do
+		[ -f $f ] || continue
+		echo $dirname $f
+		echo "Checking if replicated properly, dir: $dirname, file: $f"
+		lizardfs checkfile $f
+		lizardfs fileinfo $f
+		assert_eventually '[[ $(lizardfs fileinfo $f | grep "copy" | wc -l) == $(( n_chunks * 3 )) ]]' "$REPLICATION_TIMEOUT"
+	done
+	cd -
+}
+
+function check_all_files_replicated {
+	check_one_dir_replicated 10M $CN_10M
+	check_one_dir_replicated 100M $CN_100M
+	check_one_dir_replicated 1G $CN_1G
+	check_one_dir_replicated 2G $CN_2G
+}
