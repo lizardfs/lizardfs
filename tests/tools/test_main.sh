@@ -1,5 +1,3 @@
-set -eu
-
 # Enable alias expansion and clear inherited aliases.
 unalias -a
 shopt -s expand_aliases extdebug

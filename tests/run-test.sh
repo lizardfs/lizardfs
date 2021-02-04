@@ -18,7 +18,7 @@ start_test() {
 		test_env=$test_env;
 	fi
 
-	test_script="source tools/test_main.sh; test_begin; trap test_end INT; $test_env source '$test_name'; test_end"
+	test_script="set -eu; source tools/test_main.sh; test_begin; trap test_end INT; $test_env source '$test_name'; test_end"
 	nice nice sudo -HEu lizardfstest bash -c "$test_script"
 	status=$?
 	stop_tests
