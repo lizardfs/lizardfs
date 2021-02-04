@@ -578,8 +578,10 @@ void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 			return;
 		}
 
-		if (pthread_mutex_init(&(dirinfo->lock), NULL))
+		if (pthread_mutex_init(&(dirinfo->lock), NULL)) {
+			free(dirinfo);
 			return;
+		}
 
 		dirinfo->p = NULL;
 		dirinfo->size = 0;
@@ -589,8 +591,9 @@ void mfs_meta_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 		if (fuse_reply_open(req,fi) == -ENOENT) {
 			fi->fh = 0;
 			free(dirinfo->p);
+			bool lock_destroy_failed = pthread_mutex_destroy(&(dirinfo->lock));
 			free(dirinfo);
-			if (pthread_mutex_destroy(&(dirinfo->lock)))
+			if (lock_destroy_failed)
 				return;
 		}
 	} else {
