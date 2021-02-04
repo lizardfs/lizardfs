@@ -1768,10 +1768,15 @@ static finfo* fs_newfileinfo(uint8_t accmode, uint32_t inode) {
 	finfo *fileinfo;
 	if (!(fileinfo = (finfo*)malloc(sizeof(finfo))))
 		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
-	if (pthread_mutex_init(&(fileinfo->flushlock), NULL))
+	if (pthread_mutex_init(&(fileinfo->flushlock), NULL)) {
+		free(fileinfo);
 		throw RequestException(LIZARDFS_ERROR_EPERM);
-	if (pthread_mutex_init(&(fileinfo->lock), NULL))
+	}
+	if (pthread_mutex_init(&(fileinfo->lock), NULL)) {
+		pthread_mutex_destroy(&(fileinfo->flushlock));
+		free(fileinfo);
 		throw RequestException(LIZARDFS_ERROR_EPERM);
+	}
 	PthreadMutexWrapper lock((fileinfo->lock)); // make helgrind happy
 #ifdef __FreeBSD__
 	/* old FreeBSD fuse reads whole file when opening with O_WRONLY|O_APPEND,
