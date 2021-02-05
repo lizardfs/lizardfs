@@ -52,8 +52,10 @@ static void open(const Context &ctx, FileInfo *fi) {
 		            lizardfs_error_string(LIZARDFS_ERROR_OUTOFMEMORY));
 		throw RequestException(LIZARDFS_ERROR_OUTOFMEMORY);
 	}
-	if (pthread_mutex_init(&(statsinfo->lock), NULL))    // make helgrind happy
+	if (pthread_mutex_init(&(statsinfo->lock), NULL))  {
+		free(statsinfo);
 		throw RequestException(LIZARDFS_ERROR_EPERM);
+	}
 	PthreadMutexWrapper lock((statsinfo->lock));         // make helgrind happy
 	stats_show_all(&(statsinfo->buff),&(statsinfo->leng));
 	statsinfo->reset = 0;
