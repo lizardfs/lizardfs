@@ -83,8 +83,6 @@
    ...
    fun:__db_close
    fun:__db_close_pp
-   fun:_ZN8hstorage10BDBStorageD1Ev
-   fun:_ZN8hstorage10BDBStorageD0Ev
 }
 
 {
