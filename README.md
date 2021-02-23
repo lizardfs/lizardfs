@@ -27,7 +27,7 @@ You can also join the community irc at #lizardfs on FreeNode.
 ## Participation
 
 Please feel free to contribute to documentation, wiki and the code.
-Rules for submitting patches can be found in the developers Guide in the LizardFS documentation: https://docs.lizardfs.com/devguide/submitting.html
+Rules for submitting patches can be found in the developers Guide in the LizardFS documentation: https://dev.lizardfs.com/docs/devguide/submitting.html
 
 ## We would love to hear about your use cases
 
