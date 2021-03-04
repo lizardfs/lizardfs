@@ -29,7 +29,7 @@ FILE_SIZE=300K file-generate goal2/medium_{1..30}
 FILE_SIZE=2M   file-generate goal2/big_{1..30}
 
 # Restart the first chunkserver preloading pread with EIO-throwing version
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libchunk_operations_eio.so" \
+LD_PRELOAD="${LIZARDFS_INSTALL_FULL_LIBDIR}/libchunk_operations_eio.so" \
 		assert_success lizardfs_chunkserver_daemon 0 restart
 lizardfs_wait_for_all_ready_chunkservers
 

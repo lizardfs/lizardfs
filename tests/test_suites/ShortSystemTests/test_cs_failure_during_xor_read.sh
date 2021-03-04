@@ -32,7 +32,7 @@ port=${info[chunkserver${csid}_port]}
 # Limit data transfer from this chunkserver
 start_proxy $port $((port + 1000))
 lizardfs_chunkserver_daemon $csid stop
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
+LD_PRELOAD="${LIZARDFS_INSTALL_FULL_LIBDIR}/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
 lizardfs_wait_for_all_ready_chunkservers
 
 if ! file-validate "$dir/file"; then

@@ -36,7 +36,7 @@ assert_less_than 30 "$(find_chunkserver_chunks 0 | wc -l)"
 assert_less_than 30 "$(find_chunkserver_chunks 1 | wc -l)"
 
 # Restart the first chunkserver preloading pread with EIO-throwing version
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libchunk_operations_eio.so" \
+LD_PRELOAD="${LIZARDFS_INSTALL_FULL_LIBDIR}/libchunk_operations_eio.so" \
 		assert_success lizardfs_chunkserver_daemon 0 restart
 lizardfs_wait_for_all_ready_chunkservers
 

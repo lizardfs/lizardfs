@@ -14,7 +14,7 @@ USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
 # Restart the first chunkserver preloading pwrite with EIO-throwing version
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libchunk_operations_eio.so" \
+LD_PRELOAD="${LIZARDFS_INSTALL_FULL_LIBDIR}/libchunk_operations_eio.so" \
 		assert_success lizardfs_chunkserver_daemon 0 restart
 lizardfs_wait_for_all_ready_chunkservers
 

@@ -24,7 +24,7 @@ lizardfs_chunkserver_daemon 2 stop
 
 lizardfs_chunkserver_daemon 0 start
 lizardfs_chunkserver_daemon 1 start
-LD_PRELOAD="$LIZARDFS_ROOT/lib/libslow_chunk_scan.so" lizardfs_chunkserver_daemon 2 start
+LD_PRELOAD="${LIZARDFS_INSTALL_FULL_LIBDIR}/libslow_chunk_scan.so" lizardfs_chunkserver_daemon 2 start
 
 lizardfs_wait_for_all_ready_chunkservers
 

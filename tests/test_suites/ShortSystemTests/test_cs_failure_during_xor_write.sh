@@ -8,7 +8,7 @@ start_proxy() {
 	local ip=$(get_ip_addr)
 	local script="
 		read counter < '$counter_file' || counter=$initial_counter # in case of a read/write race
-		tempf=\$(tempfile -d '$RAMDISK_DIR')
+		tempf=\$(mktemp -p '$RAMDISK_DIR')
 		stdbuf -o0 head -c \$counter | stdbuf -o0 tee \$tempf | socat stdio tcp\:$ip\:$server_port
 		if test \$(cat \$tempf | wc --bytes) -eq \$counter ; then
 			# We have reached the limit -- let's increase it
@@ -29,13 +29,15 @@ CHUNKSERVERS=4 \
 	USE_RAMDISK=YES \
 	setup_local_empty_lizardfs info
 
+libredirect_bind_path="${LIZARDFS_INSTALL_FULL_LIBDIR}/libredirect_bind.so"
+
 # Start failproxies on each chunkserver with different 'initial counter' parameters
 for csid in {0..3}; do
 	port=${info[chunkserver${csid}_port]}
 	lizardfs_chunkserver_daemon $csid stop
 	start_proxy $port $((port + 1000)) $((1883 * (4 + csid)))
 	sleep 2
-	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
+	LD_PRELOAD=${libredirect_bind_path} lizardfs_chunkserver_daemon $csid start
 done
 lizardfs_wait_for_all_ready_chunkservers
 
@@ -61,6 +63,6 @@ MESSAGE="Validating data" expect_success file-validate "${info[mount2]}"/dir/*
 for csid in 0 1; do
 	lizardfs_chunkserver_daemon $csid stop
 	MESSAGE="Validating data (CS$csid is down)" expect_success file-validate "${info[mount3]}"/dir/*
-	LD_PRELOAD="$LIZARDFS_ROOT/lib/libredirect_bind.so" lizardfs_chunkserver_daemon $csid start
+	LD_PRELOAD=${libredirect_bind_path} lizardfs_chunkserver_daemon $csid start
 	lizardfs_wait_for_all_ready_chunkservers
 done
