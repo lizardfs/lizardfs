@@ -5,7 +5,7 @@ CHUNKSERVERS=6 \
 	CHUNKSERVER_LABELS="0,1,2:eu|3,4,5:us" \
 	MASTER_CUSTOM_GOALS="5 eu_eu: eu eu" \
 	CHUNKSERVER_EXTRA_CONFIG="PERFORM_FSYNC = 1|HDD_TEST_FREQ = 10000|HDD_LEAVE_SPACE_DEFAULT = 0MiB" \
-	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
+	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 10`
 			`|CHUNKS_LOOP_MAX_CPU = 90`
 			`|CHUNKS_WRITE_REP_LIMIT = 2`
 			`|CHUNKS_READ_REP_LIMIT = 2`
@@ -28,3 +28,7 @@ assert_equals 3 $(lizardfs_rebalancing_status | awk '/us/ && $2 == 0' | wc -l)
 # Change goal of all our files from eu_eu to 2. Expect chunks to be spread evenly across servers
 lizardfs setgoal -r 2 eu_files
 assert_eventually_prints "" "lizardfs_rebalancing_status | awk '\$2 < 40 || \$2 > 60'" "2 minutes"
+
+# Check the chunkservers load after 5 seconds to see if it is stable.
+sleep 5
+assert_awk_finds_no '$2 < 40 || $2 > 60' "$(lizardfs_rebalancing_status)"
