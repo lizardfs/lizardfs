@@ -62,7 +62,7 @@ static void printReadTransfer(const HddStatistics& stats) {
 }
 
 static void printWriteTransfer(const HddStatistics& stats) {
-	printBps(stats.wbytes, stats.usecwritesum);
+	printBps(stats.wbytes, stats.usecwritesum + stats.usecfsyncsum);
 }
 
 static void printMaxReadTime(const HddStatistics& stats) {
