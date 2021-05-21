@@ -132,7 +132,7 @@ protected:
 			}
 		}
 
-		for (const auto op : read_operations) {
+		for (auto const& op : read_operations) {
 			data_parts[op.first.getSlicePart()] = buffer + op.second.buffer_offset;
 		}
 

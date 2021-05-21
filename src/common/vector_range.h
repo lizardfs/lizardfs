@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <stdexcept>
 
 /*! \brief Class providing std::vector like interface to subrange of vector. */

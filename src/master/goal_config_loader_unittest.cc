@@ -41,8 +41,8 @@ Goal::Slice createSlice(int type,
 		std::vector<std::map<std::string, int>> part_list) {
 	Goal::Slice slice{Goal::Slice::Type(type)};
 	int part_index = 0;
-	for (const auto &part : part_list) {
-		for (const auto label : part) {
+	for (auto const& part : part_list) {
+		for (auto const& label : part) {
 			slice[part_index][MediaLabel(label.first)] += label.second;
 		}
 		++part_index;

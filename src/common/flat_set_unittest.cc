@@ -62,9 +62,9 @@ TEST(FlatSet, RedundantInsert) {
 	// const &
 	std::initializer_list<std::string> elems2 = {"0", "1", "2", "3", "4"};
 	flat_set<std::string> cs2(elems2);
-	for (const std::string &i : {"2", "4"}) {
+	for (char const* s : {"2", "4"}) {
 		EXPECT_EQ(cs2.size(), elems2.size());
-		cs2.insert(i);
+		cs2.insert(s);
 		EXPECT_EQ(cs2.size(), elems2.size());
 	}
 }
