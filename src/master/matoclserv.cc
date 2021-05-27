@@ -2891,7 +2891,7 @@ void matoclserv_fuse_read_chunk(matoclserventry *eptr, PacketHeader header, cons
 }
 
 void matoclserv_chunks_info(matoclserventry *eptr, const uint8_t *data, uint32_t length) {
-	uint32_t message_id, inode, chunk_index, chunk_count, uid, gid;
+	uint32_t message_id{0}, inode, chunk_index, chunk_count, uid, gid;
 	PacketVersion version;
 	uint8_t status;
 	std::vector<ChunkWithAddressAndLabel> chunks;

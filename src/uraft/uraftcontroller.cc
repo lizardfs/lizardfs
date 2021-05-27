@@ -10,6 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/version.hpp>

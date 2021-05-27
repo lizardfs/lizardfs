@@ -120,7 +120,10 @@ static int chunks_info(const char *file_name, int fd, uint32_t inode, bool long_
 						chunk_index, chunk.chunk_id, chunk.chunk_version, chunk.chunk_id, chunk.chunk_version);
 				ChunkCopiesCalculator chunk_calculator;
 				for(const auto &part : chunk.chunk_parts) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfree-nonheap-object"
 					chunk_calculator.addPart(part.chunkType, MediaLabel::kWildcard);
+#pragma GCC diagnostic pop
 				}
 				chunk_calculator.evalRedundancyLevel();
 				if (chunk.chunk_parts.size() > 0) {
