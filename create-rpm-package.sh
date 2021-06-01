@@ -3,10 +3,10 @@ set -eux
 
 os_release="$(cat /etc/redhat-release | tr -dc '0-9' | cut -b 1-2)"
 case "$os_release" in
-  6*) distro=el6 ;;
   7*) distro=el7 ;;
   8*) distro=el8 ;;
-  24*) distro=fc24 ;;
+  34*) distro=fc34 ;;
+  35*) distro=fc35 ;;
   *) echo "This Linux distribution is not supported" && exit 1 ;;
 esac
 echo "Building packages for '$distro'"
