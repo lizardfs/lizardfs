@@ -38,10 +38,11 @@ random() {
 # files created by this function are automatically removed at the end of a test
 unique_file() {
 	local suffix=""
+	local pid="${$}"
 	if (( $# >= 1 )); then
 		suffix="_$1"
 	fi
-	echo "temp_$(date +%s.%N)_$$$suffix"
+	echo "temp_$(date +%s.%N)_${pid}${suffix}"
 }
 
 # pseudorandom_init [<seed>] -- sets a seed (default or specified) for pseudorandom generator

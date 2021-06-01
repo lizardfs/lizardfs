@@ -22,7 +22,7 @@ awkscript='
 	printf "CS%s/chunks%s/chunk_xor_%d_of_%d_%s.liz\n", server[2], dir, $5-1, $7, chunkid
 	next
 }
-/part [1-9]\/[2-9] of ec\(3\,2\)/ {
+/part [1-9]\/[2-9] of ec\(3,2\)/ {
 	split($3, server, ":")
 	printf "CS%s/chunks%s/chunk_ec2_%d_of_3_2_%s.liz\n", server[2], dir, $5, chunkid
 	next

@@ -57,11 +57,6 @@ class BashTestEnvironment : public ::testing::Environment {
 		boost::filesystem::create_directory(tempForAllTests);
 		auto perms = boost::filesystem::all_all;
 		boost::filesystem::permissions(tempForAllTests, perms);
-		// make error file
-		std::string errorFile = testErrFilePath();
-		boost::filesystem::ofstream ofs(errorFile);
-		ofs.close();
-		boost::filesystem::permissions(errorFile, perms);
 	}
 	virtual void TearDown() {
 		// remove prevoius temp dir
@@ -85,6 +80,7 @@ protected:
 		environment += " TEST_SUITE_NAME=" + suite;
 		environment += " TEST_CASE_NAME=" + testCase;
 		std::string command = environment + " " + runScript + " " + testFile;
+		make_error_file(errorFile);
 		int ret = system(command.c_str());
 		if (ret != 0) {
 			std::string error;
@@ -101,6 +97,13 @@ protected:
 			}
 			FAIL() << error;
 		}
+	}
+	void make_error_file(std::string errorFile) {
+		unlink(errorFile.c_str());
+		boost::filesystem::ofstream ofs(errorFile);
+		ofs.close();
+		auto perms = boost::filesystem::all_all;
+		boost::filesystem::permissions(errorFile, perms);
 	}
 };
 
