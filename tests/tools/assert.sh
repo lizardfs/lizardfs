@@ -102,7 +102,6 @@ assert_template_failure_() {
 assert_template_awk_finds_() {
 	local condition=$1
 	local string=$2
-	local matches=$(awk "$condition" <<< "$string")
 	local lines=$(awk "$condition" <<< "$string" | wc -l)
 	if (( lines == 0 )); then
 		$FAIL_FUNCTION "Expected line matching '$condition' to be found in:"$'\n'"$string"
