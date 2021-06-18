@@ -39,6 +39,7 @@
 #ifndef LIZARDFS_HAVE_THREAD_LOCAL
 #include <pthread.h>
 #endif // LIZARDFS_HAVE_THREAD_LOCAL
+#include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -101,6 +102,8 @@
 #define CH_NEW_EXCLUSIVE 2
 
 static std::atomic<unsigned> HDDTestFreq_ms(10 * 1000);
+
+static std::atomic<bool> ScrubIsRunning(0);
 
 /// Number of bytes which should be addded to each disk's used space
 static uint64_t gLeaveFree;
@@ -174,7 +177,7 @@ static std::deque<ChunkWithVersionAndType> gNewChunks;
 static std::atomic<uint32_t> errorcounter(0);
 static std::atomic_int hddspacechanged(0);
 
-static std::thread foldersthread, delayedthread, testerthread;
+static std::thread foldersthread, delayedthread, testerthread, scrubberthread;
 static std::thread test_chunk_thread;
 
 static std::atomic<int> term(0);
@@ -3096,6 +3099,100 @@ void hdd_tester_thread() {
 	}
 }
 
+void hdd_scrub_handle(int signal) {
+    // SIGUSR2 could be signal number 31, 12 or 17 based on platform
+    if ( signal == 31 || signal == 12 || signal == 17 ) {
+        if ( ScrubIsRunning ) {
+            ScrubIsRunning = 0;
+            lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub aborted");
+            return;
+        } else {
+            ScrubIsRunning = 1;
+        }
+    }
+}
+
+void hdd_scrubber_thread() {
+	TRACETHIS();
+	folder *f;
+	Chunk *c;
+	uint64_t chunkid;
+	uint32_t version;
+	ChunkPartType chunkType = slice_traits::standard::ChunkPartType();
+	uint32_t cnt,damagedCnt,chunksNumber,progress,lastProgress;
+	std::string path;
+    uint32_t i,chunksno;
+    Chunk **csorttab;
+	uint32_t starttime, currenttime, elapsedtime, remainingtime, totaltime;
+
+	while ( !term ) {
+
+		if ( !ScrubIsRunning ) {
+			usleep(500000);
+			continue;
+		}
+
+    	cnt = 0;
+    	damagedCnt = 0;
+    	chunksNumber = folderhead->chunkcount;
+    	progress = 0;
+    	lastProgress = 0;
+
+        csorttab = (Chunk**) malloc(sizeof(Chunk*)*chunksNumber);
+        passert(csorttab);
+    	chunksno=0;
+
+    	starttime = time(NULL);
+
+    	lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub started. Scrubbing %d chunks.", chunksNumber);
+
+    	for (f=folderhead ; f ; f=f->next) {
+            	for (c=f->testhead ; c ; c=c->testnext) {
+                    	csorttab[chunksno++] = c;
+            	}
+    	}
+
+		//for (c=f->testhead ; c ; c=c->testnext) {
+		for (i=0 ; i<chunksno ; i++) {
+            c = csorttab[i];
+        	if ( !ScrubIsRunning ) {
+                	break;
+        	}
+
+			cnt++;
+			progress = (cnt * 100.0) / chunksNumber;
+			currenttime = time(NULL);
+			elapsedtime = currenttime - starttime;
+			remainingtime = elapsedtime * (100-progress);
+
+			if ( progress != lastProgress ) {
+				lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub is running (%d%%, %d mins, %d remaining). scrubbed chunks=%d/%d, damaged chunks=%d", progress, elapsedtime/60, remainingtime/60, cnt, chunksNumber, damagedCnt);
+			}
+
+			if ( c && c->state==CH_AVAIL && !c->filename().empty() ) {
+                chunkid = c->chunkid;
+                version = c->version;
+                chunkType = c->type();
+                path = c->filename();
+
+				if ( hdd_int_test(chunkid, version, chunkType) != LIZARDFS_STATUS_OK ) {
+                	hdd_report_damaged_chunk(chunkid, chunkType);
+                	damagedCnt++;
+
+                	lzfs_pretty_syslog(LOG_WARNING, "hdd space manager: scrub FAILED on chunk %s, damaged chunks=%d", path.c_str(), damagedCnt);
+				}
+			}
+
+			lastProgress = progress;
+		}
+
+    	totaltime = (time(NULL)-starttime)/60.0;
+    	lzfs_pretty_syslog(LOG_NOTICE, "hdd space manager: scrub ended in %d minutes. scrubbed chunks=%d, failed chunks=%d", totaltime, cnt, damagedCnt);
+    	ScrubIsRunning = 0;
+	}
+}
+
+
 void hdd_testshuffle(folder *f) {
 	TRACETHIS();
 	uint32_t i,j,chunksno;
@@ -3541,6 +3638,7 @@ void hdd_term(void) {
 
 	i = term.exchange(1); // if term is non zero here then it means that threads have not been started, so do not join with them
 	if (i==0) {
+        scrubberthread.join();
 		testerthread.join();
 		foldersthread.join();
 		delayedthread.join();
@@ -4004,6 +4102,7 @@ int hdd_late_init(void) {
 	testerthread = std::thread(hdd_tester_thread);
 	foldersthread = std::thread(hdd_folders_thread);
 	delayedthread = std::thread(hdd_free_resources_thread);
+    scrubberthread = std::thread(hdd_scrubber_thread);
 	try {
 		test_chunk_thread = std::thread(hdd_test_chunk_thread);
 	} catch (std::system_error &e) {
@@ -4022,6 +4121,9 @@ int hdd_init(void) {
 	zassert(pthread_key_create(&hdrbufferkey, free));
 	zassert(pthread_key_create(&blockbufferkey, free));
 #endif // LIZARDFS_HAVE_THREAD_LOCAL
+
+    // SIGUSR2 will start or abort a scrub
+    signal(SIGUSR2, hdd_scrub_handle);
 
 	uint8_t *emptyblockcrc_buf = (uint8_t*)&emptyblockcrc;
 	put32bit(&emptyblockcrc_buf, mycrc32_zeroblock(0,MFSBLOCKSIZE));
