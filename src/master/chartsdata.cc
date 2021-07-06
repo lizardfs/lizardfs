@@ -139,6 +139,23 @@ static const estatdef estatdefs[]=ESTATDEFS
 
 #ifdef CPU_USAGE
 static struct itimerval it_set;
+
+static void chartsdata_refresh_cpu_itcp(int which, uint32_t *xcusec) {
+	struct itimerval xc;
+	setitimer(which, &it_set, &xc);
+
+	if (xc.it_value.tv_sec<=999) {
+		// on fucken linux timers can go backward !!!
+		xc.it_value.tv_sec = 999 - xc.it_value.tv_sec;
+		xc.it_value.tv_usec = 999999 - xc.it_value.tv_usec;
+	} else {
+		// TODO(zserik) I don't think that's correct...
+		xc.it_value.tv_sec = 0;
+		xc.it_value.tv_usec = 0;
+	}
+
+	*xcusec = xc.it_value.tv_sec * 1000000U + xc.it_value.tv_usec;
+}
 #endif
 
 #ifdef MEMORY_USAGE
@@ -169,32 +186,13 @@ void chartsdata_refresh(void) {
 	}
 
 #ifdef CPU_USAGE
-// CPU usage
-	setitimer(ITIMER_VIRTUAL,&it_set,&uc);             // user time
-	setitimer(ITIMER_PROF,&it_set,&pc);                // user time + system time
-
-	if (uc.it_value.tv_sec<=999) {  // on fucken linux timers can go backward !!!
-		uc.it_value.tv_sec = 999-uc.it_value.tv_sec;
-		uc.it_value.tv_usec = 999999-uc.it_value.tv_usec;
+	// CPU usage
+	chartsdata_refresh_cpu_itcp(ITIMER_VIRTUAL, &ucusec); // user time
+	chartsdata_refresh_cpu_itcp(ITIMER_PROF,    &pcusec); // user time + system_time
+	if (pcusec > ucusec) {
+		pcusec -= ucusec;
 	} else {
-		uc.it_value.tv_sec = 0;
-		uc.it_value.tv_usec = 0;
-	}
-	if (pc.it_value.tv_sec<=999) {  // as abowe - who the hell has invented this stupid os !!!
-		pc.it_value.tv_sec = 999-pc.it_value.tv_sec;
-		pc.it_value.tv_usec = 999999-pc.it_value.tv_usec;
-	} else {
-		pc.it_value.tv_sec = 0;
-		uc.it_value.tv_usec = 0;
-	}
-
-	ucusec = uc.it_value.tv_sec*1000000U+uc.it_value.tv_usec;
-	pcusec = pc.it_value.tv_sec*1000000U+pc.it_value.tv_usec;
-
-	if (pcusec>ucusec) {
-		pcusec-=ucusec;
-	} else {
-		pcusec=0;
+		pcusec = 0;
 	}
 	data[CHARTS_UCPU] = ucusec;
 	data[CHARTS_SCPU] = pcusec;
@@ -246,10 +244,6 @@ void chartsdata_term(void) {
 	charts_term();
 }
 
-void chartsdata_store(void) {
-	charts_store();
-}
-
 int chartsdata_init (void) {
 #ifdef CPU_USAGE
 	struct itimerval uc,pc;
@@ -276,7 +270,7 @@ int chartsdata_init (void) {
 #endif
 
 	eventloop_timeregister(TIMEMODE_RUN_LATE,60,0,chartsdata_refresh);
-	eventloop_timeregister(TIMEMODE_RUN_LATE,3600,0,chartsdata_store);
+	eventloop_timeregister(TIMEMODE_RUN_LATE,3600,0,charts_store);
 	eventloop_destructregister(chartsdata_term);
 	return charts_init(calcdefs,statdefs,estatdefs,CHARTS_FILENAME);
 }
