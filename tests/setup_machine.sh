@@ -85,9 +85,10 @@ case "$release" in
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
 		pip3 install black mypy
 		;;
-	Fedora/32*)
+	Fedora/*)
 		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse-devel fuse3-devel boost-devel
 		dnf -y install Judy-devel pam-devel libdb-devel thrift-devel valgrind pylint nfs4-acl-tools
+		dnf -y install libtirpc-devel
 		# install openbsd version of netcat
 		dnf -y install netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
