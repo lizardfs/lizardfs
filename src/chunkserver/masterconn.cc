@@ -175,6 +175,12 @@ void masterconn_sendregister(masterconn *eptr) {
 	uint32_t chunkcount,tdchunkcount;
 
 	myip = mainNetworkThreadGetListenIp();
+	// Advertise another address
+	if (cfg_isdefined("CSSERV_ADVERTISE_ADDR") and tcpresolve(cfg_getstr("CSSERV_ADVERTISE_ADDR", ""), NULL, &myip, NULL, 1)<0) {
+		lzfs_pretty_syslog(LOG_WARNING, "Invalid advertise IP or hostname, using listen IP instead");
+		myip = mainNetworkThreadGetListenIp();
+	}
+
 	myport = mainNetworkThreadGetListenPort();
 	masterconn_create_attached_packet(eptr, cstoma::registerHost::build(myip, myport, Timeout_ms, LIZARDFS_VERSHEX));
 
