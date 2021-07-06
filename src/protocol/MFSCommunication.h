@@ -83,7 +83,7 @@
 #define MFS_NAME_MAX 255
 #define MFS_MAX_FILE_SIZE (((uint64_t)(MFSCHUNKSIZE))<<31)
 
-#define MFS_INODE_REUSE_DELAY 86400
+#define MFS_INODE_REUSE_DELAY 259200
 
 /// field values: nodetype
 #define TYPE_FILE             'f'
