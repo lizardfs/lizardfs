@@ -68,8 +68,12 @@ test_end() {
 	if [[ $errors ]]; then
 		exit 1
 	else
-		# Remove syslog.log from ERROR_DIR, because it would cause the test to fail
-		rm -f "$ERROR_DIR/syslog.log"
+		# Remove log file from ERROR_DIR, because it would cause the test to fail
+		if is_centos_system; then
+			rm --force "$ERROR_DIR/messages"
+		else
+			rm --force "$ERROR_DIR/syslog.log"
+		fi
 		exit 0
 	fi
 }
@@ -89,7 +93,11 @@ debug_command() {
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {
-	( tail -n0 -f /var/log/syslog | stdbuf -oL tee "$ERROR_DIR/syslog.log" & )
+	if is_centos_system; then
+			(tail --lines=0 --follow /var/log/messages | stdbuf --output=L tee "$ERROR_DIR/messages" &)
+	else
+			(tail --lines=0 --follow /var/log/syslog | stdbuf --output=L tee "$ERROR_DIR/syslog.log" &)
+	fi
 	test_result_file="$TEMP_DIR/$(unique_file)_results.txt"
 	test_end_file=$test_result_file.end
 	check_configuration
