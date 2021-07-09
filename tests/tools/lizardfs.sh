@@ -153,16 +153,29 @@ lizardfs_metalogger_daemon() {
 	return ${PIPESTATUS[0]}
 }
 
-# lizardfs_mount_unmount <id>
-lizardfs_mount_unmount() {
+# lizardfs_mount_unmount_async <id>
+lizardfs_mount_unmount_async() {
 	local mount_id=$1
 	local mount_dir=${lizardfs_info_[mount${mount_id}]}
 	lizardfs_fusermount -u ${mount_dir}
 }
 
-# lizardfs_mount_start <id>
+# lizardfs_mount_unmount <id> <timeout>
+lizardfs_mount_unmount() {
+	local mount_id=$1
+	local timeout=${2:-'5 seconds'}
+	lizardfs_mount_unmount_async ${mount_id}
+	wait_for "! pgrep -x -u lizardfstest ${lizardfs_info_[mnt${mount_id}_command]} >/dev/null" "$timeout"
+}
+
+# lizardfs_mount_start <id> <mount_cmd>
 lizardfs_mount_start() {
-	do_mount_ "$1"
+	local mount_id=$1
+	local mount_cmd=${2:-}
+	if [[ $mount_cmd ]]; then
+		configure_mount_ ${mount_id} ${mount_cmd}
+	fi
+	do_mount_ ${mount_id}
 }
 
 # A bunch of private function of this module
@@ -486,6 +499,23 @@ do_mount_() {
 	exit 2
 }
 
+configure_mount_() {
+	local mount_id=$1
+	local mount_cmd=$2
+	local mount_cfg=${lizardfs_info_[mount${mount_id}_cfg]}
+	local mount_dir=${lizardfs_info_[mount${mount_id}]}
+	local fuse_options=""
+	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do
+		fuse_option_name=$(echo $fuse_option | cut -f1 -d'=')
+		${mount_cmd} --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
+				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
+		fuse_options+="-o $fuse_option "
+	done
+	local call="${command_prefix} ${mount_cmd} -c ${mount_cfg} ${mount_dir} ${fuse_options}"
+	lizardfs_info_[mntcall$mount_id]=$call
+	lizardfs_info_[mnt${mount_id}_command]=${mount_cmd}
+}
+
 add_mount_() {
 	local mount_id=$1
 	local mount_dir=$mntdir/mfs${mount_id}
@@ -522,15 +552,7 @@ add_mount_() {
 		fi
 	fi
 
-	fuse_options=""
-	for fuse_option in $(echo ${FUSE_EXTRA_CONFIG-} | tr '|' '\n'); do
-		fuse_option_name=$(echo $fuse_option | cut -f1 -d'=')
-		${LZFS_MOUNT_COMMAND} --help |& grep " -o ${fuse_option_name}[ =]" > /dev/null \
-				|| test_fail "Your libfuse doesn't support $fuse_option_name flag"
-		fuse_options+="-o $fuse_option "
-	done
-	local call="${command_prefix} ${LZFS_MOUNT_COMMAND} -c ${mount_cfg} ${mount_dir} ${fuse_options}"
-	lizardfs_info_[mntcall$mount_id]=$call
+	configure_mount_ ${mount_id} ${LZFS_MOUNT_COMMAND}
 	do_mount_ ${mount_id}
 }
 

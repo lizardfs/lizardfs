@@ -77,7 +77,6 @@ cd "$TEMP_DIR"
 lizardfsXX_chunkserver_daemon 1 stop
 lizardfsXX_chunkserver_daemon 2 stop
 assert_success lizardfs_mount_unmount 0
-sleep 10
 lizardfs_admin_master list-mounts
 lizardfs_master_daemon restart
 lizardfs_mount_start 0

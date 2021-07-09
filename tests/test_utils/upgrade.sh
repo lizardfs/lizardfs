@@ -14,7 +14,6 @@ function stop_lizardfsXX_services {
 	for i in $(seq 0 $((cli_n - 1)) ); do
 		assert_success lizardfs_mount_unmount $i
 	done
-	sleep 5 # sometimes mount take some small amount of time to close themselves, with that sleeps it works every time
 	assert_success lizardfsXX_master_daemon stop
 }
 

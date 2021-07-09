@@ -42,7 +42,7 @@ lizardfs_wait_for_all_ready_chunkservers
 # so we need to do it here
 # to avoid false positive detections
 for ((mntid=0 ; mntid<number_of_mounts; ++mntid)); do
-	lizardfs_mount_unmount $mntid
+	lizardfs_mount_unmount_async $mntid
 done
 
 # Here we need to wait for unmount asynchronic tasks
