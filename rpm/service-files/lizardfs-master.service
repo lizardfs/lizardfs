@@ -1,7 +1,8 @@
 [Unit]
 Description=LizardFS master server daemon
 Documentation=man:mfsmaster
-After=network.target
+Wants=network-online.target
+After=network.target network-online.target
 
 [Service]
 Type=forking
