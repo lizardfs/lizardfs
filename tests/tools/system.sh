@@ -12,7 +12,13 @@ system_init() {
 }
 
 inode_of() {
-	ls -i $1 | cut -d' ' -f1
+	local path="${1}"
+	stat --format=%i "${path}"
+}
+
+size_of() {
+	local path="${1}"
+	stat --format=%s "${path}"
 }
 
 get_nproc_clamped_between() {

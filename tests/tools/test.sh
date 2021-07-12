@@ -86,6 +86,22 @@ debug_command() {
 	fi
 }
 
+function parametrize_command() {
+	local cmd="${1}"
+	shift
+	local params=()
+	local envs=()
+	for param in "${@}" ; do
+		if echo ${param} | grep -q '=' ; then
+			envs+=(${param})
+		else
+			params+=(${param})
+		fi
+	done
+	# echo "$(pwd):env=${envs[@]}, ${cmd} params=${params[@]}"
+	env ${envs[@]} "${cmd}" ${params[@]}
+}
+
 # Do not run directly in test cases
 # This should be called at the very beginning of a test
 test_begin() {

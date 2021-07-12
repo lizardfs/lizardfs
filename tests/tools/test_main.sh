@@ -19,6 +19,7 @@ done
 . tools/network.sh
 . tools/permissions.sh
 . tools/random.sh
+. tools/chunks.sh
 . tools/system.sh
 . tools/test.sh
 . tools/timeout.sh # has to be sourced after assert.sh
