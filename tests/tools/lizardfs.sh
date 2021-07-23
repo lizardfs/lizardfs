@@ -164,6 +164,8 @@ lizardfs_mount_unmount_async() {
 lizardfs_mount_unmount() {
 	local mount_id=$1
 	local timeout=${2:-'5 seconds'}
+	local mount_dir=${lizardfs_info_[mount${mount_id}]}
+	sync "${mount_dir}"
 	lizardfs_mount_unmount_async ${mount_id}
 	wait_for "! pgrep -x -u lizardfstest ${lizardfs_info_[mnt${mount_id}_command]} >/dev/null" "$timeout"
 }
