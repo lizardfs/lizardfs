@@ -1,12 +1,11 @@
 timeout_set 3 minutes
-USE_RAMDISK=YES \
+USE_RAMDISK="YES" \
 	CHUNKSERVERS=3 \
 	MOUNTS=1 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1`
 			`|CHUNKS_LOOP_MAX_CPU = 90`
 			`|OPERATIONS_DELAY_INIT = 0" \
-	USE_RAMDISK="YES" \
 	MASTER_CUSTOM_GOALS="10 ec : \$ec(2,1)"\
 	setup_local_empty_lizardfs info
 

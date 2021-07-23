@@ -1,4 +1,4 @@
-timeout_set 60 minutes
+timeout_set 120 minutes
 
 # We create file in some custom goal, but in undergoal (e.g. only 1 chunkserver up,
 # when goal is 2, or 3 cs up, when goal is ec32).
@@ -13,7 +13,7 @@ timeout_set 60 minutes
 CHUNKSERVERS_GOAL_COVER=$(goal_to_part_count ${GOAL})
 CHUNKSERVERS_REDUNDANT=$(redundant_parts ${GOAL})
 CHUNKSERVERS_MINIMUM=$((CHUNKSERVERS_GOAL_COVER - ${CHUNKSERVERS_REDUNDANT}))
-REPLICATION_TIMEOUT="3 minutes"
+REPLICATION_TIMEOUT="12 minutes"
 
 source test_utils/upgrade.sh
 

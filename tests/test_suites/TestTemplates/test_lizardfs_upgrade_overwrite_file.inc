@@ -1,4 +1,4 @@
-timeout_set 60 minutes
+timeout_set 120 minutes
 
 # We create file in some custom goal, e.g. '2', or ec21, or ec32.
 # We close $CHUNKSERVERS_DOWN_N chunkservers, so that this file is in undergoal,
@@ -23,7 +23,7 @@ START_WITH_LEGACY_LIZARDFS=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1|OPERATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
-REPLICATION_TIMEOUT='3 minutes'
+REPLICATION_TIMEOUT='12 minutes'
 
 # Start the test with master, two chunkservers and mount running old LizardFS code
 # Ensure that we work on legacy version
