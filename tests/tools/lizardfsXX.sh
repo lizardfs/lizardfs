@@ -8,6 +8,7 @@ install_lizardfsXX() {
 	case "$distro" in
 		Ubuntu|Debian)
 			local codename="$(lsb_release -sc)"
+			mkdir -p ${TEMP_DIR}/apt/apt.conf.d
 			mkdir -p ${TEMP_DIR}/apt/var/lib/apt/partial
 			mkdir -p ${TEMP_DIR}/apt/var/cache/apt/archives/partial
 			mkdir -p ${TEMP_DIR}/apt/var/lib/dpkg
@@ -17,11 +18,12 @@ Dir::State "${TEMP_DIR}/apt/var/lib/apt";
 Dir::State::status "${TEMP_DIR}/apt/var/lib/dpkg/status";
 Dir::Etc::SourceList "${TEMP_DIR}/apt/lizardfs.list";
 Dir::Cache "${TEMP_DIR}/apt/var/cache/apt";
+Dir::Etc::Parts "${TEMP_DIR}/apt/apt.conf.d";
 END
 			local destdir="${TEMP_DIR}/apt/var/cache/apt/archives"
 			echo "deb [trusted=yes] https://dev.lizardfs.com/packages/ ${codename}/" >${TEMP_DIR}/apt/lizardfs.list
-			apt-get --config-file ${TEMP_DIR}/apt/apt.conf update
-			apt-get -y --allow-downgrades --config-file=${TEMP_DIR}/apt/apt.conf install -d \
+			env APT_CONFIG="${TEMP_DIR}/apt/apt.conf" apt-get update
+			env APT_CONFIG="${TEMP_DIR}/apt/apt.conf" apt-get -y --allow-downgrades install -d \
 				lizardfs-master=${LIZARDFSXX_TAG} \
 				lizardfs-chunkserver=${LIZARDFSXX_TAG} \
 				lizardfs-client=${LIZARDFSXX_TAG}
