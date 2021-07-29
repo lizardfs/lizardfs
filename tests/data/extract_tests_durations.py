@@ -117,6 +117,10 @@ def print_result(tests: Dict[str, List[int]]) -> None:
     for name in sorted(tests):
         durations = tests[name]
         avg_duration = sum(durations) / len(durations)
+        avg_duration /= 1000
+        avg_duration -= avg_duration % 10
+        if avg_duration == 0:
+            avg_duration = 5
         print("{}={}".format(name, int(avg_duration)))
 
 
