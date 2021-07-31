@@ -21,3 +21,7 @@ wait_for() {
 	fi
 	return 1
 }
+
+execution_time() {
+	/usr/bin/time --quiet -f %e "${@}" 2>&1 > /dev/null || true
+}

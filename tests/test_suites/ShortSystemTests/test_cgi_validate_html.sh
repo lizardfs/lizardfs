@@ -21,6 +21,13 @@ export MFS_META_MOUNT_PATH=${info[mount1]}
 # Save path of changelog.mfs in CHANGELOG to make it possible to verify generated changes
 export CHANGELOG="${info[master_data_path]}"/changelog.mfs
 
+environment_sanity_check() {
+	local exec_time=$(execution_time getent hosts mfsmaster)
+	[[ ${exec_time} < 1 ]] || ( echo "Hostname resolution is too slow: ${exec_time}s" && return 1 )
+}
+
+environment_sanity_check
+
 # A function which downloads all pages from the CGI and stores them in a given directory.
 # Usage: traverse_cgi <directory>
 traverse_cgi() {
