@@ -23,7 +23,7 @@ START_WITH_LEGACY_LIZARDFS=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1|OPERATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
-REPLICATION_TIMEOUT='12 minutes'
+REPLICATION_SPEED="3000000" # Bytes per second
 
 # Start the test with master, two chunkservers and mount running old LizardFS code
 # Ensure that we work on legacy version
@@ -44,7 +44,7 @@ assert_success generate_files_various_filesizes file_count
 echo "All files generated"
 
 # Wait until chunk has been replicated
-assert_success wait_for_files_replication file_count "${REPLICATION_TIMEOUT}"
+wait_for_files_replication file_count "${REPLICATION_SPEED}"
 echo "All files replicated (3 parts of each chunk)"
 
 # We stop 1 chunkserver, and overwrite files
@@ -81,34 +81,34 @@ assert_no_lizardfsXX_services_active
 echo "3.13 is On"
 # Check if new content was preserved, not old one. On both chunkservers.
 cd "${info[mount0]}/dir"
-assert_success wait_for_files_replication file_count "${REPLICATION_TIMEOUT}"
+wait_for_files_replication file_count "${REPLICATION_SPEED}"
 
 echo "ALL REPLICATED"
 
 echo "Validating files with 3/3 CS on"
-assert_success validate_all_files file_count
+validate_all_files file_count
 
 echo "Validating files with CS 1 2 on"
 lizardfs_chunkserver_daemon 0 stop
 lizardfs_wait_for_ready_chunkservers 2
-assert_success validate_all_files file_count
+validate_all_files file_count
 
 echo "Validating files with CS 0 2 on"
 lizardfs_chunkserver_daemon 1 stop
 lizardfs_wait_for_ready_chunkservers 1
 lizardfs_chunkserver_daemon 0 start
 lizardfs_wait_for_ready_chunkservers 2
-assert_success validate_all_files file_count
+validate_all_files file_count
 
 echo "Validating files with CS 0 1 on"
 lizardfs_chunkserver_daemon 2 stop
 lizardfs_wait_for_ready_chunkservers 1
 lizardfs_chunkserver_daemon 1 start
 lizardfs_wait_for_ready_chunkservers 2
-assert_success validate_all_files file_count
+validate_all_files file_count
 
 lizardfs_chunkserver_daemon 2 start
 lizardfs_wait_for_ready_chunkservers 3
 sleep 25m
-assert_success validate_all_files file_count
+validate_all_files file_count
 

@@ -36,26 +36,6 @@ function minimum_number_of_parts() {
 	echo "$((total_number_of_parts - redundant_part_count))"
 }
 
-function check_one_file_replicated_impl_() {
-	local path="${1}"
-	local size=$(size_of "${path}")
-	local n_chunks="$(filesize_to_chunk_count ${size})"
-	local goal="$(lizardfs getgoal "${path}" | awk '{print $2}')"
-	local expected_number_of_parts=$(goal_to_part_count ${goal})
-	# echo "pwd=$(pwd), path=${path}, n_chunks=${n_chunks}, goal=${goal}, expected_number_of_parts=${expected_number_of_parts}"
-	for copyNo in $(seq ${expected_number_of_parts}) ; do
-		local copiesOfPart="$(lizardfs fileinfo ${path} | grep -c "copy ${copyNo}")"
-		[[ "${copiesOfPart}" != "${n_chunks}" ]] && return 1
-	done
-	return 0
-}
-
-function check_one_file_replicated() {
-	local path="${1}"
-	local replication_timeout="${2}"
-	assert_eventually 'check_one_file_replicated_impl_ "${path}"' "${replication_timeout}"
-}
-
 function check_one_file_part_coverage_impl_() {
 	local path="${1}"
 	local expected_number_of_parts="${2}"
@@ -84,3 +64,12 @@ function check_one_file_part_coverage() {
 	local replication_timeout="${3}"
 	assert_eventually 'check_one_file_part_coverage_impl_ "${path}" "${expected_number_of_parts}"' "${replication_timeout}"
 }
+
+function check_one_file_replicated() {
+	local path="${1}"
+	local replication_timeout="${2}"
+	local goal="$(lizardfs getgoal "${path}" | awk '{print $2}')"
+	local expected_number_of_parts=$(goal_to_part_count ${goal})
+	assert_eventually 'check_one_file_part_coverage_impl_ "${path}" "${expected_number_of_parts}"' "${replication_timeout}"
+}
+

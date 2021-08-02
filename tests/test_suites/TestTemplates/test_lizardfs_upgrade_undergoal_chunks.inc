@@ -13,7 +13,7 @@ timeout_set 120 minutes
 CHUNKSERVERS_GOAL_COVER=$(goal_to_part_count ${GOAL})
 CHUNKSERVERS_REDUNDANT=$(redundant_parts ${GOAL})
 CHUNKSERVERS_MINIMUM=$((CHUNKSERVERS_GOAL_COVER - ${CHUNKSERVERS_REDUNDANT}))
-REPLICATION_TIMEOUT="12 minutes"
+REPLICATION_SPEED="3000000" # Bytes per second
 
 source test_utils/upgrade.sh
 
@@ -44,7 +44,7 @@ fill_files_info_maps_with_default_values file_count # always that, or/and add so
 
 # Generate files and check if they are OK
 assert_success generate_files_various_filesizes file_count
-assert_success check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM
+check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM "${REPLICATION_SPEED}"
 
 echo "Files properly created. Stopping legacy services."
 cd "$TEMP_DIR"
@@ -59,10 +59,10 @@ assert_no_lizardfsXX_services_active
 
 cd "${info[mount0]}/dir"
 # Check if all files will get replicated to all chunkservers
-assert_success wait_for_files_replication file_count "${REPLICATION_TIMEOUT}"
+wait_for_files_replication file_count "${REPLICATION_SPEED}"
 
 # Test if files are readable with all CS on
-assert_success check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_GOAL_COVER
+check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_GOAL_COVER "${REPLICATION_SPEED}"
 
 # ADD SLEEP HERE
 # sleep 25m
@@ -70,12 +70,12 @@ assert_success check_all_files_readable_and_proper_parts_nr file_count $CHUNKSER
 # Check if we can still read files with only minimum chunkservers' nr on
 # a) Without first n chunkservers [0, CHUNKSERVERS_REDUNDANT)
 lizardfs_chunkservers_from_to stop 0 $CHUNKSERVERS_REDUNDANT
-assert_success check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM
+check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM "${REPLICATION_SPEED}"
 echo "Files OK, without first x chunkservers."
 
 # b) Without last n chunkservers [x, CHUNKSERVERS_GOAL_COVER)
 lizardfs_chunkservers_from_to start 0 $CHUNKSERVERS_REDUNDANT
 lizardfs_wait_for_all_ready_chunkservers
 lizardfs_chunkservers_from_to stop $CHUNKSERVERS_MINIMUM $CHUNKSERVERS_GOAL_COVER
-assert_success check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM
+check_all_files_readable_and_proper_parts_nr file_count $CHUNKSERVERS_MINIMUM "${REPLICATION_SPEED}"
 echo "Files OK, without last x chunkservers"

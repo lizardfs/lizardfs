@@ -63,13 +63,16 @@ function print_running_services_info {
 function check_all_files_readable_and_proper_parts_nr {
 	local -n fileCount=$1    # map [filesize -> cnt]
 	local expected_number_of_parts=$2
-	local seed_shift=${3:-0}
+	local replication_speed="${3}"
+	local seed_shift=${4:-0}
 
 	for fsize in "${!fileCount[@]}"; do
 		local files_n=${fileCount[$fsize]}
 		# echo "DEBUG: ${FUNCNAME[0]}: ${files_n}"
 		for i in $(seq $files_n); do
-			check_one_file_part_coverage "${fsize}/${i}" "${expected_number_of_parts}" "${REPLICATION_TIMEOUT}"
+			local filesize=$(size_of "${fsize}/${i}")
+			local timeout="$((filesize / replication_speed)) seconds"
+			check_one_file_part_coverage "${fsize}/${i}" "${expected_number_of_parts}" "${timeout}"
 			# and that they're readable
 			assert_success validate_file "SEED=$((i + seed_shift))" "${fsize}/${i}"
 		done
@@ -78,11 +81,13 @@ function check_all_files_readable_and_proper_parts_nr {
 
 function check_one_dir_replicated {
 	local dirname=$1
-	local timeout=$2
+	local replication_speed=$2
 	cd $dirname
 	for file in *; do
 		[ -f ${file} ] || continue
 		echo "Checking if replicated properly, dir: $dirname, file: ${file}"
+		local filesize=$(size_of "${file}")
+		local timeout="$((filesize / replication_speed)) seconds"
 		check_one_file_replicated "${file}" "${timeout}"
 	done
 	cd -
@@ -97,7 +102,7 @@ function validate_one_dir {
 		assert_success validate_file "SEED=$((1000 + i))" "${i}"
 	done
 	# normal, old files, seed=default
-	for i in $(seq $((n_overwritten + 1)) n_files); do
+	for i in $(seq $((n_overwritten + 1)) ${n_files}); do
 		assert_success validate_file "SEED=${i}" "${i}"
 	done
 	cd -
@@ -105,11 +110,11 @@ function validate_one_dir {
 
 function wait_for_files_replication {
 	local -n fileCount=$1   # [filesize -> cnt]
-	local timeout=$2
-	# echo "DEBUG: ${FUNCNAME[0]}, ${!fileCount[@]}, $timeout"
+	local replication_speed=$2
+	# echo "DEBUG: ${FUNCNAME[0]}, ${!fileCount[@]}, $replication_speed"
 
 	for fsize in "${!fileCount[@]}"; do
-		check_one_dir_replicated "${fsize}" "${timeout}"
+		check_one_dir_replicated "${fsize}" "${replication_speed}"
 	done
 }
 
