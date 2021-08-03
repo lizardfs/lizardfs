@@ -13,7 +13,7 @@ timeout_set 120 minutes
 CHUNKSERVERS_GOAL_COVER=$(goal_to_part_count ${GOAL})
 CHUNKSERVERS_REDUNDANT=$(redundant_parts ${GOAL})
 CHUNKSERVERS_MINIMUM=$((CHUNKSERVERS_GOAL_COVER - ${CHUNKSERVERS_REDUNDANT}))
-REPLICATION_SPEED="3000000" # Bytes per second
+REPLICATION_SPEED="5000000" # Bytes per second
 
 source test_utils/upgrade.sh
 

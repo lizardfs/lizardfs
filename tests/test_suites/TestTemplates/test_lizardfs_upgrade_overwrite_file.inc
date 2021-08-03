@@ -23,7 +23,7 @@ START_WITH_LEGACY_LIZARDFS=YES \
 	MASTER_EXTRA_CONFIG="CHUNKS_LOOP_MIN_TIME = 1|OPERATIONS_DELAY_INIT = 0" \
 	setup_local_empty_lizardfs info
 
-REPLICATION_SPEED="3000000" # Bytes per second
+REPLICATION_SPEED="5000000" # Bytes per second
 
 # Start the test with master, two chunkservers and mount running old LizardFS code
 # Ensure that we work on legacy version

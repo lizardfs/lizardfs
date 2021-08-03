@@ -43,15 +43,15 @@ function check_one_file_part_coverage_impl_() {
 	local n_chunks="$(filesize_to_chunk_count ${size})"
 	local goal="$(lizardfs getgoal "${path}" | awk '{print $2}')"
 	local fileinfo="$(lizardfs fileinfo ${path})"
-	# echo "pwd=$(pwd), path=${path}, n_chunks=${n_chunks}, goal=${goal}, expected_number_of_parts=${expected_number_of_parts}"
+	# echo "DEBUG: ${FUNCNAME[0]} pwd=$(pwd), path=${path}, n_chunks=${n_chunks}, goal=${goal}, expected_number_of_parts=${expected_number_of_parts}"
 	if [[ "${goal}" =~ ^(xor|ec) ]] ; then
 		for n in $(seq ${n_chunks}); do
-			local unique_parts="$(echo "${fileinfo}" | sed -n "/chunk $((n - 1))/,/chunk ${n}/p" | awk '/copy/{print $5}' | sort -u | wc -l)"
+			local unique_parts="$(echo "${fileinfo}" | sed -n "/chunk $((n - 1))\\>/,/chunk ${n}\\>/p" | awk '/copy/{print $5}' | sort -u | wc -l)"
 			[[ "${unique_parts}" != "${expected_number_of_parts}" ]] && return 1
 		done
 	else
 		for n in $(seq ${n_chunks}); do
-			local copies="$(echo "${fileinfo}" | sed -n "/chunk $((n - 1))/,/chunk ${n}/p" | grep -c copy)"
+			local copies="$(echo "${fileinfo}" | sed -n "/chunk $((n - 1))\\>/,/chunk ${n}\\>/p" | grep -c copy)"
 			[[ "${copies}" != "${expected_number_of_parts}" ]] && return 1
 		done
 	fi
