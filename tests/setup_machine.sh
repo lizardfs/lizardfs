@@ -88,7 +88,7 @@ case "$release" in
 	Fedora/*)
 		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse-devel fuse3-devel boost-devel
 		dnf -y install Judy-devel pam-devel libdb-devel thrift-devel valgrind pylint nfs4-acl-tools
-		dnf -y install libtirpc-devel time
+		dnf -y install libtirpc-devel time dbench
 		# install openbsd version of netcat
 		dnf -y install netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
