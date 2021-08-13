@@ -62,21 +62,21 @@ case "$release" in
 		apt-get -y install socat tidy wget libgoogle-perftools-dev libboost-filesystem-dev
 		apt-get -y install libboost-iostreams-dev libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev
 		apt-get -y install python3-pip valgrind ccache libfmt-dev libisal-dev libcrcutil-dev curl
-		apt-get -y install libgtest-dev libspdlog-dev libjudy-dev time
+		apt-get -y install libgtest-dev libspdlog-dev libjudy-dev time bc
 		pip3 install mypy black
 		;;
 	CentOS/7*)
 		yum -y install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		yum -y install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		yum -y install boost-program-options boost-system libboost-filesystem libboost-iostreams
-		yum -y install pam-devel libdb-devel nfs4-acl-tools time
+		yum -y install pam-devel libdb-devel nfs4-acl-tools time bc
 		;;
 	CentOS/8*)
 		dnf -y install asciidoc cmake fuse-devel git gcc gcc-c++ make pkgconfig rpm-build zlib-devel
 		dnf -y install acl attr dbench nc pylint rsync socat tidy wget gperftools-libs
 		dnf -y install boost-program-options boost-system boost-filesystem boost-iostreams
 		dnf -y install pam-devel libdb-devel nfs4-acl-tools fuse3 fuse3-devel
-		dnf -y install fmt-devel spdlog-devel boost-devel libtirpc-devel time
+		dnf -y install fmt-devel spdlog-devel boost-devel libtirpc-devel time bc
 		dnf -y install --enablerepo=PowerTools gtest-devel
 		# install openbsd version of netcat
 		dnf -y install epel-release
@@ -88,7 +88,7 @@ case "$release" in
 	Fedora/*)
 		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse-devel fuse3-devel boost-devel
 		dnf -y install Judy-devel pam-devel libdb-devel thrift-devel valgrind pylint nfs4-acl-tools
-		dnf -y install libtirpc-devel time dbench
+		dnf -y install libtirpc-devel time dbench bc
 		# install openbsd version of netcat
 		dnf -y install netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
