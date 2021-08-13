@@ -113,7 +113,7 @@ function wait_for_files_replication {
 	local replication_speed=$2
 	# echo "DEBUG: ${FUNCNAME[0]}, ${!fileCount[@]}, $replication_speed"
 
-	for fsize in "${!fileCount[@]}"; do
+	for fsize in $(echo "${!fileCount[@]}" | tr [:space:] '\n' | sort -rh | tr '\n' ' '); do
 		check_one_dir_replicated "${fsize}" "${replication_speed}"
 	done
 }
@@ -181,7 +181,7 @@ function overwrite_half_files {
 
 function validate_all_files {
 	local -n fileCount=${1} # map [filesize -> cnt]
-	for fsize in "${!fileCount[@]}"; do
+	for fsize in $(echo "${!fileCount[@]}" | tr [:space:] '\n' | sort -rh | tr '\n' ' '); do
 		validate_one_dir $fsize ${fileCount[$fsize]}
 	done
 }
