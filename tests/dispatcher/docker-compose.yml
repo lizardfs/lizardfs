@@ -1,0 +1,7 @@
+version: "3"
+services:
+  flask:
+    build: .
+    ports:
+      - "${EXTERNAL_PORT}:5000"
+    restart: unless-stopped
