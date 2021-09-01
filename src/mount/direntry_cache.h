@@ -177,12 +177,7 @@ public:
 	}
 
 	~DirEntryCache() {
-		auto it = fifo_list_.begin();
-		while (it != fifo_list_.end()) {
-			auto next_it = std::next(it);
-			erase(std::addressof(*it));
-			it = next_it;
-		}
+		clear();
 	}
 
 	/*! \brief Set cache entry expiration timeout (us).
@@ -514,6 +509,20 @@ public:
 		for(std::size_t i = 0; i < count && !fifo_list_.empty(); ++i) {
 			DirEntry *entry = std::addressof(fifo_list_.front());
 			erase(entry);
+		}
+	}
+
+	/*! \brief Remove all elements from cache.
+	 *
+	 * \warning This function takes write (unique) lock.
+	 */
+	void clear() {
+		std::unique_lock<SharedMutex> guard(rwlock_);
+		auto it = fifo_list_.begin();
+		while (it != fifo_list_.end()) {
+			auto next_it = std::next(it);
+			erase(std::addressof(*it));
+			it = next_it;
 		}
 	}
 

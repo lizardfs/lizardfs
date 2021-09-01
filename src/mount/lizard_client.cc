@@ -163,14 +163,6 @@ static void registerGroupsInMaster(Context &ctx) {
 	}
 }
 
-void masterDisconnectedCallback() {
-	gGroupCache.reset();
-	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
-	for (auto& rs : gReaddirSessions) {
-		rs.second.restarted = true;
-	}
-}
-
 Inode getSpecialInodeByName(const char *name) {
 	assert(name);
 
@@ -275,6 +267,15 @@ static void updateNextReaddirEntryIndexIfMasterRestarted(uint64_t &nextEntryInde
 			break;
 		}
 		nextEntryIndex = dirEntries.back().next_index;
+	}
+}
+
+void masterDisconnectedCallback() {
+	gGroupCache.reset();
+	gDirEntryCache.clear();
+	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
+	for (auto& rs : gReaddirSessions) {
+		rs.second.restarted = true;
 	}
 }
 
