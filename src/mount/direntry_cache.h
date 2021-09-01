@@ -325,41 +325,38 @@ public:
 	 *
 	 * \param ctx Process credentials.
 	 * \param parent_inode Parent node index (inode).
-	 * \param first_index Position of entry in directory listing.
 	 * \param container Container with data to add to cache.
 	 * \param timestamp Time when data has been obtained (used for entry timeout).
 	 */
 	template <typename Container>
-	void insertSubsequent(const LizardClient::Context &ctx, uint32_t parent_inode,
-	                      uint64_t first_index, const Container &container,
-	                      uint64_t timestamp) {
+	void insertSequence(const LizardClient::Context &ctx, uint32_t parent_inode,
+	                      const Container &container, uint64_t timestamp) {
 		// Avoid inserting stale data
 		if (timestamp + timeout_ <= current_time_) {
 			return;
 		}
 		removeExpired(container.size(), timestamp);
-		auto it = index_set_.lower_bound(
-		        std::make_tuple(parent_inode, ctx.uid, ctx.gid, first_index),
-		        IndexCompare());
 
 		for (const DirectoryEntry &de : container) {
+			auto index_it = index_set_.find(
+				std::make_tuple(parent_inode, ctx.uid, ctx.gid, de.index),
+				IndexCompare()
+			);
 			auto lookup_it = find(ctx, parent_inode, de.name);
-			if (it == index_set_.end() ||
-			    std::make_tuple(parent_inode, ctx.uid, ctx.gid) !=
-			            std::make_tuple(it->parent_inode, it->uid, it->gid) ||
-			    it->index != de.index) {
-				if (lookup_it != lookup_end()) {
+			if (index_it == index_set_.end()) {
+				if (lookup_it != lookup_set_.end()) {
 					erase(std::addressof(*lookup_it));
 				}
-				it = addEntry(ctx, parent_inode, de.inode, de.index, de.next_index, de.name,
-				              de.attributes, timestamp);
+				addEntry(
+					ctx, parent_inode, de.inode, de.index, de.next_index, de.name,
+					de.attributes, timestamp
+				);
 			} else {
-				if (lookup_it != lookup_end() && it != index_set_.iterator_to(*lookup_it)) {
+				if (lookup_it != lookup_set_.end() && index_it != index_set_.iterator_to(*lookup_it)) {
 					erase(std::addressof(*lookup_it));
 				}
-				overwriteEntry(*it, de, timestamp);
+				overwriteEntry(*index_it, de, timestamp);
 			}
-			++it;
 		}
 	}
 
@@ -369,18 +366,18 @@ public:
 	 * \param parent_inode Parent node inode.
 	 * \param first_index Directory index of first entry to remove.
 	 */
-	void invalidate(const LizardClient::Context &ctx, uint32_t parent_inode,
-	                uint64_t first_index = 0) {
-		auto it = index_set_.lower_bound(
-		        std::make_tuple(parent_inode, ctx.uid, ctx.gid, first_index),
-		        IndexCompare());
-		while (it != index_set_.end() &&
-		       std::make_tuple(parent_inode, ctx.uid, ctx.gid) ==
-		               std::make_tuple(it->parent_inode, it->uid, it->gid)) {
-			assert(it->index >= first_index);
-
+	void invalidate(const LizardClient::Context &ctx, uint32_t parent_inode, uint64_t first_index) {
+		uint64_t entry_index = first_index;
+		while (true) {
+			auto it = index_set_.find(
+				std::make_tuple(parent_inode, ctx.uid, ctx.gid, entry_index),
+				IndexCompare()
+			);
+			if (it == index_set_.end()) {
+				break;
+			}
 			DirEntry *entry = std::addressof(*it);
-			++it;
+			entry_index = entry->next_index;
 			erase(entry);
 		}
 	}
@@ -439,28 +436,8 @@ public:
 		}
 	}
 
-	LookupSet::const_iterator lookup_begin() const {
-		return lookup_set_.begin();
-	}
-
-	IndexSet::const_iterator index_begin() const {
-		return index_set_.begin();
-	}
-
-	InodeMultiset::const_iterator inode_begin() const {
-		return inode_multiset_.begin();
-	}
-
-	LookupSet::const_iterator lookup_end() const {
-		return lookup_set_.end();
-	}
-
 	IndexSet::const_iterator index_end() const {
 		return index_set_.end();
-	}
-
-	InodeMultiset::const_iterator inode_end() const {
-		return inode_multiset_.end();
 	}
 
 	/*! \brief Get number of elements in cache. */
@@ -576,6 +553,9 @@ protected:
 		auto result = index_set_.insert(*entry);
 		inode_multiset_.insert(*entry);
 		fifo_list_.push_back(*entry);
+		if (lookup_set_.size() != index_set_.size()) {
+			lzfs::log_err("Inconsistent DirEntryCache index/lookup views, index:{} != lookup:{}\n", index_set_.size(), lookup_set_.size());
+		}
 		return result.first;
 	}
 

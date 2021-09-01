@@ -1652,18 +1652,15 @@ std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, s
 	gDirEntryCache.updateTime();
 
 	// dir_entries.front().index must be equal to entry_index
-	gDirEntryCache.insertSubsequent(ctx, ino, entry_index, dir_entries, data_acquire_time);
+	gDirEntryCache.insertSequence(ctx, ino, dir_entries, data_acquire_time);
 	if (dir_entries.size() < request_size) {
 		// insert 'no more entries' marker
 		auto marker_index = entry_index;
 		if (!dir_entries.empty()) {
 			marker_index = dir_entries.back().next_index;
 		}
-
+		gDirEntryCache.invalidate(ctx, ino, marker_index);
 		gDirEntryCache.insert(ctx, ino, 0, marker_index, marker_index, "", Attributes{{}}, data_acquire_time);
-		if (marker_index != std::numeric_limits<uint64_t>::max()) {
-			gDirEntryCache.invalidate(ctx, ino, marker_index + 1);
-		}
 	}
 
 	if (gDirEntryCache.size() > gDirEntryCacheMaxSize) {
