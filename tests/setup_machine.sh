@@ -83,7 +83,7 @@ case "$release" in
 		dnf -y update
 		dnf -y install --enablerepo=epel-testing netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
-		pip3 install black mypy
+		pip3 install black mypy flask requests types-requests
 		;;
 	Fedora/*)
 		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse-devel fuse3-devel boost-devel
@@ -92,7 +92,7 @@ case "$release" in
 		# install openbsd version of netcat
 		dnf -y install netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
-		pip3 install black mypy
+		pip3 install black mypy flask requests types-requests
 		;;
 	*)
 		set +x
