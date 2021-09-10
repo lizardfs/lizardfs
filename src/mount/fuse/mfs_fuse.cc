@@ -415,6 +415,7 @@ void mfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi) {
 		//opendir can be called asynchronously
 		static std::atomic<std::uint64_t> opendirSessionID{0};
 		fi->fh = opendirSessionID++;
+		LizardClient::update_readdir_session(fi->fh, 0);
 		fuse_reply_open(req, fi);
 	} catch (LizardClient::RequestException& e) {
 		fuse_reply_err(req, e.system_error_code);
