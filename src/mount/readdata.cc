@@ -52,11 +52,6 @@
 #define USECTICK 333333
 #define REFRESHTICKS 15
 
-#define MAPBITS 10
-#define MAPSIZE (1<<(MAPBITS))
-#define MAPMASK (MAPSIZE-1)
-#define MAPINDX(inode) (inode&MAPMASK)
-
 static std::atomic<uint32_t> gReadaheadMaxWindowSize;
 static std::atomic<uint32_t> gCacheExpirationTime_ms;
 
@@ -68,8 +63,6 @@ struct readrec {
 	uint32_t inode;
 	uint8_t refreshCounter;         // gMutex
 	bool expired;                   // gMutex
-	struct readrec *next;           // gMutex
-	struct readrec *mapnext;        // gMutex
 
 	readrec(uint32_t inode, ChunkConnector& connector, double bandwidth_overuse)
 			: reader(connector, bandwidth_overuse),
@@ -77,17 +70,17 @@ struct readrec {
 			  readahead_adviser(gCacheExpirationTime_ms, gReadaheadMaxWindowSize),
 			  inode(inode),
 			  refreshCounter(0),
-			  expired(false),
-			  next(nullptr),
-			  mapnext(nullptr) {
+			  expired(false) {
 	}
 };
+
+typedef std::unordered_multimap<uint32_t, readrec*> ReadRecords;
+typedef std::pair<ReadRecords::iterator, ReadRecords::iterator> ReadRecordRange;
 
 static ConnectionPool gReadConnectionPool;
 static ChunkConnectorUsingPool gChunkConnector(gReadConnectionPool);
 static std::mutex gMutex;
-static readrec *rdinodemap[MAPSIZE];
-static readrec *rdhead=NULL;
+static ReadRecords gActiveReadRecords;
 static pthread_t delayedOpsThread;
 static std::atomic<uint32_t> gChunkserverConnectTimeout_ms;
 static std::atomic<uint32_t> gChunkserverWaveReadTimeout_ms;
@@ -120,9 +113,18 @@ bool read_data_get_prefetchxorstripes() {
 	return gPrefetchXorStripes;
 }
 
+inline void clear_active_read_records()
+{
+	std::unique_lock<std::mutex> lock(gMutex);
+
+	for (ReadRecords::value_type& readRecord : gActiveReadRecords) {
+		delete readRecord.second;
+	}
+
+	gActiveReadRecords.clear();
+}
+
 void* read_data_delayed_ops(void *arg) {
-	readrec *rrec,**rrecp;
-	readrec **rrecmap;
 	(void)arg;
 	for (;;) {
 		gReadConnectionPool.cleanup();
@@ -130,24 +132,17 @@ void* read_data_delayed_ops(void *arg) {
 		if (readDataTerminate) {
 			return NULL;
 		}
-		rrecp = &rdhead;
-		while ((rrec = *rrecp) != NULL) {
-			if (rrec->refreshCounter < REFRESHTICKS) {
-				rrec->refreshCounter++;
+		ReadRecords::iterator readRecordIt = gActiveReadRecords.begin();
+		while (readRecordIt != gActiveReadRecords.end()) {
+			if (readRecordIt->second->refreshCounter < REFRESHTICKS) {
+				++(readRecordIt->second->refreshCounter);
 			}
-			if (rrec->expired) {
-				*rrecp = rrec->next;
-				rrecmap = &(rdinodemap[MAPINDX(rrec->inode)]);
-				while (*rrecmap) {
-					if ((*rrecmap)==rrec) {
-						*rrecmap = rrec->mapnext;
-					} else {
-						rrecmap = &((*rrecmap)->mapnext);
-					}
-				}
-				delete rrec;
+
+			if (readRecordIt->second->expired) {
+				delete readRecordIt->second;
+				readRecordIt = gActiveReadRecords.erase(readRecordIt);
 			} else {
-				rrecp = &(rrec->next);
+				++readRecordIt;
 			}
 		}
 		lock.unlock();
@@ -158,10 +153,9 @@ void* read_data_delayed_ops(void *arg) {
 void* read_data_new(uint32_t inode) {
 	readrec *rrec = new readrec(inode, gChunkConnector, gBandwidthOveruse);
 	std::unique_lock<std::mutex> lock(gMutex);
-	rrec->next = rdhead;
-	rdhead = rrec;
-	rrec->mapnext = rdinodemap[MAPINDX(inode)];
-	rdinodemap[MAPINDX(inode)] = rrec;
+
+	gActiveReadRecords.emplace(inode, rrec);
+
 	return rrec;
 }
 
@@ -181,13 +175,12 @@ void read_data_init(uint32_t retries,
 		uint32_t readahead_max_window_size_kB,
 		bool prefetchXorStripes,
 		double bandwidth_overuse) {
-	uint32_t i;
 	pthread_attr_t thattr;
 
 	readDataTerminate = false;
-	for (i=0 ; i<MAPSIZE ; i++) {
-		rdinodemap[i]=NULL;
-	}
+
+	clear_active_read_records();
+
 	maxRetries=retries;
 	gChunkserverConnectTimeout_ms = chunkserverConnectTimeout_ms;
 	gChunkserverWaveReadTimeout_ms = chunkServerWaveReadTimeout_ms;
@@ -217,31 +210,23 @@ void read_data_init(uint32_t retries,
 }
 
 void read_data_term(void) {
-	readrec *rr,*rrn;
-
 	{
 		std::unique_lock<std::mutex> lock(gMutex);
 		readDataTerminate = true;
 	}
 
 	pthread_join(delayedOpsThread,NULL);
-	for (rr = rdhead ; rr ; rr = rrn) {
-		rrn = rr->next;
-		delete rr;
-	}
-	for (auto& rr : rdinodemap) {
-		rr = NULL;
-	}
-	rdhead = NULL;
+
+	clear_active_read_records();
 }
 
 void read_inode_ops(uint32_t inode) { // attributes of inode have been changed - force reconnect and clear cache
-	readrec *rrec;
 	std::unique_lock<std::mutex> lock(gMutex);
-	for (rrec = rdinodemap[MAPINDX(inode)] ; rrec ; rrec=rrec->mapnext) {
-		if (rrec->inode == inode) {
-			rrec->refreshCounter = REFRESHTICKS; // force reconnect on forthcoming access
-		}
+
+	ReadRecordRange range = gActiveReadRecords.equal_range(inode);
+
+	for (ReadRecords::iterator it = range.first; it != range.second; ++it) {
+		it->second->refreshCounter = REFRESHTICKS; // force reconnect on forthcoming access
 	}
 }
 
