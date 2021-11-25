@@ -33,7 +33,8 @@ bool read_data_get_prefetchxorstripes();
 void read_inode_ops(uint32_t inode);
 void* read_data_new(uint32_t inode);
 void read_data_end(void *rr);
-int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret);
+int read_data(void *rr, off_t fuseOffset, size_t fuseSize,
+		uint64_t offset, uint32_t size, ReadCache::Result &ret);
 void read_data_freebuff(void *rr);
 void read_data_init(uint32_t retries,
 		uint32_t chunkserverRoundTripTime_ms,

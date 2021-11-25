@@ -2135,7 +2135,7 @@ ReadCache::Result read(Context &ctx,
 
 	uint32_t ssize = alignedSize;
 
-	err = read_data(fileinfo->data, alignedOffset, ssize, ret);
+	err = read_data(fileinfo->data, off, size, alignedOffset, ssize, ret);
 	ssize = ret.requestSize(alignedOffset, ssize);
 	if (err != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "read (%lu,%" PRIu64 ",%" PRIu64 "): %s",

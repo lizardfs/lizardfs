@@ -328,7 +328,8 @@ static int read_to_buffer(readrec *rrec, uint64_t current_offset, uint64_t bytes
 	return LIZARDFS_STATUS_OK;
 }
 
-int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret) {
+int read_data(void *rr, off_t fuseOffset, size_t fuseSize,
+		uint64_t offset, uint32_t size, ReadCache::Result &ret) {
 	readrec *rrec = (readrec*)rr;
 	assert(size % MFSBLOCKSIZE == 0);
 	assert(offset % MFSBLOCKSIZE == 0);
@@ -337,7 +338,8 @@ int read_data(void *rr, uint64_t offset, uint32_t size, ReadCache::Result &ret) 
 		return LIZARDFS_STATUS_OK;
 	}
 
-	rrec->readahead_adviser.feed(offset, size);
+	// Feed the adviser with original FUSE offset and size (before alignment)
+	rrec->readahead_adviser.feed(fuseOffset, fuseSize);
 
 	ReadCache::Result result = rrec->cache.query(offset, size);
 
