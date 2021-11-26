@@ -81,18 +81,20 @@ case "$release" in
 		# install openbsd version of netcat
 		dnf -y install epel-release
 		dnf -y update
-		dnf -y install --enablerepo=epel-testing netcat
+		dnf -y install --enablerepo=epel-testing netcat dnf-utils
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
 		pip3 install black mypy flask requests types-requests
 		;;
 	Fedora/*)
 		dnf -y install cmake gcc-c++ gtest-devel fmt-devel spdlog-devel fuse-devel fuse3-devel boost-devel
 		dnf -y install Judy-devel pam-devel libdb-devel thrift-devel valgrind pylint nfs4-acl-tools
-		dnf -y install libtirpc-devel time dbench bc
+		dnf -y install libtirpc-devel time dbench bc tidy wget fuse3 fuse fakeroot asciidoc dnf-utils
 		# install openbsd version of netcat
 		dnf -y install netcat
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
 		pip3 install black mypy flask requests types-requests
+		systemctl stop systemd-resolved.service
+		systemctl disable systemd-resolved.service
 		;;
 	*)
 		set +x
