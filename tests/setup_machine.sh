@@ -91,6 +91,7 @@ case "$release" in
 		dnf -y install libtirpc-devel time dbench bc tidy wget fuse3 fuse fakeroot asciidoc dnf-utils
 		# install openbsd version of netcat
 		dnf -y install netcat
+		update-alternatives --remove-all nc
 		update-alternatives --install /usr/bin/nc nc /usr/bin/netcat 1
 		pip3 install black mypy flask requests types-requests
 		systemctl stop systemd-resolved.service
