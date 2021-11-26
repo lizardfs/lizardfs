@@ -45,7 +45,7 @@ END
 				url="http://dev.lizardfs.com/packages/fedora.lizardfs.repo"
 			fi
 			mkdir -p ${TEMP_DIR}/dnf/etc/yum.repos.d
-			cat >${TEMP_DIR}/dnf/dnf.conf << END
+			cat > ${TEMP_DIR}/dnf/dnf.conf << END
 [main]
 logdir=${TEMP_DIR}/dnf/var/log
 cachedir=${TEMP_DIR}/dnf/var/cache
@@ -53,10 +53,9 @@ persistdir=${TEMP_DIR}/dnf/var/lib/dnf
 reposdir=${TEMP_DIR}/dnf/etc/yum.repos.d
 END
 			wget "$url" -O ${TEMP_DIR}/dnf/etc/yum.repos.d/lizardfs.repo
-			fakeroot dnf -y --config=${TEMP_DIR}/dnf/dnf.conf --downloadonly --destdir=${destdir} install \
-				lizardfs-master-${LIZARDFSXX_TAG} \
-				lizardfs-chunkserver-${LIZARDFSXX_TAG} \
-				lizardfs-client-${LIZARDFSXX_TAG}
+			for pkg in {lizardfs-master,lizardfs-chunkserver,lizardfs-client}-${LIZARDFSXX_TAG} ; do
+				fakeroot dnf -y --config=${TEMP_DIR}/dnf/dnf.conf --destdir=${destdir} download ${pkg}
+			done
 			# unpack binaries
 			cd ${destdir}
 			find . -name "*master*.rpm"      | xargs rpm2cpio | cpio -idm ./usr/sbin/mfsmaster
