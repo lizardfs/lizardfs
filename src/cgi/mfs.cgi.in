@@ -2764,7 +2764,7 @@ if "MC" in sectionset:
         out.append("""			var vid = ma_vids[i];""")
         out.append("""			var id = vid*10+j;""")
         out.append("""			ma_imgs[id] = new Image();""")
-        out.append("""			ma_imgs[id].src = "chart.cgi?host=%s&amp;port=%u&amp;id="+id;""" %
+        out.append("""			ma_imgs[id].src = "chart.cgi?host=%s&port=%u&id="+id;""" %
                    (urlescape(masterhost), masterport))
         out.append("""		}""")
         out.append("""	}""")
@@ -2841,7 +2841,7 @@ if "MC" in sectionset:
             out.append("""		<td align="center" colspan="4">""")
             out.append("""			%s:<br/><a href="chart.cgi?host=%s&amp;port=%u&amp;id=%u"> """ %
                        (desc, urlescape(masterhost), masterport, CHARTS_CSV_CHARTID_BASE + id * 10))
-            out.append("""			<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_%s" alt="%s" /></a>""" %
+            out.append("""			<img src="chart.cgi?host=%s&port=%u&id=%u" width="1000" height="120" id="ma_%s" alt="%s" /></a>""" %
                        (urlescape(masterhost), masterport, id * 10, name, name))
             out.append("""		</td>""")
             out.append("""	</tr>""")
@@ -2869,7 +2869,7 @@ if "MC" in sectionset:
             out.append("""		<td align="center" colspan="4">""")
             out.append("""			<div id="ma_desc%u">%s</div>""" %
                        (i, charts[0][2]))
-            out.append("""			<img src="chart.cgi?host=%s&amp;port=%u&amp;id=%u" width="1000" height="120" id="ma_chart%u" alt="chart" />""" %
+            out.append("""			<img src="chart.cgi?host=%s&port=%u&id=%u" width="1000" height="120" id="ma_chart%u" alt="chart" />""" %
                        (urlescape(masterhost), masterport, 10 * charts[0][0], i))
             out.append(
                 """			<table class="BOTMENU" cellspacing="0" summary="Master charts menu">""")
@@ -3011,7 +3011,7 @@ if "CC" in sectionset:
             out.append("""			var id = vid*10+j;""")
             out.append("""			cs_imgs[id] = new Image();""")
             out.append(
-                """			cs_imgs[id].src = "chart.cgi?host=%s&amp;port=%s&amp;id="+id;""" % (cshost, csport))
+                """			cs_imgs[id].src = "chart.cgi?host=%s&port=%s&id="+id;""" % (cshost, csport))
             out.append("""		}""")
             out.append("""	}""")
             out.append("""	function cs_change(num) {""")
@@ -3089,7 +3089,7 @@ if "CC" in sectionset:
                 out.append("""		<td align="center" colspan="4">""")
                 out.append("""			%s:<br/> <a href="chart.cgi?host=%s&amp;port=%s&amp;id=%u">""" %
                            (desc, cshost, csport, CHARTS_CSV_CHARTID_BASE + id * 10))
-                out.append("""			<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_%s" alt="%s" /> </a>""" %
+                out.append("""			<img src="chart.cgi?host=%s&port=%s&id=%u" width="1000" height="120" id="cs_%s" alt="%s" /> </a>""" %
                            (cshost, csport, id * 10, name, name))
                 out.append("""		</td>""")
                 out.append("""	</tr>""")
@@ -3117,7 +3117,7 @@ if "CC" in sectionset:
                 out.append("""		<td align="center" colspan="4">""")
                 out.append("""			<div id="cs_desc%u">%s</div>""" %
                            (i, charts[0][2]))
-                out.append("""			<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_chart%u" alt="chart" />""" %
+                out.append("""			<img src="chart.cgi?host=%s&port=%s&id=%u" width="1000" height="120" id="cs_chart%u" alt="chart" />""" %
                            (cshost, csport, 10 * charts[0][0], i))
                 out.append(
                     """			<table class="BOTMENU" cellspacing="0" summary="Server stats menu">""")
@@ -3164,7 +3164,7 @@ if "CC" in sectionset:
                 out.append("""			var id = %d*10+j;""" % chid)
                 out.append("""			cs_imgs[i*10+j] = new Image();""")
                 out.append(
-                    """			cs_imgs[i*10+j].src = "chart.cgi?host="+vhost+"&amp;port="+vport+"&amp;id="+id;""")
+                    """			cs_imgs[i*10+j].src = "chart.cgi?host="+vhost+"&port="+vport+"&id="+id;""")
                 out.append("""		}""")
                 out.append("""	}""")
                 out.append("""	function cs_change(num) {""")
@@ -3192,7 +3192,7 @@ if "CC" in sectionset:
                     out.append("""	<tr class="C2">""")
                     out.append("""		<td align="center" colspan="4">""")
                     out.append("""			%s:<br/>""" % (desc))
-                    out.append("""			<img src="chart.cgi?host=%s&amp;port=%s&amp;id=%u" width="1000" height="120" id="cs_%s" alt="%s" />""" %
+                    out.append("""			<img src="chart.cgi?host=%s&port=%s&id=%u" width="1000" height="120" id="cs_%s" alt="%s" />""" %
                                (cshost, csport, chid * 10, name, name))
                     out.append("""		</td>""")
                     out.append("""	</tr>""")
