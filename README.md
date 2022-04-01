@@ -4,7 +4,9 @@
 
 LizardFS is a highly reliable, scalable and efficient distributed file system. It spreads data over a number of physical servers, making it visible to an end user as a single file system.
 
-For support please contact contact@lizardfs.com or visit www.lizardfs.com.
+LizardFS Windows Client: https://lizardfs.com/windows-client
+
+For support please contact contact@lizardfs.com or visit [lizardfs.com](https://www.lizardfs.com).
 
 ## Useful links
 
@@ -31,7 +33,7 @@ Rules for submitting patches can be found in the developers Guide in the LizardF
 
 ## We would love to hear about your use cases
 
-We would like to engage more with our community so if you are able to please email us with your use case at: info@lizardfs.org.
+We would like to engage more with our community so if you are able to please email us with your use case at: contact@lizardfs.com.
 
 It will help us make LizardFS even better and will help others choose LizardFS for their storage.
 
