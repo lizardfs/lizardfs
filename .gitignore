@@ -1,3 +1,6 @@
+.vscode/*
+external/spdlog-0.14.0/*
+
 *~
 .DS_Store
 
