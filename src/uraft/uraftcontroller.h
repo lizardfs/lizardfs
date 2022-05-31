@@ -29,6 +29,7 @@ public:
 		int         getversion_timeout;       //!< Time after which we kill get version script. //
 		int         promote_timeout;          //!< Time after which we kill promote script. //
 		int         demote_timeout;           //!< Time after which we kill demote script. //
+		int         dead_handler_timeout;     //!< Time after which we kill dead script. //
 	};
 
 public:
@@ -69,9 +70,9 @@ protected:
 	boost::asio::deadline_timer check_cmd_status_timer_,check_node_status_timer_;
 	boost::asio::deadline_timer cmd_timeout_timer_;
 	pid_t                       command_pid_;
-	int                         command_type_;
+	int                         command_type_;  /// Last run command type.
 	Timer                       command_timer_;
 	bool                        force_demote_;
-	bool                        node_alive_;
+	bool                        node_alive_;  /// Last is_alive node status.
 	Options                     opt_;
 };

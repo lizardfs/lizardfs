@@ -31,6 +31,7 @@ uRaftController::uRaftController(boost::asio::io_service &ios)
 	opt_.getversion_timeout       = 50;
 	opt_.promote_timeout          = 1000000;
 	opt_.demote_timeout           = 1000000;
+	opt_.dead_handler_timeout     = 1000000;
 }
 
 uRaftController::~uRaftController() {
@@ -155,8 +156,7 @@ void uRaftController::checkCommandStatus(const boost::system::error_code &error)
 			command_type_ = kCmdNone;
 			command_pid_  = -1;
 			set_block_promotion(false);
-		}
-		if (command_type_ == kCmdPromote) {
+		} else if (command_type_ == kCmdPromote) {
 			syslog(LOG_NOTICE, "Metadata server switch to master mode done");
 			node_alive_ = true;
 			command_type_ = kCmdNone;
@@ -166,6 +166,10 @@ void uRaftController::checkCommandStatus(const boost::system::error_code &error)
 				nodeDemote();
 				force_demote_ = false;
 			}
+		} else if (command_type_ == kCmdStatusDead) {
+			syslog(LOG_NOTICE, "Waiting for new metadata server instance to be available");
+			command_type_ = kCmdNone;
+			command_pid_  = -1;
 		}
 	}
 
@@ -189,6 +193,8 @@ void uRaftController::checkNodeStatus(const boost::system::error_code &error) {
 			} else {
 				syslog(LOG_ERR, "Invalid metadata server status.");
 			}
+		} else {
+			syslog(LOG_WARNING, "Isalive timeout.");
 		}
 
 		if (is_alive != node_alive_) {
@@ -199,6 +205,7 @@ void uRaftController::checkNodeStatus(const boost::system::error_code &error) {
 				syslog(LOG_NOTICE, "Metadata server is dead");
 				demoteLeader();
 				set_block_promotion(true);
+				setSlowCommandTimeout(opt_.dead_handler_timeout);
 				if (runSlowCommand("lizardfs-uraft-helper dead")) {
 					command_type_ = kCmdStatusDead;
 				}

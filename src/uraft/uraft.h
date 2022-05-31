@@ -24,7 +24,7 @@ public:
 		int                      election_timeout_min;
 		int                      election_timeout_max;
 		int                      heartbeat_period;
-		int                      quorum;
+		int                      quorum;  /// Minimum number of votes to get to become the leader.
 	};
 
 protected:
@@ -169,7 +169,7 @@ protected:
 
 	std::vector<NodeInfo>                   node_;
 	RaftState                               state_;
-	bool                                    block_leader_promotion_;
+	bool                                    block_leader_promotion_;  /// If true this node cannot be promoted to leader.
 
 	Options                                 opt_;
 };
