@@ -83,7 +83,10 @@ TEST(SmallVectorTest, EraseTest) {
 	small_vector<int16_t, 7> vec_A;
 	std::vector<int16_t> vec_B;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 	vec_A.insert(vec_A.begin(), range.begin(), range.end());
+#pragma GCC diagnostic pop
 	vec_B.insert(vec_B.begin(), range.begin(), range.end());
 
 	vec_A.erase(vec_A.begin() + 40);
