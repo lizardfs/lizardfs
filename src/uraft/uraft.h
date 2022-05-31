@@ -67,7 +67,7 @@ protected:
 		bool     president;          /*!< True if node is a president. */
 		bool     loyalty_agreement;  /*!< True if node is loyal to a leader. */
 
-		uint64_t data_version;  /*!< This node data version (updated when required by calling nodeGetVersion. */
+		uint64_t data_version;  /*!< This node data version (updated when required by calling nodeGetVersion). */
 	};
 
 	struct RpcHeader {

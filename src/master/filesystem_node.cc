@@ -876,7 +876,7 @@ void fsnodes_getdirdata(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t
 
 void fsnodes_getdir(uint32_t rootinode, uint32_t uid, uint32_t gid, uint32_t auid, uint32_t agid,
 		uint8_t sesflags, FSNodeDirectory *p, uint64_t first_entry,
-		uint64_t number_of_entries, std::vector<DirectoryEntry> &dir_entries) {
+		uint64_t number_of_entries, std::vector<legacy::DirectoryEntry> &dir_entries) {
 	FSNodeDirectory *parent;
 	uint32_t inode;
 	Attributes attr;
