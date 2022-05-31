@@ -1,16 +1,16 @@
 #!/bin/sh
 #
 ### BEGIN INIT INFO
-# Provides: lizardfs-cgiserv
-# Required-Start: $local_fs $network $syslog
-# Required-Stop: $local_fs $syslog
-# Should-Start: $syslog
-# Should-Stop: $network $syslog
-# Default-Start: 2 3 4 5
-# Default-Stop: 0 1 6
-# Short-Description: Start up the lizardfs-cgiserv server daemon
-# Description:       LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
-#                    This service starts up the LizardFS cgiserv server daemon.
+# Provides:            lizardfs-cgiserv
+# Required-Start:      $local_fs $network $syslog
+# Required-Stop:       $local_fs $syslog
+# Should-Start:        $syslog
+# Should-Stop:         $network $syslog
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Start up the lizardfs-cgiserv server daemon
+# Description:         LizardFS is a distributed, scalable, fault-tolerant and highly available file system.
+#                      This service starts up the LizardFS cgiserv server daemon.
 ### END INIT INFO
 
 # Source function library.

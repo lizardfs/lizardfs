@@ -13,7 +13,7 @@ metadata_location=
 print_missing_config() {
 	echo "$1 file is missing, it looks like a clean installation."
 	echo "You can use example configuration and fill it with appropriate data:"
-	echo "cp $1.dist $1"
+	echo "cp '@URAFT_EXAMPLES_SUBDIR@/$1' '@ETC_PATH@/$1'"
 	exit $LIZARDFS_URAFT_ERROR
 }
 
@@ -46,13 +46,13 @@ load_config() {
 
 	if [[ $ipaddr == "" || $netmask == "" || $iface == "" ]] ; then
 		echo "Configuration file $LIZARDFS_URAFT_CONFIG does not contain valid network information."
-		echo "See example @ETC_PATH@/lizardfs-uraft.cfg.dist file for reference."
+		echo "See example @URAFT_EXAMPLES_SUBDIR@/lizardfs-uraft.cfg file for reference."
 		exit $LIZARDFS_URAFT_ERROR
 	fi
 
 	if [[ ! $ADMIN_PASSWORD ]] ; then
 		echo "LizardFS admin password must be set in order to authenticate to master server."
-		echo "See example @ETC_PATH@/mfsmaster.cfg.dist file for reference."
+		echo "See example @MFSMASTER_EXAMPLES_SUBDIR@/mfsmaster.cfg file for reference."
 		exit $LIZARDFS_URAFT_ERROR
 	fi
 }

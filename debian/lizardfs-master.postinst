@@ -2,9 +2,9 @@
 
 # Ensure proper permissions on data dir and run dir.
 
-LIZARDFS_USER="mfs"
-LIZARDFS_GROUP="mfs"
-LIZARDFS_DATA_PATH="/var/lib/mfs"
+LIZARDFS_USER="lizardfs"
+LIZARDFS_GROUP="lizardfs"
+LIZARDFS_DATA_PATH="/var/lib/lizardfs"
 
 check_dirs() {
 	# check that the metadata dir exists

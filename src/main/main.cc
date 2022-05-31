@@ -889,11 +889,15 @@ int main(int argc,char **argv) {
 		makePidFile(pidfile);
 	}
 
-	if (cfg_load(cfgfile.c_str(), logundefined)==0) {
-		lzfs_pretty_syslog(LOG_WARNING, "configuration file %s not found - using defaults; "
-				"please create one to remove this warning "
-				"(you can copy %s.dist to get a base configuration)",
-				cfgfile.c_str(), default_cfgfile.c_str());
+	ch = cfg_load(cfgfile.c_str(), logundefined);
+	if (ch == 1) {
+		lzfs_pretty_syslog(LOG_WARNING,
+				"configuration file %s not found - using "
+				"defaults; please create one to remove this "
+				"warning (you can copy sample configuration "
+				"from '" USR_SHARE_DOC "' to get a base "
+				"configuration)",
+				cfgfile.c_str());
 	} else if (runmode==RunMode::kStart || runmode==RunMode::kRestart) {
 		lzfs_pretty_syslog(LOG_INFO, "configuration file %s loaded", cfgfile.c_str());
 	}

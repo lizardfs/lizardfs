@@ -526,19 +526,25 @@ int main(int argc, char *argv[]) try {
 
 	fuse_opt_add_arg(&defaultargs,"fakeappname");
 
-	if (fuse_opt_parse(&args, &defaultargs, gMfsOptsStage1, mfs_opt_proc_stage1)<0) {
+	if (read_masterhost_if_present(&args))
 		exit(1);
-	}
 
-	if (gCustomCfg==0) {
-		mfs_opt_parse_cfg_file(ETC_PATH "/mfsmount.cfg",1,&defaultargs);
-	}
-
-	if (fuse_opt_parse(&defaultargs, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {
+	if (fuse_opt_parse(&args, &defaultargs, gMfsOptsStage1, mfs_opt_proc_stage1))
 		exit(1);
-	}
 
-	if (fuse_opt_parse(&args, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2)<0) {
+	if (!gCustomCfg)
+		mfs_opt_parse_cfg_file(DEFAULT_MFSMOUNT_CONFIG_PATH, 1, &defaultargs);
+
+	if (fuse_opt_parse(&defaultargs, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2))
+		exit(1);
+
+	if (fuse_opt_parse(&args, &gMountOptions, gMfsOptsStage2, mfs_opt_proc_stage2))
+		exit(1);
+
+#if FUSE_VERSION >= 30
+	struct fuse_conn_info_opts *conn_opts;
+	conn_opts = fuse_parse_conn_info_opts(&args);
+	if (!conn_opts) {
 		exit(1);
 	}
 

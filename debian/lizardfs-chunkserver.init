@@ -1,23 +1,23 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:		lizardfs-chunkserver
-# Required-Start:	$network $remote_fs
-# Required-Stop:	$remote_fs
-# Default-Start:	2 3 4 5
-# Default-Stop:		0 1 6
-# Short-Description:	Start lizardfs-chunkserver at boot time
-# Description:		lizardfs-chunkservers provide storage space for LizardFS.
+# Provides:            lizardfs-chunkserver
+# Required-Start:      $network $remote_fs
+# Required-Stop:       $remote_fs
+# Default-Start:       2 3 4 5
+# Default-Stop:        0 1 6
+# Short-Description:   Start lizardfs-chunkserver at boot time
+# Description:         lizardfs-chunkservers provide storage space for LizardFS.
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/usr/sbin/mfschunkserver
 NAME=mfschunkserver
 DESC=lizardfs-chunkserver
-DEFAULT_WORKING_USER=mfs
-DEFAULT_WORKING_GROUP=mfs
-DEFAULT_DATA_PATH=/var/lib/mfs
-DEFAULT_CFG=/etc/mfs/mfschunkserver.cfg
+DEFAULT_WORKING_USER=lizardfs
+DEFAULT_WORKING_GROUP=lizardfs
+DEFAULT_DATA_PATH=/var/lib/lizardfs
+DEFAULT_CFG=/etc/lizardfs/mfschunkserver.cfg
 
 test -e $DAEMON || exit 0
 
@@ -32,9 +32,9 @@ if [ -s "$LIZARDFSCHUNKSERVER_DEFAULTS_FILE" ]; then
     case "x$LIZARDFSCHUNKSERVER_ENABLE" in
         xtrue) ;;
         xfalse)
-	    log_warning_msg "lizardfs-chunkserver not enabled in \"$LIZARDFSCHUNKSERVER_DEFAULTS_FILE\", exiting..."
-	    exit 0
-	    ;;
+            log_warning_msg "lizardfs-chunkserver not enabled in \"$LIZARDFSCHUNKSERVER_DEFAULTS_FILE\", exiting..."
+            exit 0
+            ;;
         *)
             log_failure_msg "value of LIZARDFSCHUNKSERVER_ENABLE must be either 'true' or 'false';"
             log_failure_msg "not starting lizardfs-chunkserver."
@@ -46,21 +46,21 @@ fi
 set -e
 
 if [ -n "$LIZARDFSCHUNKSERVER_CONFIG_FILE" ]; then
-	CFGFILE="$LIZARDFSCHUNKSERVER_CONFIG_FILE"
+    CFGFILE="$LIZARDFSCHUNKSERVER_CONFIG_FILE"
 else
-	CFGFILE="$DEFAULT_CFG"
+    CFGFILE="$DEFAULT_CFG"
 fi
 
 get_config_value_from_CFGFILE()
 {
-        # parsing the value of config options from CFGFILE
-         echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
+    # parsing the value of config options from CFGFILE
+    echo $(sed -e 's/[[:blank:]]*#.*$//' -n -e 's/^[[:blank:]]*'$1'[[:blank:]]*=[[:blank:]]*\(.*\)$/\1/p' $CFGFILE)
 }
 
 if [ -s "$CFGFILE" ]; then
-       DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
-       WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
-       WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
+    DATA_PATH=$(get_config_value_from_CFGFILE "DATA_PATH")
+    WORKING_USER=$(get_config_value_from_CFGFILE "WORKING_USER")
+    WORKING_GROUP=$(get_config_value_from_CFGFILE "WORKING_GROUP")
 
 fi
 
@@ -70,43 +70,39 @@ fi
 
 check_dirs()
 {
-	# check that the metadata dir exists
-	if [ ! -d "$DATA_PATH" ]; then
-		mkdir -p "$DATA_PATH"
-	fi
-	chmod 0755 "$DATA_PATH"
-	chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
+    # check that the metadata dir exists
+    if [ ! -d "$DATA_PATH" ]; then
+        mkdir -p "$DATA_PATH"
+    fi
+    chmod 0755 "$DATA_PATH"
+    chown -R $WORKING_USER:$WORKING_GROUP "$DATA_PATH"
 }
 
 case "$1" in
-	start)
-		check_dirs
-		echo "Starting $DESC:"
-		$DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS start
-		;;
-
-	stop)
-		echo "Stopping $DESC:"
-		$DAEMON ${CFGFILE:+-c $CFGFILE} stop
-		;;
-
-	reload|force-reload)
-		check_dirs
-		echo "Reloading $DESC:"
-		$DAEMON ${CFGFILE:+-c $CFGFILE} reload
-		;;
-
-	restart)
-		check_dirs
-		echo "Restarting $DESC:"
-		$DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS restart
-		;;
-
-	*)
-		N=/etc/init.d/$NAME
-		echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
-		exit 1
-		;;
+    start)
+        check_dirs
+        echo "Starting $DESC:"
+        $DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS start
+        ;;
+    stop)
+        echo "Stopping $DESC:"
+        $DAEMON ${CFGFILE:+-c $CFGFILE} stop
+        ;;
+    reload|force-reload)
+        check_dirs
+        echo "Reloading $DESC:"
+        $DAEMON ${CFGFILE:+-c $CFGFILE} reload
+        ;;
+    restart)
+        check_dirs
+        echo "Restarting $DESC:"
+        $DAEMON ${CFGFILE:+-c $CFGFILE} $DAEMON_OPTS restart
+        ;;
+    *)
+        N=/etc/init.d/$NAME
+        echo "Usage: $N {start|stop|restart|reload|force-reload}" >&2
+        exit 1
+        ;;
 esac
 
 exit 0
