@@ -34,7 +34,7 @@ load_config() {
 	matocl_host=${LOCAL_MASTER_ADDRESS:=0}
 	matocl_port=${LOCAL_MASTER_MATOCL_PORT:=9421}
 
-	ipaddr=${URAFT_FLOATING_IP}
+	ipaddr=$(getent hosts ${URAFT_FLOATING_IP} | awk '{print $1}')
 	netmask=${URAFT_FLOATING_NETMASK}
 	iface=${URAFT_FLOATING_IFACE}
 
@@ -70,7 +70,7 @@ lizardfs_admin() {
 }
 
 get_metadata_version_from_file() {
-	local version=$(mfsmetarestore -g -d "${LIZARDFS_DATA_DIR}" 2> /dev/null)
+	local version=$(@SBIN_PATH@/mfsmetarestore -g -d "${LIZARDFS_DATA_DIR}" | grep -v warn 2> /dev/null)
 	if [[ $? == 0 && ${version} =~ ^[0-9]+$ ]]; then
 		echo -n "${version}"
 	else
