@@ -1,2 +1,2 @@
-requests==2.26.0
-types-requests==2.25.6
+requests==2.27.1
+types-requests==2.27.29
