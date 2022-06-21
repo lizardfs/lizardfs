@@ -62,7 +62,7 @@ cat $tempfile | grep "lizardfstest_loop" | while read -r line ; do
 	[ -d "$mount_point" ] && rmdir --ignore-fail-on-non-empty --parents $mount_point
 	rm -f $file_system
 	[ -d "$file_system_directory" ] && rmdir --ignore-fail-on-non-empty --parents $file_system_directory
-	sed -i -e "@$line@d" /etc/fstab
+	sed -i -e "\@$line@d" /etc/fstab
 done
 
 rm $tempfile
