@@ -208,7 +208,7 @@ fi
 echo ; echo Prepare ramdisk
 if ! grep /mnt/ramdisk /etc/fstab >/dev/null; then
 	echo "# Ramdisk used in LizardFS tests" >> /etc/fstab
-	echo "ramdisk  /mnt/ramdisk  tmpfs  mode=1777,size=2g" >> /etc/fstab
+	echo "ramdisk  /mnt/ramdisk  tmpfs  mode=1777,nofail,size=2g" >> /etc/fstab
 	mkdir -p /mnt/ramdisk
 	mount /mnt/ramdisk
 	echo ': ${RAMDISK_DIR:=/mnt/ramdisk}' >> /etc/lizardfs_tests.conf
@@ -235,7 +235,7 @@ while [ $i -lt $devices ] ; do
 		truncate -s 1G "$image"
 		mkfs.ext4 -Fq "$image"
 		# Add it to fstab
-		echo "$(readlink -m "$image") /mnt/lizardfstest_loop_$i  ext4  loop" >> /etc/fstab
+		echo "$(readlink -m "$image") /mnt/lizardfstest_loop_$i  ext4  loop,nofail" >> /etc/fstab
 		mkdir -p /mnt/lizardfstest_loop_$i
 		# Mount and set permissions
 		mount /mnt/lizardfstest_loop_$i
