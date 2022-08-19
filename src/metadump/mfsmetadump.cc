@@ -17,6 +17,7 @@
  */
 
 #include "common/platform.h"
+#include "common/serialization.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -27,11 +28,15 @@
 #include "common/datapack.h"
 #include "protocol/MFSCommunication.h"
 
+#include <master/filesystem_node.h>
+
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)
 
 #define MAX_INDEX 0x7FFFFFFF
 #define MAX_CHUNKS_PER_FILE (MAX_INDEX+1)
+
+namespace dump {
 
 static inline char dispchar(uint8_t c) {
 	return (c>=32 && c<=126)?c:'.';
@@ -204,7 +209,11 @@ int fs_loadnode(FILE *fd) {
 	ctimestamp = get32bit(&ptr);
 	trashtime = get32bit(&ptr);
 
-	printf("%c|i:%10" PRIu32 "|#:%" PRIu8 "|e:%1" PRIX16 "|m:%04" PRIo16 "|u:%10" PRIu32 "|g:%10" PRIu32 "|a:%10" PRIu32 ",m:%10" PRIu32 ",c:%10" PRIu32 "|t:%10" PRIu32,c,nodeid,goal,(uint16_t)(mode>>12),(uint16_t)(mode&0xFFF),uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
+	printf("%c|i:%10" PRIu32 "|#:%" PRIu8 "|e:%1" PRIX16 "|m:%04" PRIo16
+	       "|u:%10" PRIu32 "|g:%10" PRIu32 "|a:%10" PRIu32 ",m:%10" PRIu32
+	       ",c:%10" PRIu32 "|t:%10" PRIu32,
+	       c,nodeid,goal,(uint16_t)(mode>>12),(uint16_t)(mode&0xFFF),
+	       uid,gid,atimestamp,mtimestamp,ctimestamp,trashtime);
 
 	if (type==TYPE_BLOCKDEV || type==TYPE_CHARDEV) {
 		uint32_t rdev;
@@ -292,7 +301,7 @@ int fs_loadnodes(FILE *fd) {
 int fs_loadedges(FILE *fd) {
 	int s;
 	do {
-		s = fs_loadedge(fd);
+		s = dump::fs_loadedge(fd);
 		if (s<0) {
 			return -1;
 		}
@@ -403,6 +412,60 @@ int fs_load(FILE *fd) {
 	return 0;
 }
 
+int fs_load_acl(FILE *fd) {
+	static std::vector<uint8_t> buffer;
+	buffer.clear();
+
+	try {
+		// Read size of the entry
+		uint32_t size = 0;
+		buffer.resize(serializedSize(size));
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
+		}
+		deserialize(buffer, size);
+		if (size == 0) {
+			// this is end marker
+			return 1;
+		} else if (size > 10000000) {
+			throw Exception("strange size of entry: " + std::to_string(size),
+			    LIZARDFS_ERROR_ERANGE);
+		}
+
+		// Read the entry
+		buffer.resize(size);
+		if (fread(buffer.data(), 1, buffer.size(), fd) != buffer.size()) {
+			throw Exception(std::string("read error: ") + strerr(errno), LIZARDFS_ERROR_IO);
+		}
+
+		// Deserialize inode
+		uint32_t inode;
+		deserialize(buffer, inode);
+
+		// Deserialize ACL
+		RichACL acl;
+		deserialize(buffer, inode, acl);
+		printf("A|i: %10d: %s\n", inode, acl.toString().c_str());
+		return 0;
+	} catch (Exception &ex) {
+		printf("Error loading acl: %s", ex.what());
+		return -1;
+	}
+}
+
+int fs_load_acls(FILE *fd) {
+	int s;
+
+	do {
+		s = dump::fs_load_acl(fd);
+		if (s < 0) {
+			return -1;
+		}
+	} while (s == 0);
+
+	return 0;
+}
+
 int fs_load_2x(FILE *fd, bool loadLockIds) {
 	uint32_t maxnodeid,nextsessionid;
 	uint64_t sleng;
@@ -437,23 +500,28 @@ int fs_load_2x(FILE *fd, bool loadLockIds) {
 		printf("# -------------------------------------------------------------------\n");
 		printf("# section header: %c%c%c%c%c%c%c%c (%02X%02X%02X%02X%02X%02X%02X%02X) ; length: %" PRIu64 "\n",dispchar(hdr[0]),dispchar(hdr[1]),dispchar(hdr[2]),dispchar(hdr[3]),dispchar(hdr[4]),dispchar(hdr[5]),dispchar(hdr[6]),dispchar(hdr[7]),hdr[0],hdr[1],hdr[2],hdr[3],hdr[4],hdr[5],hdr[6],hdr[7],sleng);
 		if (memcmp(hdr,"NODE 1.0",8)==0) {
-			if (fs_loadnodes(fd)<0) {
+			if (dump::fs_loadnodes(fd)<0) {
 				printf("error reading metadata (NODE 1.0)\n");
 				return -1;
 			}
 		} else if (memcmp(hdr,"EDGE 1.0",8)==0) {
-			if (fs_loadedges(fd)<0) {
+			if (dump::fs_loadedges(fd)<0) {
 				printf("error reading metadata (EDGE 1.0)\n");
 				return -1;
 			}
 		} else if (memcmp(hdr,"FREE 1.0",8)==0) {
-			if (fs_loadfree(fd, sleng)<0) {
+			if (dump::fs_loadfree(fd, sleng)<0) {
 				printf("error reading metadata (FREE 1.0)\n");
 				return -1;
 			}
 		} else if (memcmp(hdr,"CHNK 1.0",8)==0) {
-			if (chunk_load(fd, loadLockIds) < 0) {
+			if (dump::chunk_load(fd, loadLockIds) < 0) {
 				printf("error reading metadata (CHNK 1.0)\n");
+				return -1;
+			}
+		} else if (memcmp(hdr,"ACLS 1.2",8)==0) {
+			if (dump::fs_load_acls(fd) < 0) {
+				printf("error reading metadata (ACLS 1.2)\n");
 				return -1;
 			}
 		} else {
@@ -501,7 +569,7 @@ int fs_loadall(const char *fname) {
 			fclose(fd);
 			return -1;
 		}
-		if (chunk_load(fd, loadLockIds) < 0) {
+		if (dump::chunk_load(fd, loadLockIds) < 0) {
 			printf("error reading metadata (chunks)\n");
 			fclose(fd);
 			return -1;
@@ -531,10 +599,12 @@ int fs_loadall(const char *fname) {
 	return 0;
 }
 
+}
+
 int main(int argc,char **argv) {
 	if (argc!=2) {
 		printf("usage: %s metadata_file\n",argv[0]);
 		return 1;
 	}
-	return (fs_loadall(argv[1])<0)?1:0;
+	return (dump::fs_loadall(argv[1])<0)?1:0;
 }
