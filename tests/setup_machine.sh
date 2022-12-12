@@ -139,6 +139,7 @@ if ! [[ -f /etc/sudoers.d/lizardfstest ]] || \
 		ALL ALL = NOPASSWD: /usr/bin/pkill -9 -u lizardfstest
 		ALL ALL = NOPASSWD: /bin/rm -rf /tmp/lizardfs_error_dir
 		lizardfstest ALL = NOPASSWD: /bin/sh -c echo\ 1\ >\ /proc/sys/vm/drop_caches
+		lizardfstest ALL = NOPASSWD: /usr/bin/timeout 3 cat .oplog
 	END
 	chmod 0440 /etc/sudoers.d/lizardfstest
 fi

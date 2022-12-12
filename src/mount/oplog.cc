@@ -17,6 +17,7 @@
  */
 
 #include "common/platform.h"
+#include "common/user_groups.h"
 #include "mount/oplog.h"
 
 #include <errno.h>
@@ -104,10 +105,17 @@ void oplog_printf(const struct LizardClient::Context &ctx,const char *format,...
 	int r, leng = 0;
 	char buff[LINELENG];
 
+	auto gid = ctx.gid;
+
+	if (user_groups::isGroupCacheId(gid) && ctx.gids.size())
+		gid = ctx.gids.at(0);
+
 	get_time(tv, ltime);
 	r  = snprintf(buff, LINELENG, "%llu %02u.%02u %02u:%02u:%02u.%06u: uid:%u gid:%u pid:%u cmd:",
-		(unsigned long long)tv.tv_sec, ltime.tm_mon + 1, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec, (unsigned)tv.tv_usec,
-		(unsigned)ctx.uid, (unsigned)ctx.gid, (unsigned)ctx.pid);
+	              (unsigned long long)tv.tv_sec, ltime.tm_mon + 1,
+	              ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec,
+	              (unsigned)tv.tv_usec, (unsigned)ctx.uid, (unsigned)gid,
+	              (unsigned)ctx.pid);
 	if (r < 0) {
 		return;
 	}
@@ -135,7 +143,8 @@ void oplog_printf(const char *format, ...) {
 
 	get_time(tv, ltime);
 	r = snprintf(buff, LINELENG, "%llu %02u.%02u %02u:%02u:%02u.%06u: cmd:",
-		(unsigned long long)tv.tv_sec, ltime.tm_mon + 1, ltime.tm_mday, ltime.tm_hour, ltime.tm_min, ltime.tm_sec, (unsigned)tv.tv_usec);
+	             (unsigned long long)tv.tv_sec, ltime.tm_mon + 1, ltime.tm_mday,
+	             ltime.tm_hour, ltime.tm_min, ltime.tm_sec, (unsigned)tv.tv_usec);
 	if (r < 0) {
 		return;
 	}
