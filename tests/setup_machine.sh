@@ -58,7 +58,7 @@ case "$release" in
 	LinuxMint/*|Ubuntu/*|Debian/*)
 		apt-get -y install asciidoc build-essential cmake debhelper devscripts git fuse3 libfuse3-dev
 		apt-get -y install libfuse-dev pkg-config zlib1g-dev libboost-program-options-dev
-		apt-get -y install libboost-system-dev acl attr dbench netcat-openbsd pylint python3 rsync
+		apt-get -y install libboost-system-dev acl attr netcat-openbsd pylint python3 rsync
 		apt-get -y install socat tidy wget libgoogle-perftools-dev libboost-filesystem-dev
 		apt-get -y install libboost-iostreams-dev libpam0g-dev libdb-dev nfs4-acl-tools libfmt-dev
 		apt-get -y install python3-pip valgrind ccache libfmt-dev libisal-dev libcrcutil-dev curl
