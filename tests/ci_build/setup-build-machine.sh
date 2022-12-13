@@ -9,8 +9,6 @@ extract_paragraphs() {
 	awk -v RS='' '/'"${search}"'/' "${file}"
 }
 
-apt-get install -y sudo
-
 setup_machine_script="${script_dir}/../setup_machine.sh"
 [ -f "${setup_machine_script}" ] || die "Script not found: ${setup_machine_script}"
 

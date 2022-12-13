@@ -20,6 +20,7 @@ RUN set -e ; \
 WORKDIR /home/${USERNAME}
 RUN set -e ; \
     apt-get update ; \
+    apt-get install --yes sudo ; \
     chmod +x /tmp/ci_build/setup-build-machine.sh ; \
     /tmp/ci_build/setup-build-machine.sh ; \
     rm -rf /var/lib/apt/lists/*
