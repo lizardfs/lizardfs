@@ -40,7 +40,7 @@ get_version_metadata_string() {
 WORKSPACE="${WORKSPACE:-"${script_dir}"}"
 
 OSNAME=$(lsb_release -si)
-RELEASE=$(lsb_release -sr)
+RELEASE=$(lsb_release -sr | sed 's@n/a@testing@')
 VERSION_LONG_STRING="$(get_version_metadata_string)"
 BUNDLE="lizardfs-bundle-${OSNAME}-${RELEASE}-${VERSION_LONG_STRING}"
 
