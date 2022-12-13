@@ -16,7 +16,7 @@ get_cvs_branch() {
 }
 
 get_last_header() {
-	grep -Eie '^\s*\*\s+(lizardfs|moosefs)\s+\(?[0-9]+\.' "${WORKSPACE}/NEWS"| head -n1
+	grep -Eie '^\s*\*\s+(lizardfs|moosefs)\s+\(?[0-9]+\.' "${WORKSPACE}/debian/changelog" | head -n1
 }
 export -f get_last_header
 
