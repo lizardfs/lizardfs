@@ -56,7 +56,7 @@ public:
 	typedef T2 second_type;
 
 private:
-	std::array<uint8_t, sizeof(Word_t)> first_data;
+	std::array<uint8_t, sizeof(Word_t)> first_data {};
 
 public:
 	const first_type &first;
