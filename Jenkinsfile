@@ -25,7 +25,7 @@ pipeline {
                 script {
 
                     def branchedStages = [:]
-                    stageNames=['cppcheck', 'cpplint', 'debian11.5-build', 'debian11.5-test']
+                    stageNames=['cppcheck', 'cpplint', 'bookworm-build', 'bookworm-test']
                     stageNames.each { stageName ->
                         branchedStages["${stageName}"] = {
                             stage("${stageName}") {
