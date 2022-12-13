@@ -1,0 +1,30 @@
+ARG UBUNTU_VERSION=22.04
+FROM ubuntu:${UBUNTU_VERSION}
+ARG DEBIAN_FRONTEND=noninteractive
+ENV LC_ALL="C"
+ENV TZ=Europe/Warsaw
+RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
+COPY ./tests/setup_machine.sh /tmp/
+COPY ./tests/ci_build/setup-test-machine.sh ./tests/ci_build/60-ip_port_range.conf /tmp/ci_build/
+ARG GROUP_ID=1000
+ARG USER_ID=1000
+ARG USERNAME=jenkins
+ENV GROUP_ID=${GROUP_ID}
+ENV USER_ID=${USER_ID}
+ENV USERNAME=${USERNAME}
+RUN set -e ; \
+  mkdir -p /home/${USERNAME} ; \
+  groupadd -g ${GROUP_ID} ${USERNAME} ; \
+  useradd -r -u ${USER_ID} -g ${USERNAME} -d /home/${USERNAME} ${USERNAME} ; \
+  chown ${USERNAME}:${USERNAME} /home/${USERNAME}
+WORKDIR /home/${USERNAME}
+RUN set -e ; \
+    apt-get update ; \
+    chmod +x /tmp/ci_build/setup-test-machine.sh ; \
+    /tmp/ci_build/setup-test-machine.sh ; \
+    rm -rf /var/lib/apt/lists/*
+RUN set -e ; \
+    apt-get update ; \
+    apt-get install --yes tini ; \
+    rm -rf /var/lib/apt/lists/*
+ENTRYPOINT ["tini", "--"]
