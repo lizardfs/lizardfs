@@ -120,6 +120,24 @@ pipeline {
                         stash allowEmpty: true, name: 'installation-result', includes: "install/lizardfs/**/*"
                     }
                 }
+                stage('Package') {
+                    agent {
+                        docker {
+                            label 'docker'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-build-latest'
+                            registryUrl env.dockerRegistry
+                            registryCredentialsId env.dockerRegistrySecretId
+                        }
+                    }
+                    steps {
+                        cleanWs()
+                        checkout scm
+                        script {
+                            sh "./package.sh"
+                            archiveArtifacts artifacts: '*bundle*.tar', followSymlinks: false
+                        }
+                    }
+                }
             }
             post {
                 always {
@@ -189,24 +207,6 @@ pipeline {
                             #archiveArtifacts artifacts: '${TEST_OUTPUT_DIR}/sanity_test_results.xml', followSymlinks: false
                         '''
                     }
-                }
-            }
-        }
-        stage('Package') {
-            agent {
-                docker {
-                    label 'docker'
-                    image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-build-latest'
-                    registryUrl env.dockerRegistry
-                    registryCredentialsId env.dockerRegistrySecretId
-                }
-            }
-            steps {
-                cleanWs()
-                checkout scm
-                script {
-                    sh "./package.sh"
-                    archiveArtifacts artifacts: '*bundle*.tar', followSymlinks: false
                 }
             }
         }
