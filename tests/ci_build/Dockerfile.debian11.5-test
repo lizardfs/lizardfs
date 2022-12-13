@@ -12,6 +12,7 @@ ARG USERNAME=jenkins
 ENV GROUP_ID=${GROUP_ID}
 ENV USER_ID=${USER_ID}
 ENV USERNAME=${USERNAME}
+ENV GTEST_ROOT=/usr/local
 RUN set -e ; \
   mkdir -p /home/${USERNAME} ; \
   groupadd -g ${GROUP_ID} ${USERNAME} ; \

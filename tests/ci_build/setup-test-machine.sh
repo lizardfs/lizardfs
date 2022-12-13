@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -eux -o pipefail
-script_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
+readonly script_dir="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")")"
 
 die() {  echo "Error: ${*}" >&2;  exit 1; }
 
@@ -13,7 +13,7 @@ apt-get install -y vim
 
 # Run LizardFS setup script
 mkdir -p /mnt/hdd_0 /mnt/hdd_1 /mnt/hdd_2 /mnt/hdd_3 /mnt/hdd_4
-setup_machine_script="${script_dir}/../setup_machine.sh"
+readonly setup_machine_script="${script_dir}/../setup_machine.sh"
 [ -f "${setup_machine_script}" ] || die "Script not found: ${setup_machine_script}"
 sed "s/apt-get install/apt-get install -y/g" "${setup_machine_script}" \
 	| grep -v '^[[:space:]]*mount[[:space:]]*[^[:space:]]*$' \
@@ -26,10 +26,10 @@ apt-get install -y \
   libjudy-dev \
   pylint
 
-gtest_temp_build_dir="$(mktemp -d)"
-apt-get install --yes cmake libgtest-dev
-cmake -S /usr/src/googletest -B "${gtest_temp_build_dir}"
+GTEST_ROOT="${GTEST_ROOT:-"/usr/local"}"
+readonly gtest_temp_build_dir="$(mktemp -d)"
+apt-get install -y cmake libgtest-dev
+cmake -S /usr/src/googletest -B "${gtest_temp_build_dir}" -DCMAKE_INSTALL_PREFIX="${GTEST_ROOT}"
 make -C "${gtest_temp_build_dir}" install
 rm -rf "${gtest_temp_build_dir:?}"
-
 cp "${script_dir}/60-ip_port_range.conf" /etc/sysctl.d/
