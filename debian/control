@@ -14,14 +14,14 @@ Build-Depends: asciidoc (>= 8.6.6),
                libboost-system-dev,
                libboost-program-options-dev,
                python3,
+Rules-Requires-Root: no
 Standards-Version: 3.9.3
-Homepage: http://lizardfs.org/
+Homepage: https://lizardfs.org/
 
 Package: lizardfs-dbg
 Architecture: any
 Section: debug
-Priority: extra
-Depends: ${misc:Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: Debugging symbols for LizardFS
  Debugging symbols for all LizardFS binaries
 
@@ -127,4 +127,3 @@ Description: LizardFS cluster management tool
  .
  This package offers means for simplified LizardFS deployment
  on cluster infrastructure.
-

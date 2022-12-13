@@ -33,22 +33,24 @@ cd "$working_dir/lizardfs"
 
 cp -P rpm/service-files/* debian/
 
-sed -i '1 s/-devel//g' debian/changelog
-
-last_header=$(cat debian/changelog | grep lizardfs | grep urgency | head -n 1)
-v_tmp=${last_header%)*}
-version=${v_tmp#* (} # extracted version number
-if [[ -v BUILD_DATE ]]; then
-	version=${version}-${BUILD_DATE}
-fi
+version="${VERSION_LONG_STRING:-"0.0.0-"$(date -u +"%Y%m%d-%H%M%S")"-devel"}"
 export version
 
 # Generate entry at the top of the changelog, needed to build the package
-header=$(echo $last_header | sed -e "s/stable/$(lsb_release -sc)/" -e "s/\((.*\))/\1.dev)/")
-changes=" * Vendor test release.\n  * commit: $(git rev-parse HEAD)"
-signature="-- dev.lizardfs.org package-builder <dev@lizardfs.org>  $(date -R)"
-echo -e "$header" "\n\n" "$changes" "\n\n" "$signature" "\n" \
-	| cat - debian/changelog > debian/changelog.tmp && mv debian/changelog.tmp debian/changelog
+last_header=$(cat debian/changelog | grep lizardfs | grep urgency | head -n 1)
+status=$(echo "${version}" | cut -d'-' -f4)
+package_name=$(echo $last_header | awk '{print $1}')
+urgency=$(echo $last_header | sed -e 's/^.*urgency=\(\w*\).*$/\1/')
+(cat <<EOT
+${package_name} (${version}) ${status}; urgency=${urgency}
+
+  * Vendor ${status} release.
+  * commit: $(git rev-parse HEAD)
+
+ -- dev.lizardfs.org package-builder <dev@lizardfs.org>  $(date -R)
+
+EOT
+) | cat - debian/changelog > debian/changelog.tmp && mv debian/changelog.tmp debian/changelog
 
 # Build packages.
 dpkg_genchanges_params="-uc -us -F --changes-option=-Dversion=${version}"

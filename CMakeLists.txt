@@ -30,8 +30,6 @@ option(ENABLE_TCMALLOC          "Enable use of tcmalloc-minimal library"        
 option(ENABLE_JEMALLOC          "Enable use of jemalloc library"                         OFF)
 option(ENABLE_POLONAISE         "Enable polonaise"                                       ON)
 option(ENABLE_CLIENT_LIB        "Enable dynamic client library (liblizardfs-client)"     OFF)
-option(ENABLE_OFFICIAL_BUILD    "Make the build official"                                OFF)
-option(SET_RC_BUILD_NUMBER      "Sets optional -rcN build suffix"                        OFF)
 # end of LizardFS options
 option(ENABLE_TRACES            "Enable traces"                                          OFF)
 option(ENABLE_CRC               "Enable checksums"                                       ON)
@@ -112,8 +110,6 @@ message(STATUS "ENABLE_TCMALLOC: ${ENABLE_TCMALLOC}")
 message(STATUS "ENABLE_JEMALLOC: ${ENABLE_JEMALLOC}")
 message(STATUS "ENABLE_POLONAISE: ${ENABLE_POLONAISE}")
 message(STATUS "ENABLE_CLIENT_LIB: ${ENABLE_CLIENT_LIB}")
-message(STATUS "ENABLE_OFFICIAL_BUILD: ${ENABLE_OFFICIAL_BUILD}")
-message(STATUS "SET_RC_BUILD_NUMBER: ${SET_RC_BUILD_NUMBER}")
 message(STATUS "ENABLE_URAFT: ${ENABLE_URAFT}")
 # end of LizardFS options values
 message(STATUS "ENABLE_TRACES: ${ENABLE_TRACES}")
@@ -126,15 +122,6 @@ execute_process(COMMAND "git" "rev-parse" "HEAD"
   OUTPUT_VARIABLE GIT_SHA1 RESULT_VARIABLE GIT_SHA1_RETURN_VALUE
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-if(NOT ENABLE_OFFICIAL_BUILD AND GIT_SHA1_RETURN_VALUE EQUAL 0)
-  set(PACKAGE_VERSION_SUFFIX "-devel-${GIT_SHA1}")
-elseif(NOT ENABLE_OFFICIAL_BUILD)
-  set(PACKAGE_VERSION_SUFFIX "-devel")
-elseif(SET_RC_BUILD_NUMBER)
-  set(PACKAGE_VERSION_SUFFIX "-rc${SET_RC_BUILD_NUMBER}")
-else()
-  set(PACKAGE_VERSION_SUFFIX "")
-endif()
 
 if(ENABLE_TESTS)
   if(NOT THROW_INSTEAD_OF_ABORT)
@@ -157,11 +144,19 @@ if(ENABLE_CLIENT_LIB)
 endif()
 
 project(lizardfs)
-set(PACKAGE_VERSION_MAJOR 3)
-set(PACKAGE_VERSION_MINOR 13)
-set(PACKAGE_VERSION_MICRO 0)
-set(PACKAGE_VERSION
-    "${PACKAGE_VERSION_MAJOR}.${PACKAGE_VERSION_MINOR}.${PACKAGE_VERSION_MICRO}${PACKAGE_VERSION_SUFFIX}")
+
+if(NOT PACKAGE_VERSION)
+  set(PACKAGE_VERSION "3.12.0-devel" CACHE STRING "Package version")
+endif()
+
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" PACKAGE_VERSION_MATCH ${PACKAGE_VERSION})
+set(PACKAGE_VERSION_MAJOR ${CMAKE_MATCH_1})
+set(PACKAGE_VERSION_MINOR ${CMAKE_MATCH_2})
+set(PACKAGE_VERSION_MICRO ${CMAKE_MATCH_3})
+message(STATUS "PACKAGE_VERSION: ${PACKAGE_VERSION}")
+message(STATUS "PACKAGE_VERSION_MAJOR: ${PACKAGE_VERSION_MAJOR}")
+message(STATUS "PACKAGE_VERSION_MINOR: ${PACKAGE_VERSION_MINOR}")
+message(STATUS "PACKAGE_VERSION_MICRO: ${PACKAGE_VERSION_MICRO}")
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
