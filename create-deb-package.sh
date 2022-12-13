@@ -39,10 +39,11 @@ export version
 # Generate entry at the top of the changelog, needed to build the package
 last_header=$(cat debian/changelog | grep lizardfs | grep urgency | head -n 1)
 status=$(echo "${version}" | cut -d'-' -f4)
-package_name=$(echo $last_header | awk '{print $1}')
-urgency=$(echo $last_header | sed -e 's/^.*urgency=\(\w*\).*$/\1/')
+package_name=$(echo "${last_header}" | awk '{print $1}')
+changelog_version="${version%%-*}"
+urgency=$(echo "${last_header}" | sed -e 's/^.*urgency=\(\w*\).*$/\1/')
 (cat <<EOT
-${package_name} (${version}) ${status}; urgency=${urgency}
+${package_name} (${changelog_version}) ${status}; urgency=${urgency}
 
   * Vendor ${status} release.
   * commit: $(git rev-parse HEAD)
