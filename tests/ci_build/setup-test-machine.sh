@@ -26,4 +26,10 @@ apt-get install -y \
   libjudy-dev \
   pylint
 
+gtest_temp_build_dir="$(mktemp -d)"
+apt-get install --yes cmake libgtest-dev
+cmake -S /usr/src/googletest -B "${gtest_temp_build_dir}"
+make -C "${gtest_temp_build_dir}" install
+rm -rf "${gtest_temp_build_dir:?}"
+
 cp "${script_dir}/60-ip_port_range.conf" /etc/sysctl.d/
