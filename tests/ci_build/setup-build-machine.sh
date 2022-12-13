@@ -20,3 +20,10 @@ extract_paragraphs 'echo Install necessary programs' "${setup_machine_script}" |
 apt-get install -y \
   libdb-dev \
   libjudy-dev
+
+GTEST_ROOT="${GTEST_ROOT:-"/usr/local"}"
+readonly gtest_temp_build_dir="$(mktemp -d)"
+apt-get install -y cmake libgtest-dev
+cmake -S /usr/src/googletest -B "${gtest_temp_build_dir}" -DCMAKE_INSTALL_PREFIX="${GTEST_ROOT}"
+make -C "${gtest_temp_build_dir}" install
+rm -rf "${gtest_temp_build_dir:?}"

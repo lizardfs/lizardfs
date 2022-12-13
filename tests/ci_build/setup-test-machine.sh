@@ -32,4 +32,5 @@ apt-get install -y cmake libgtest-dev
 cmake -S /usr/src/googletest -B "${gtest_temp_build_dir}" -DCMAKE_INSTALL_PREFIX="${GTEST_ROOT}"
 make -C "${gtest_temp_build_dir}" install
 rm -rf "${gtest_temp_build_dir:?}"
+
 cp "${script_dir}/60-ip_port_range.conf" /etc/sysctl.d/
