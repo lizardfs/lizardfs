@@ -1,3 +1,4 @@
+def imageTags = [:]
 pipeline {
     agent {
         label 'docker'
@@ -23,7 +24,6 @@ pipeline {
         stage('Prepare') {
             steps {
                 script {
-
                     def branchedStages = [:]
                     stageNames=['cppcheck', 'cpplint', 'bookworm-build', 'bookworm-test']
                     stageNames.each { stageName ->
@@ -49,6 +49,7 @@ pipeline {
                                         """)
                                         ciImage.push(containerTag)
                                         ciImage.push(latestTag)
+                                        imageTags[stageName] = containerTag
                                     }
                                 }
                             }
@@ -64,7 +65,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-cpplint-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['cpplint']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                         }
@@ -82,7 +83,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-cppcheck-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['cppcheck']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                         }
@@ -100,7 +101,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-build-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                         }
@@ -124,7 +125,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-build-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                         }
@@ -154,7 +155,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-test-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-test']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                         }
@@ -184,7 +185,7 @@ pipeline {
                     agent {
                         docker {
                             label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:pipeline-debian11.5-test-latest'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-test']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
                             args  '--cap-add SYS_ADMIN --device=/dev/fuse:/dev/fuse --security-opt="apparmor=unconfined" --tmpfs /mnt/ramdisk:rw,mode=1777,size=2g --ulimit core=-1'
