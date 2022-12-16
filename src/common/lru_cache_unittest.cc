@@ -156,6 +156,10 @@ TEST(LruCacheTests, TestMaxSize) {
 	}
 }
 
+uint64_t example_obtainer(uint64_t i) {
+	return i;
+};
+
 #if defined(LIZARDFS_HAVE_STD_FUTURE)
 typedef LruCache<
 		LruCacheOption::UseTreeMap,
@@ -164,10 +168,7 @@ typedef LruCache<
 		uint64_t> TreeLruCacheMt;
 
 TEST(LruCacheTests, TestMultiThreadedCache) {
-	auto fun = [](uint64_t i) {
-		return i;
-	};
-	TreeLruCacheMt cache(std::chrono::seconds(1000000), 100, fun);
+	TreeLruCacheMt cache(std::chrono::seconds(1000000), 100, example_obtainer);
 	SteadyTimePoint t0;
 
 	std::vector<std::future<void>> asyncs;
