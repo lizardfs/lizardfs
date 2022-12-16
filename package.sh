@@ -16,12 +16,12 @@ get_cvs_branch() {
 }
 
 get_last_header() {
-	grep -Eie '^\s*\*\s+(lizardfs|moosefs)\s+\(?[0-9]+\.' "${WORKSPACE}/debian/changelog" | head -n1
+	grep -Eie '(^lizardfs|mfs).*urgency' debian/changelog | head -n1
 }
 export -f get_last_header
 
 get_app_version() {
-	 get_last_header | awk '{print $3}' | tr -d '()'
+	 get_last_header | awk '{print $2}' | tr -d '()'
 }
 
 get_version_metadata_string() {
