@@ -141,7 +141,7 @@ TEST(CompactVectorTest, InternalStorage) {
 	}
 
 	// uint16_t size type
-	compact_vector<uint8_t,uint16_t> vec;
+	auto vec = compact_vector<uint8_t,uint16_t>(sizeof(uint16_t));
 
 #if !defined(NDEBUG) || defined(LIZARDFS_TEST_POINTER_OBFUSCATION)
 	EXPECT_EQ(sizeof(vec), 2 * sizeof(void *));
