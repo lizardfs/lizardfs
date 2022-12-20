@@ -1,3 +1,5 @@
+set -x
+
 assert_program_installed python3
 timeout_set 1 minute
 
