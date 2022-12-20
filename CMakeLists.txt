@@ -145,9 +145,7 @@ endif()
 
 project(lizardfs)
 
-if(NOT PACKAGE_VERSION)
-  set(PACKAGE_VERSION "3.12.0-devel" CACHE STRING "Package version")
-endif()
+set(PACKAGE_VERSION "3.13.0-devel")
 
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" PACKAGE_VERSION_MATCH ${PACKAGE_VERSION})
 set(PACKAGE_VERSION_MAJOR ${CMAKE_MATCH_1})

@@ -1128,9 +1128,9 @@ private:
 	}
 
 	void set_new_ptr(pointer old_ptr, pointer ptr, size_type nsize) {
-		if (nsize > 1 && ptr != old_ptr) {
-			destroy(old_ptr, old_ptr + base::get_size());
+		if (ptr != old_ptr) {
 			base::deallocate(old_ptr, base::get_size());
+			destroy(old_ptr, old_ptr + base::get_size());
 		} else {
 			if (nsize < base::get_size()) {
 				destroy(old_ptr + nsize, old_ptr + base::get_size());
