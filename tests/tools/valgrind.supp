@@ -77,6 +77,19 @@
 }
 
 {
+   fuse version libfuse3.so.3.12.0
+   memcheck:Leak
+   match-leak-kinds: definite
+   fun:calloc
+   fun:fuse_loop_cfg_create
+   fun:fuse_session_loop_mt
+   ...
+   fun:operator()
+   ...
+   fun:main
+}
+
+{
    Berkeley DB close
    Memcheck:Param
    pwrite64(buf)
