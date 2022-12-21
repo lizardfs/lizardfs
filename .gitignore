@@ -20,6 +20,8 @@ compile_commands.json
 #################################
 /build*
 /cmake-build-*
+/install/
+/test_output/
 
 # Eclipse project files #
 #########################

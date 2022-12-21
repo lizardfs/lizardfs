@@ -109,14 +109,7 @@ pipeline {
                     steps {
                         cleanWs()
                         checkout scm
-                        cmakeBuild buildDir: 'build/lizardfs', buildType: 'RelWithDebInfo', cleanBuild: true, cmakeArgs: '''-DENABLE_TESTS=YES
-                            -DCMAKE_INSTALL_PREFIX=${WORKSPACE}/install/lizardfs/
-                            -DENABLE_WERROR=NO
-                            -DLIZARDFS_TEST_POINTER_OBFUSCATION=1
-                            -DENABLE_CLIENT_LIB=YES
-                            -DENABLE_NFS_GANESHA=NO
-                            -DENABLE_POLONAISE=NO''', generator: 'Unix Makefiles', installation: 'InSearchPath'
-                        sh 'make -C build/lizardfs -j$(nproc) install'
+                        sh 'tests/ci_build/run-build.sh'
                         stash allowEmpty: true, name: 'compilation-result', includes: "build/lizardfs/**/*"
                         stash allowEmpty: true, name: 'installation-result', includes: "install/lizardfs/**/*"
                     }
@@ -162,23 +155,7 @@ pipeline {
                     }
                     steps {
                         unstash 'compilation-result'
-                        sh '''
-                            export LIZARDFS_ROOT=${WORKSPACE}/install/lizardfs
-                            echo "LIZARDFS_ROOT: ${LIZARDFS_ROOT}"
-                            export TEST_OUTPUT_DIR=${WORKSPACE}/test_output
-                            echo "TEST_OUTPUT_DIR: ${TEST_OUTPUT_DIR}"
-                            export TERM=xterm
-
-                            killall -9 lizardfs-tests || true
-                            mkdir -m 777 -p ${TEST_OUTPUT_DIR}
-                            rm -rf ${TEST_OUTPUT_DIR:?}/* || true
-                            rm -rf /mnt/ramdisk/* || true
-                            #lcov --directory ${WORKSPACE}/build/lizardfs/ --capture --output-file ${TEST_OUTPUT_DIR}/code_coverage.info -rc lcov_branch_coverage=1
-                            ${WORKSPACE}/build/lizardfs/src/unittests/unittests --gtest_color=yes --gtest_output=xml:${TEST_OUTPUT_DIR}/unit_test_results.xml
-                            #genhtml ${TEST_OUTPUT_DIR}/code_coverage.info --branch-coverage --output-directory ${TEST_OUTPUT_DIR}/code_coverage_report/ || true
-                            #stash allowEmpty: true, name: 'coverage-report', includes: "${TEST_OUTPUT_DIR}/code_coverage_report/**/*"
-                            #archiveArtifacts artifacts: '${TEST_OUTPUT_DIR}/unit_test_results.xml', followSymlinks: false
-                        '''
+                        sh 'tests/ci_build/run-tests-unit.sh'
                     }
                 }
                 stage('Sanity') {
@@ -193,20 +170,7 @@ pipeline {
                     }
                     steps {
                         unstash 'installation-result'
-                        sh '''
-                            export LIZARDFS_ROOT=${WORKSPACE}/install/lizardfs
-                            echo "LIZARDFS_ROOT: ${LIZARDFS_ROOT}"
-                            export TEST_OUTPUT_DIR=${WORKSPACE}/test_output
-                            echo "TEST_OUTPUT_DIR: ${TEST_OUTPUT_DIR}"
-                            export TERM=xterm
-
-                            killall -9 lizardfs-tests || true
-                            mkdir -m 777 -p ${TEST_OUTPUT_DIR}
-                            rm -rf ${TEST_OUTPUT_DIR:?}/* || true
-                            rm -rf /mnt/ramdisk/* || true
-                            ${LIZARDFS_ROOT}/bin/lizardfs-tests --gtest_color=yes --gtest_filter='SanityChecks.*' --gtest_output=xml:${TEST_OUTPUT_DIR}/sanity_test_results.xml
-                            #archiveArtifacts artifacts: '${TEST_OUTPUT_DIR}/sanity_test_results.xml', followSymlinks: false
-                        '''
+                        sh 'tests/ci_build/run-tests-sanitycheck.sh'
                     }
                 }
             }
