@@ -104,6 +104,7 @@ pipeline {
                             image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
+                            args  '--security-opt seccomp=unconfined'
                         }
                     }
                     steps {
@@ -121,6 +122,7 @@ pipeline {
                             image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
+                            args  '--security-opt seccomp=unconfined'
                         }
                     }
                     steps {
@@ -165,7 +167,7 @@ pipeline {
                             image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-test']
                             registryUrl env.dockerRegistry
                             registryCredentialsId env.dockerRegistrySecretId
-                            args  '--cap-add SYS_ADMIN --device=/dev/fuse:/dev/fuse --security-opt="apparmor=unconfined" --tmpfs /mnt/ramdisk:rw,mode=1777,size=2g --ulimit core=-1'
+                            args  '--security-opt seccomp=unconfined --cap-add SYS_ADMIN --device=/dev/fuse:/dev/fuse --security-opt="apparmor=unconfined" --tmpfs /mnt/ramdisk:rw,mode=1777,size=2g --ulimit core=-1'
                         }
                     }
                     steps {
