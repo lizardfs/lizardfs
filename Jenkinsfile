@@ -30,8 +30,7 @@ pipeline {
                         branchedStages["${stageName}"] = {
                             stage("${stageName}") {
                                 node('docker') {
-                                    cleanWs()
-                                    checkout scm
+                                    cleanAndClone()
                                     def commitId = getCommitId()
                                     def containerTag = getPartialTag(env.BRANCH_NAME, stageName, commitId)
                                     def latestTag = getPartialTag(env.BRANCH_NAME, stageName)
@@ -71,8 +70,7 @@ pipeline {
                         }
                     }
                     steps {
-                        cleanWs()
-                        checkout scm
+                        cleanAndClone()
                         sh 'cpplint --counting=detailed --linelength=120 --output=vs7 src/**/*.h src/**/*.cc 2> cpplint.log || true'
                         archiveArtifacts artifacts: 'cpplint.log', followSymlinks: false
                         stash allowEmpty: true, name: 'cpplint-result', includes: "cpplint.log"
@@ -89,8 +87,7 @@ pipeline {
                         }
                     }
                     steps {
-                        cleanWs()
-                        checkout scm
+                        cleanAndClone()
                         sh 'cppcheck --enable=all --inconclusive --xml --xml-version=2 ./src 2> cppcheck.xml'
                         archiveArtifacts artifacts: 'cppcheck.xml', followSymlinks: false
                         stash allowEmpty: true, name: 'cppcheck-result', includes: "cppcheck.xml"
@@ -108,30 +105,10 @@ pipeline {
                         }
                     }
                     steps {
-                        cleanWs()
-                        checkout scm
+                        cleanAndClone()
                         sh 'tests/ci_build/run-build.sh'
                         stash allowEmpty: true, name: 'compilation-result', includes: "build/lizardfs/**/*"
                         stash allowEmpty: true, name: 'installation-result', includes: "install/lizardfs/**/*"
-                    }
-                }
-                stage('Package') {
-                    agent {
-                        docker {
-                            label 'docker'
-                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
-                            registryUrl env.dockerRegistry
-                            registryCredentialsId env.dockerRegistrySecretId
-                            args  '--security-opt seccomp=unconfined'
-                        }
-                    }
-                    steps {
-                        cleanWs()
-                        checkout scm
-                        script {
-                            sh "./package.sh"
-                            archiveArtifacts artifacts: '*bundle*.tar', followSymlinks: false
-                        }
                     }
                 }
             }
@@ -156,6 +133,7 @@ pipeline {
                         }
                     }
                     steps {
+                        cleanAndClone()
                         unstash 'compilation-result'
                         sh 'tests/ci_build/run-tests-unit.sh'
                     }
@@ -171,9 +149,28 @@ pipeline {
                         }
                     }
                     steps {
+                        cleanAndClone()
                         unstash 'installation-result'
                         sh 'tests/ci_build/run-tests-sanitycheck.sh'
                     }
+                }
+            }
+        }
+        stage('Package') {
+            agent {
+                docker {
+                    label 'docker'
+                    image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
+                    registryUrl env.dockerRegistry
+                    registryCredentialsId env.dockerRegistrySecretId
+                    args  '--security-opt seccomp=unconfined'
+                }
+            }
+            steps {
+                cleanAndClone()
+                script {
+                    sh "./package.sh"
+                    archiveArtifacts artifacts: '*bundle*.tar', followSymlinks: false
                 }
             }
         }
@@ -183,6 +180,11 @@ pipeline {
             cleanWs()
         }
     }
+}
+
+def cleanAndClone() {
+    cleanWs()
+    checkout scm
 }
 
 def getVersion() {
