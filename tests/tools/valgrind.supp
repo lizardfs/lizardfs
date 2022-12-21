@@ -83,10 +83,7 @@
     fun:calloc
     fun:fuse_loop_cfg_create
     fun:fuse_session_loop_mt
-    fun:_ZL8mainloopP9fuse_argsP17fuse_cmdline_optsP19fuse_conn_info_opts
-    fun:operator()
-    fun:_Z18daemonize_and_waitSt8functionIFivEE
-    fun:main
+    ...
 }
 
 {
