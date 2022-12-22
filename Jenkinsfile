@@ -152,7 +152,8 @@ pipeline {
                         cleanAndClone()
                         unstash 'coverage-binaries'
                         sh 'tests/ci_build/run-unit-tests.sh'
-                        stash allowEmpty: true, name: 'coverage-report', includes: "test_output/code_coverage_report/**/*"
+                        archiveArtifacts artifacts: 'test_output/coverage.xml', followSymlinks: false
+                        stash allowEmpty: true, name: 'coverage-report', includes: "test_output/coverage.xml"
                     }
                 }
                 stage('Sanity') {
@@ -175,15 +176,7 @@ pipeline {
             post {
                 always {
                     unstash 'coverage-report'
-                    publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'test_output/code_coverage_report',
-                        reportFiles: 'index.html',
-                        reportName: 'Unit Tests Coverage',
-                        reportTitles: '',
-                        useWrapperFileDirectly: true])
+                    cobertura coberturaReportFile: 'test_output/coverage.xml'
                 }
             }
         }

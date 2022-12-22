@@ -38,6 +38,7 @@ RUN set -e ; \
     touch /var/log/syslog ; \
     chmod -R a+rwX-t /tmp /var/log /mnt/ramdisk; \
     chown -R ${USERNAME}:${USERNAME} /tmp /var/log; \
+    pip install lcov_cobertura; \
     true
 COPY ./tests/ci_build/docker_entrypoint.test /docker_entrypoint.sh
 RUN chmod +x /docker_entrypoint.sh
