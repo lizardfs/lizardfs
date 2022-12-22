@@ -118,6 +118,15 @@ pipeline {
                     unstash 'cpplint-result'
                     recordIssues enabledForFailure: true, tool: cppCheck(name: "Lint: cppcheck", pattern: 'cppcheck.xml')
                     recordIssues enabledForFailure: true, tool: cppLint(name: "Lint: cpplint", pattern: 'cpplint.log')
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test_output/code_coverage_report',
+                        reportFiles: 'index.html',
+                        reportName: 'Unit Tests Coverage',
+                        reportTitles: '',
+                        useWrapperFileDirectly: true])
                 }
             }
         }
