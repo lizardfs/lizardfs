@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 2.8.12)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
@@ -90,8 +90,8 @@ set(DEFAULT_MASTER_HOSTNAME      "mfsmaster"                CACHE STRING "Defaul
 set(DEFAULT_MASTER_PORT          "9421"                     CACHE STRING "Default master server port number")
 set(DEFAULT_MOUNTED_SUBFOLDER    "/"                        CACHE STRING "Default subfolder to be mounted")
 set(DEFAULT_MFSMOUNT_CONFIG_PATH "${ETC_PATH}/mfsmount.cfg" CACHE STRING "Default full path to mfsmount configuration file")
-set(LIZARDFS_BLOCKS_IN_CHUNK     1024                       CACHE INT "Number of blocks in one chunk")
-set(LIZARDFS_BLOCK_SIZE          65536                      CACHE INT "Number of bytes in one block")
+set(LIZARDFS_BLOCKS_IN_CHUNK     "1024"                     CACHE STRING "Number of blocks in one chunk")
+set(LIZARDFS_BLOCK_SIZE          "65536"                    CACHE STRING "Number of bytes in one block")
 
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")

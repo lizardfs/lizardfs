@@ -43,5 +43,5 @@ check_c_source_runs("${_CHECK_FOR_JUDY1_BUG}" JUDY_HAVE_WORKING_JUDY1)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_REQUIRED_LIBRARIES)
 
-find_package_handle_standard_args(JUDY
+find_package_handle_standard_args(Judy
                                   REQUIRED_VARS JUDY_LIBRARY JUDY_INCLUDE_DIR)
