@@ -14,10 +14,10 @@ ENV USER_ID=${USER_ID}
 ENV USERNAME=${USERNAME}
 ENV GTEST_ROOT=/usr/local
 RUN set -e ; \
-  mkdir -p /home/${USERNAME} ; \
-  groupadd -g ${GROUP_ID} ${USERNAME} ; \
-  useradd -r -u ${USER_ID} -g ${USERNAME} -d /home/${USERNAME} ${USERNAME} ; \
-  chown ${USERNAME}:${USERNAME} /home/${USERNAME}
+    mkdir -p /home/${USERNAME} ; \
+    groupadd -g ${GROUP_ID} ${USERNAME} ; \
+    useradd -r -u ${USER_ID} -g ${USERNAME} -d /home/${USERNAME} ${USERNAME} ; \
+    chown ${USERNAME}:${USERNAME} /home/${USERNAME}
 WORKDIR /home/${USERNAME}
 RUN set -e ; \
     apt-get update ; \
@@ -27,6 +27,8 @@ RUN set -e ; \
     rm -rf /var/lib/apt/lists/*
 RUN set -e ; \
     apt-get update ; \
-    apt-get install --yes tini ; \
+    apt-get install --yes \
+        lcov \
+        tini ; \
     rm -rf /var/lib/apt/lists/*
 ENTRYPOINT ["tini", "--"]
