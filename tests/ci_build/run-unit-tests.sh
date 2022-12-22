@@ -20,17 +20,17 @@ rm -rf /mnt/ramdisk/{,.}*  || true
 
 lcov --directory "${WORKSPACE}/build/lizardfs/" --capture --output-file "${TEST_OUTPUT_DIR}/code_coverage.info" -rc lcov_branch_coverage=1
 lcov --remove "${TEST_OUTPUT_DIR}/code_coverage.info" -o "${TEST_OUTPUT_DIR}/filtered_code_coverage.info" -rc lcov_branch_coverage=1 \
-    '/usr/include/*' \
-    '/usr/local/include/*' \
-    "${WORKSPACE}/src/unittests/*" \
-    "${WORKSPACE}/src/unittests/*" \
-    "${WORKSPACE}/src/admin/*_unittest.cc" \
-		"${WORKSPACE}/src/chunkserver/*_unittest.cc" \
-		"${WORKSPACE}/src/common/*_unittest.cc" \
-		"${WORKSPACE}/src/master/*_unittest.cc" \
-		"${WORKSPACE}/src/mount/*_unittest.cc" \
-		"${WORKSPACE}/src/protocol/*_unittest.cc" \
-		"${WORKSPACE}/src/unittests/*"
+	'/usr/include/*' \
+	'/usr/local/include/*' \
+	"${WORKSPACE}/src/unittests/*" \
+	"${WORKSPACE}/src/unittests/*" \
+	"${WORKSPACE}/src/admin/*_unittest.cc" \
+	"${WORKSPACE}/src/chunkserver/*_unittest.cc" \
+	"${WORKSPACE}/src/common/*_unittest.cc" \
+	"${WORKSPACE}/src/master/*_unittest.cc" \
+	"${WORKSPACE}/src/mount/*_unittest.cc" \
+	"${WORKSPACE}/src/protocol/*_unittest.cc" \
+	"${WORKSPACE}/src/unittests/*"
 genhtml --output-directory "${TEST_OUTPUT_DIR}/code_coverage_report/" \
 	--title "Code coverage report" \
 	--branch-coverage --function-coverage --demangle-cpp --legend --num-spaces 2 --sort  \
