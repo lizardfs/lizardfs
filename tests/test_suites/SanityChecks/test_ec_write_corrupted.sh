@@ -1,3 +1,5 @@
+timeout_set 1 minute
+
 CHUNKSERVERS=4 \
 	MOUNT_EXTRA_CONFIG="mfscachemode=NEVER" \
 	USE_RAMDISK=YES \
