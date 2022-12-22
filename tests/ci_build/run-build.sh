@@ -4,6 +4,20 @@ PROJECT_DIR="$(readlink -f "$(dirname "${BASH_SOURCE[0]}")/../..")"
 WORKSPACE=${WORKSPACE:-"${PROJECT_DIR}"}
 die() { echo "Error: $*" >&2; exit 1; }
 
+usage() {
+	cat <<-EOT
+	Builds lizardfs with different configurations
+
+	Usage: run-build.sh [OPTION]
+
+	Options:
+	  coverage   Build with parameters for coverage report
+	  test       Build for test
+	  release    Build with no debug info
+	EOT
+	exit 1
+}
+
 declare -a CMAKE_LIZARDFS_ARGUMENTS=(
   -G 'Unix Makefiles'
 	-DENABLE_DOCS=ON
@@ -13,7 +27,7 @@ declare -a CMAKE_LIZARDFS_ARGUMENTS=(
 	-DENABLE_POLONAISE=OFF
 )
 
-[ -n "${1:-}" ] || die "Missing argument"
+[ -n "${1:-}" ] || usage
 build_type="${1}"
 shift
 case "${build_type,,}" in
