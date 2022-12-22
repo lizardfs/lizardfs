@@ -106,9 +106,25 @@ pipeline {
                     }
                     steps {
                         cleanAndClone()
-                        sh 'tests/ci_build/run-build.sh'
-                        stash allowEmpty: true, name: 'compilation-result', includes: "build/lizardfs/**/*"
-                        stash allowEmpty: true, name: 'installation-result', includes: "install/lizardfs/**/*"
+                        sh 'tests/ci_build/run-build.sh test'
+                        stash allowEmpty: true, name: 'built-binaries', includes: "build/lizardfs/**/*"
+                        stash allowEmpty: true, name: 'test-binaries', includes: "install/lizardfs/**/*"
+                    }
+                }
+                stage('BuildCov') {
+                    agent {
+                        docker {
+                            label 'docker'
+                            image 'registry.ci.lizardfs.com/lizardfs-ci:' + imageTags['bookworm-build']
+                            registryUrl env.dockerRegistry
+                            registryCredentialsId env.dockerRegistrySecretId
+                            args  '--security-opt seccomp=unconfined'
+                        }
+                    }
+                    steps {
+                        cleanAndClone()
+                        sh 'tests/ci_build/run-build.sh coverage'
+                        stash allowEmpty: true, name: 'coverage-binaries', includes: "build/lizardfs/**/*"
                     }
                 }
             }
@@ -118,15 +134,6 @@ pipeline {
                     unstash 'cpplint-result'
                     recordIssues enabledForFailure: true, tool: cppCheck(name: "Lint: cppcheck", pattern: 'cppcheck.xml')
                     recordIssues enabledForFailure: true, tool: cppLint(name: "Lint: cpplint", pattern: 'cpplint.log')
-                    publishHTML([
-                        allowMissing: true,
-                        alwaysLinkToLastBuild: true,
-                        keepAll: true,
-                        reportDir: 'test_output/code_coverage_report',
-                        reportFiles: 'index.html',
-                        reportName: 'Unit Tests Coverage',
-                        reportTitles: '',
-                        useWrapperFileDirectly: true])
                 }
             }
         }
@@ -143,8 +150,9 @@ pipeline {
                     }
                     steps {
                         cleanAndClone()
-                        unstash 'compilation-result'
-                        sh 'tests/ci_build/run-tests-unit.sh'
+                        unstash 'coverage-binaries'
+                        sh 'tests/ci_build/run-unit-tests.sh'
+                        stash allowEmpty: true, name: 'coverage-report', includes: "test_output/code_coverage_report/**/*"
                     }
                 }
                 stage('Sanity') {
@@ -159,9 +167,23 @@ pipeline {
                     }
                     steps {
                         cleanAndClone()
-                        unstash 'installation-result'
-                        sh 'tests/ci_build/run-tests-sanitycheck.sh'
+                        unstash 'test-binaries'
+                        sh 'tests/ci_build/run-sanity-check.sh'
                     }
+                }
+            }
+            post {
+                always {
+                    unstash 'coverage-report'
+                    publishHTML([
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'test_output/code_coverage_report',
+                        reportFiles: 'index.html',
+                        reportName: 'Unit Tests Coverage',
+                        reportTitles: '',
+                        useWrapperFileDirectly: true])
                 }
             }
         }
