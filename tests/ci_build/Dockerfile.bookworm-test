@@ -1,0 +1,45 @@
+ARG DEBIAN_VERSION=bookworm-20221205
+FROM debian:${DEBIAN_VERSION}
+ARG DEBIAN_FRONTEND=noninteractive
+ENV LC_ALL="C"
+ENV TZ=Europe/Warsaw
+RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
+COPY ./tests/setup_machine.sh /tmp/
+COPY ./tests/ci_build/setup-test-machine.sh ./tests/ci_build/60-ip_port_range.conf /tmp/ci_build/
+ARG GROUP_ID=1000
+ARG USER_ID=1000
+ARG USERNAME=jenkins
+ENV GROUP_ID=${GROUP_ID}
+ENV USER_ID=${USER_ID}
+ENV USERNAME=${USERNAME}
+ENV GTEST_ROOT=/usr/local
+RUN set -e ; \
+  mkdir -p /home/${USERNAME} ; \
+  groupadd -g ${GROUP_ID} ${USERNAME} ; \
+  useradd -r -u ${USER_ID} -g ${USERNAME} -d /home/${USERNAME} ${USERNAME} ; \
+  chown ${USERNAME}:${USERNAME} /home/${USERNAME}
+WORKDIR /home/${USERNAME}
+RUN set -e ; \
+    apt-get update ; \
+    apt-get install --yes sudo ; \
+    chmod +x /tmp/ci_build/setup-test-machine.sh ; \
+    /tmp/ci_build/setup-test-machine.sh ; \
+    rm -rf /var/lib/apt/lists/*
+RUN set -e ; \
+    apt-get update ; \
+    apt-get install --yes \
+      lcov \
+      procps \
+      rsyslog \
+      systemd \
+      tini ; \
+    rm -rf /var/lib/apt/lists/* ; \
+    sed -i '/imklog/s/^/#/' /etc/rsyslog.conf ; \
+    touch /var/log/syslog ; \
+    chmod -R a+rwX-t /tmp /var/log /mnt/ramdisk; \
+    chown -R ${USERNAME}:${USERNAME} /tmp /var/log; \
+    pip install lcov_cobertura; \
+    true
+COPY ./tests/ci_build/docker_entrypoint.test /docker_entrypoint.sh
+RUN chmod +x /docker_entrypoint.sh
+ENTRYPOINT ["tini", "--", "/docker_entrypoint.sh" ]

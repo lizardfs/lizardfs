@@ -1,5 +1,5 @@
 assert_program_installed python3
-timeout_set 1 minute
+timeout_set 2 minutes
 
 mypyfile="$ERROR_DIR/mypy.log"
 touch $mypyfile && chmod 777 $mypyfile
