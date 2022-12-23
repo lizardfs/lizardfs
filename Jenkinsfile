@@ -71,10 +71,9 @@ pipeline {
                     }
                     steps {
                         cleanAndClone()
-                        sh 'cpplint --counting=detailed --linelength=120 --output=vs7 src/**/*.h src/**/*.cc 2> cpplint.log || true'
+                        sh 'cpplint --quiet --counting=detailed --linelength=120 --recursive src/ 2> cpplint.log || true'
                         archiveArtifacts artifacts: 'cpplint.log', followSymlinks: false
                         stash allowEmpty: true, name: 'cpplint-result', includes: "cpplint.log"
-
                     }
                 }
                 stage('Check') {
