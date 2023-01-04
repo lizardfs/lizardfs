@@ -4,7 +4,7 @@
 # It can also be run manually.
 #
 # It can either run all tests from a given test_suite on this machine
-# (no parallelisation, like it used to be).
+# (no parallelization, like it used to be).
 # Or only run a part of tests (other parts should be run on another
 # machines.) If e.g. NODES_COUNT=3 and you run this script on 3 machines,
 # one with NODE_NUMBER=1, one with NODE_NUMBER=2, and one with NODE_NUMBER=3,
@@ -67,16 +67,6 @@ RESET=$(tput sgr0)
 if [ $VALGRIND == "Yes" ]; then
 	export USE_VALGRIND=YES
 fi
-
-# TODO: maybe somehow implement the following lines, to not run compilation,
-# when it's unnecessary.
-# Those don't work well - jenkins will treat such a test as an error,
-# and it looks ugly in build results. Maybe create a mock log file?
-# if [ $NODE_NUMBER -gt $NODES_COUNT ]; then
-# exit 0
-# fi
-
-make -C build/lizardfs -j$(nproc) install
 
 killall -9 lizardfs-tests || true
 mkdir -m 777 -p $TEST_OUTPUT_DIR
