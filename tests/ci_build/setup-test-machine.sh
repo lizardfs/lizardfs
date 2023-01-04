@@ -34,3 +34,7 @@ make -C "${gtest_temp_build_dir}" install
 rm -rf "${gtest_temp_build_dir:?}"
 
 cp "${script_dir}/60-ip_port_range.conf" /etc/sysctl.d/
+
+cat >> /etc/sudoers.d/lizardfstest <<-EOT
+		ALL ALL = NOPASSWD: /usr/bin/tee -a /etc/hosts
+EOT
