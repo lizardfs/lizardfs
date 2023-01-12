@@ -4,7 +4,7 @@ pipeline {
         label 'docker'
     }
     environment{
-        projectName = 'lizardfs.ci'
+        projectName = 'lizardfs'
         registryPrefix = "registry.ci.lizardfs.com"
         dockerRegistry = "https://${registryPrefix}"
         dockerRegistrySecretId = 'private-docker-registry-credentials'
