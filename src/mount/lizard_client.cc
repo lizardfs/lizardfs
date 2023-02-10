@@ -2385,8 +2385,8 @@ public:
 		uint32_t nleng, const char *value, size_t size, int mode) override {
 		uint8_t status;
 		RETRY_ON_ERROR_WITH_UPDATED_CREDENTIALS(status, ctx,
-			fs_setxattr(ino, 0, ctx.uid, ctx.gid, nleng, (const uint8_t*)name,
-				(uint32_t)size, (const uint8_t*)value, mode));
+			fs_setxattr(ino, 0, ctx.uid, ctx.gid, (uint8_t)nleng, (const uint8_t*)name,
+				(uint32_t)size, (const uint8_t*)value, (uint8_t)mode));
 		return status;
 	}
 
