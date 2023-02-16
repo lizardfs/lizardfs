@@ -134,7 +134,7 @@ void updateGroups(Context &ctx) {
 		return;
 	}
 
-    if (ctx.gids.size() == 1) {
+	if (ctx.gids.size() == 1) {
 		ctx.gid = ctx.gids[0];
 		return;
 	}
@@ -142,17 +142,20 @@ void updateGroups(Context &ctx) {
 	static_assert(sizeof(Context::IdType) >= sizeof(uint32_t), "IdType too small");
 
 	auto result = gGroupCache.find(ctx.gids);
-	Context::IdType gid = 0;
+	Context::IdType gid;
 	if (result.found == false) {
 		try {
 			uint32_t index = gGroupCache.put(ctx.gids);
 			update_credentials(index, ctx.gids);
 			gid = user_groups::encodeGroupCacheId(index);
+			
+			// VITOS: check if this is ok:
+			ctx.gid = gid;
 		} catch (RequestException &e) {
 			lzfs_pretty_syslog(LOG_ERR, "Cannot update groups: %d", e.system_error_code);
 		}
 	} else {
-        //gid = user_groups::encodeGroupCacheId(result.index);
+        // gid = user_groups::encodeGroupCacheId(result.index);
         // testing the overflow:
         /*uint32_t v = result.index;
         uint64_t b = (uint32_t)1 << (uint32_t)31;
