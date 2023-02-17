@@ -246,7 +246,12 @@ void update_readdir_session(uint64_t sessId, uint64_t entryIno) {
 
 void drop_readdir_session(uint64_t opendirSessionID) {
 	std::lock_guard<std::mutex> sessions_lock(gReaddirMutex);
-	gReaddirSessions.erase(opendirSessionID);
+	try {
+		gReaddirSessions.erase(opendirSessionID);
+	}
+	catch (...) {
+		// prevent throwing exception when key not found
+	}
 }
 
 static void updateNextReaddirEntryIndexIfMasterRestarted(ReaddirSession& readdirSession, uint64_t &nextEntryIndex,
