@@ -317,7 +317,6 @@ Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec
 		return nullptr;
 	}
 	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
-    LizardClient::update_readdir_session(fileinfo->opendirSessionID, 0);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.push_front(*fileinfo);
 	return fileinfo;
