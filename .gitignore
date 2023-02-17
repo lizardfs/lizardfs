@@ -59,3 +59,4 @@ compile_commands.json
 # Mypy #
 ########
 .mypy_cache
+.vscode/settings.json
