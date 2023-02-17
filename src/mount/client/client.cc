@@ -311,12 +311,12 @@ Client::FileInfo *Client::opendir(Context &ctx, Inode inode) {
 }
 
 Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec) {
-	int ret = lizardfs_opendir_(ctx, inode);
+	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
+	int ret = lizardfs_opendir_(ctx, inode, fileinfo->opendirSessionID);
 	ec = make_error_code(ret);
 	if (ec) {
 		return nullptr;
 	}
-	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.push_front(*fileinfo);
 	return fileinfo;

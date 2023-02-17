@@ -50,7 +50,7 @@ int lizardfs_rmdir(LizardClient::Context &ctx, LizardClient::Inode parent, const
 int lizardfs_unlink(LizardClient::Context &ctx, LizardClient::Inode parent, const char *name);
 int lizardfs_undel(LizardClient::Context &ctx, LizardClient::Inode ino);
 int lizardfs_open(LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
-int lizardfs_opendir(LizardClient::Context &ctx, LizardClient::Inode ino);
+int lizardfs_opendir(LizardClient::Context &ctx, LizardClient::Inode ino, uint64_t opendirSessionID);
 int lizardfs_release(LizardClient::Inode ino, LizardClient::FileInfo* fi);
 int lizardfs_getattr(LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
 int lizardfs_releasedir(LizardClient::Inode ino, uint64_t opendirSessionID);

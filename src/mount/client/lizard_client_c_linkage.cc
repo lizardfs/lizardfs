@@ -323,9 +323,10 @@ std::pair<int, std::vector<NamedInodeEntry>> lizardfs_readtrash(Context &ctx,
 	}
 }
 
-int lizardfs_opendir(Context &ctx, Inode ino) {
+int lizardfs_opendir(Context &ctx, Inode ino, uint64_t opendirSessionID) {
 	try {
 		LizardClient::opendir(ctx, ino);
+		LizardClient::update_readdir_session(opendirSessionID, 0);
 		return LIZARDFS_STATUS_OK;
 	} catch (const RequestException &e) {
 		return e.lizardfs_error_code;
