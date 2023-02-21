@@ -142,7 +142,7 @@ void updateGroups(Context &ctx) {
 	static_assert(sizeof(Context::IdType) >= sizeof(uint32_t), "IdType too small");
 
 	auto result = gGroupCache.find(ctx.gids);
-	Context::IdType gid;
+	Context::IdType gid = 0;
 	if (result.found == false) {
 		try {
 			uint32_t index = gGroupCache.put(ctx.gids);
@@ -155,19 +155,10 @@ void updateGroups(Context &ctx) {
 			lzfs_pretty_syslog(LOG_ERR, "Cannot update groups: %d", e.system_error_code);
 		}
 	} else {
-        // gid = user_groups::encodeGroupCacheId(result.index);
-        // testing the overflow:
-        /*uint32_t v = result.index;
-        uint64_t b = (uint32_t)1 << (uint32_t)31;
-        uint64_t res = v | b;
-        crashLog("overflow: v: %d b: %llu result: %llu Line: %d",
-                 v, b, res, __LINE__);
-        crashLog("lizard_client updated gid: %d Line: %d", gid, __LINE__);*/
+		gid = user_groups::encodeGroupCacheId(result.index);
 	}
 
-    //ctx.gid = gid;
-    /*crashLog("lizard_client updateGroups ctx.uid: %d ctx.gid: %d exit Line: %d",
-             ctx.uid, ctx.gid, __LINE__);*/
+	ctx.gid = gid;
 }
 
 static void registerGroupsInMaster(Context &ctx) {
