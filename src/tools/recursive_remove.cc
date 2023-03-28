@@ -121,13 +121,7 @@ static int recursive_remove(const char *file_name, int long_wait) {
 }
 
 int recursive_remove_run(int argc, char **argv) {
-	/*
-	 * char ch;
-	 * ch type should be int instead of type char, for aarch64 compiling error:
-	 * while ((ch = getopt(argc, argv, "l")) != -1) comparison is always true due to limited range of data type
-	*/ 
-	int ch; 
-	
+	int ch;
 	int status;
 	int long_wait = 0;
 
