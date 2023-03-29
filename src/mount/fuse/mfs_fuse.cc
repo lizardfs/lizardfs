@@ -25,6 +25,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "common/lizardfs_error_codes.h"
 #include "common/lru_cache.h"
 #include "common/massert.h"
 #include "common/small_vector.h"
@@ -591,12 +592,12 @@ void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size
 void mfs_getxattr (fuse_req_t req, fuse_ino_t ino, const char *name, size_t size) {
 	uint32_t position=0;
 #endif /* __APPLE__ */
-	//   handling `security.capability` is not suppported for now, always returning an error.
-	//   so, moving the condition outside of try-catch significantly increases perfomance for iops tests.
-    	if (strcmp(name,"security.capability")==0) {
-        	fuse_reply_err(req, 95);
-        	return;
-    	}
+
+	// remove this when we support security.capability
+	if (strcmp(name, "security.capability") == 0) {
+		fuse_reply_err(req, LIZARDFS_ERROR_ENOTSUP);
+		return;
+	}
 
 	try {
 		auto ctx = get_context(req);
