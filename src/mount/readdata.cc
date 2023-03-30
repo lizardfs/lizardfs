@@ -358,6 +358,7 @@ int read_data(void *rr, off_t fuseOffset, size_t fuseSize,
 		result.inputBuffer().clear();
 		return err;
 	}
+	result.entries.back()->reset_timer();
 
 	ret = std::move(result);
 	return LIZARDFS_STATUS_OK;
