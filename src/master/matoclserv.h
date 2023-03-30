@@ -18,9 +18,10 @@
 
 #pragma once
 
-#include "common/platform.h"
-
 #include <inttypes.h>
+
+#include "common/platform.h"
+#include "master/session.h"
 
 void matoclserv_stats(uint64_t stats[5]);
 /*
