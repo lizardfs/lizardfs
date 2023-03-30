@@ -101,6 +101,7 @@ static const std::array<std::function<BytesWritten
 	 &InodeOplog::write,            //0x1U
 	 &InodeOphistory::write,        //0x2U
 	 &InodeTweaks::write,           //0x3U
+	 nullptr,                       //0x4U
 	 nullptr,                       //0x5U
 	 nullptr,                       //0x6U
 	 nullptr,                       //0x7U
@@ -110,7 +111,6 @@ static const std::array<std::function<BytesWritten
 	 nullptr,                       //0xBU
 	 nullptr,                       //0xCU
 	 nullptr,                       //0xDU
-	 nullptr,                       //0xEU
 	 nullptr,                       //0xEU
 	 &InodeMasterInfo::write        //0xFU
 }};
