@@ -155,18 +155,20 @@ int topology_parsenet(char *net,uint32_t *fromip,uint32_t *toip) {
 
 // as for now:
 //
-// 0 - same machine
-// 1 - same rack, different machines
-// 2 - different racks
+// 0  - same machine
+// 1  - same rack, different machines
+// 2+ - different racks: distance between racks + 1
 
-uint8_t topology_distance(uint32_t ip1,uint32_t ip2) {
+uint32_t topology_distance(uint32_t ip1,uint32_t ip2) {
 	uint32_t rid1,rid2;
+
 	if (gPreferLocalChunkserver && ip1==ip2) {
 		return 0;
 	}
 	rid1 = itree_find(racktree,ip1);
 	rid2 = itree_find(racktree,ip2);
-	return (rid1==rid2)?1:2;
+	return (uint32_t)std::min<uint64_t>(abs((int64_t)rid1-(int64_t)rid2)+1,
+					    std::numeric_limits<uint32_t>::max());
 }
 
 // format:
