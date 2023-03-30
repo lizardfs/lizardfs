@@ -14,6 +14,9 @@ Build-Depends: asciidoc (>= 8.6.6),
                libboost-system-dev,
                libboost-program-options-dev,
                python3,
+               black,
+               python3-mypy,
+               docbook-xsl,
 Standards-Version: 3.9.3
 Homepage: http://lizardfs.org/
 
