@@ -1,7 +1,8 @@
 [Unit]
 Description=LizardFS chunkserver daemon
 Documentation=man:mfschunkserver
-After=network.target
+Wants=network-online.target
+After=network.target network-online.target
 
 [Service]
 Type=forking
