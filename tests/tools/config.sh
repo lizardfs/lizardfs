@@ -1,3 +1,7 @@
+is_centos_system() {
+    lsb_release --all | grep Distributor | grep CentOS > /dev/null
+}
+
 # Load config file with machine-specific configuration
 if [[ ! -z "${LIZARDFS_TESTS_CONF:-}" && -f "${LIZARDFS_TESTS_CONF}" ]]; then
 	echo "Using \"${LIZARDFS_TESTS_CONF}\" tests configuration file"
