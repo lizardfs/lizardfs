@@ -73,6 +73,8 @@
 #include "protocol/MFSCommunication.h"
 #include "protocol/matocl.h"
 
+#include "client/crash-log.h"
+
 #ifdef __APPLE__
 #include "mount/osx_acl_converter.h"
 #endif
@@ -113,7 +115,7 @@ struct ReaddirSession {
 using ReaddirSessions = std::map<std::uint64_t, ReaddirSession>;
 
 std::mutex gReaddirMutex;
-ReaddirSessions gReaddirSessions;
+inline ReaddirSessions gReaddirSessions;
 
 static void update_credentials(Context::IdType index, const GroupCache::Groups &groups);
 static void registerGroupsInMaster(Context &ctx);
@@ -132,7 +134,7 @@ void updateGroups(Context &ctx) {
 		return;
 	}
 
-	if (ctx.gids.size() == 1) {
+    if (ctx.gids.size() == 1) {
 		ctx.gid = ctx.gids[0];
 		return;
 	}
@@ -150,10 +152,19 @@ void updateGroups(Context &ctx) {
 			lzfs_pretty_syslog(LOG_ERR, "Cannot update groups: %d", e.system_error_code);
 		}
 	} else {
-		gid = user_groups::encodeGroupCacheId(result.index);
+        //gid = user_groups::encodeGroupCacheId(result.index);
+        // testing the overflow:
+        /*uint32_t v = result.index;
+        uint64_t b = (uint32_t)1 << (uint32_t)31;
+        uint64_t res = v | b;
+        crashLog("overflow: v: %d b: %llu result: %llu Line: %d",
+                 v, b, res, __LINE__);
+        crashLog("lizard_client updated gid: %d Line: %d", gid, __LINE__);*/
 	}
 
-	ctx.gid = gid;
+    //ctx.gid = gid;
+    /*crashLog("lizard_client updateGroups ctx.uid: %d ctx.gid: %d exit Line: %d",
+             ctx.uid, ctx.gid, __LINE__);*/
 }
 
 static void registerGroupsInMaster(Context &ctx) {
@@ -223,7 +234,6 @@ static std::atomic<bool> gDirectIo(false);
 static uint32_t lock_request_counter = 0;
 static std::mutex lock_request_mutex;
 
-
 static std::unique_ptr<AclCache> acl_cache;
 
 void update_readdir_session(uint64_t sessId, uint64_t entryIno) {
@@ -240,7 +250,7 @@ static void updateNextReaddirEntryIndexIfMasterRestarted(ReaddirSession& readdir
 		Context &ctx, Inode parentInode, uint64_t requestSize) {
 	if (!readdirSession.restarted) {
 		return;
-	}
+    }
 	std::vector<DirectoryEntry> dirEntries;
 	uint8_t status = 0;
 	nextEntryIndex = 0;
@@ -1593,7 +1603,8 @@ std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, s
 	auto it = gDirEntryCache.find(ctx, ino, entry_index);
 
 	result.reserve(max_entries);
-	for(; it != gDirEntryCache.index_end() && max_entries > 0; ++it) {
+
+    for(; it != gDirEntryCache.index_end() && max_entries > 0; ++it) {
 		if (!gDirEntryCache.isValid(it) || it->index != entry_index ||
 				it->parent_inode != ino || it->uid != ctx.uid || it->gid != ctx.gid) {
 			break;
@@ -1645,7 +1656,8 @@ std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, s
 	}
 	do {
 		updateNextReaddirEntryIndexIfMasterRestarted(*readdirSession, entry_index, ctx, ino, request_size);
-		status = fs_getdir(ino, ctx.uid, ctx.gid, entry_index, request_size, dir_entries);
+        status = fs_getdir(ino, ctx.uid, ctx.gid, entry_index, request_size, dir_entries);
+
 		if (status == LIZARDFS_ERROR_GROUPNOTREGISTERED) {
 			registerGroupsInMaster(ctx);
 			updateNextReaddirEntryIndexIfMasterRestarted(*readdirSession, entry_index, ctx, ino, request_size);
@@ -1664,7 +1676,8 @@ std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, s
 
 	// dir_entries.front().index must be equal to entry_index
 	gDirEntryCache.insertSequence(ctx, ino, dir_entries, data_acquire_time);
-	if (dir_entries.size() < request_size) {
+
+    if (dir_entries.size() < request_size) {
 		// insert 'no more entries' marker
 		auto marker_index = entry_index;
 		if (!dir_entries.empty()) {
@@ -1712,7 +1725,6 @@ std::vector<DirEntry> readdir(Context &ctx, uint64_t fh, Inode ino, off_t off, s
 				entry_index,
 				entry_index);
 	}
-
 	return result;
 }
 
@@ -2568,10 +2580,16 @@ public:
 			if (cache_entry) {
 				value = richAclConverter::objectToRichACLXattr(cache_entry->acl);
 				valueLength = value.size();
-				return LIZARDFS_STATUS_OK;
-			} else {
-				return LIZARDFS_ERROR_ENOATTR;
+            }
+            else {
+                AttrReply attr_reply = LizardClient::getattr(ctx, ino);
+                RichACL generated_acl = RichACL::createFromMode(
+                                    attr_reply.attr.st_mode & 0777,
+                                    S_ISDIR(attr_reply.attr.st_mode));
+                value = richAclConverter::objectToRichACLXattr(generated_acl);
+                valueLength = value.size();
 			}
+            return LIZARDFS_STATUS_OK;
 		} catch (AclAcquisitionException& e) {
 			sassert((e.status() != LIZARDFS_STATUS_OK) && (e.status() != LIZARDFS_ERROR_ENOATTR));
 			return e.status();
@@ -2698,7 +2716,6 @@ void setxattr(Context &ctx, Inode ino, const char *name, const char *value,
 	int status;
 	uint8_t mode;
 
-
 	stats_inc(OP_SETXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx, "setxattr (%lu,%s,%" PRIu64 ",%d) ...",
@@ -2815,7 +2832,6 @@ XattrReply getxattr(Context &ctx, Inode ino, const char *name, size_t size, uint
 	const uint8_t *buff;
 	uint32_t leng;
 
-
 	stats_inc(OP_GETXATTR);
 	if (debug_mode) {
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 ") ...",
@@ -2873,6 +2889,7 @@ XattrReply getxattr(Context &ctx, Inode ino, const char *name, size_t size, uint
 	}
 	(void)position;
 	status = choose_xattr_handler(name)->getxattr(ctx, ino, name, nleng, mode, leng, buffer);
+
 	buff = buffer.data();
 	if (status != LIZARDFS_STATUS_OK) {
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): %s",
@@ -2880,7 +2897,7 @@ XattrReply getxattr(Context &ctx, Inode ino, const char *name, size_t size, uint
 				name,
 				(uint64_t)size,
 				lizardfs_error_string(status));
-		throw RequestException(status);
+        throw RequestException(status);
 	}
 	if (size==0) {
 		oplog_printf(ctx, "getxattr (%lu,%s,%" PRIu64 "): OK (%" PRIu32 ")",

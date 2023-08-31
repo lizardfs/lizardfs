@@ -277,10 +277,10 @@ bool lizardfs_isSpecialInode(Inode ino) {
 std::pair<int, std::vector<DirEntry>> lizardfs_readdir(Context &ctx, uint64_t opendirSessionID,
 		Inode ino, off_t off, size_t max_entries) {
 	try {
-		auto fsDirEntries = LizardClient::readdir(ctx, opendirSessionID, ino, off, max_entries);
-		uint64_t nextEntryIno = (fsDirEntries.empty()) ? 0 : fsDirEntries.back().attr.st_ino;
+        auto fsDirEntries = LizardClient::readdir(ctx, opendirSessionID, ino, off, max_entries);
+        uint64_t nextEntryIno = (fsDirEntries.empty()) ? 0 : fsDirEntries.back().attr.st_ino;
 		LizardClient::update_readdir_session(opendirSessionID, nextEntryIno);
-		return {LIZARDFS_STATUS_OK, fsDirEntries};
+        return {LIZARDFS_STATUS_OK, fsDirEntries};
 	} catch (const RequestException &e) {
 		return {e.lizardfs_error_code, std::vector<DirEntry>()};
 	} catch (...) {

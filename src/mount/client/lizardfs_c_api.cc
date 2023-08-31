@@ -28,6 +28,7 @@
 #include "mount/client/iovec_traits.h"
 
 #include "client.h"
+#include "crash-log.h"
 
 using namespace lizardfs;
 
@@ -712,12 +713,13 @@ int liz_statfs(liz_t *instance, liz_stat_t *buf) {
 	return 0;
 }
 
-int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
-	         const uint8_t *value, size_t size, int flags) {
+int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+                 const char *name, const uint8_t *value, size_t size,
+                 enum liz_setxattr_mode mode) {
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
-	client.setxattr(context, ino, name, std::vector<uint8_t>(value, value + size), flags, ec);
+    client.setxattr(context, ino, name, std::vector<uint8_t>(value, value + size), mode, ec);
 	gLastErrorCode = ec.value();
 	return ec ? -1 : 0;
 }
@@ -749,7 +751,7 @@ int liz_listxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, size_t s
 	if (ec) {
 		return -1;
 	}
-	std::memcpy(buf, ret.data(), std::min(size, ret.size()));
+    std::memcpy(buf, ret.data(), std::min(size, ret.size()));
 	if (out_size) {
 		*out_size = ret.size();
 	}
@@ -771,6 +773,21 @@ liz_acl_t *liz_create_acl() {
 	} catch (...) {
 		return nullptr;
 	}
+}
+
+liz_acl_t *liz_create_acl_from_mode(unsigned int mode) {
+    try {
+        RichACL richacl = RichACL::createFromMode(mode, S_ISDIR(mode));
+        RichACL *acl = new RichACL;
+        // Updating the masks
+        acl->setFlags(richacl.getFlags());
+        acl->setOwnerMask(richacl.getOwnerMask());
+        acl->setGroupMask(richacl.getGroupMask());
+        acl->setOtherMask(richacl.getOtherMask());
+        return (liz_acl_t *)acl;
+    } catch (...) {
+        return nullptr;
+    }
 }
 
 void liz_destroy_acl(liz_acl_t *acl) {
@@ -822,15 +839,17 @@ size_t liz_get_acl_size(const liz_acl_t *acl) {
 	return richacl.size();
 }
 
-int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const liz_acl_t *acl) {
+int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+               liz_acl_t *acl) {
 	assert(instance);
 	assert(ctx);
 	assert(acl);
 	Client &client = *(Client *)instance;
 	Client::Context &context = *(Client::Context *)ctx;
 	std::error_code ec;
+
 	try {
-		const RichACL &richacl = *(RichACL *)acl;
+        RichACL &richacl = *(RichACL *)acl;
 		client.setacl(context, ino, richacl, ec);
 		gLastErrorCode = ec.value();
 		return ec ? -1 : 0;
@@ -840,7 +859,8 @@ int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const liz_a
 	}
 }
 
-int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, liz_acl_t **acl) {
+int liz_getacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+               liz_acl_t **acl) {
 	assert(instance);
 	assert(ctx);
 	assert(acl);

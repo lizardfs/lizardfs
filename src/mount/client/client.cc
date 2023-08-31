@@ -19,6 +19,7 @@
 #include "common/platform.h"
 
 #include "client.h"
+#include "crash-log.h"
 
 #include <dlfcn.h>
 #include <fstream>
@@ -173,7 +174,6 @@ void Client::updateGroups(Context &ctx, std::error_code &ec) {
 	ec = make_error_code(ret);
 }
 
-
 void Client::lookup(Context &ctx, Inode parent, const std::string &path, EntryParam &param) {
 	std::error_code ec;
 	lookup(ctx, parent, path, param, ec);
@@ -252,7 +252,8 @@ Client::ReadDirReply Client::readdir(Context &ctx, FileInfo* fileinfo, off_t off
 
 std::string Client::readlink(Context &ctx, Inode inode) {
 	std::error_code ec;
-	std::string link = readlink(ctx, inode, ec);
+    //TODO: Infinite recursive method: FIX
+	std::string link = readlink(ctx, inode);
 	if (ec) {
 		throw std::system_error(ec);
 	}
@@ -317,6 +318,7 @@ Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec
 		return nullptr;
 	}
 	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
+    LizardClient::update_readdir_session(fileinfo->opendirSessionID, 0);
 	std::lock_guard<std::mutex> guard(mutex_);
 	fileinfos_.push_front(*fileinfo);
 	return fileinfo;
@@ -539,7 +541,8 @@ void Client::flush(Context &ctx, FileInfo *fileinfo, std::error_code &ec) {
 
 void Client::fsync(Context &ctx, FileInfo *fileinfo) {
 	std::error_code ec;
-	fsync(ctx, fileinfo, ec);
+    //TODO: Infinite recursive method: FIX
+	fsync(ctx, fileinfo);
 	if (ec) {
 		throw std::system_error(ec);
 	}
@@ -640,6 +643,8 @@ Client::XattrBuffer Client::getxattr(Context &ctx, Inode ino, const std::string 
 Client::XattrBuffer Client::getxattr(Context &ctx, Inode ino, const std::string &name,
 	                                  std::error_code &ec) {
 	LizardClient::XattrReply reply;
+    crashLog("client.cc getxattr %s with MAXSize %d Line: %d",
+             name.c_str(), kMaxXattrRequestSize, __LINE__);
 	int ret = lizardfs_getxattr_(ctx, ino, name.c_str(), kMaxXattrRequestSize, reply);
 	ec = make_error_code(ret);
 	return reply.valueBuffer;
@@ -702,7 +707,8 @@ RichACL Client::getacl(Context &ctx, Inode ino) {
 
 RichACL Client::getacl(Context &ctx, Inode ino, std::error_code &ec) {
 	try {
-		auto buffer = getxattr(ctx, ino, kRichAclXattrName, ec);
+        crashLog("client.cc getacl %s Line: %d", kRichAclXattrName, __LINE__);
+        auto buffer = getxattr(ctx, ino, kRichAclXattrName, ec);
 		if (ec) {
 			return RichACL();
 		}

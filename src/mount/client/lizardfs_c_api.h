@@ -275,6 +275,10 @@ typedef struct liz_lock_interrupt_info {
 typedef int (*liz_lock_register_interrupt_t)(struct liz_lock_interrupt_info *info, void *priv);
 
 /*!
+ * \brief Function that registers lock interrupt data.
+ */
+
+/*!
  * \brief Create a context for LizardFS operations
  *  Flavor 1: create default context with current uid/gid/pid
  *  Flavor 2: create context with custom uid/gid/pid
@@ -669,8 +673,9 @@ int liz_statfs(liz_t *instance, liz_stat_t *buf);
  * \param mode one of enum liz_setxattr_mode values
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
-int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const char *name,
-	         const uint8_t *value, size_t size, enum liz_setxattr_mode mode);
+int liz_setxattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
+                 const char *name, const uint8_t *value, size_t size,
+                 enum liz_setxattr_mode mode);
 
 /*! \brief Get extended attribute of a file
  * \param instance instance returned from liz_init
@@ -711,6 +716,14 @@ int liz_removexattr(liz_t *instance, liz_context_t *ctx, liz_inode_t ino, const 
  * \post free memory with liz_destroy_acl call
  */
 liz_acl_t *liz_create_acl();
+
+/*!
+ * \brief Create acl
+ * \param mode  mode used to create the acl and set POSIX permission flags
+ * \return acl entry
+ * \post free memory with liz_destroy_acl call
+ */
+liz_acl_t *liz_create_acl_from_mode(unsigned int mode);
 
 /*!
  * \brief Destroy acl
@@ -761,7 +774,7 @@ size_t liz_get_acl_size(const liz_acl_t *acl);
  * \return 0 on success, -1 if failed, sets last error code (check with liz_last_err())
  */
 int liz_setacl(liz_t *instance, liz_context_t *ctx, liz_inode_t ino,
-	       const liz_acl_t *acl);
+               liz_acl_t *acl);
 
 /*!
  * \brief Get acl from a file

@@ -529,8 +529,8 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 
 static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	int status;
-	uint32_t msize, dsize, dcsize;
-	const uint8_t *dbuff;
+    uint32_t msize, dsize = 0, dcsize;
+    const uint8_t *dbuff = nullptr;
 
 	b->p = NULL;
 	b->size = 0;
