@@ -3635,8 +3635,8 @@ void matoclserv_fuse_snapshot(matoclserventry *eptr, PacketHeader header, const 
 }
 
 void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,inodes,files,dirs,chunks;
-	uint64_t leng,size,rsize;
+	uint32_t inode,inodes=0,files=0,dirs=0,chunks=0;
+	uint64_t leng=0,size=0,rsize=0;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;
@@ -3668,8 +3668,8 @@ void matoclserv_fuse_getdirstats_old(matoclserventry *eptr,const uint8_t *data,u
 }
 
 void matoclserv_fuse_getdirstats(matoclserventry *eptr,const uint8_t *data,uint32_t length) {
-	uint32_t inode,inodes,files,dirs,chunks;
-	uint64_t leng,size,rsize;
+	uint32_t inode,inodes=0,files=0,dirs=0,chunks=0;
+	uint64_t leng=0,size=0,rsize=0;
 	uint32_t msgid;
 	uint8_t *ptr;
 	uint8_t status;

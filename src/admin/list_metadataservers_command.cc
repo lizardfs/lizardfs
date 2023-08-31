@@ -70,8 +70,8 @@ void ListMetadataserversCommand::run(const Options& options) const {
 		throw WrongUsageException("Expected <master ip> and <master port> for " + name());
 	}
 
-	uint32_t ip;
-	uint16_t port;
+	uint32_t ip = 0;
+	uint16_t port = 0;
 	std::string ipString = options.argument(0);
 	std::string portString = options.argument(1);
 	tcpresolve(ipString.c_str(), portString.c_str(), &ip, &port, false);

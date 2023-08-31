@@ -473,7 +473,10 @@ static uint32_t dir_dataentries_size(const uint8_t *dbuff,uint32_t dsize) {
 	uint32_t eleng;
 	const uint8_t *eptr;
 	eleng=0;
-	if (dbuff==NULL || dsize==0) {
+	if (dbuff==NULL) {
+		return 0;
+	}
+	if (dsize==0) {
 		return 0;
 	}
 	eptr = dbuff+dsize;
@@ -529,8 +532,8 @@ static void dir_dataentries_convert(uint8_t *buff,const uint8_t *dbuff,uint32_t 
 
 static void dirbuf_meta_fill(dirbuf *b, uint32_t ino) {
 	int status;
-    uint32_t msize, dsize = 0, dcsize;
-    const uint8_t *dbuff = nullptr;
+	uint32_t msize, dcsize, dsize = 0;
+	const uint8_t *dbuff = nullptr;
 
 	b->p = NULL;
 	b->size = 0;
