@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -eux
 
-export LIZARDFS_OFFICIAL_BUILD=NO
+export LIZARDFS_OFFICIAL_BUILD=YES
+export LIZARDFS_SET_RC_BUILD_NUMBER=4
 
 # Directories used by this script
 
