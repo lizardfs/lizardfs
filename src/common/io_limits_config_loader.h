@@ -20,6 +20,7 @@
 #include "common/platform.h"
 
 #include <istream>
+#include <cstdint>
 #include <map>
 #include <string>
 
