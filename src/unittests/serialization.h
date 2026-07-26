@@ -19,7 +19,7 @@
 #pragma once
 
 #include "common/platform.h"
-#include "common/serialization.h"
+#include "common/serialization/serialization.h"
 
 #include <gtest/gtest.h>
 

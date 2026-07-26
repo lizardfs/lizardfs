@@ -19,7 +19,7 @@
 #include "common/platform.h"
 #include "protocol/packet.h"
 
-#include "common/sockets.h"
+#include "common/network/sockets.h"
 
 void receivePacket(PacketHeader& header, std::vector<uint8_t>& data, int sock,
 		uint32_t timeout_ms) {

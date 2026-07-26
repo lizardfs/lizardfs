@@ -25,11 +25,11 @@
 
 #include "admin/escape_porcelain_string.h"
 #include "protocol/cltoma.h"
-#include "common/goal.h"
+#include "common/linear/moosefs_string.h"
 #include "protocol/matocl.h"
-#include "common/serialization_macros.h"
-#include "common/serialized_goal.h"
-#include "common/server_connection.h"
+#include "common/serialization/serialization_macros.h"
+#include "common/serialization/serialized_goal.h"
+#include "common/network/server_connection.h"
 
 std::string ListGoalsCommand::name() const {
 	return "list-goals";

@@ -35,8 +35,8 @@
 #include "chunkserver/legacy_replicator.h"
 #include "chunkserver/masterconn.h"
 #include "chunkserver/network_stats.h"
-#include "common/charts.h"
-#include "common/event_loop.h"
+#include "common/types/charts.h"
+#include "common/algorithm/control/event_loop.h"
 
 #define CHARTS_FILENAME "csstats.mfs"
 

@@ -23,8 +23,8 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "common/chunk_part_type.h"
-#include "common/serialization_macros.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/serialization/serialization_macros.h"
 
 class ChunkSignature {
 public:

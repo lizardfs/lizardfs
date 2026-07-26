@@ -28,10 +28,10 @@
 #include <time.h>
 #include <fuse_lowlevel.h>
 
-#include "common/datapack.h"
+#include "common/serialization/datapack.h"
 #include "protocol/MFSCommunication.h"
-#include "common/slogger.h"
-#include "common/special_inode_defs.h"
+#include "common/errors/slogger.h"
+#include "common/types/special_inode_defs.h"
 #include "mount/exports.h"
 #include "mount/mastercomm.h"
 #include "mount/masterproxy.h"

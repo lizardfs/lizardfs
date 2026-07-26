@@ -18,8 +18,8 @@
 
 #include "common/platform.h"
 
-#include "common/exception.h"
-#include "common/richacl.h"
+#include "common/errors/exception.h"
+#include "common/acl/richacl.h"
 #include "mount/lizard_client.h"
 
 // NOTICE(sarna): OSX-specific, it's not libacl, even though it looks like it

@@ -33,13 +33,13 @@
 
 #include "chunkserver/g_limiters.h"
 #include "chunkserver/hddspacemgr.h"
-#include "common/crc.h"
-#include "common/datapack.h"
-#include "common/massert.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/massert.h"
 #include "protocol/MFSCommunication.h"
-#include "common/mfserr.h"
-#include "common/slogger.h"
-#include "common/sockets.h"
+#include "common/errors/mfserr.h"
+#include "common/errors/slogger.h"
+#include "common/network/sockets.h"
 
 #define CONNMSECTO 5000
 #define SENDMSECTO 5000

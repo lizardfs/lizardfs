@@ -22,10 +22,10 @@
 #include <algorithm>
 #include <iostream>
 
-#include "common/block_xor.h"
-#include "common/massert.h"
-#include "common/reed_solomon.h"
-#include "common/slice_traits.h"
+#include "common/algorithm/ec/block_xor.h"
+#include "common/errors/massert.h"
+#include "common/algorithm/ec/reed_solomon.h"
+#include "common/types/slice_traits.h"
 
 namespace unittests {
 

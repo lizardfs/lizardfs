@@ -20,10 +20,10 @@
 
 #include "common/platform.h"
 
-#include "common/serialization_macros.h"
-#include "common/chunk_part_type.h"
-#include "common/chunk_type_with_address.h"
-#include "common/network_address.h"
+#include "common/serialization/serialization_macros.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/network/network_address.h"
 #include "protocol/packet.h"
 
 LIZARDFS_DEFINE_PACKET_VERSION(cltocs, prefetch, kStandardAndXorChunks, 0)

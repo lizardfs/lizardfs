@@ -21,9 +21,9 @@
 
 #include <gtest/gtest.h>
 
-#include "common/exceptions.h"
-#include "common/media_label.h"
-#include "common/slice_traits.h"
+#include "common/errors/exceptions.h"
+#include "common/types/media_label.h"
+#include "common/types/slice_traits.h"
 
 // Helper macros to test the loader
 #define LABELS(...) (std::vector<std::string>({__VA_ARGS__}))

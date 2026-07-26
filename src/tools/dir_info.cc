@@ -22,8 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "common/datapack.h"
-#include "common/mfserr.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/mfserr.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 

@@ -22,7 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 #include "master/quota_database.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"

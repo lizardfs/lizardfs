@@ -23,8 +23,8 @@
 #include <sstream>
 #include <string>
 
-#include "common/exceptions.h"
-#include "common/slice_traits.h"
+#include "common/errors/exceptions.h"
+#include "common/types/slice_traits.h"
 
 namespace goal_config {
 

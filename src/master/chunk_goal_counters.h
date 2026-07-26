@@ -18,10 +18,11 @@
 
 #pragma once
 
+#include <vector>
+
 #include "common/platform.h"
 
-#include "common/compact_vector.h"
-#include "common/exception.h"
+#include "common/errors/exception.h"
 
 /*! \brief Goal counting class for chunks
  *
@@ -29,7 +30,7 @@
  * for chunks belonging to multiple inodes (e.g. through snapshotting).
  * Chunks referenced by 1 inode inherit their goal without any computations.
  *
- * Underlying data structure is a compact_vector, which is designed to occupy
+ * Underlying data structure is a vector, which is designed to occupy
  * as little memory as needed.
  *
  * Superposition is counted as a set sum of existing goals.
@@ -51,7 +52,7 @@ public:
 		}
 	};
 
-	typedef compact_vector<GoalCounter> Counters;
+	typedef std::vector<GoalCounter> Counters;
 	typedef Counters::const_iterator const_iterator;
 
 	LIZARDFS_CREATE_EXCEPTION_CLASS(InvalidOperation, Exception);

@@ -22,7 +22,7 @@
 
 #include <cstdio>
 
-#include "common/exceptions.h"
+#include "common/errors/exceptions.h"
 #include "master/metadata_dumper.h"
 
 int fs_load_legacy_acls(FILE *fd, int ignoreflag);

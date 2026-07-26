@@ -24,7 +24,7 @@
 #include "chunkserver/hddspacemgr.h"
 #include "chunkserver/masterconn.h"
 #include "chunkserver/network_main_thread.h"
-#include "common/random.h"
+#include "common/algorithm/random.h"
 
 #define STR_AUX(x) #x
 #define STR(x) STR_AUX(x)

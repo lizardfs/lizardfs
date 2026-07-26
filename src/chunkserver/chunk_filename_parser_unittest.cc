@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/slice_traits.h"
+#include "common/types/slice_traits.h"
 #include "chunkserver/chunk_filename_parser.h"
 
 #include <gtest/gtest.h>

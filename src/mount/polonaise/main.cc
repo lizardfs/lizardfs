@@ -31,10 +31,10 @@
 #include <thrift/transport/TPipeServer.h>
 #include <thrift/transport/TServerSocket.h>
 
-#include "common/crc.h"
-#include "common/errno_defs.h"
-#include "common/slogger.h"
-#include "common/sockets.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/errors/errno_defs.h"
+#include "common/errors/slogger.h"
+#include "common/network/sockets.h"
 #include "mount/g_io_limiters.h"
 #include "mount/lizard_client.h"
 #include "mount/mastercomm.h"
@@ -662,7 +662,7 @@ public:
 					size,
 					offset,
 					getFileInfo(descriptor));
-			small_vector<std::pair<void *, std::size_t>, 8> reply;
+			std::vector<std::pair<void *, std::size_t>> reply(8);
 			result.toIoVec(reply, offset, size);
 			for (const auto &iov : reply) {
 				const char *base = (const char *)iov.first;

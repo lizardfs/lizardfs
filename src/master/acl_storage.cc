@@ -18,7 +18,7 @@
 
 #include "common/platform.h"
 
-#include "common/hashfn.h"
+#include "common/functional/hashfn.h"
 #include "master/acl_storage.h"
 
 AclStorage::~AclStorage() {

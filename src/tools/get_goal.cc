@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 #include "tools/tools_commands.h"

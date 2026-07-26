@@ -22,7 +22,7 @@
 #include <iostream>
 
 #include "admin/registered_admin_connection.h"
-#include "common/job_info.h"
+#include "common/types/job_info.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 

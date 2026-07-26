@@ -25,8 +25,8 @@
 #include <mutex>
 #include <vector>
 
-#include "common/chunk_type_with_address.h"
-#include "common/slogger.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/errors/slogger.h"
 
 struct ChunkLocationInfo {
 	typedef std::vector<ChunkTypeWithAddress> ChunkLocations;

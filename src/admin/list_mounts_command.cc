@@ -24,15 +24,15 @@
 #include <iostream>
 #include <vector>
 
-#include "common/goal.h"
-#include "common/human_readable_format.h"
+#include "common/io/goal.h"
+#include "common/serialization/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/moosefs_string.h"
-#include "common/moosefs_vector.h"
+#include "common/linear/moosefs_string.h"
+#include "common/linear/moosefs_vector.h"
 #include "protocol/packet.h"
-#include "common/serialization.h"
-#include "common/serialization_macros.h"
-#include "common/server_connection.h"
+#include "common/serialization/serialization.h"
+#include "common/serialization/serialization_macros.h"
+#include "common/network/server_connection.h"
 
 typedef std::array<uint32_t, 16> OperationStats;
 

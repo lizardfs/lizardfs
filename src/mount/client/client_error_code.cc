@@ -18,7 +18,7 @@
 
 #include <string>
 #include "common/platform.h"
-#include "common/mfserr.h"
+#include "common/errors/mfserr.h"
 
 #include "client_error_code.h"
 

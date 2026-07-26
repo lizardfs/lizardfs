@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 
 #include "protocol/MFSCommunication.h"
-#include "common/sockets.h"
+#include "common/network/sockets.h"
 #include "unittests/mocks/chunk_connector_mock.h"
 
 class ModuleMockTests : public ::testing::Test {

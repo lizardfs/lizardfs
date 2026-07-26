@@ -25,8 +25,8 @@
 #include <stdlib.h>
 #include <string>
 
-#include "common/chunk_with_address_and_label.h"
-#include "common/server_connection.h"
+#include "common/io/chunk/chunk_with_address_and_label.h"
+#include "common/network/server_connection.h"
 #include "master/quota_database.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"

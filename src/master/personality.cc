@@ -22,11 +22,11 @@
 #include <algorithm>
 
 #include "common/cfg.h"
-#include "common/exceptions.h"
-#include "common/event_loop.h"
+#include "common/errors/exceptions.h"
+#include "common/algorithm/control/event_loop.h"
 #include "common/main.h"
-#include "common/massert.h"
-#include "common/slogger.h"
+#include "common/errors/massert.h"
+#include "common/errors/slogger.h"
 
 namespace metadataserver {
 

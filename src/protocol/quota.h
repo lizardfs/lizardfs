@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 
 LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(QuotaRigor, kSoft, kHard, kUsed)
 LIZARDFS_DEFINE_SERIALIZABLE_ENUM_CLASS(QuotaResource, kInodes, kSize)

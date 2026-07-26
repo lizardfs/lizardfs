@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
-collect_sources(COMMON)
+collect_sources_recursive(COMMON)
 
 if(MINGW)
 list(REMOVE_ITEM COMMON_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/lockfile.cc")

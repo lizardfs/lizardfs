@@ -19,7 +19,7 @@
 #include "common/platform.h"
 
 #include "common/cfg.h"
-#include "common/event_loop.h"
+#include "common/algorithm/control/event_loop.h"
 #include "master/hstring_memstorage.h"
 #ifdef LIZARDFS_HAVE_DB
   #include "master/hstring_bdbstorage.h"

@@ -23,9 +23,9 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "common/chunk_part_type.h"
-#include "common/goal.h"
-#include "common/media_label.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/io/goal.h"
+#include "common/types/media_label.h"
 #include "master/get_servers_for_new_chunk.h"
 #include "protocol/chunkserver_list_entry.h"
 
@@ -53,7 +53,7 @@ struct ServerWithUsage {
 	MediaLabel label;
 };
 
-typedef flat_map<uint32_t, int, small_vector<std::pair<uint32_t, int>, 16> > IpCounter;
+typedef flat_map<uint32_t, int, std::vector<std::pair<uint32_t, int>> > IpCounter;
 
 /*! \brief Get list of chunkservers for replication with the given label.
  *

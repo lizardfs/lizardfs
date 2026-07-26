@@ -22,7 +22,7 @@
 
 #include <inttypes.h>
 
-#include "common/metadataserver_list_entry.h"
+#include "common/types/metadataserver_list_entry.h"
 
 uint32_t matomlserv_mloglist_size(void);
 void matomlserv_mloglist_data(uint8_t *ptr);

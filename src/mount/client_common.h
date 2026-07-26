@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/attributes.h"
+#include "common/types/attributes.h"
 #include "mount/lizard_client.h"
 
 enum {

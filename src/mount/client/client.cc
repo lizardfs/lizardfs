@@ -24,7 +24,7 @@
 #include <fstream>
 
 #include "client_error_code.h"
-#include "common/richacl_converter.h"
+#include "common/acl/richacl_converter.h"
 
 #define LIZARDFS_LINK_FUNCTION(function_name) do { \
 	void *function_name##_ptr = dlsym(dl_handle_, #function_name); \

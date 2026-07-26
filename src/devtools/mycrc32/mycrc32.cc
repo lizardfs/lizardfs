@@ -32,7 +32,7 @@
 #include <iostream>
 #include <boost/scoped_array.hpp>
 
-#include "common/crc.h"
+#include "common/algorithm/checksum/crc.h"
 
 int main() {
 	const size_t MAX_BUFFER_SIZE = 1024 * 1024 * 128 + 1;

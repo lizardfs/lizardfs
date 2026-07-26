@@ -22,8 +22,8 @@
 #include <cassert>
 #include <cstdint>
 
-#include "common/small_vector.h"
-#include "common/special_inode_defs.h"
+
+#include "common/types/special_inode_defs.h"
 #include "protocol/cltoma.h"
 #include "protocol/MFSCommunication.h"
 #include "master/personality.h"

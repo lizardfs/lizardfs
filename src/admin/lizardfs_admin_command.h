@@ -23,7 +23,7 @@
 #include <string>
 #include <vector>
 
-#include "common/exception.h"
+#include "common/errors/exception.h"
 #include "admin/options.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(WrongUsageException, Exception);

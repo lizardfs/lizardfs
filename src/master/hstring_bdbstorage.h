@@ -2,7 +2,7 @@
 
 #include "common/platform.h"
 
-#include "common/exception.h"
+#include "common/errors/exception.h"
 #include "master/hstring_storage.h"
 
 #include <db.h>

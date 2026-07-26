@@ -22,7 +22,7 @@
 #include <algorithm>
 #include <functional>
 
-#include "common/slogger.h"
+#include "common/errors/slogger.h"
 
 bool LockRanges::fits(const LockRange &range) const {
 	return findCollision(range) == nullptr;
@@ -267,7 +267,7 @@ void copyToVector(const Container &full_data, int64_t index, int64_t count,
 	for (const auto &entry : full_data) {
 		for (const auto &lock : entry.second) {
 			// each owner is treated as distinct entry in output
-			if ((pos + lock.owners.size()) <= index) {
+			if ((pos + (int64_t)lock.owners.size()) <= index) {
 				pos += lock.owners.size();
 				continue;
 			}
@@ -304,7 +304,7 @@ void copyInodeToVector(const Container &lock_data, uint32_t inode, int64_t index
 
 	for (const auto &lock : lock_data) {
 		// each owner is treated as distinct entry in output
-		if ((pos + lock.owners.size()) <= index) {
+		if ((pos + (int64_t)lock.owners.size()) <= index) {
 			pos += lock.owners.size();
 			continue;
 		}

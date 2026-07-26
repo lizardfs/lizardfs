@@ -24,14 +24,14 @@
 #include <string.h>
 #include <map>
 
-#include "common/access_control_list.h"
-#include "common/attributes.h"
-#include "common/acl_type.h"
-#include "common/exception.h"
-#include "common/goal.h"
-#include "common/richacl.h"
-#include "common/tape_key.h"
-#include "common/tape_copy_location_info.h"
+#include "common/acl/access_control_list.h"
+#include "common/types/attributes.h"
+#include "common/acl/acl_type.h"
+#include "common/errors/exception.h"
+#include "common/io/goal.h"
+#include "common/acl/richacl.h"
+#include "common/types/tape_key.h"
+#include "common/types/tape_copy_location_info.h"
 #include "master/checksum.h"
 #include "master/filesystem_node.h"
 #include "master/fs_context.h"

@@ -22,8 +22,8 @@
 
 #include <cstdint>
 
-#include "common/event_loop.h"
-#include "common/hashfn.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/functional/hashfn.h"
 #include "common/platform.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"

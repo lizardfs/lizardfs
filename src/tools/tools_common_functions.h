@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 
-#include "common/sockets.h"
+#include "common/network/sockets.h"
 #include "protocol/MFSCommunication.h"
 
 #define tcpread(s, b, l) tcptoread(s, b, l, 10000)

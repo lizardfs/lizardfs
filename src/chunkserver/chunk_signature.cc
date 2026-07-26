@@ -22,7 +22,7 @@
 #include <unistd.h>
 #include <cstring>
 
-#include "common/slice_traits.h"
+#include "common/types/slice_traits.h"
 #include "protocol/MFSCommunication.h"
 
 const char ChunkSignature::kMfsSignatureId[] = MFSSIGNATURE "C 1.0";

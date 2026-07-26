@@ -22,10 +22,10 @@
 
 #include <iostream>
 
-#include "common/chunk_part_type.h"
-#include "common/chunk_with_version.h"
-#include "common/chunk_with_version_and_type.h"
-#include "common/serialization_macros.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/io/chunk/chunk_with_version.h"
+#include "common/io/chunk/chunk_with_version_and_type.h"
+#include "common/serialization/serialization_macros.h"
 #include "protocol/chunks_with_type.h"
 #include "protocol/packet.h"
 

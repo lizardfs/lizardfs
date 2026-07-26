@@ -24,8 +24,8 @@
 #include <iostream>
 #include <string>
 
-#include "common/exception.h"
-#include "common/io_limit_group.h"
+#include "common/errors/exception.h"
+#include "common/io/limits/io_limit_group.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(GetIoLimitGroupIdException, Exception);
 

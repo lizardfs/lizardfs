@@ -20,8 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/serialization_macros.h"
-#include "common/attributes.h"
+#include "common/serialization/serialization_macros.h"
+#include "common/types/attributes.h"
 
 namespace legacy {
 LIZARDFS_DEFINE_SERIALIZABLE_CLASS(DirectoryEntry,

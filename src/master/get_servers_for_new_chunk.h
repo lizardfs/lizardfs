@@ -23,7 +23,7 @@
 #include <map>
 #include <vector>
 
-#include "common/goal.h"
+#include "common/io/goal.h"
 
 struct matocsserventry;
 

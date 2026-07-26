@@ -40,8 +40,8 @@
 #include <boost/iostreams/filter/gzip.hpp>
 #include <boost/iostreams/filtering_stream.hpp>
 
-#include "common/massert.h"
-#include "common/slogger.h"
+#include "common/errors/massert.h"
+#include "common/errors/slogger.h"
 #include "devtools/configuration.h"
 
 class RequestLogConfiguration : Configuration {

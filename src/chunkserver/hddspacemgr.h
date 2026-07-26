@@ -25,8 +25,8 @@
 
 #include "chunkserver/chunk_file_creator.h"
 #include "chunkserver/output_buffer.h"
-#include "common/chunk_part_type.h"
-#include "common/chunk_with_version_and_type.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/io/chunk/chunk_with_version_and_type.h"
 #include "protocol/chunks_with_type.h"
 #include "protocol/MFSCommunication.h"
 

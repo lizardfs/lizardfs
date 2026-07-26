@@ -20,8 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/network_address.h"
-#include "common/serialization_macros.h"
+#include "common/network/network_address.h"
+#include "common/serialization/serialization_macros.h"
 #include "admin/lizardfs_admin_command.h"
 #include "protocol/chunkserver_list_entry.h"
 

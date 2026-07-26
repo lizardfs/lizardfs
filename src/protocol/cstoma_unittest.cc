@@ -21,8 +21,8 @@
 
 #include <gtest/gtest.h>
 
-#include "common/crc.h"
-#include "common/mfserr.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/errors/mfserr.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/inout_pair.h"
 #include "unittests/packet.h"

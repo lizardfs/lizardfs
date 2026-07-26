@@ -20,8 +20,8 @@
 
 #include <cassert>
 
-#include "common/event_loop.h"
-#include "common/small_vector.h"
+#include "common/algorithm/control/event_loop.h"
+
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"
 #include "master/quota_database.h"

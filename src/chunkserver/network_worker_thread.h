@@ -29,9 +29,9 @@
 
 #include "chunkserver/network_stats.h"
 #include "chunkserver/output_buffer.h"
-#include "common/chunk_part_type.h"
-#include "common/network_address.h"
-#include "common/slice_traits.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/network/network_address.h"
+#include "common/types/slice_traits.h"
 #include "protocol/packet.h"
 #include "devtools/request_log.h"
 

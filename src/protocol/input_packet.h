@@ -20,9 +20,9 @@
 
 #include "common/platform.h"
 
-#include "common/exception.h"
+#include "common/errors/exception.h"
 #include "protocol/packet.h"
-#include "common/massert.h"
+#include "common/errors/massert.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(InputPacketTooLongException, Exception);
 

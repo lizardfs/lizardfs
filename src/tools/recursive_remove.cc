@@ -25,8 +25,8 @@
 #include <string>
 #include <thread>
 
-#include "common/lambda_guard.h"
-#include "common/server_connection.h"
+#include "common/functional/lambda_guard.h"
+#include "common/network/server_connection.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 #include "tools/tools_commands.h"

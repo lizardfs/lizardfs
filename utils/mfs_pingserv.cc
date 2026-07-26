@@ -23,8 +23,8 @@
 
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
-#include "common/serialization.h"
-#include "common/sockets.h"
+#include "common/serialization/serialization.h"
+#include "common/network/sockets.h"
 
 
 int main(int argc, char **argv) {

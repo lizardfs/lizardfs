@@ -41,9 +41,9 @@
 #include "admin/save_metadata_command.h"
 #include "admin/stop_master_without_saving_metadata.h"
 #include "admin/stop_task_command.h"
-#include "common/human_readable_format.h"
+#include "common/serialization/human_readable_format.h"
 #include "protocol/MFSCommunication.h"
-#include "common/mfserr.h"
+#include "common/errors/mfserr.h"
 
 int main(int argc, const char** argv) {
 	std::vector<const LizardFsProbeCommand*> allCommands = {

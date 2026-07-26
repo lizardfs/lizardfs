@@ -23,7 +23,7 @@
 #include <inttypes.h>
 #include <string>
 
-#include "common/slogger.h"
+#include "common/errors/slogger.h"
 
 #define _CONFIG_MAKE_PROTOTYPE(fname,type) type cfg_get##fname(const char *name,const type def)
 

@@ -23,10 +23,10 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#include "common/chunk_part_type.h"
-#include "common/chunk_type_with_address.h"
-#include "common/chunk_with_address_and_label.h"
-#include "common/chunks_availability_state.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/io/chunk/chunk_with_address_and_label.h"
+#include "common/io/chunk/chunks_availability_state.h"
 #include "protocol/cltoma.h"
 #include "master/checksum.h"
 

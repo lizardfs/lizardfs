@@ -33,14 +33,14 @@
 #include <map>
 #include <mutex>
 
-#include "common/connection_pool.h"
-#include "common/datapack.h"
-#include "common/exceptions.h"
-#include "common/mfserr.h"
-#include "common/read_plan_executor.h"
-#include "common/slogger.h"
-#include "common/sockets.h"
-#include "common/time_utils.h"
+#include "common/network/connection_pool.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/exceptions.h"
+#include "common/errors/mfserr.h"
+#include "common/io/read_plan_executor.h"
+#include "common/errors/slogger.h"
+#include "common/network/sockets.h"
+#include "common/chrono/time_utils.h"
 #include "mount/chunk_locator.h"
 #include "mount/chunk_reader.h"
 #include "mount/mastercomm.h"

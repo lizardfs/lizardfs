@@ -22,9 +22,9 @@
 #include <algorithm>
 #include <cstring>
 
-#include "common/exceptions.h"
-#include "common/read_plan_executor.h"
-#include "common/time_utils.h"
+#include "common/errors/exceptions.h"
+#include "common/io/read_plan_executor.h"
+#include "common/chrono/time_utils.h"
 #include "mount/global_chunkserver_stats.h"
 
 ChunkReader::ChunkReader(ChunkConnector& connector, double bandwidth_overuse)

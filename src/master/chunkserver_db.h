@@ -21,7 +21,7 @@
 
 #include "common/platform.h"
 
-#include "common/media_label.h"
+#include "common/types/media_label.h"
 #include "protocol/chunkserver_list_entry.h"
 
 struct matocsserventry;

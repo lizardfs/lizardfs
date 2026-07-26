@@ -22,13 +22,13 @@
 
 #include <array>
 
-#include "common/access_control_list.h"
-#include "common/acl_type.h"
-#include "common/legacy_acl.h"
-#include "common/moosefs_string.h"
-#include "common/richacl.h"
-#include "common/serialization_macros.h"
-#include "common/small_vector.h"
+#include "common/acl/access_control_list.h"
+#include "common/acl/acl_type.h"
+#include "common/acl/legacy_acl.h"
+#include "common/linear/moosefs_string.h"
+#include "common/acl/richacl.h"
+#include "common/serialization/serialization_macros.h"
+
 #include "protocol/lock_info.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
@@ -38,7 +38,7 @@ namespace cltoma { namespace updateCredentials {
 enum DefaultGroupsSize {
 	kDefaultGroupsSize = 16
 };
-typedef small_vector<uint32_t, kDefaultGroupsSize> GroupsContainer;
+typedef std::vector<uint32_t> GroupsContainer;
 } } // cltoma::updateCredentials
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(cltoma, updateCredentials, LIZ_CLTOMA_UPDATE_CREDENTIALS, 0,
 		uint32_t, messageId,

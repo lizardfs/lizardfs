@@ -25,7 +25,7 @@
 #include "FSAL/fsal_init.h"
 #include "pnfs_utils.h"
 
-#include "common/special_inode_defs.h"
+#include "common/types/special_inode_defs.h"
 #include "context_wrap.h"
 #include "lzfs_internal.h"
 #include "protocol/MFSCommunication.h"

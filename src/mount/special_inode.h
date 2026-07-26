@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/special_inode_defs.h"
+#include "common/types/special_inode_defs.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
 #include "mount/mastercomm.h"

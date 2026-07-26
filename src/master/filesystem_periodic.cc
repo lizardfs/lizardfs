@@ -24,13 +24,13 @@
 #include <type_traits>
 
 #include "common/cfg.h"
-#include "common/event_loop.h"
+#include "common/algorithm/control/event_loop.h"
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
-#  include "common/judy_map.h"
+#  include "common/set/judy_map.h"
 #else
-#  include "common/flat_map.h"
+#  include "common/set/flat_map.h"
 #endif
-#include "common/loop_watchdog.h"
+#include "common/chrono/loop_watchdog.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_checksum_updater.h"
 #include "master/filesystem_metadata.h"

@@ -24,8 +24,8 @@
 #include <ostream>
 #include <set>
 
-#include "common/read_plan.h"
-#include "common/slice_traits.h"
+#include "common/io/plan/read_plan.h"
+#include "common/types/slice_traits.h"
 
 namespace unittests {
 

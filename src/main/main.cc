@@ -45,17 +45,17 @@
 #include <memory>
 
 #include "common/cfg.h"
-#include "common/crc.h"
-#include "common/cwrap.h"
-#include "common/exceptions.h"
-#include "common/exit_status.h"
-#include "common/event_loop.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/types/cwrap.h"
+#include "common/errors/exceptions.h"
+#include "common/errors/exit_status.h"
+#include "common/algorithm/control/event_loop.h"
 #include "common/main.h"
-#include "common/massert.h"
-#include "common/mfserr.h"
+#include "common/errors/massert.h"
+#include "common/errors/mfserr.h"
 #include "common/setup.h"
-#include "common/slogger.h"
-#include "common/time_utils.h"
+#include "common/errors/slogger.h"
+#include "common/chrono/time_utils.h"
 #include "protocol/MFSCommunication.h"
 
 #if defined(LIZARDFS_HAVE_MLOCKALL)

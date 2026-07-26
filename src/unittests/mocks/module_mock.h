@@ -28,11 +28,11 @@
 #include <queue>
 #include <thread>
 
-#include "common/message_receive_buffer.h"
-#include "common/multi_buffer_writer.h"
-#include "common/network_address.h"
+#include "common/linear/message_receive_buffer.h"
+#include "common/thread/multi_buffer_writer.h"
+#include "common/network/network_address.h"
 #include "protocol/packet.h"
-#include "common/time_utils.h"
+#include "common/chrono/time_utils.h"
 
 class ModuleMock {
 public:

@@ -29,9 +29,9 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
-#include "common/event_loop.h"
-#include "common/massert.h"
-#include "common/slogger.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/errors/massert.h"
+#include "common/errors/slogger.h"
 #include "master/itree.h"
 
 static void *racktree;

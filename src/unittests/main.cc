@@ -21,10 +21,10 @@
 #include <signal.h>
 #include <gtest/gtest.h>
 
-#include "common/crc.h"
-#include "common/mfserr.h"
-#include "common/random.h"
-#include "common/sockets.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/errors/mfserr.h"
+#include "common/algorithm/random.h"
+#include "common/network/sockets.h"
 
 int main(int argc, char **argv) {
 	::testing::InitGoogleTest(&argc, argv);

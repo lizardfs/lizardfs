@@ -21,8 +21,8 @@
 #include "common/platform.h"
 
 #include <cassert>
-#include "common/chunk_read_planner.h"
-#include "common/slice_read_planner.h"
+#include "common/io/plan/chunk_read_planner.h"
+#include "common/io/plan/slice_read_planner.h"
 
 /*! \brief Class creating read plan recovering single slice part.
  *

@@ -20,9 +20,9 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_type_with_address.h"
+#include "common/io/chunk/chunk_type_with_address.h"
 #include "protocol/packet.h"
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 
 LIZARDFS_DEFINE_PACKET_VERSION(matocs, setVersion, kStandardAndXorChunks, 0)
 LIZARDFS_DEFINE_PACKET_VERSION(matocs, setVersion, kECChunks, 1)

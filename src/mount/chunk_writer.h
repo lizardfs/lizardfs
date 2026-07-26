@@ -26,8 +26,8 @@
 #include <memory>
 #include <vector>
 
-#include "common/chunk_type_with_address.h"
-#include "common/write_executor.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/io/write_executor.h"
 #include "mount/chunk_locator.h"
 #include "mount/write_cache_block.h"
 

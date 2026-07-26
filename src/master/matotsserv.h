@@ -20,10 +20,10 @@
 
 #include "common/platform.h"
 
-#include "common/id_pool.h"
-#include "common/tape_key.h"
-#include "common/tape_copy_location_info.h"
-#include "common/network_address.h"
+#include "common/thread/id_pool.h"
+#include "common/types/tape_key.h"
+#include "common/types/tape_copy_location_info.h"
+#include "common/network/network_address.h"
 
 /// Type of objects which identify tapeservers.
 typedef uint32_t TapeserverId;

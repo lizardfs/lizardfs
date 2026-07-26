@@ -21,7 +21,7 @@
 #include "common/platform.h"
 
 #include "client/lizard_client_c_linkage.h"
-#include "common/richacl.h"
+#include "common/acl/richacl.h"
 
 #include <boost/intrusive/list.hpp>
 #include <mutex>

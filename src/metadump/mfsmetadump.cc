@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include <vector>
 
-#include "common/datapack.h"
+#include "common/serialization/datapack.h"
 #include "protocol/MFSCommunication.h"
 
 #define STR_AUX(x) #x

@@ -28,7 +28,7 @@
 #include <stdexcept>
 #include <vector>
 
-#include "common/portable_endian.h"
+#include "common/serialization/portable_endian.h"
 
 #include "utils/asserts.h"
 #include "utils/configuration.h"

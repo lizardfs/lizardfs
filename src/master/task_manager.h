@@ -25,8 +25,8 @@
 #include <memory>
 #include <string>
 
-#include "common/intrusive_list.h"
-#include "common/job_info.h"
+#include "common/linear/intrusive_list.h"
+#include "common/types/job_info.h"
 
 /*! \brief Implementation of class for storing and executing tasks
  *

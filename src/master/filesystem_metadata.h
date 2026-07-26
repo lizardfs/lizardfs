@@ -24,8 +24,8 @@
 #include <map>
 #include <unordered_map>
 
-#include "common/tape_copies.h"
-#include "common/special_inode_defs.h"
+#include "common/types/tape_copies.h"
+#include "common/types/special_inode_defs.h"
 #include "master/acl_storage.h"
 #include "master/chunks.h"
 #include "master/id_pool_detainer.h"

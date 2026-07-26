@@ -33,11 +33,11 @@
 #include <vector>
 
 #include "common/cfg.h"
-#include "common/metadata.h"
-#include "common/mfserr.h"
-#include "common/rotate_files.h"
+#include "common/types/metadata.h"
+#include "common/errors/mfserr.h"
+#include "common/algorithm/rotate_files.h"
 #include "common/setup.h"
-#include "common/slogger.h"
+#include "common/errors/slogger.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
 #include "master/hstring_memstorage.h"

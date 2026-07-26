@@ -25,8 +25,8 @@
 #include <string>
 #include <gtest/gtest.h>
 
-#include "common/chunk_part_type.h"
-#include "common/slice_traits.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/types/slice_traits.h"
 #include "unittests/chunk_type_constants.h"
 #include "unittests/TemporaryDirectory.h"
 

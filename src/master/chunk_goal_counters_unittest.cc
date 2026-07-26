@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/goal.h"
+#include "common/io/goal.h"
 #include "master/chunk_goal_counters.h"
 #include "master/goal_cache.h"
 #include "master/goal_config_loader.h"

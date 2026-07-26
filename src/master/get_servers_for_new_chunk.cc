@@ -20,8 +20,8 @@
 
 #include "master/get_servers_for_new_chunk.h"
 
-#include "common/massert.h"
-#include "common/random.h"
+#include "common/errors/massert.h"
+#include "common/algorithm/random.h"
 #include "master/chunks.h"
 #include "master/matocsserv.h"
 
@@ -60,7 +60,7 @@ void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
 
 	// Order servers by relative disk usage.
 	// random_shuffle to choose randomly if relative disk usage is the same.
-	std::random_shuffle(servers_.begin(), servers_.end());
+	std::shuffle(servers_.begin(), servers_.end(), kRandomEngine);
 	std::stable_sort(servers_.begin(), servers_.end(),
 				 [](const ChunkserverChunkCounter &a, const ChunkserverChunkCounter &b) {
 					 int64_t aRelativeUsage = a.chunks_created * b.weight;
@@ -76,7 +76,7 @@ void GetServersForNewChunk::prepareData(ChunkCreationHistory &history) {
 
 void GetServersForNewChunk::sortAvoidingSameIp() {
 	IpCounter ip_counter;
-	small_vector<int, 16> occurrence_offset(1);
+	std::vector<int> occurrence_offset(16, 1);
 	std::vector<int> serv_occurrence_no(servers_.size(), 0);
 
 	int tmp_index;

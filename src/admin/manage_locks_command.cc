@@ -24,7 +24,7 @@
 
 #include "admin/registered_admin_connection.h"
 #include "common/lizardfs_version.h"
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 #include "master/locks.h"
 #include "protocol/cltoma.h"
 #include "protocol/lock_info.h"
