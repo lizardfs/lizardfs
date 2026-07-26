@@ -32,23 +32,22 @@
 #include <algorithm>
 #include <deque>
 
-#include "common/chunks_availability_state.h"
-#include "common/chunk_copies_calculator.h"
-#include "common/chunk_version_with_todel_flag.h"
-#include "common/compact_vector.h"
-#include "common/counting_sort.h"
-#include "common/coroutine.h"
-#include "common/datapack.h"
-#include "common/exceptions.h"
-#include "common/event_loop.h"
-#include "common/flat_set.h"
-#include "common/goal.h"
-#include "common/hashfn.h"
+#include "common/io/chunk/chunks_availability_state.h"
+#include "common/io/chunk/chunk_copies_calculator.h"
+#include "common/io/chunk/chunk_version_with_todel_flag.h"
+#include "common/algorithm/counting_sort.h"
+#include "common/algorithm/control/coroutine.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/exceptions.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/set/flat_set.h"
+#include "common/io/goal.h"
+#include "common/functional/hashfn.h"
 #include "common/lizardfs_version.h"
-#include "common/loop_watchdog.h"
-#include "common/massert.h"
-#include "common/slice_traits.h"
-#include "common/small_vector.h"
+#include "common/chrono/loop_watchdog.h"
+#include "common/errors/massert.h"
+#include "common/types/slice_traits.h"
+
 #include "master/chunkserver_db.h"
 #include "master/checksum.h"
 #include "master/chunk_goal_counters.h"
@@ -62,7 +61,7 @@
 #else
 #  include "common/cfg.h"
 #  include "common/main.h"
-#  include "common/random.h"
+#  include "common/algorithm/random.h"
 #  include "master/matoclserv.h"
 #  include "master/matocsserv.h"
 #  include "master/topology.h"
@@ -229,7 +228,7 @@ public:
 	uint64_t checksum;
 	Chunk *next;
 #ifndef METARESTORE
-	compact_vector<ChunkPart> parts;
+	std::vector<ChunkPart> parts;
 #endif
 private: // public/private sections are mixed here to make the struct as small as possible
 	ChunkGoalCounters goalCounters_;
@@ -2376,7 +2375,7 @@ void ChunkWorker::doChunkJobs(Chunk *c, uint16_t serverCount) {
 	// TODO(sarna): this flat_set should be removed after
 	// 'slists' are rewritten to use sensible data structures
 	bool degenerate = false;
-	flat_set<matocsserventry *, small_vector<matocsserventry *, 64>> servers;
+	flat_set<matocsserventry *, std::vector<matocsserventry *>> servers;
 
 	// step 1. calculate number of valid and invalid copies
 	for (const auto &part : c->parts) {

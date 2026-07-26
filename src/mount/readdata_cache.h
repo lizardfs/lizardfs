@@ -20,8 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/small_vector.h"
-#include "common/time_utils.h"
+
+#include "common/chrono/time_utils.h"
 
 #include <atomic>
 #include <cassert>
@@ -95,7 +95,7 @@ public:
 	        &Entry::reserved_member_hook>> ReservedEntryList;
 
 	struct Result {
-		small_vector<Entry *, 8> entries;
+		std::vector<Entry *> entries;
 		bool is_fake;
 
 		Result() : entries(), is_fake(false) {}
@@ -242,7 +242,7 @@ public:
 		std::string toString() const {
 			std::string text;
 			for(const auto &entry : entries) {
-				text += "(" + std::to_string(entry->refcount) + "|"
+				text += "(" + std::to_string(entry->refcount.load()) + "|"
 				+ std::to_string(entry->offset) + ":"
 				+ std::to_string(entry->buffer.size()) + "),";
 			}
@@ -378,7 +378,7 @@ protected:
 	std::string toString() const {
 		std::string text;
 		for(const auto &entry : entries_) {
-			text += "(" + std::to_string(entry.refcount) + "|"
+			text += "(" + std::to_string(entry.refcount.load()) + "|"
 			+ std::to_string(entry.offset) + ":"
 			+ std::to_string(entry.buffer.size()) + "),";
 		}

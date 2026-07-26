@@ -26,10 +26,10 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "common/datapack.h"
-#include "common/lambda_guard.h"
-#include "common/moosefs_string.h"
-#include "common/server_connection.h"
+#include "common/serialization/datapack.h"
+#include "common/functional/lambda_guard.h"
+#include "common/linear/moosefs_string.h"
+#include "common/network/server_connection.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 #include "tools/tools_commands.h"

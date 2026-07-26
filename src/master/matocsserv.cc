@@ -36,21 +36,21 @@
 #include <vector>
 
 #include "common/cfg.h"
-#include "common/counting_sort.h"
-#include "common/datapack.h"
-#include "common/event_loop.h"
-#include "common/goal.h"
-#include "common/hashfn.h"
+#include "common/algorithm/counting_sort.h"
+#include "common/serialization/datapack.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/io/goal.h"
+#include "common/functional/hashfn.h"
 #include "common/lizardfs_version.h"
-#include "common/loop_watchdog.h"
-#include "common/massert.h"
-#include "common/mfserr.h"
-#include "common/output_packet.h"
-#include "common/random.h"
-#include "common/slice_traits.h"
-#include "common/slogger.h"
-#include "common/sockets.h"
-#include "common/time_utils.h"
+#include "common/chrono/loop_watchdog.h"
+#include "common/errors/massert.h"
+#include "common/errors/mfserr.h"
+#include "common/network/output_packet.h"
+#include "common/algorithm/random.h"
+#include "common/types/slice_traits.h"
+#include "common/errors/slogger.h"
+#include "common/network/sockets.h"
+#include "common/chrono/time_utils.h"
 #include "master/chunks.h"
 #include "master/chunkserver_db.h"
 #include "master/filesystem.h"
@@ -415,8 +415,8 @@ std::vector<std::pair<matocsserventry *, ChunkPartType>> matocsserv_getservers_f
 				[&slice](int i){
 			return slice_traits::isDataPart(ChunkPartType(slice.getType(), i));
 		}));
-		std::random_shuffle(shuffle.begin(), shuffle.begin() + data_count);
-		std::random_shuffle(shuffle.begin() + data_count, shuffle.begin() + slice.size());
+		std::shuffle(shuffle.begin(), shuffle.begin() + data_count, kRandomEngine);
+		std::shuffle(shuffle.begin() + data_count, shuffle.begin() + slice.size(), kRandomEngine);
 
 		uint32_t min_version = std::max({
 			slice_traits::isXor(slice) ? kFirstXorVersion : 0,
@@ -482,7 +482,7 @@ void matocsserv_getservers_lessrepl(const MediaLabel &label, uint32_t min_chunks
 			temporarily_unavailable++;
 		}
 	}
-	std::random_shuffle(servers.begin(), servers.end());
+	std::shuffle(servers.begin(), servers.end(), kRandomEngine);
 	std::sort(servers.begin(), servers.end(), matocsserventry::lessUsedAndLoaded);
 	if (gAvoidSameIpChunkservers) {
 		counting_sort(servers, [&ip_counter](matocsserventry *server) {

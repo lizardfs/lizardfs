@@ -23,8 +23,8 @@
 #include <cstdarg>
 #include <cstdint>
 
-#include "common/attributes.h"
-#include "common/event_loop.h"
+#include "common/types/attributes.h"
+#include "common/algorithm/control/event_loop.h"
 #include "master/changelog.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
@@ -2897,7 +2897,7 @@ uint8_t fs_get_tape_copy_locations(uint32_t inode, std::vector<TapeCopyLocationI
 	}
 	/* Lazy cleaning up of disconnected tapeservers */
 	for (auto &tapeserverId : disconnectedTapeservers) {
-		std::remove_if(it->second.begin(), it->second.end(),
+		(void) std::remove_if(it->second.begin(), it->second.end(),
 		               [tapeserverId](const TapeCopy &copy) {
 			               return copy.server == tapeserverId;
 			       });

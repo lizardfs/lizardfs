@@ -25,8 +25,8 @@
 #include <string>
 #include <vector>
 
-#include "common/exception.h"
-#include "common/massert.h"
+#include "common/errors/exception.h"
+#include "common/errors/massert.h"
 
 class Options {
 public:

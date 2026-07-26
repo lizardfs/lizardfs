@@ -20,9 +20,9 @@
 #include "common/platform.h"
 #include "master/chunkserver_db.h"
 
-#include "common/integer_sequence.h"
+#include "common/linear/integer_sequence.h"
 #include "common/lizardfs_version.h"
-#include "common/media_label.h"
+#include "common/types/media_label.h"
 #include "master/matocsserv.h"
 
 #include <cstdint>

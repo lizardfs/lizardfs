@@ -21,7 +21,7 @@
 
 #include <gtest/gtest.h>
 
-#include "common/crc.h"
+#include "common/algorithm/checksum/crc.h"
 #include "unittests/inout_pair.h"
 #include "unittests/packet.h"
 

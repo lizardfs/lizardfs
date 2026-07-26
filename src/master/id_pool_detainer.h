@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/platform.h"
-#include "common/id_pool.h"
+#include "common/thread/id_pool.h"
 
 #if defined(LIZARDFS_HAVE_JUDY) && defined(LIZARDFS_HAVE_WORKING_JUDY1)
 #include <Judy.h>

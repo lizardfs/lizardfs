@@ -27,14 +27,14 @@
 #include <string>
 #include <vector>
 
-#include "common/chunk_connector.h"
-#include "common/chunk_read_planner.h"
-#include "common/chunk_type_with_address.h"
-#include "common/connection_pool.h"
-#include "common/massert.h"
-#include "common/network_address.h"
-#include "common/read_plan_executor.h"
-#include "common/time_utils.h"
+#include "common/io/chunk/chunk_connector.h"
+#include "common/io/plan/chunk_read_planner.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/network/connection_pool.h"
+#include "common/errors/massert.h"
+#include "common/network/network_address.h"
+#include "common/io/read_plan_executor.h"
+#include "common/chrono/time_utils.h"
 #include "mount/chunk_locator.h"
 
 class ChunkReader {

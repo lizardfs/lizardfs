@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_part_type.h"
+#include "common/io/chunk/chunk_part_type.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
 

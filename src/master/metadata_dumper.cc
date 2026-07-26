@@ -21,8 +21,8 @@
 
 #include <string.h>
 
-#include "common/massert.h"
-#include "common/metadata.h"
+#include "common/errors/massert.h"
+#include "common/types/metadata.h"
 #include "master/filesystem.h"
 #include "master/personality.h"
 

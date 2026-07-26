@@ -22,7 +22,7 @@
 #include <cstring>
 #include <utility>
 
-#include "common/massert.h"
+#include "common/errors/massert.h"
 #include "protocol/MFSCommunication.h"
 
 WriteCacheBlock::WriteCacheBlock(uint32_t chunkIndex, uint32_t blockIndex, Type type)

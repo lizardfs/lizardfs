@@ -20,7 +20,7 @@
 
 #include "master/task_manager.h"
 
-#include "common/loop_watchdog.h"
+#include "common/chrono/loop_watchdog.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node.h"
 #include "protocol/MFSCommunication.h"

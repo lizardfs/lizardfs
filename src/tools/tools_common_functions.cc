@@ -30,9 +30,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "common/human_readable_format.h"
-#include "common/mfserr.h"
-#include "common/server_connection.h"
+#include "common/serialization/human_readable_format.h"
+#include "common/errors/mfserr.h"
+#include "common/network/server_connection.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 

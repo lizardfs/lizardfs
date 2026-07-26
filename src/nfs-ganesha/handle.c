@@ -24,7 +24,7 @@
 #include "fsal_convert.h"
 #include "fsal_types.h"
 
-#include "common/lizardfs_error_codes.h"
+#include "common/errors/lizardfs_error_codes.h"
 #include "context_wrap.h"
 #include "lzfs_internal.h"
 

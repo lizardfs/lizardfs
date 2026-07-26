@@ -27,9 +27,9 @@
 #include <windows.h>
 #endif
 
-#include "common/exceptions.h"
+#include "common/errors/exceptions.h"
 #include "protocol/matocl.h"
-#include "common/md5.h"
+#include "common/algorithm/checksum/md5.h"
 #include "protocol/cltoma.h"
 
 namespace {

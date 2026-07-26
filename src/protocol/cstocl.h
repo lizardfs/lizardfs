@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 #include "protocol/packet.h"
 
 namespace cstocl {

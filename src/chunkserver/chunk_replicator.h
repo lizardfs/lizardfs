@@ -26,10 +26,10 @@
 
 #include "chunkserver/chunk_file_creator.h"
 #include "chunkserver/slice_recovery_planner.h"
-#include "common/chunk_connector.h"
-#include "common/chunk_type_with_address.h"
-#include "common/chunkserver_stats.h"
-#include "common/exception.h"
+#include "common/io/chunk/chunk_connector.h"
+#include "common/io/chunk/chunk_type_with_address.h"
+#include "common/io/chunk/chunkserver_stats.h"
+#include "common/errors/exception.h"
 
 class ChunkReplicator {
 public:

@@ -27,8 +27,8 @@
 #include <stdexcept>
 
 #include "chunkserver/output_buffer.h"
-#include "common/crc.h"
-#include "common/massert.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/errors/massert.h"
 #include "devtools/request_log.h"
 
 OutputBuffer::OutputBuffer(size_t internalBufferCapacity)

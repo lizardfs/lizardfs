@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "common/case_sensitivity.h"
+#include "common/types/case_sensitivity.h"
 
 extern std::vector<std::string> gExtraArguments;
 

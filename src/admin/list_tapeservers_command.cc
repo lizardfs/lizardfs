@@ -25,7 +25,7 @@
 #include "protocol/cltoma.h"
 #include "common/lizardfs_version.h"
 #include "protocol/matocl.h"
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 
 std::string ListTapeserversCommand::name() const {
 	return "list-tapeservers";

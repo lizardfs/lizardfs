@@ -20,7 +20,6 @@
 
 #include "common/platform.h"
 
-#include "common/compact_vector.h"
 #include "protocol/lock_info.h"
 
 #include <unordered_map>
@@ -65,7 +64,7 @@ struct LockRange {
 		kExclusive = lzfs_locks::kExclusive
 	};
 
-	typedef compact_vector<Owner> Owners;
+	typedef std::vector<Owner> Owners;
 
 	LockRange() : type(Type::kInvalid), start(), end(), owners() {}
 
@@ -150,7 +149,7 @@ struct LockRange {
 /*! \brief Set of ranges, allows to insert, delete and overwrite existing ranges */
 class LockRanges {
 public:
-	typedef compact_vector<LockRange> Container;
+	typedef std::vector<LockRange> Container;
 	typedef Container::iterator iterator;
 	typedef Container::const_iterator const_iterator;
 
@@ -219,7 +218,7 @@ public:
 	/*! \brief Set of all applied locks */
 	typedef LockRanges Locks;
 	/*! \brief Queue of all pending locks */
-	typedef compact_vector<Lock> LockQueue;
+	typedef std::vector<Lock> LockQueue;
 
 	FileLocks() : active_locks_(), pending_locks_() {
 	}

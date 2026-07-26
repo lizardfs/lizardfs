@@ -20,9 +20,9 @@
 
 #include <atomic>
 
-#include "common/attributes.h"
-#include "common/shared_mutex.h"
-#include "common/time_utils.h"
+#include "common/types/attributes.h"
+#include "common/thread/shared_mutex.h"
+#include "common/chrono/time_utils.h"
 #include "mount/lizard_client_context.h"
 #include "protocol/directory_entry.h"
 

@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/media_label.h"
+#include "common/types/media_label.h"
 #include "master/get_servers_for_new_chunk.h"
 
 #include <gtest/gtest.h>

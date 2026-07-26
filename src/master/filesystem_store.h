@@ -23,7 +23,7 @@
 
 #include <cstdio>
 
-#include "common/exceptions.h"
+#include "common/errors/exceptions.h"
 #include "master/metadata_dumper.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS(MetadataException, Exception);

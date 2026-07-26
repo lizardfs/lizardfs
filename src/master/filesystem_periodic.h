@@ -21,7 +21,7 @@
 
 #include "common/platform.h"
 
-#include "common/defective_file_info.h"
+#include "common/types/defective_file_info.h"
 
 std::vector<DefectiveFileInfo> fs_get_defective_nodes_info(uint8_t requested_flags, uint64_t max_entries,
 	                                                   uint64_t &entry_index);

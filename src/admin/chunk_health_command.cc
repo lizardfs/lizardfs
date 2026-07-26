@@ -23,7 +23,7 @@
 
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 
 std::vector<uint8_t> ChunksHealthCommand::goals;
 std::map<uint8_t, std::string> ChunksHealthCommand::goalNames;

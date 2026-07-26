@@ -21,11 +21,11 @@
 
 #include <iostream>
 
-#include "common/disk_info.h"
-#include "common/human_readable_format.h"
+#include "common/types/disk_info.h"
+#include "common/serialization/human_readable_format.h"
 #include "common/lizardfs_version.h"
-#include "common/moosefs_vector.h"
-#include "common/server_connection.h"
+#include "common/linear/moosefs_vector.h"
+#include "common/network/server_connection.h"
 #include "admin/list_chunkservers_command.h"
 
 static std::string boolToYesNoString(bool value) {

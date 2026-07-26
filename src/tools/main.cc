@@ -24,7 +24,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#include "common/mfserr.h"
+#include "common/errors/mfserr.h"
 #include "tools/tools_commands.h"
 #include "tools/tools_common_functions.h"
 

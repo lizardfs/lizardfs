@@ -24,7 +24,7 @@
 #include <fcntl.h>
 #include <sys/file.h>
 
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 #include "protocol/lock_info.h"
 
 namespace lzfs_locks {

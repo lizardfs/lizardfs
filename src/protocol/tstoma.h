@@ -21,8 +21,8 @@
 #include "common/platform.h"
 
 #include "protocol/packet.h"
-#include "common/serialization_macros.h"
-#include "common/tape_key.h"
+#include "common/serialization/serialization_macros.h"
+#include "common/types/tape_key.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		tstoma, registerTapeserver, LIZ_TSTOMA_REGISTER_TAPESERVER, 0,

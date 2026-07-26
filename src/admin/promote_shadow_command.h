@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 #include "admin/lizardfs_admin_command.h"
 
 class PromoteShadowCommand : public LizardFsProbeCommand {

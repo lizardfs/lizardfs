@@ -24,12 +24,12 @@
 #include <fstream>
 #include <vector>
 
-#include "common/cwrap.h"
-#include "common/event_loop.h"
+#include "common/types/cwrap.h"
+#include "common/algorithm/control/event_loop.h"
 #include "common/setup.h"
 #include "common/lizardfs_version.h"
-#include "common/metadata.h"
-#include "common/rotate_files.h"
+#include "common/types/metadata.h"
+#include "common/algorithm/rotate_files.h"
 #include "common/setup.h"
 
 #include "master/changelog.h"

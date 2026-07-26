@@ -24,7 +24,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "common/hashfn.h"
+#include "common/functional/hashfn.h"
 #include "protocol/quota.h"
 
 class QuotaDatabase {

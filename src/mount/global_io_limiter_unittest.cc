@@ -25,9 +25,9 @@
 #include <gtest/gtest.h>
 
 #include "protocol/cltoma.h"
-#include "common/io_limit_group.h"
-#include "common/io_limiting.h"
-#include "common/io_limits_database.h"
+#include "common/io/limits/io_limit_group.h"
+#include "common/io/limits/io_limiting.h"
+#include "common/io/limits/io_limits_database.h"
 #include "protocol/matocl.h"
 #include "unittests/packet.h"
 

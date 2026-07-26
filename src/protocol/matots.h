@@ -21,7 +21,7 @@
 #include "common/platform.h"
 
 #include "protocol/packet.h"
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 
 // LIZ_MATOTS_REGISTER_TAPESERVER
 LIZARDFS_DEFINE_PACKET_VERSION(matots, registerTapeserver, kStatusPacketVersion, 0)

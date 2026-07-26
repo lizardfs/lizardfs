@@ -4,7 +4,7 @@
 
 #include <unistd.h>
 
-#include "common/time_utils.h"
+#include "common/chrono/time_utils.h"
 #include "uraftstatus.h"
 
 /*! \brief Managament of LizardFS metadata server based on uRaft algorithm.

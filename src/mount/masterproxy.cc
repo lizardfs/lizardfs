@@ -25,10 +25,10 @@
 #include <unistd.h>
 #include <vector>
 
-#include "common/datapack.h"
+#include "common/serialization/datapack.h"
 #include "protocol/MFSCommunication.h"
 #include "protocol/packet.h"
-#include "common/sockets.h"
+#include "common/network/sockets.h"
 #include "mount/mastercomm.h"
 
 static int lsock = -1;

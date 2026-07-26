@@ -22,7 +22,7 @@
 #include "common/platform.h"
 
 #include "common/lizardfs_version.h"
-#include "common/massert.h"
+#include "common/errors/massert.h"
 #include "master/checksum.h"
 #include "master/filesystem_metadata.h"
 #include "master/filesystem_node_types.h"

@@ -3,7 +3,7 @@ configure_file(lizardfs-uraft-helper.in lizardfs-uraft-helper @ONLY)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
 collect_sources(URAFT)
-set(URAFT_SOURCES ${URAFT_SOURCES} ${CMAKE_SOURCE_DIR}/src/common/time_utils.cc)
+set(URAFT_SOURCES ${URAFT_SOURCES} ${CMAKE_SOURCE_DIR}/src/common/chrono/time_utils.cc)
 
 add_executable(lizardfs-uraft ${URAFT_MAIN} ${URAFT_SOURCES})
 

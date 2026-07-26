@@ -23,8 +23,8 @@
 #include <string>
 
 #include "chunkserver/chunk_format.h"
-#include "common/chunk_part_type.h"
-#include "common/parser.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/network/parser.h"
 
 class ChunkFilenameParser : public Parser {
 public:

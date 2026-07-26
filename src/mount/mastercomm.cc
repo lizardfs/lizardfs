@@ -40,15 +40,15 @@
   #include <pwd.h>
 #endif
 
-#include "common/datapack.h"
-#include "common/exception.h"
-#include "common/exit_status.h"
-#include "common/goal.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/exception.h"
+#include "common/errors/exit_status.h"
+#include "common/io/goal.h"
 #include "common/lizardfs_version.h"
-#include "common/md5.h"
-#include "common/mfserr.h"
-#include "common/sockets.h"
-#include "common/slogger.h"
+#include "common/algorithm/checksum/md5.h"
+#include "common/errors/mfserr.h"
+#include "common/network/sockets.h"
+#include "common/errors/slogger.h"
 #include "mount/exports.h"
 #include "mount/stats.h"
 #include "protocol/cltoma.h"

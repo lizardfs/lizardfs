@@ -23,7 +23,7 @@
 #include <map>
 #include <string>
 
-#include "common/serialization_macros.h"
+#include "common/serialization/serialization_macros.h"
 
 LIZARDFS_DEFINE_PACKET_SERIALIZATION(
 		mltoma, registerShadow, LIZ_MLTOMA_REGISTER_SHADOW, 0,

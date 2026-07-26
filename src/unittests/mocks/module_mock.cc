@@ -22,7 +22,7 @@
 #include <thread>
 #include <gtest/gtest.h>
 
-#include "common/sockets.h"
+#include "common/network/sockets.h"
 
 ModuleMock::ModuleMock()
 		: sock_(-1),

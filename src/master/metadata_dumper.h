@@ -27,8 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "common/slogger.h"
-#include "common/time_utils.h"
+#include "common/errors/slogger.h"
+#include "common/chrono/time_utils.h"
 
 class MetadataDumper {
 public:

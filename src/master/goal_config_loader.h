@@ -24,7 +24,7 @@
 #include <list>
 #include <map>
 
-#include "common/goal.h"
+#include "common/io/goal.h"
 
 /// Parser for files with configuration of goals
 namespace goal_config {

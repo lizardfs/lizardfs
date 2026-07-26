@@ -20,7 +20,7 @@
 
 #include <stdio.h>
 
-#include "common/random.h"
+#include "common/algorithm/random.h"
 #include "master/changelog.h"
 #include "master/chartsdata.h"
 #include "master/datacachemgr.h"

@@ -16,7 +16,6 @@
    along with LizardFS  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common/platform.h"
 #include "common/cfg.h"
 
 #include <stdio.h>
@@ -24,8 +23,7 @@
 #include <string.h>
 #include <string>
 
-#include "common/massert.h"
-#include "common/slogger.h"
+#include "common/errors/massert.h"
 
 typedef struct paramsstr {
 	char *name;

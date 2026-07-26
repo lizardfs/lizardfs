@@ -32,16 +32,16 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
-#include "common/cwrap.h"
-#include "common/datapack.h"
-#include "common/exceptions.h"
-#include "common/event_loop.h"
-#include "common/goal.h"
+#include "common/types/cwrap.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/exceptions.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/io/goal.h"
 #include "common/main.h"
-#include "common/massert.h"
-#include "common/md5.h"
+#include "common/errors/massert.h"
+#include "common/algorithm/checksum/md5.h"
 #include "protocol/MFSCommunication.h"
-#include "common/slogger.h"
+#include "common/errors/slogger.h"
 
 typedef struct _exports {
 	uint32_t pleng;

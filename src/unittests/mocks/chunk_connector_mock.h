@@ -23,7 +23,7 @@
 #include <map>
 #include <memory>
 
-#include "common/chunk_connector.h"
+#include "common/io/chunk/chunk_connector.h"
 #include "unittests/mocks/module_mock.h"
 
 class ChunkConnectorMock : public ChunkConnector {

@@ -21,7 +21,7 @@
 #include "common/platform.h"
 
 #include "admin/lizardfs_admin_command.h"
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 
 class ListDefectiveFilesCommand : public LizardFsProbeCommand {
 public:

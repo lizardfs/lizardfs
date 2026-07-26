@@ -17,7 +17,7 @@
  */
 
 #include "common/platform.h"
-#include "common/slice_traits.h"
+#include "common/types/slice_traits.h"
 #include "unittests/chunk_type_constants.h"
 
 const ChunkPartType standard{slice_traits::standard::ChunkPartType()};

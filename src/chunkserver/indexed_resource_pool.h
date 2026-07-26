@@ -20,7 +20,7 @@
 
 #include "chunkserver/chunk.h"
 #include "common/platform.h"
-#include "common/small_vector.h"
+
 
 /*! Class for keeping resources that can be easily indexed with integers.
  *  Use case: Keeping open descriptors of chunks in order to close them
@@ -40,7 +40,7 @@ class IndexedResourcePool {
 public:
 	static const int kNullId = 0;
 	static const int kInitialPurgeListCapacity = 256;
-	typedef small_vector<Resource, kInitialPurgeListCapacity> PurgeList;
+	typedef std::vector<Resource> PurgeList;
 
 	/*! Helper structure for keeping resources in double-linked list implemented
 	 *  on top of a contiguous container.
@@ -135,7 +135,7 @@ public:
 	template<typename ExtraLock>
 	int freeUnused(uint32_t now, ExtraLock &extra_lock, int count = PopUnusedCount) {
 		int freed = 0;
-		small_vector<Resource, PopUnusedCount> candidates;
+		std::vector<Resource> candidates;
 		candidates.reserve(count);
 		flushPurgeList();
 		mutex_.lock();

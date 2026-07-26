@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/chunk_part_type.h"
+#include "common/io/chunk/chunk_part_type.h"
 
 extern const ChunkPartType standard;
 extern const ChunkPartType xor_1_of_2;

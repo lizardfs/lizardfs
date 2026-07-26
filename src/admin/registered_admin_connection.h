@@ -22,7 +22,7 @@
 
 #include <memory>
 
-#include "common/server_connection.h"
+#include "common/network/server_connection.h"
 
 /// An authenticated (using an admin password) version of cl<->ma connection.
 class RegisteredAdminConnection : public KeptAliveServerConnection {

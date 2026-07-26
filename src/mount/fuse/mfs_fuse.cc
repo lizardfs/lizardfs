@@ -25,12 +25,12 @@
 #include <type_traits>
 #include <vector>
 
-#include "common/lizardfs_error_codes.h"
-#include "common/lru_cache.h"
-#include "common/massert.h"
-#include "common/small_vector.h"
-#include "common/special_inode_defs.h"
-#include "common/time_utils.h"
+#include "common/errors/lizardfs_error_codes.h"
+#include "common/thread/lru_cache.h"
+#include "common/errors/massert.h"
+
+#include "common/types/special_inode_defs.h"
+#include "common/chrono/time_utils.h"
 #include "mount/fuse/lock_conversion.h"
 #include "mount/lizard_client.h"
 #include "mount/lizard_client_context.h"
@@ -528,7 +528,7 @@ void mfs_read(fuse_req_t req, fuse_ino_t ino, size_t size, off_t off, struct fus
 			ReadCache::Result ret = LizardClient::read(
 					ctx, ino, size, off, fuse_file_info_wrapper(fi));
 
-			small_vector<struct iovec, 8> reply;
+			std::vector<struct iovec> reply();
 			ret.toIoVec(reply, off, size);
 			fuse_reply_iov(req, reply.data(), reply.size());
 		}

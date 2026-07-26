@@ -22,7 +22,7 @@
 
 #include <memory>
 
-#include "common/special_inode_defs.h"
+#include "common/types/special_inode_defs.h"
 #include "master/filesystem_node.h"
 #include "master/filesystem_operations.h"
 #include "master/hstring.h"

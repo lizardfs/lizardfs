@@ -25,8 +25,8 @@
 #include <string.h>
 
 #include "protocol/MFSCommunication.h"
-#include "common/lizardfs_error_codes.h"
-#include "common/slogger.h"
+#include "common/errors/lizardfs_error_codes.h"
+#include "common/errors/slogger.h"
 #include "master/filesystem.h"
 #include "master/filesystem_snapshot.h"
 #include "master/filesystem_operations.h"

@@ -27,11 +27,11 @@
 #include <string>
 
 #include "chunkserver/g_limiters.h"
-#include "common/crc.h"
-#include "common/exception.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/errors/exception.h"
 #include "common/lizardfs_version.h"
-#include "common/read_plan_executor.h"
-#include "common/sockets.h"
+#include "common/io/read_plan_executor.h"
+#include "common/network/sockets.h"
 #include "protocol/cstocs.h"
 
 static ConnectionPool gPool;

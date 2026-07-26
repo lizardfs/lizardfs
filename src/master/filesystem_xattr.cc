@@ -19,7 +19,7 @@
 
 #include "common/platform.h"
 
-#include "common/hashfn.h"
+#include "common/functional/hashfn.h"
 #include "master/filesystem_checksum.h"
 #include "master/filesystem_xattr.h"
 

@@ -29,8 +29,8 @@
 #include <thread>
 
 #include "chunkserver/chunk_format.h"
-#include "common/chunk_part_type.h"
-#include "common/disk_info.h"
+#include "common/io/chunk/chunk_part_type.h"
+#include "common/types/disk_info.h"
 #include "protocol/MFSCommunication.h"
 
 #define STATSHISTORY (24*60)

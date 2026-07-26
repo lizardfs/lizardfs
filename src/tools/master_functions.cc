@@ -28,11 +28,11 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 
-#include "common/datapack.h"
-#include "common/mfserr.h"
-#include "common/serialization.h"
-#include "common/special_inode_defs.h"
-#include "common/sockets.h"
+#include "common/serialization/datapack.h"
+#include "common/errors/mfserr.h"
+#include "common/serialization/serialization.h"
+#include "common/types/special_inode_defs.h"
+#include "common/network/sockets.h"
 #include "tools/tools_common_functions.h"
 
 struct master_info_t {

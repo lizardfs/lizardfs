@@ -22,9 +22,9 @@
 #include <system_error>
 
 #include "lizardfs_c_api.h"
-#include "common/lizardfs_error_codes.h"
-#include "common/md5.h"
-#include "common/small_vector.h"
+#include "common/errors/lizardfs_error_codes.h"
+#include "common/algorithm/checksum/md5.h"
+
 #include "mount/client/iovec_traits.h"
 
 #include "client.h"
@@ -376,7 +376,7 @@ ssize_t liz_readv(liz_t *instance, liz_context_t *ctx, liz_fileinfo *fileinfo, o
 		gLastErrorCode = ec.value();
 		return -1;
 	}
-	small_vector<struct iovec, 8> reply;
+	std::vector<struct iovec> reply();
 	ret.toIoVec(reply, offset, size);
 	return copyIoVec(iov, iovcnt, reply.data(), reply.size());
 }

@@ -28,8 +28,8 @@
 #include <utility>
 #include <vector>
 
-#include "common/chunk_with_address_and_label.h"
-#include "common/exception.h"
+#include "common/io/chunk/chunk_with_address_and_label.h"
+#include "common/errors/exception.h"
 #include "mount/group_cache.h"
 #include "mount/lizard_client_context.h"
 #include "mount/readdata_cache.h"

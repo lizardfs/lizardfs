@@ -25,11 +25,11 @@
 #include <unistd.h>
 
 #include "common/cfg.h"
-#include "common/event_loop.h"
+#include "common/algorithm/control/event_loop.h"
 #include "common/main.h"
-#include "common/metadata.h"
-#include "common/rotate_files.h"
-#include "common/slogger.h"
+#include "common/types/metadata.h"
+#include "common/algorithm/rotate_files.h"
+#include "common/errors/slogger.h"
 
 /// Base name of a changelog file.
 /// Sometthing like "changelog.mfs" or "changelog_ml.mfs"

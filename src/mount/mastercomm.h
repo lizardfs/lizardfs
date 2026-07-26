@@ -23,10 +23,10 @@
 #include <inttypes.h>
 #include <vector>
 
-#include "common/access_control_list.h"
-#include "common/acl_type.h"
-#include "common/attributes.h"
-#include "common/chunk_type_with_address.h"
+#include "common/acl/access_control_list.h"
+#include "common/acl/acl_type.h"
+#include "common/types/attributes.h"
+#include "common/io/chunk/chunk_type_with_address.h"
 #include "mount/group_cache.h"
 #include "mount/lizard_client.h"
 #include "protocol/packet.h"

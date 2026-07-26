@@ -20,8 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/ring_buffer.h"
-#include "common/time_utils.h"
+#include "common/linear/ring_buffer.h"
+#include "common/chrono/time_utils.h"
 #include <array>
 #include <cassert>
 

@@ -20,10 +20,10 @@
 #include "master/filesystem.h"
 
 #include "common/cfg.h"
-#include "common/event_loop.h"
-#include "common/lockfile.h"
+#include "common/algorithm/control/event_loop.h"
+#include "common/algorithm/control/lockfile.h"
 #include "common/main.h"
-#include "common/metadata.h"
+#include "common/types/metadata.h"
 #include "master/changelog.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"

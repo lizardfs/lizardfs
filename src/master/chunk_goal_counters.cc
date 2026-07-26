@@ -19,7 +19,7 @@
 #include "common/platform.h"
 #include "master/chunk_goal_counters.h"
 
-#include "common/goal.h"
+#include "common/io/goal.h"
 
 void ChunkGoalCounters::addFile(uint8_t goal) {
 	if (!GoalId::isValid(goal)) {
@@ -44,7 +44,7 @@ void ChunkGoalCounters::addFile(uint8_t goal) {
 	if (it == counters_.end()
 			|| it->goal != goal
 			|| it->count == std::numeric_limits<uint8_t>::max()) {
-		if (counters_.full()) {
+		if (counters_.size() >= 255) {
 			throw ChunkGoalCounters::InvalidOperation("There is no more space for goals");
 		}
 		counters_.insert(it, GoalCounter{goal, 1});

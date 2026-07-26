@@ -25,9 +25,9 @@
 #include <cstdlib>
 #include <type_traits>
 
-#include "common/attributes.h"
-#include "common/massert.h"
-#include "common/slice_traits.h"
+#include "common/types/attributes.h"
+#include "common/errors/massert.h"
+#include "common/types/slice_traits.h"
 #include "master/chunks.h"
 #include "master/datacachemgr.h"
 #include "master/filesystem_checksum.h"

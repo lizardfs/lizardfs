@@ -22,7 +22,7 @@
 
 #include <memory>
 
-#include "common/exception.h"
+#include "common/errors/exception.h"
 #include "mount/mastercomm.h"
 
 LIZARDFS_CREATE_EXCEPTION_CLASS_MSG(AclAcquisitionException, Exception, "ACL acquiring");

@@ -20,7 +20,7 @@
 
 #include "common/platform.h"
 
-#include "common/io_limiting.h"
+#include "common/io/limits/io_limiting.h"
 
 /**
  * Implements full mechanism of limiting replication I/O bandwidth

@@ -21,7 +21,7 @@
 
 #include <stdio.h>
 
-#include "common/chunk_copies_calculator.h"
+#include "common/io/chunk/chunk_copies_calculator.h"
 #include "protocol/cltoma.h"
 #include "protocol/matocl.h"
 #include "tools/tools_commands.h"

@@ -20,8 +20,8 @@
 
 #include "common/platform.h"
 
-#include "common/generic_lru_cache.h"
-#include "common/small_vector.h"
+#include "common/set/generic_lru_cache.h"
+
 #include "protocol/cltoma.h"
 
 #include <atomic>

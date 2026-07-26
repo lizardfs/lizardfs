@@ -28,8 +28,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "common/charts.h"
-#include "common/event_loop.h"
+#include "common/types/charts.h"
+#include "common/algorithm/control/event_loop.h"
 #include "master/chunks.h"
 #include "master/filesystem.h"
 #include "master/filesystem_operations.h"

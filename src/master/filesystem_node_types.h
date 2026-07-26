@@ -26,17 +26,16 @@
 #include <unordered_map>
 #include <memory>
 
-#include "common/access_control_list.h"
-#include "common/acl_type.h"
-#include "common/attributes.h"
-#include "common/goal.h"
-#include "common/compact_vector.h"
+#include "common/acl/access_control_list.h"
+#include "common/acl/acl_type.h"
+#include "common/types/attributes.h"
+#include "common/io/goal.h"
 
 #ifdef LIZARDFS_HAVE_64BIT_JUDY
-#  include "common/judy_map.h"
+#  include "common/set/judy_map.h"
 #else
 #  include <map>
-#  include "common/flat_map.h"
+#  include "common/set/flat_map.h"
 #endif
 
 #include "master/fs_context.h"
@@ -112,7 +111,7 @@ struct FSNode {
 	uint32_t gid; /*!< Group id. */
 	uint32_t trashtime; /*!< Trash time. */
 
-	compact_vector<uint32_t, uint32_t> parent; /*!< Parent nodes ids. To reduce memory usage ids
+	std::vector<uint32_t> parent; /*!< Parent nodes ids. To reduce memory usage ids
 	                                                are stored instead of pointers to FSNode. */
 
 	FSNode   *next; /*!< Next field used for storing FSNode in hash map. */
@@ -145,8 +144,8 @@ struct FSNode {
  */
 struct FSNodeFile : public FSNode {
 	uint64_t length;
-	compact_vector<uint32_t> sessionid;
-	compact_vector<uint64_t, uint32_t> chunks;
+	std::vector<uint32_t> sessionid;
+	std::vector<uint64_t> chunks;
 
 	FSNodeFile(uint8_t t) : FSNode(t), length(), sessionid(), chunks() {
 		assert(t == kFile || t == kTrash || t == kReserved);

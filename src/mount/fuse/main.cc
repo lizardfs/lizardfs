@@ -26,10 +26,10 @@
 #include <fuse_lowlevel.h>
 #include <sys/types.h>
 
-#include "common/crc.h"
-#include "common/md5.h"
-#include "common/mfserr.h"
-#include "common/sockets.h"
+#include "common/algorithm/checksum/crc.h"
+#include "common/algorithm/checksum/md5.h"
+#include "common/errors/mfserr.h"
+#include "common/network/sockets.h"
 #include "mount/fuse/daemonize.h"
 #include "mount/fuse/mfs_fuse.h"
 #include "mount/fuse/mfs_meta_fuse.h"

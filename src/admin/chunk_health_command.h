@@ -22,8 +22,8 @@
 
 #include <map>
 
-#include "common/chunks_availability_state.h"
-#include "common/server_connection.h"
+#include "common/io/chunk/chunks_availability_state.h"
+#include "common/network/server_connection.h"
 #include "admin/lizardfs_admin_command.h"
 
 class ChunksHealthCommand : public LizardFsProbeCommand {

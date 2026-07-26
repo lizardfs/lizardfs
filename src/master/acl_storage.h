@@ -22,7 +22,7 @@
 
 #include <unordered_map>
 
-#include "common/richacl.h"
+#include "common/acl/richacl.h"
 
 /*!
  * \brief A class aggregating ACL storage and inode->acl maps, deduplication included.
